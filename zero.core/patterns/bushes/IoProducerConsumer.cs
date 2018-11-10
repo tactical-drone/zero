@@ -108,7 +108,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected LimitedThreadScheduler JobThreadScheduler;
 
-        private TConsumer _prevFragment = null;
+        private TConsumer _nextJobRemainingFragment = null;
 
         /// <summary>
         /// Maximum amount of producers that can be buffered before we stop pruction of new jobs
@@ -184,10 +184,10 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Consumer callback
         /// </summary>
-        /// <param name="currFragment">The current job fragment to be procesed</param>
-        /// <param name="prevFragment">Include a previous job fragment if job spans two productions</param>        
+        /// <param name="currJob">The current job fragment to be procesed</param>
+        /// <param name="currJobPreviousFragment">Include a previous job fragment if job spans two productions</param>        
         /// <returns>The state of the consumer</returns>
-        protected abstract IoProducable<TSource>.State Consume(TConsumer currFragment, TConsumer prevFragment = null);
+        protected abstract IoProducable<TSource>.State Consume(TConsumer currJob, TConsumer currJobPreviousFragment = null);
 
         /// <summary>
         /// Starts this producer consumer
@@ -214,52 +214,81 @@ namespace zero.core.patterns.bushes
                         {
                             try
                             {
-                                while (_queue.TryTake(out var nextJob, 0, Spinners.Token))
+                                while (_queue.TryTake(out var currJob, 0, Spinners.Token))
                                 {
                                     try
                                     {
-                                        nextJob.ProcessState = IoProducable<TSource>.State.Consuming;
+                                        currJob.ProcessState = IoProducable<TSource>.State.Consuming;
                                         try
                                         {
                                             //TODO async this function instead of the Task.Run
                                             //call the work callback                                    
-                                            if (Consume(nextJob, _prevFragment) >= IoProducable<TSource>.State.Error)
+                                            if (Consume(currJob, _nextJobRemainingFragment) >= IoProducable<TSource>.State.Error)
                                             {
-                                                _logger.Warn($"Consuming job `{nextJob.Description}' did not complete");
+                                                _logger.Warn($"Consuming job `{currJob.Description}' did not complete");
                                             }
 
                                             //Notify observer
-                                            _observer?.OnNext(nextJob);
+                                            _observer?.OnNext(currJob);
                                         }
                                         catch (Exception e)
                                         {
                                             _logger.Error(e.InnerException ?? e,
-                                                $"Consuming job `{nextJob.Description}' returned with errors:");
+                                                $"Consuming job `{currJob.Description}' returned with errors:");
                                         }
 
                                         //if ((job.Id % parm_stats_mod_count) == 0)
                                         {
-                                            _logger.Info(
-                                                $"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
+                                            _logger.Trace($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
                                             //job.PrintStateHistory();                                            
                                         }
                                     }
                                     finally
                                     {
-                                        //prevent leaks
-                                        if (nextJob != null)
-                                        {
-                                            nextJob.ProcessState =
-                                                nextJob.ProcessState == IoProducable<TSource>.State.Consumed
-                                                    ? IoProducable<TSource>.State.Accept
-                                                    : IoProducable<TSource>.State.Reject;
+                                        if (currJob != null)
+                                        {                                            
+                                            //Consume success?
+                                            if (currJob.ProcessState == IoProducable<TSource>.State.Consumed)
+                                            {
+                                                currJob.ProcessState = IoProducable<TSource>.State.Accept;
 
-                                            if (nextJob.ProcessState != IoProducable<TSource>.State.ConsumerFragmented)
-                                                JobHeap.Return(nextJob);
-                                            else
-                                                _prevFragment = nextJob;
+                                                JobHeap.Return(currJob);
 
-                                            nextJob.Source.PrintCounters();
+                                                //Also accept the previous job fragment
+                                                if (_nextJobRemainingFragment != null)
+                                                {
+                                                    _nextJobRemainingFragment.ProcessState = IoProducable<TSource>.State.Accept;
+                                                    JobHeap.Return(_nextJobRemainingFragment);
+                                                    _nextJobRemainingFragment = null;
+                                                }                                                    
+                                            } //Consume signalled a job with remaining datum fragment
+                                            else if (currJob.ProcessState == IoProducable<TSource>.State.ConsumerFragmented)
+                                            {
+                                                // Finalize the previous job fragment
+                                                if (_nextJobRemainingFragment != null)
+                                                {
+                                                    _nextJobRemainingFragment.ProcessState = IoProducable<TSource>.State.Consumed;
+                                                    _nextJobRemainingFragment.ProcessState = IoProducable<TSource>.State.Accept;
+
+                                                    JobHeap.Return(_nextJobRemainingFragment);
+                                                }
+
+                                                // Prepare a job fragment for the next consume from the current 
+                                                _nextJobRemainingFragment = currJob;
+                                            }                                                    
+                                            else //Consume failed?
+                                            {
+                                                currJob.ProcessState = IoProducable<TSource>.State.Reject;
+                                                JobHeap.Return(currJob);
+                                                if (_nextJobRemainingFragment != null)
+                                                {
+                                                    _nextJobRemainingFragment.ProcessState = IoProducable<TSource>.State.Reject;
+                                                    JobHeap.Return(_nextJobRemainingFragment);
+                                                    _nextJobRemainingFragment = null;
+                                                }
+                                            }
+                                            
+                                            currJob.Source.PrintCounters();
                                         }
                                     }
                                 }

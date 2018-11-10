@@ -41,15 +41,15 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Process a job
         /// </summary>
-        /// <param name="currFragment">The current job fragment to be procesed</param>
-        /// <param name="prevFragment">Include a previous job fragment if job spans two productions</param>
-        protected override IoProducable<TSource>.State Consume(IoMessage<TSource> currFragment, IoMessage<TSource> prevFragment = null)
+        /// <param name="currJob">The current job fragment to be procesed</param>
+        /// <param name="currJobPreviousFragment">Include a previous job fragment if job spans two productions</param>
+        protected override IoProducable<TSource>.State Consume(IoMessage<TSource> currJob, IoMessage<TSource> currJobPreviousFragment = null)
         {
             //Consume this work
-            var retval = currFragment.Consume();
+            var retval = currJob.Consume();
 
             if (retval == IoProducable<TSource>.State.Consuming)
-                Interlocked.Add(ref TotalBytesReceived, currFragment.BytesRead);
+                Interlocked.Add(ref TotalBytesReceived, currJob.BytesRead);
 
             return retval;
         }
