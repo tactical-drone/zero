@@ -61,11 +61,13 @@ namespace zero.core.protocol
             if ((produceState = base.Consume(currJob)) >= IoProducable<IoNetClient>.State.Error)
                 return produceState;
 
-            //TODO Find a more elegant way
-            if (TotalBytesReceived == 10)
+            //TODO Find a more elegant way for this terrible hack
+            if (_tangleMessageCount == 0)
             {
                 _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString(currJob.Buffer).Substring(0,10)}'");
-                return currJob.ProcessState = IoProducable<IoNetClient>.State.Consumed;
+                currJob.BytesRead -= 10;
+                if( currJob.BytesRead == 0 )
+                    return currJob.ProcessState = IoProducable<IoNetClient>.State.Consumed;
             }
 
             //Calculate how many complete protocol messages we have received   
@@ -107,8 +109,8 @@ namespace zero.core.protocol
                 //}                
             }
 
-            currJob.BytesProcessed = currJob.BytesRead - remainder;
-
+            currJob.BytesProcessed += currJob.BytesRead - remainder;
+            
             currJob.ProcessState = remainder != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
 
             return currJob.ProcessState;

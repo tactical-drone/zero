@@ -58,6 +58,7 @@ namespace zero.core.models
         public override IOHeapItem Constructor()
         {
             BytesRead = 0;
+            BytesProcessed = 0;
             return !Reconfigure ? base.Constructor() : null;
         }
     }

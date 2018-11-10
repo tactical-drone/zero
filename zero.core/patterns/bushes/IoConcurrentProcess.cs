@@ -100,7 +100,7 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                //if (ave > parm_event_min_ave_display)
+                if ( i>0 )
                 {
                     heading.Append(
                         $"{((IoProducable<IoConcurrentProcess>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");

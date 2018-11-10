@@ -257,6 +257,7 @@ namespace zero.core.patterns.bushes
                                                 //Also accept the previous job fragment
                                                 if (_nextJobRemainingFragment != null)
                                                 {
+                                                    _nextJobRemainingFragment.ProcessState = IoProducable<TSource>.State.Consumed;
                                                     _nextJobRemainingFragment.ProcessState = IoProducable<TSource>.State.Accept;
                                                     JobHeap.Return(_nextJobRemainingFragment);
                                                     _nextJobRemainingFragment = null;
