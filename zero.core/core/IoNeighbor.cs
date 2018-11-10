@@ -13,26 +13,30 @@ namespace zero.core.core
     /// <summary>
     /// Represents a node's neighbor
     /// </summary>
-    public class Neighbor : IoMessageHandler<IoNetClient>
+    public class IoNeighbor : IoMessageHandler<IoNetClient>
     {
         /// <summary>
         /// Construct
         /// </summary>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
-        public Neighbor(IoNetClient ioNetClient) : base($"neighbor {ioNetClient.Address}", 
-        () => new IoP2Message(ioNetClient) {JobDescription = $"rx", WorkDescription = $"{ioNetClient.Address}" })
+        /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
+        public IoNeighbor(IoNetClient ioNetClient, Func<IoMessage<IoNetClient>> mallocMessage)
+            : base($"neighbor {ioNetClient.Address}", mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
 
             Spinners.Token.Register(() => IoNetClient?.Close());
         }
-        
+
         /// <summary>
         /// logger
         /// </summary>
         private readonly Logger _logger;
 
+        /// <summary>
+        /// Called when this neighbor is closed
+        /// </summary>
         public event EventHandler Closed;
 
         #region properties
@@ -53,7 +57,7 @@ namespace zero.core.core
         #endregion
 
         /// <summary>
-        /// 
+        /// Close this neighbor
         /// </summary>
         public void Close()
         {
@@ -64,6 +68,9 @@ namespace zero.core.core
             OnClosed();
         }
 
+        /// <summary>
+        /// Emits the closed event
+        /// </summary>
         protected virtual void OnClosed()
         {
             Closed?.Invoke(this, EventArgs.Empty);

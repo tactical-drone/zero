@@ -19,9 +19,9 @@ namespace zero.core.patterns.misc
         /// Constructir
         /// </summary>
         /// <param name="description">A Description of this message handler</param>
-        /// <param name="make">Job memory allocation hook</param>
+        /// <param name="mallocMessage">Job memory allocation hook</param>
         /// <param name="jobThreadScheduler">The thread scheduler used to process work on</param>
-        protected IoMessageHandler(string description, Func<IoMessage<TSource>> make) :base(description, make)
+        protected IoMessageHandler(string description, Func<IoMessage<TSource>> mallocMessage) :base(description, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

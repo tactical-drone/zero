@@ -1,31 +1,25 @@
-﻿using System;
-using System.Linq;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+﻿using System.Linq;
 using System.Text;
 using System.Threading;
-using zero.core.patterns.misc;
 using NLog;
-using Org.BouncyCastle.Bcpg;
-using zero.core.conf;
 using zero.core.core;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using Console = System.Console;
 
 namespace zero.core.protocol
 {
     /// <summary>
     /// The iota protocol
     /// </summary>
-    public class TanglePeer :Neighbor
+    public class TanglePeer :IoNeighbor
     {                                
         /// <summary>
         /// Constructs a IOTA tangle neighbor handler
         /// </summary>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
-        public TanglePeer(IoNetClient ioNetClient): base(ioNetClient)
+        public TanglePeer(IoNetClient ioNetClient): 
+            base(ioNetClient,()=>new IoP2Message(ioNetClient, DatumLength) { JobDescription = $"rx", WorkDescription = $"{ioNetClient.Address}" })
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -36,28 +30,24 @@ namespace zero.core.protocol
         private readonly Logger _logger;
 
         /// <summary>
-        /// The number of IOTA protocol messages have been received
+        /// The number of protocol messages that have been received
         /// </summary>
         private long _tangleMessageCount = 0;
 
         /// <summary>
-        /// The current size of tangle protocol messages
+        /// The length of tangle protocol messages
         /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public long parm_tangle_msg_size = 1650;
+        private static readonly int MessageLength = 1650;
 
         /// <summary>
-        /// The current size of tangle protocol messages
+        /// The size of tangle protocol messages crc
         /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public long parm_tangle_crc_size = 16;
+        private static readonly int MessageCrcLength = 16;
 
         /// <summary>
-        /// The IOTA protocol message size
+        /// The protocol message length
         /// </summary>
-        public static long TangleDatumSize = 1650 + 16;
+        private static readonly int DatumLength = MessageLength + MessageCrcLength;
 
         /// <summary>
         /// Does work on the messages received
@@ -80,52 +70,54 @@ namespace zero.core.protocol
 
             //Calculate how many complete protocol messages we have received   
             var totalBytesAvailable = (currFragment.BytesRead + (prevFragment?.BytesRead ?? 0) - (prevFragment?.BytesProcessed ?? 0));
-            var quotient = totalBytesAvailable / TangleDatumSize;            
-            var remainder = totalBytesAvailable % TangleDatumSize;
+            var quotient = totalBytesAvailable / DatumLength;            
+            var remainder = totalBytesAvailable % DatumLength;
             Interlocked.Add(ref _tangleMessageCount, quotient);
 
             if (remainder != 0)
             {
                 currFragment.ProcessState = IoProducable<IoNetClient>.State.ConsumerFragmented;
-                //_logger.Warn($"We got a fragmented message! kb = `{TotalBytesReceived / 1024}kb', Total = `{Interlocked.Read(ref _tangleMessageCount)}', batch =`{quotient}', Tail size = `{remainder}/{TangleDatumSize}' ({TangleDatumSize - remainder})");
+                //_logger.Warn($"We got a fragmented message! kb = `{TotalBytesReceived / 1024}kb', Total = `{Interlocked.Read(ref _tangleMessageCount)}', batch =`{quotient}', Tail size = `{remainder}/{_datumLength}' ({_datumLength - remainder})");
             }
             else
             {
                 currFragment.ProcessState = IoProducable<IoNetClient>.State.Consumed;
             }
 
+            //TODO linq might not be most optimum for this step
+            //Recombine datum fragments
             var buffer = (prevFragment == null ? currFragment .Buffer : prevFragment.Buffer.Skip(prevFragment.BytesProcessed).Concat(currFragment.Buffer)).ToArray();
 
+            //For each datum received
             for (var i = 0; i < quotient; i++)
             {
-                if ((i + 1) * (int) TangleDatumSize > buffer.Length)
+                if ((i + 1) * DatumLength > buffer.Length)
                 {
-                    _logger.Debug($"Done calculating {quotient} crcs");
+                    _logger.Debug($"Processed `{quotient}' datums");
                     break;
                 }
 
-                var crc = new byte[parm_tangle_crc_size];
-                for (var j = 0; j < 4; j++)
-                {
-                    try
-                    {
-                        if (buffer[(i+1) * (int) TangleDatumSize - parm_tangle_crc_size + j] != crc[j])
-                        {
-                            _logger.Warn($"CRC Failure at {j}");
-                            break;
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                        throw;
-                    }
-                }
-
-                
+                //TODO I cannot find a C# crc32 that works with the Java one
+                //var crc = new byte[parm_tangle_crc_size];
+                //for (var j = 0; j < 4; j++)
+                //{
+                //    try
+                //    {
+                //        if (buffer[(i+1) * (int) _datumLength - parm_tangle_crc_size + j] != crc[j])
+                //        {
+                //            _logger.Warn($"CRC Failure at {j}");
+                //            break;
+                //        }
+                //    }
+                //    catch (Exception e)
+                //    {
+                //        Console.WriteLine(e);
+                //        throw;
+                //    }
+                //}                
             }
 
-            currFragment.BytesProcessed = (int) (currFragment.BytesProcessed - remainder);
+            currFragment.BytesProcessed = currFragment.BytesProcessed - remainder;
 
             return currFragment.ProcessState;
         }

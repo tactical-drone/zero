@@ -2,7 +2,6 @@
 using System.Collections.Concurrent;
 using System.Data;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,20 +9,21 @@ using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
 using zero.core.patterns.schedulers;
-using zero.core.protocol;
 
 namespace zero.core.core
 {
     /// <summary>
-    /// An iota p2p node
+    /// A p2p node
     /// </summary>
-    public class Node : IoConfigurable
+    public class IoNode<TPeer> : IoConfigurable
+    where TPeer:IoNeighbor
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public Node()
+        public IoNode(Func<IoNetClient, TPeer> mallocNeighbor)
         {
+            _mallocNeighbor = mallocNeighbor;
             _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -34,6 +34,11 @@ namespace zero.core.core
         private readonly Logger _logger;
 
         /// <summary>
+        /// Used to allocate peers when connections are made
+        /// </summary>
+        private readonly Func<IoNetClient, TPeer> _mallocNeighbor;
+
+        /// <summary>
         /// The wrapper for <see cref="IoNetServer"/>
         /// </summary>
         private IoNetServer _netServer;
@@ -41,13 +46,16 @@ namespace zero.core.core
         /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        private readonly ConcurrentDictionary<string, Neighbor> _neighbors = new ConcurrentDictionary<string, Neighbor>();
+        private readonly ConcurrentDictionary<string, IoNeighbor> _neighbors = new ConcurrentDictionary<string, IoNeighbor>();
 
         /// <summary>
         /// Used to cancel downstream proccesses
         /// </summary>
         private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
 
+        /// <summary>
+        /// The sheduler used to process messages from all neighbors 
+        /// </summary>
         private readonly LimitedThreadScheduler _limitedNeighborThreadScheduler;
 
         /// <summary>
@@ -55,7 +63,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected string parm_tcp_listen_address = "tcp://192.168.1.2";
+        protected string parm_tcp_listen_address = "tcp://192.168.1.2"; //TODO move this into tanglepeer or zero.sync?
 
         /// <summary>
         /// The TCP listen port number
@@ -138,7 +146,7 @@ namespace zero.core.core
         {
             await _netServer.StartListenerAsync(remoteClient =>
             {
-                var newNeighbor = new TanglePeer(remoteClient);
+                var newNeighbor = _mallocNeighbor(remoteClient);
                 
                 // Register close hooks
                 var cancelRegistration = _spinners.Token.Register(() =>
@@ -150,7 +158,7 @@ namespace zero.core.core
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
-                    _neighbors.TryRemove(((Neighbor) s).IoNetClient.Address, out var _);
+                    _neighbors.TryRemove(((IoNeighbor) s).IoNetClient.Address, out var _);
                 };
 
                 // Add new neighbor
@@ -180,7 +188,7 @@ namespace zero.core.core
         /// <returns>The async task</returns>
         private async Task StayConnectedAsync(string remoteIp, int remotePort)
         {
-            Neighbor newNeighbor = null;
+            IoNeighbor newNeighbor = null;
 
             //Connect to test server         
             while (!_spinners.IsCancellationRequested)
@@ -191,17 +199,15 @@ namespace zero.core.core
 
                     if (newClient.Connected)
                     {
-                        var neighbor = newNeighbor = new Neighbor(newClient);
+                        var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (_neighbors.TryAdd(newNeighbor?.IoNetClient.Address, newNeighbor))
+                        if (_neighbors.TryAdd(newNeighbor.IoNetClient.Address, newNeighbor))
                         {
                             try
                             {
-
-                                var neighbor1 = newNeighbor;
 #pragma warning disable 4014
-                                Task.Factory.StartNew(() => neighbor1.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
+                                Task.Factory.StartNew(() => neighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
 #pragma warning restore 4014
                             }
                             catch (Exception e)

@@ -1,15 +1,7 @@
 ﻿using System;
-using System.Threading.Tasks;
-using zero.core.network;
-using zero.core.patterns;
-using zero.core.patterns.misc;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NLog;
-using NLog.Extensions.Logging;
 using zero.core.core;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
-using LogLevel = NLog.LogLevel;
+using zero.core.protocol;
 
 namespace zero.sync
 {
@@ -19,16 +11,16 @@ namespace zero.sync
         {
             LogManager.LoadConfiguration("nlog.config");
 
-            var node = new Node();
+            var tangleNode = new IoNode<TanglePeer>(ioNetClient=>new TanglePeer(ioNetClient));
 
             #pragma warning disable 4014
-            node.Start();
+            tangleNode.Start();
             #pragma warning restore 4014
             
             Console.WriteLine("Press any key to shutdown");
             
             Console.ReadLine();
-            node.Stop();
+            tangleNode.Stop();
             Console.WriteLine("Shutting down");
             Console.ReadLine();
         }

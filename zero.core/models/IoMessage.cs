@@ -6,7 +6,7 @@ using zero.core.patterns.heap;
 namespace zero.core.models
 {
     /// <summary>
-    /// Uses a network stream to fill the <see cref="Buffer"/> to <see cref="parm_max_msg_size"/>
+    /// Uses a network stream to fill the <see cref="Buffer"/> to <see cref="parm_max_recv_buf_size"/>
     /// </summary>
     public abstract class IoMessage<TSource> : IoConsumable<TSource>
     where TSource:IoConcurrentProcess
@@ -16,15 +16,15 @@ namespace zero.core.models
         /// </summary>
         protected IoMessage()
         {
-            Buffer = new byte[parm_max_msg_size];
+            Buffer = new byte[parm_max_recv_buf_size];
 
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             SettingChangedEvent += (sender, pair) =>
             {
-                if (pair.Key == nameof(parm_max_msg_size))
+                if (pair.Key == nameof(parm_max_recv_buf_size))
                 {
-                    parm_max_msg_size = (int) pair.Value;
-                    Buffer = new byte[parm_max_msg_size];
+                    parm_max_recv_buf_size = (int) pair.Value;
+                    Buffer = new byte[parm_max_recv_buf_size];
                 }                    
             };
         }
@@ -49,7 +49,7 @@ namespace zero.core.models
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_size = 1650*10; // floor(msg_size /(msg_size - TCP_MTU))
+        public int parm_max_recv_buf_size = 1650*10; // floor(msg_size /(msg_size - TCP_MTU))
 
         /// <summary>
         /// Prepares this item for use after being popped from the heap

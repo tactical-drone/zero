@@ -27,12 +27,12 @@ namespace zero.core.patterns.bushes
         /// Constructor
         /// </summary>
         /// <param name="description"></param>
-        /// <param name="make">A callback to malloc individual consumer jobs from the heap</param>
-        protected IoProducerConsumer(string description, Func<TConsumer> make)
+        /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
+        protected IoProducerConsumer(string description, Func<TConsumer> mallocMessage)
         {
             Description = description;
 
-            JobHeap = new IoHeapIo<TConsumer>(parm_max_q_size) { Make = make };
+            JobHeap = new IoHeapIo<TConsumer>(parm_max_q_size) { Make = mallocMessage };
 
             _logger = LogManager.GetCurrentClassLogger();
 

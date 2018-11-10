@@ -18,17 +18,19 @@ namespace zero.core.models
     /// </summary>
     public class IoP2Message : IoMessage<IoNetClient>
     {
-
         /// <summary>
         /// Constructor
         /// </summary>  
         /// <param name="source">The source of this message</param>
-        public IoP2Message(IoNetClient source)
+        /// <param name="datumLength"></param>
+        public IoP2Message(IoNetClient source, int datumLength)
         {            
             Source = source;
+            _datumLength = datumLength;
+
             WorkDescription = source.Address;
             _logger = LogManager.GetCurrentClassLogger();
-
+            
             //TODO make hot
             _producerTimeout = TimeSpan.FromMilliseconds(parm_lockstep_produce_timeout);
 
@@ -47,9 +49,7 @@ namespace zero.core.models
         /// </summary>
         private readonly Logger _logger;
 
-        //TODO remove testing
-        private readonly Random _random = new Random((int) DateTimeOffset.Now.ToUnixTimeMilliseconds());
-
+        private readonly int _datumLength;
 
         /// <summary>
         /// The time a consumer will wait for a producer to release it before aborting in ms
@@ -187,7 +187,7 @@ namespace zero.core.models
                                             //----------------------------------------------------------------------------------------
                                             Source.ProduceSemaphore.Release(1);
 
-                                            _logger.Trace($"({Id}) Filled {BytesRead}/{parm_max_msg_size} ({(int)(BytesRead / (double)parm_max_msg_size * 100)}%)");
+                                            _logger.Trace($"({Id}) Filled {BytesRead}/{parm_max_recv_buf_size} ({(int)(BytesRead / (double)parm_max_recv_buf_size * 100)}%)");
 
                                             break;
                                         default:
