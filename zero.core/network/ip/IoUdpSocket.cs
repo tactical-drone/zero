@@ -118,7 +118,7 @@ namespace zero.core.network.ip
 
                 //TODO make async
                 var bytesRead = RawSocket.ReceiveFrom(message.Buffer, ref _senderRemote);
-                message.BytesRead = bytesRead;
+                message.BytesRead += bytesRead;
 
                 return await Task.FromResult(bytesRead) ;
             }

@@ -83,7 +83,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Callback that processes the next job in the queue
         /// </summary>
-        public abstract State Consume();
+        public abstract State ConsumeBarrier();
 
         /// <summary>
         /// Callback the generates the next job

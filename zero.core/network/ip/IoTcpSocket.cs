@@ -154,11 +154,11 @@ namespace zero.core.network.ip
             try
             {
                 var bytesRead = Task.Factory.FromAsync(
-                        RawSocket.BeginReceive(message.Buffer, message.BytesRead, message.parm_max_recv_buf_size - message.BytesRead, SocketFlags.None, null, null),
+                        RawSocket.BeginReceive(message.Buffer, message.BytesRead, message.MaxRecvBufSize - message.BytesRead, SocketFlags.None, null, null),
                         RawSocket.EndReceive)
                     .HandleCancellation(Spinners.Token);
 
-                message.BytesRead = await bytesRead;
+                message.BytesRead+= await bytesRead;
 
                 return bytesRead.Result;
             }

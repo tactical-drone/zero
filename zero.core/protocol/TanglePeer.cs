@@ -30,11 +30,6 @@ namespace zero.core.protocol
         private readonly Logger _logger;
 
         /// <summary>
-        /// The number of protocol messages that have been received
-        /// </summary>
-        private long _tangleMessageCount = 0;
-
-        /// <summary>
         /// The length of tangle protocol messages
         /// </summary>
         private static readonly int MessageLength = 1650;
@@ -62,56 +57,21 @@ namespace zero.core.protocol
                 return produceState;
 
             //TODO Find a more elegant way for this terrible hack
-            if (_tangleMessageCount == 0)
+            //Disgard the neighbor port data
+            if (TotalMessagesCount == 0)
             {
                 _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString(currJob.Buffer).Substring(0,10)}'");
-                currJob.BytesProcessed += 10;
+                currJob.BufferOffset += 10;
                 if( currJob.BytesLeftToProcess == 0 )
                     return currJob.ProcessState = IoProducable<IoNetClient>.State.Consumed;
             }
 
-            //Calculate the number of datums available for processing
-            var totalBytesAvailable = (currJob.BytesLeftToProcess + (currJobPreviousFragment?.BytesLeftToProcess??0));
-            var datumCount = totalBytesAvailable / DatumLength;            
-            var datumFragmentLength = totalBytesAvailable % DatumLength;
-            Interlocked.Add(ref _tangleMessageCount, (long)datumCount);
+            //Process messages received
+            _logger.Debug($"Processed `{currJob.DatumCount}' datums, remainder = `{currJob.DatumFragmentLength}', totalBytesAvailable = `{currJob.BytesRead}', currJob.BytesRead = `{currJob.BytesRead}', prevJob.BytesLeftToProcess =`{currJobPreviousFragment?.BytesRead - currJobPreviousFragment?.BufferOffset}'");
             
-            //TODO linq might not be most optimum for this step
-            //Recombine datum fragments
-            //var buffer = (currJobPreviousFragment == null ? currJob .Buffer : currJobPreviousFragment.Buffer.Skip(currJobPreviousFragment.BytesProcessed).Concat(currJob.Buffer)).ToArray();
 
-            //For each datum received
-            for (var i = 0; i < datumCount; i++)
-            {
-                //if ((i + 1) * DatumLength > buffer.Length)
-                {
-                    _logger.Debug($"Processed `{datumCount}' datums, remainder = `{datumFragmentLength}', totalBytesAvailable = `{totalBytesAvailable}', currJob.BytesRead = `{currJob.BytesRead}', prevJob.BytesLeftToProcess =`{currJobPreviousFragment?.BytesRead - currJobPreviousFragment?.BytesProcessed}'");
-                    break;
-                }
-
-                //TODO I cannot find a C# crc32 that works with the Java one
-                //var crc = new byte[parm_tangle_crc_size];
-                //for (var j = 0; j < 4; j++)
-                //{
-                //    try
-                //    {
-                //        if (buffer[(i+1) * (int) _datumLength - parm_tangle_crc_size + j] != crc[j])
-                //        {
-                //            _logger.Warn($"CRC Failure at {j}");
-                //            break;
-                //        }
-                //    }
-                //    catch (Exception e)
-                //    {
-                //        Console.WriteLine(e);
-                //        throw;
-                //    }
-                //}                
-            }
-
-            currJob.BytesProcessed += currJob.BytesLeftToProcess - datumFragmentLength;
-            
-            currJob.ProcessState = datumFragmentLength != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
+            currJob.BufferOffset += currJob.BytesLeftToProcess - currJob.DatumFragmentLength;            
+            currJob.ProcessState = currJob.DatumFragmentLength != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
 
             return currJob.ProcessState;
         }

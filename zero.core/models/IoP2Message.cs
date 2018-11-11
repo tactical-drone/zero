@@ -23,10 +23,9 @@ namespace zero.core.models
         /// </summary>  
         /// <param name="source">The source of this message</param>
         /// <param name="datumLength"></param>
-        public IoP2Message(IoNetClient source, int datumLength)
+        public IoP2Message(IoNetClient source, int datumLength):base(datumLength)
         {            
             Source = source;
-            _datumLength = datumLength;
 
             WorkDescription = source.Address;
             _logger = LogManager.GetCurrentClassLogger();
@@ -71,10 +70,10 @@ namespace zero.core.models
         private TimeSpan _producerTimeout; 
         
         /// <summary>
-        /// Does the work needed for this transaction
+        /// Manages the barrier between the consumer and the producer
         /// </summary>
-        /// <returns>true on success, false otherwise</returns>
-        public override State Consume()
+        /// <returns>The <see cref="IoWorkStateTransition{TSource}.State"/> of the barrier's outcome</returns>
+        public override State ConsumeBarrier()
         {
             try
             {
@@ -187,7 +186,7 @@ namespace zero.core.models
                                             //----------------------------------------------------------------------------------------
                                             Source.ProduceSemaphore.Release(1);
 
-                                            _logger.Trace($"({Id}) Filled {BytesRead}/{parm_max_recv_buf_size} ({(int)(BytesRead / (double)parm_max_recv_buf_size * 100)}%)");
+                                            _logger.Trace($"({Id}) Filled {BytesRead}/{MaxRecvBufSize} ({(int)(BytesRead / (double)MaxRecvBufSize * 100)}%)");
 
                                             break;
                                         default:
