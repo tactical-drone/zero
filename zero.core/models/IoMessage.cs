@@ -17,8 +17,8 @@ namespace zero.core.models
         protected IoMessage(int datumLength)
         {            
             DatumLength = datumLength;
-            MaxRecvBufSize = DatumLength * (parm_max_datum_buffer_size + 1) - 1;
-            Buffer = new byte[MaxRecvBufSize];
+            MaxRecvBufSize = DatumLength * parm_max_datum_buffer_size;
+            Buffer = new byte[MaxRecvBufSize + DatumLength - 1];
 
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             SettingChangedEvent += (sender, pair) =>
