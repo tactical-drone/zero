@@ -45,6 +45,11 @@ namespace zero.core.models
         public volatile int BytesProcessed;
 
         /// <summary>
+        /// The number of bytes left to process in this buffer
+        /// </summary>
+        public int BytesLeftToProcess => BytesRead - BytesProcessed;
+
+        /// <summary>
         /// Maximum message size in bytes that will be read at once
         /// </summary>        
         [IoParameter]

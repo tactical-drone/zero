@@ -19,7 +19,7 @@ namespace zero.core.patterns.bushes
         protected IoConcurrentProcess()
         {            
             ProduceSemaphore = new Semaphore(0, 1);
-            ConsumeSemaphore = new SemaphoreSlim(1);
+            ConsumeSemaphore = new SemaphoreSlim(1); 
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();
         }

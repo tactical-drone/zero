@@ -65,27 +65,27 @@ namespace zero.core.protocol
             if (_tangleMessageCount == 0)
             {
                 _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString(currJob.Buffer).Substring(0,10)}'");
-                currJob.BytesRead -= 10;
-                if( currJob.BytesRead == 0 )
+                currJob.BytesProcessed += 10;
+                if( currJob.BytesLeftToProcess == 0 )
                     return currJob.ProcessState = IoProducable<IoNetClient>.State.Consumed;
             }
 
-            //Calculate how many complete protocol messages we have received   
-            var totalBytesAvailable = (currJob.BytesRead + (currJobPreviousFragment?.BytesRead ?? 0) - (currJobPreviousFragment?.BytesProcessed ?? 0));
-            var quotient = totalBytesAvailable / DatumLength;            
-            var remainder = totalBytesAvailable % DatumLength;
-            Interlocked.Add(ref _tangleMessageCount, quotient);
+            //Calculate the number of datums available for processing
+            var totalBytesAvailable = (currJob.BytesLeftToProcess + (currJobPreviousFragment?.BytesLeftToProcess??0));
+            var datumCount = totalBytesAvailable / DatumLength;            
+            var datumFragmentLength = totalBytesAvailable % DatumLength;
+            Interlocked.Add(ref _tangleMessageCount, (long)datumCount);
             
             //TODO linq might not be most optimum for this step
             //Recombine datum fragments
             //var buffer = (currJobPreviousFragment == null ? currJob .Buffer : currJobPreviousFragment.Buffer.Skip(currJobPreviousFragment.BytesProcessed).Concat(currJob.Buffer)).ToArray();
 
             //For each datum received
-            for (var i = 0; i < quotient; i++)
+            for (var i = 0; i < datumCount; i++)
             {
                 //if ((i + 1) * DatumLength > buffer.Length)
                 {
-                    _logger.Debug($"Processed `{quotient}' datums, remainder = `{remainder}', totalBytesAvailable = `{totalBytesAvailable}', currJob.BytesRead = `{currJob.BytesRead}', prevJob.BytesLeft =`{currJobPreviousFragment?.BytesRead - currJobPreviousFragment?.BytesProcessed}'");
+                    _logger.Debug($"Processed `{datumCount}' datums, remainder = `{datumFragmentLength}', totalBytesAvailable = `{totalBytesAvailable}', currJob.BytesRead = `{currJob.BytesRead}', prevJob.BytesLeftToProcess =`{currJobPreviousFragment?.BytesRead - currJobPreviousFragment?.BytesProcessed}'");
                     break;
                 }
 
@@ -109,9 +109,9 @@ namespace zero.core.protocol
                 //}                
             }
 
-            currJob.BytesProcessed += currJob.BytesRead - remainder;
+            currJob.BytesProcessed += currJob.BytesLeftToProcess - datumFragmentLength;
             
-            currJob.ProcessState = remainder != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
+            currJob.ProcessState = datumFragmentLength != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
 
             return currJob.ProcessState;
         }
