@@ -49,8 +49,8 @@ namespace zero.core.patterns.misc
         /// Process a job
         /// </summary>
         /// <param name="currJob">The current job fragment to be procesed</param>
-        /// <param name="currJobPreviousFragment">Include a previous job fragment if job spans two productions</param>
-        protected override IoProducable<TSource>.State Consume(IoMessage<TSource> currJob, IoMessage<TSource> currJobPreviousFragment = null)
+        /// <param name="previousJobFragment">Include a previous job fragment if job spans two productions</param>
+        protected override IoProducable<TSource>.State Consume(IoMessage<TSource> currJob, IoMessage<TSource> previousJobFragment = null)
         {
             //Wait for the producer to release this consumer
             var retval = currJob.ConsumeBarrier();
@@ -58,24 +58,27 @@ namespace zero.core.patterns.misc
             //Did the producer produce anything?
             if (retval == IoProducable<TSource>.State.Consuming)
                 Interlocked.Add(ref TotalBytesReceived, currJob.BytesRead);
-            
-            //Store previous job datum fragment size for calculations below
-            var previousFragmentByteLength = currJobPreviousFragment?.BytesLeftToProcess??0;
 
-            //Calculate the number of datums available for processing (including previous fragments)
-            var totalBytesAvailable = currJob.BytesLeftToProcess + previousFragmentByteLength;
-            currJob.DatumCount = totalBytesAvailable / currJob.DatumLength;
-            currJob.DatumFragmentLength = totalBytesAvailable % currJob.DatumLength;
-            
+            //Does this read include a fragment that pairs up with a previous read's fagment?
+
+            int previousFragmentByteLength = 0;
+
             //Copy a previous job buffer fragment into the current job buffer
-            if (currJobPreviousFragment != null)
+            if (previousJobFragment != null && previousJobFragment.FragmentNumber == currJob.FragmentNumber - 1)
             {
-                Array.Copy(currJobPreviousFragment.Buffer, currJobPreviousFragment.BufferOffset, currJob.Buffer, currJob.BufferOffset - previousFragmentByteLength, previousFragmentByteLength);
+                previousFragmentByteLength = previousJobFragment.BytesLeftToProcess;
+
+                Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, currJob.Buffer, currJob.BufferOffset - previousFragmentByteLength, previousFragmentByteLength);
 
                 //Update buffer pointers
                 currJob.BufferOffset -= previousFragmentByteLength;
                 currJob.BytesRead += previousFragmentByteLength;
             }            
+
+            //Calculate the number of datums available for processing (including previous fragments)
+            var totalBytesAvailable = currJob.BytesLeftToProcess + previousFragmentByteLength;
+            currJob.DatumCount = totalBytesAvailable / currJob.DatumLength;
+            currJob.DatumFragmentLength = totalBytesAvailable % currJob.DatumLength;                        
 
             Interlocked.Add(ref TotalMessagesCount, (long)currJob.DatumCount);
             return retval;

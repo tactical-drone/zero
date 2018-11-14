@@ -153,12 +153,25 @@ namespace zero.core.network.ip
         {
             try
             {
+                //--------------------------------------------------------------
+                // RawSocket.BeginReceive barrier
+                //--------------------------------------------------------------
+                var awaiter = RecvSemaphoreSlim.WaitAsync(Spinners.Token);
+                await awaiter;
+                if (awaiter.Status != TaskStatus.RanToCompletion)
+                    return 0;
+
                 var bytesRead = Task.Factory.FromAsync(
                         RawSocket.BeginReceive((byte[])(Array)message.Buffer, message.BufferOffset, message.BufferSize, SocketFlags.None, null, null),
                         RawSocket.EndReceive)
                     .HandleCancellation(Spinners.Token);
+                
+                //Mark this operation so that possible fragmented datums can be recombined correctly later on
+                message.FragmentNumber = RecvCount++;
 
-                message.BytesRead+= await bytesRead;
+                message.BytesRead += await bytesRead;
+
+                RecvSemaphoreSlim.Release(1);
 
                 return bytesRead.Result;
             }

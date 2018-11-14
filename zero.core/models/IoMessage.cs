@@ -71,6 +71,11 @@ namespace zero.core.models
         public int BufferSize;
 
         /// <summary>
+        /// An identifier used to pair up fragmented socket reads
+        /// </summary>
+        public uint FragmentNumber;
+
+        /// <summary>
         /// Prepares this item for use after being popped from the heap
         /// </summary>
         /// <returns>This instance</returns>

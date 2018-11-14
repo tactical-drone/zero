@@ -16,13 +16,14 @@ namespace zero.core.network.ip
     /// </summary>
     public abstract class IoSocket : IoConcurrentProcess
     {
+        /// <inheritdoc />
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="socketType">The socket type</param>
-        /// <param name="protocolType">The protocol type, <see cref="ProtocolType.Tcp"/> or <see cref="ProtocolType.Udp"/></param>
+        /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
         /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        public IoSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken)
+        protected IoSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
             RawSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
@@ -30,6 +31,7 @@ namespace zero.core.network.ip
             _cancellationTokenRegistration = cancellationToken.Register(() => Spinners.Cancel());
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// A copy constructor used by listeners
         /// </summary>
@@ -37,7 +39,7 @@ namespace zero.core.network.ip
         /// <param name="address">The address is is listening on</param>
         /// <param name="port">The port it is listening on</param>
         /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        public IoSocket(Socket rawSocket, string address, int port, CancellationToken cancellationToken)
+        protected IoSocket(Socket rawSocket, string address, int port, CancellationToken cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
             RawSocket = rawSocket;
@@ -62,14 +64,6 @@ namespace zero.core.network.ip
         /// </summary>
         public string Protocol => RawSocket?.SocketType == SocketType.Stream? "tcp://":"udp://";
         
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected int parm_socket_listen_backlog = 20;
-
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        private int parm_socket_buffer_size = 1650 * 10; //TODO find an optimal value        
-
         /// <summary>
         /// The remote address (used for logging)
         /// </summary>
@@ -121,14 +115,29 @@ namespace zero.core.network.ip
         public Socket NativeSocket => RawSocket;
 
         /// <summary>
-        /// Hack //TODO find a way to remove this
-        /// </summary>
-        private IoMessage<IoNetClient> _message = null;        
-
-        /// <summary>
         /// A handle to dispose upstream cancellation hooks
         /// </summary>
         private readonly CancellationTokenRegistration _cancellationTokenRegistration;
+
+        /// <summary>
+        /// Used to chain two consecutive receives together so that fragments can be combined correctly. 
+        /// </summary>
+        protected volatile uint RecvCount = 0;
+
+        /// <summary>
+        /// Required because Socket.BeginRecv is not reentrant
+        /// </summary>
+        protected SemaphoreSlim RecvSemaphoreSlim = new SemaphoreSlim(1);
+
+        /// <summary>
+        /// Required because Socket.BeginSend is not reentrant
+        /// </summary>
+        protected SemaphoreSlim SendSemaphoreSlim = new SemaphoreSlim(1);
+
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_socket_listen_backlog = 20;
+
 
         /// <summary>
         /// Parses the url string and returns either a TCP or UDP <see cref="IoSocket"/>

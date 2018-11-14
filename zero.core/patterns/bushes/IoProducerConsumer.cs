@@ -185,9 +185,9 @@ namespace zero.core.patterns.bushes
         /// Consumer callback
         /// </summary>
         /// <param name="currJob">The current job fragment to be procesed</param>
-        /// <param name="currJobPreviousFragment">Include a previous job fragment if job spans two productions</param>        
+        /// <param name="previousJobFragment">Include a previous job fragment if job spans two productions</param>        
         /// <returns>The state of the consumer</returns>
-        protected abstract IoProducable<TSource>.State Consume(TConsumer currJob, TConsumer currJobPreviousFragment = null);
+        protected abstract IoProducable<TSource>.State Consume(TConsumer currJob, TConsumer previousJobFragment = null);
 
         /// <summary>
         /// Starts this producer consumer

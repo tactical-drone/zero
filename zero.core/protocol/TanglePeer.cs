@@ -25,7 +25,7 @@ namespace zero.core.protocol
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 1);
+            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 4);
         }
 
         /// <summary>
@@ -42,9 +42,9 @@ namespace zero.core.protocol
         /// Does work on the messages received
         /// </summary>
         /// <param name="currJob">The current job fragment to be procesed</param>
-        /// <param name="currJobPreviousFragment">Include a previous job fragment if that job had a fragmented datum</param>
+        /// <param name="previousJobFragment">Include a previous job fragment if that job had a fragmented datum</param>
         /// <returns>The state of work done</returns>
-        protected override IoProducable<IoNetClient>.State Consume(IoMessage<IoNetClient> currJob, IoMessage<IoNetClient> currJobPreviousFragment = null)
+        protected override IoProducable<IoNetClient>.State Consume(IoMessage<IoNetClient> currJob, IoMessage<IoNetClient> previousJobFragment = null)
         {
             var tangleMessage = (IoTangleMessage)currJob;
             IoProducable<IoNetClient>.State produceState;
@@ -66,7 +66,7 @@ namespace zero.core.protocol
             ProcessProtocolMessage(tangleMessage);
 
             //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
-            //             $" prevJob.BytesLeftToProcess =`{currJobPreviousFragment?.BytesLeftToProcess}'");
+            //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");
             return currJob.ProcessState;
         }
 
@@ -82,8 +82,8 @@ namespace zero.core.protocol
                 var trytes = Converter.TritsToTrytes(message.TritBuffer);
 
                 var tx = Transaction.FromTrytes(new TransactionTrytes(trytes));
-                if (tx.Value != 0)
-                    _logger.Info($"{tx.Address} transacted {tx.Value / 1000000} Mi");
+                //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
+                    _logger.Info($"addr = {tx.Address}, value = {(tx.Value / 1000000).ToString().PadLeft(17,' ')} Mi, f = {message.DatumFragmentLength != 0}");
 
                 message.BufferOffset += IoTangleMessage.DatumLength;
             }

@@ -238,7 +238,7 @@ namespace zero.core.patterns.bushes
                 //generate a uinique id
                 if (value == State.Undefined)
                 {
-                    Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]);
+                    Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]); //TODO why do we need this again?
                 }
 
                 if (value == State.Accept || value == State.Reject)
