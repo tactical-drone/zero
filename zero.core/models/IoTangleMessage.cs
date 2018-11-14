@@ -1,31 +1,32 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushes;
-using zero.core.patterns.heap;
 using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
+using zero.core.ternary;
 
 namespace zero.core.models
 {
     /// <summary>
-    /// Specialises a generic <see cref="IoMessage{TSource}"/> into a spesfic one. This class contains details of how a message is to be 
+    /// Specialises a generic <see cref="IoMessage{TSource}"/> into a spesfic one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TSource}"/>
     /// </summary>
-    public class IoP2Message : IoMessage<IoNetClient>
+    public class IoTangleMessage : IoMessage<IoNetClient>
     {
+        /// <inheritdoc />
         /// <summary>
-        /// Constructor
+        /// Constructs buffers that hold tangle message information
         /// </summary>  
-        /// <param name="source">The source of this message</param>
-        /// <param name="datumLength"></param>
-        public IoP2Message(IoNetClient source, int datumLength):base(datumLength)
+        /// <param name="source">The network source where messages are to be obtained</param>
+        public IoTangleMessage(IoNetClient source):base(DatumLength)
         {            
             Source = source;
+
+            BufferSize = DatumLength * parm_datums_per_buffer;
+            Buffer = new sbyte[BufferSize + DatumLength - 1];
 
             WorkDescription = source.Address;
             _logger = LogManager.GetCurrentClassLogger();
@@ -48,7 +49,48 @@ namespace zero.core.models
         /// </summary>
         private readonly Logger _logger;
 
-        private readonly int _datumLength;
+        /// <summary>
+        /// Used to store one datum's worth of decoded trits
+        /// </summary>
+        public int[] TritBuffer = new int[TransactionSize * Codec.TritsPerByte - 1];
+
+        /// <inheritdoc />
+        /// <summary>
+        /// The number of bytes left to process in this buffer
+        /// </summary>
+        public override int BytesLeftToProcess => BytesRead - BufferOffset + DatumLength - 1;
+
+        /// <summary>
+        /// The length of tangle protocol messages
+        /// </summary>
+        public const int MessageLength = 1650;
+
+        /// <summary>
+        /// The size of tangle protocol messages crc
+        /// </summary>
+        public const int MessageCrcLength = 16;
+
+        /// <summary>
+        /// Transaction size
+        /// </summary>
+        public const int TransactionSize = 1604;
+
+        /// <summary>
+        /// Size of the transaction hash
+        /// </summary>
+        public const int TransactionHashSize = 46;
+
+        /// <summary>
+        /// The protocol message length
+        /// </summary>
+        public new const int DatumLength = MessageLength + MessageCrcLength;
+
+        /// <summary>
+        /// Maximul number of datums this buffer can hold
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_datums_per_buffer = 10;
 
         /// <summary>
         /// The time a consumer will wait for a producer to release it before aborting in ms
@@ -62,7 +104,7 @@ namespace zero.core.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_lockstep_produce_timeout = 0;
+        public long parm_lockstep_produce_timeout = 500;
 
         /// <summary>
         /// How long the producer is willing to wait for the previous consumer before reporting that it is slowing production down.
@@ -159,47 +201,47 @@ namespace zero.core.models
                             
                         //Async read the message from the message stream
                         await ioSocket.ReadAsync(this).ContinueWith(
-                                rx =>
-                                {
-                                    switch (rx.Status)
-                                    {
-                                        //Canceled
-                                        case TaskStatus.Canceled:                                            
-                                        case TaskStatus.Faulted:
-                                            ProcessState = rx.Status == TaskStatus.Canceled? State.ProduceCancelled: State.ProduceErr;
-                                        //Faulted                                        
-                                            Source.Spinners.Cancel();
+                        rx =>
+                        {
+                            switch (rx.Status)
+                            {
+                                //Canceled
+                                case TaskStatus.Canceled:                                            
+                                case TaskStatus.Faulted:
+                                    ProcessState = rx.Status == TaskStatus.Canceled? State.ProduceCancelled: State.ProduceErr;
+                                //Faulted                                        
+                                    Source.Spinners.Cancel();
 
-                                            ioSocket.Close();
-                                            
-                                            _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' was faulted:");
+                                    ioSocket.Close();
+                                    
+                                    _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' was faulted:");
 
-                                            //Release the other side so that it can detect the failure
-                                            if (!Source.ProduceSemaphore.SafeWaitHandle.IsClosed)
-                                                Source.ProduceSemaphore.Release(1);
-                                            break;
-                                        //Success
-                                        case TaskStatus.RanToCompletion:
-                                            ProcessState = State.Produced;
-                                            //----------------------------------------------------------------------------------------
-                                            // RELEASE THE CONSUMER, work is ready
-                                            //----------------------------------------------------------------------------------------
-                                            Source.ProduceSemaphore.Release(1);
+                                    //Release the other side so that it can detect the failure
+                                    if (!Source.ProduceSemaphore.SafeWaitHandle.IsClosed)
+                                        Source.ProduceSemaphore.Release(1);
+                                    break;
+                                //Success
+                                case TaskStatus.RanToCompletion:
+                                    ProcessState = State.Produced;
+                                    //----------------------------------------------------------------------------------------
+                                    // RELEASE THE CONSUMER, work is ready
+                                    //----------------------------------------------------------------------------------------
+                                    Source.ProduceSemaphore.Release(1);
 
-                                            _logger.Trace($"({Id}) Filled {BytesRead}/{MaxRecvBufSize} ({(int)(BytesRead / (double)MaxRecvBufSize * 100)}%)");
+                                    _logger.Trace($"({Id}) Filled {BytesRead}/{BufferSize} ({(int)(BytesRead / (double)BufferSize * 100)}%)");
 
-                                            break;
-                                        default:
-                                        //case TaskStatus.Created:
-                                        //case TaskStatus.Running:
-                                        //case TaskStatus.WaitingForActivation:
-                                        //case TaskStatus.WaitingForChildrenToComplete:
-                                        //case TaskStatus.WaitingToRun:
-                                            ProcessState = State.ProduceErr;
-                                            throw new InvalidAsynchronousStateException(
-                                                $"Job =`{Description}', State={rx.Status}");
-                                    }                                                                        
-                                }, Source.Spinners.Token);                        
+                                    break;
+                                default:
+                                //case TaskStatus.Created:
+                                //case TaskStatus.Running:
+                                //case TaskStatus.WaitingForActivation:
+                                //case TaskStatus.WaitingForChildrenToComplete:
+                                //case TaskStatus.WaitingToRun:
+                                    ProcessState = State.ProduceErr;
+                                    throw new InvalidAsynchronousStateException(
+                                        $"Job =`{Description}', State={rx.Status}");
+                            }                                                                        
+                        }, Source.Spinners.Token);                        
                         
                         if (Source.Spinners.IsCancellationRequested)
                         {

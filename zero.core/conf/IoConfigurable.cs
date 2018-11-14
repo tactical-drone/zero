@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Reflection;
 using zero.core.patterns.bushes;
 using NLog;
-using Observables.Specialized.Extensions;
 
 namespace zero.core.conf
 {
@@ -23,31 +21,31 @@ namespace zero.core.conf
             GetType().GetFields().ToList().Where(p => p.IsDefined(typeof(IoParameter))).ToList().ForEach(
                 p =>
                 {
-                        LocalConfigBus.GetOrAdd(p.Name, c => p.GetValue(this));
+                        //LocalConfigBus.GetOrAdd(p.Name, c => p.GetValue(this));
                 });
 
             //Subscribe to changes
-            _localConfigBusSubscription = LocalConfigBus.Subscribe(o =>
-            {
+            //_localConfigBusSubscription = LocalConfigBus.Subscribe(o =>
+            //{
                 //If an item was updated
-                if ( o.EventType == DictionaryUpdatedEventType.itemUpdated)
-                {
-                    GetType().GetFields().ToList().Where(p => p.Name == o.Key).ToList().ForEach(p =>
-                    {
-                        //Set it's instance value
-                        p.SetValue(this, o.Value);
+                //if ( o.EventType == DictionaryUpdatedEventType.itemUpdated)
+                //{
+                //    GetType().GetFields().ToList().Where(p => p.Name == o.Key).ToList().ForEach(p =>
+                //    {
+                //        //Set it's instance value
+                //        p.SetValue(this, o.Value);
 
-                        //Emit event
-                        SettingChangedEvent?.Invoke(this, new KeyValuePair<string, object>(o.Key, o.Value));
-                    });
-                }
-            });
+                //        //Emit event
+                //        SettingChangedEvent?.Invoke(this, new KeyValuePair<string, object>(o.Key, o.Value));
+                //    });
+                //}
+            //});
 
-            lock (GlobalConfigBus)
-            {
-                //Merge the two streams
-                GlobalConfigBus.Merge(LocalConfigBus);
-            }
+            //lock (GlobalConfigBus)
+            //{
+            //    //Merge the two streams
+            //    GlobalConfigBus.Merge(LocalConfigBus);
+            //}
         }
 
         /// <summary>
@@ -58,13 +56,13 @@ namespace zero.core.conf
         /// <summary>
         /// A dictionary containing all settings over all instances
         /// </summary>
-        public static ObservableDictionary<string, object> GlobalConfigBus = new ObservableDictionary<string, object>();
+        //public static ObservableDictionary<string, object> GlobalConfigBus = new ObservableDictionary<string, object>();
         //TODO get rid of this lib it leaks memory
 
         /// <summary>
         /// A dictionary containing all instance settings
         /// </summary>
-        protected ObservableDictionary<string, object> LocalConfigBus = new ObservableDictionary<string, object>();
+        //protected ObservableDictionary<string, object> LocalConfigBus = new ObservableDictionary<string, object>();
 
 
         /// <summary>

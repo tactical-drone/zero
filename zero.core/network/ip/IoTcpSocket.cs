@@ -147,14 +147,14 @@ namespace zero.core.network.ip
         /// <summary>
         /// Reads data from a TCP socket async
         /// </summary>
-        /// <param name="message">The Q object that contains the buffers to read data into</param>
+        /// <param name="message">The protocol message object that holds the buffers to read data into</param>
         /// <returns>The number of bytes read</returns>
-        public override async Task<int> ReadAsync(IoMessage<IoNetClient> message)
+        public override async Task<int> ReadAsync(IoMessage<IoNetClient> message) //TODO can we go back to array buffers?
         {
             try
             {
                 var bytesRead = Task.Factory.FromAsync(
-                        RawSocket.BeginReceive(message.Buffer, message.BytesRead, message.MaxRecvBufSize - message.BytesRead, SocketFlags.None, null, null),
+                        RawSocket.BeginReceive((byte[])(Array)message.Buffer, message.BufferOffset, message.BufferSize, SocketFlags.None, null, null),
                         RawSocket.EndReceive)
                     .HandleCancellation(Spinners.Token);
 

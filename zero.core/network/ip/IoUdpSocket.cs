@@ -117,7 +117,7 @@ namespace zero.core.network.ip
                 //_logger.Warn($"===============WE GOT DATA {_socket.Available} THREAD id = {Thread.CurrentThread.ManagedThreadId}");
 
                 //TODO make async
-                var bytesRead = RawSocket.ReceiveFrom(message.Buffer, ref _senderRemote);
+                var bytesRead = RawSocket.ReceiveFrom((byte[])(Array)message.Buffer, ref _senderRemote);
                 message.BytesRead += bytesRead;
 
                 return await Task.FromResult(bytesRead) ;

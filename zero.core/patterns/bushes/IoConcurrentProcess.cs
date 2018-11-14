@@ -110,7 +110,7 @@ namespace zero.core.patterns.bushes
                 }
             }
 
-            _logger.Info($"`{Description}' Counters: {heading}{str}");
+            _logger.Trace($"`{Description}' Counters: {heading}{str}");
         }
     }
 }

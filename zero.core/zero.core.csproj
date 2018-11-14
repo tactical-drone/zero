@@ -16,9 +16,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
-    <PackageReference Include="NLog" Version="4.5.10" />
-    <PackageReference Include="Observables.Specialized.Extensions-beta" Version="0.0.1" />
-    <PackageReference Include="Tangle.Net.Standard.Mam" Version="0.9.1" />
+    <PackageReference Include="NLog" Version="4.5.11" />
+    <PackageReference Include="System.Reactive" Version="4.1.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,6 +40,10 @@
 
   <ItemGroup>
     <Folder Include="protocol\overhead\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\submodules\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,11 +2,12 @@
 using zero.core.conf;
 using zero.core.patterns.bushes;
 using zero.core.patterns.heap;
+using zero.core.protocol;
 
 namespace zero.core.models
 {
     /// <summary>
-    /// Uses a network stream to fill the <see cref="Buffer"/> to <see cref="MaxRecvBufSize"/>
+    /// An abstract message carrier used by a network stream to fill the <see cref="Buffer"/>
     /// </summary>
     public abstract class IoMessage<TSource> : IoConsumable<TSource>
     where TSource:IoConcurrentProcess
@@ -15,18 +16,16 @@ namespace zero.core.models
         /// Initializes the buffer size to fill
         /// </summary>
         protected IoMessage(int datumLength)
-        {            
+        {
             DatumLength = datumLength;
-            MaxRecvBufSize = DatumLength * parm_max_datum_buffer_size;
-            Buffer = new byte[MaxRecvBufSize + DatumLength - 1];
 
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             SettingChangedEvent += (sender, pair) =>
             {
-                if (pair.Key == nameof(MaxRecvBufSize))
+                if (pair.Key == nameof(BufferSize))
                 {
-                    MaxRecvBufSize = (int) pair.Value;
-                    Buffer = new byte[MaxRecvBufSize];
+                    BufferSize = (int) pair.Value;
+                    Buffer = new sbyte[BufferSize];
                 }                    
             };
         }
@@ -34,7 +33,7 @@ namespace zero.core.models
         /// <summary>
         /// A buffer to receive the message in
         /// </summary>
-        public byte[] Buffer;
+        public sbyte[] Buffer;
         
         /// <summary>
         /// The number of bytes read into the buffer
@@ -49,7 +48,7 @@ namespace zero.core.models
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
-        public int BytesLeftToProcess => BytesRead - BufferOffset;
+        public virtual int BytesLeftToProcess { get; set; }
 
         /// <summary>
         /// Total number of datums contained inside the buffer
@@ -64,19 +63,12 @@ namespace zero.core.models
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public int DatumLength;
+        public readonly int DatumLength;
 
         /// <summary>
-        /// Message buffer receive length
+        /// Message receive buffer size
         /// </summary>        
-        public int MaxRecvBufSize;
-        
-        /// <summary>
-        /// Maximul number of datums this buffer can hold
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_max_datum_buffer_size = 10;
+        public int BufferSize;
 
         /// <summary>
         /// Prepares this item for use after being popped from the heap
@@ -84,8 +76,8 @@ namespace zero.core.models
         /// <returns>This instance</returns>
         public override IOHeapItem Constructor()
         {
-            BytesRead = DatumLength - 1;
-            BufferOffset = BytesRead;
+            BytesRead = 0;
+            BufferOffset = DatumLength - 1;
             return !Reconfigure ? base.Constructor() : null;
         }
     }

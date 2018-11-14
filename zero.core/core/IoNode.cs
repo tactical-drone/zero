@@ -132,10 +132,10 @@ namespace zero.core.core
             _netServer = new IoNetServer(localIp, localPort, _spinners.Token);
 
 #pragma warning disable 4014
-            KeepOnListeningAsync();
+            await KeepOnListeningAsync();
 #pragma warning restore 4014
 
-            await StayConnectedAsync(remoteIp, remotePort);
+            //await StayConnectedAsync(remoteIp, remotePort);
         }
 
         /// <summary>

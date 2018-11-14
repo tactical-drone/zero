@@ -1,48 +1,42 @@
-﻿using System.Linq;
+﻿using System;
 using System.Text;
-using System.Threading;
 using NLog;
+using Tangle.Net.Cryptography;
+using Tangle.Net.Entity;
 using zero.core.core;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.schedulers;
 
 namespace zero.core.protocol
 {
     /// <summary>
     /// The iota protocol
     /// </summary>
-    public class TanglePeer :IoNeighbor
-    {                                
+    public class TanglePeer : IoNeighbor
+    {
         /// <summary>
         /// Constructs a IOTA tangle neighbor handler
         /// </summary>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
-        public TanglePeer(IoNetClient ioNetClient): 
-            base(ioNetClient,()=>new IoP2Message(ioNetClient, DatumLength) { JobDescription = $"rx", WorkDescription = $"{ioNetClient.Address}" })
+        public TanglePeer(IoNetClient ioNetClient) :
+            base(ioNetClient, () => new IoTangleMessage(ioNetClient) { JobDescription = $"rx", WorkDescription = $"{ioNetClient.Address}" })
         {
             _logger = LogManager.GetCurrentClassLogger();
+
+            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 1);
         }
 
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private readonly Logger _logger;        
 
         /// <summary>
-        /// The length of tangle protocol messages
+        /// Hack to disregard the port data sent by iri when it connects
         /// </summary>
-        private static readonly int MessageLength = 1650;
-
-        /// <summary>
-        /// The size of tangle protocol messages crc
-        /// </summary>
-        private static readonly int MessageCrcLength = 16;
-
-        /// <summary>
-        /// The protocol message length
-        /// </summary>
-        private static readonly int DatumLength = MessageLength + MessageCrcLength;
+        private bool _portDataDisgarded = false;
 
         /// <summary>
         /// Does work on the messages received
@@ -52,28 +46,49 @@ namespace zero.core.protocol
         /// <returns>The state of work done</returns>
         protected override IoProducable<IoNetClient>.State Consume(IoMessage<IoNetClient> currJob, IoMessage<IoNetClient> currJobPreviousFragment = null)
         {
+            var tangleMessage = (IoTangleMessage)currJob;
             IoProducable<IoNetClient>.State produceState;
-            if ((produceState = base.Consume(currJob)) >= IoProducable<IoNetClient>.State.Error)
+            if ((produceState = base.Consume(tangleMessage)) >= IoProducable<IoNetClient>.State.Error)
                 return produceState;
 
             //TODO Find a more elegant way for this terrible hack
             //Disgard the neighbor port data
-            if (TotalMessagesCount == 0)
+            if (!_portDataDisgarded)
             {
-                _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString(currJob.Buffer).Substring(0,10)}'");
-                currJob.BufferOffset += 10;
-                if( currJob.BytesLeftToProcess == 0 )
+                _portDataDisgarded = true;
+                _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)tangleMessage.Buffer).Substring(tangleMessage.BufferOffset, 10)}'");
+                tangleMessage.BufferOffset += 10;
+                if (tangleMessage.BytesLeftToProcess == 0)
                     return currJob.ProcessState = IoProducable<IoNetClient>.State.Consumed;
             }
 
-            //Process messages received
-            _logger.Debug($"Processed `{currJob.DatumCount}' datums, remainder = `{currJob.DatumFragmentLength}', totalBytesAvailable = `{currJob.BytesRead}', currJob.BytesRead = `{currJob.BytesRead}', prevJob.BytesLeftToProcess =`{currJobPreviousFragment?.BytesRead - currJobPreviousFragment?.BufferOffset}'");
-            
+            //Process protocol messages
+            ProcessProtocolMessage(tangleMessage);
 
-            currJob.BufferOffset += currJob.BytesLeftToProcess - currJob.DatumFragmentLength;            
-            currJob.ProcessState = currJob.DatumFragmentLength != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
-
+            //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
+            //             $" prevJob.BytesLeftToProcess =`{currJobPreviousFragment?.BytesLeftToProcess}'");
             return currJob.ProcessState;
+        }
+
+        /// <summary>
+        /// Processes a protocol message broadcasted by another peer
+        /// </summary>
+        /// <param name="message">The job structure containing the next message to be processed</param>
+        private void ProcessProtocolMessage(IoTangleMessage message)
+        {
+            for (int i = 0; i < message.DatumCount; i++)
+            {
+                ternary.Codec.GetTrits(message.Buffer, message.BufferOffset, message.TritBuffer, IoTangleMessage.TransactionSize);
+                var trytes = Converter.TritsToTrytes(message.TritBuffer);
+
+                var tx = Transaction.FromTrytes(new TransactionTrytes(trytes));
+                if (tx.Value != 0)
+                    _logger.Info($"{tx.Address} transacted {tx.Value / 1000000} Mi");
+
+                message.BufferOffset += IoTangleMessage.DatumLength;
+            }
+
+            message.ProcessState = message.DatumFragmentLength != 0 ? IoProducable<IoNetClient>.State.ConsumerFragmented : IoProducable<IoNetClient>.State.Consumed;
         }
     }
 }

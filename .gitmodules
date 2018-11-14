@@ -1,0 +1,3 @@
+[submodule "submodules/tangle.net"]
+	path = submodules/tangle.net
+	url = https://gitlab.com/unimatrix-one/tangle.net.git
