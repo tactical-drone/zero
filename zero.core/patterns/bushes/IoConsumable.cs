@@ -10,7 +10,7 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TSource"></typeparam>
     public abstract class IoConsumable<TSource> : IoProducable<TSource>
-    where TSource : IoConcurrentProcess
+    where TSource : IoJobSource
     {
         /// <summary>
         /// A description of the work

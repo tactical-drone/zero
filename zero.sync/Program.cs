@@ -11,7 +11,7 @@ namespace zero.sync
         {
             LogManager.LoadConfiguration("nlog.config");
 
-            var tangleNode = new IoNode<TanglePeer>(ioNetClient=>new TanglePeer(ioNetClient));
+            var tangleNode = new IoNode(ioNetClient=>new TanglePeer(ioNetClient));
 
             #pragma warning disable 4014
             tangleNode.Start();

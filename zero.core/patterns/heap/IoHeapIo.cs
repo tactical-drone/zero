@@ -11,7 +11,6 @@ namespace zero.core.patterns.heap
     /// <typeparam name="T">The item type</typeparam>
     public class IoHeapIo<T>: IoHeap<T> where T: class, IOHeapItem
     {
-
         /// <summary>
         /// Construct
         /// </summary>

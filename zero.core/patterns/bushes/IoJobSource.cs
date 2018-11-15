@@ -9,17 +9,17 @@ using zero.core.conf;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Producer consumer concurrency management hooks
+    /// Used by <see cref="IoProducerConsumer{TConsumer,TSource}"/> as a source of work
     /// </summary>
-    public abstract class IoConcurrentProcess : IoConfigurable
+    public abstract class IoJobSource : IoConfigurable
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoConcurrentProcess()
+        protected IoJobSource(int readAhead)
         {            
-            ProduceSemaphore = new Semaphore(0, 1);
-            ConsumeSemaphore = new SemaphoreSlim(1); 
+            ConsumerBarrier = new SemaphoreSlim(0); //TODO make configurable
+            ProducerBarrier = new SemaphoreSlim(readAhead); 
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();
         }
@@ -33,16 +33,6 @@ namespace zero.core.patterns.bushes
         /// Used to signal shutdown
         /// </summary>
         public CancellationTokenSource Spinners;
-
-        /// <summary>
-        /// Maximum concurrent producers
-        /// </summary>
-        private readonly int _maxProducers;
-
-        /// <summary>
-        /// Maximum concurrent consumers
-        /// </summary>
-        private readonly int _maxConsumers;
 
         /// <summary>
         /// Description //TODO
@@ -63,12 +53,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The producer semaphore
         /// </summary>
-        public Semaphore ProduceSemaphore;
+        public SemaphoreSlim ConsumerBarrier;
 
         /// <summary>
         /// The cosumer semaphore
         /// </summary>
-        public SemaphoreSlim ConsumeSemaphore;
+        public SemaphoreSlim ProducerBarrier;
 
         /// <summary>
         /// <see cref="PrintCounters"/> only prints events that took lonnger that this value in microseconds
@@ -88,10 +78,10 @@ namespace zero.core.patterns.bushes
             heading.AppendLine();
             str.AppendLine();
 
-            var padding = IoWorkStateTransition<IoConcurrentProcess>.StateStrPadding;
+            var padding = IoWorkStateTransition<IoJobSource>.StateStrPadding;
 
 
-            for (var i = 0; i < IoProducable<IoConcurrentProcess>.StateMapSize; i++)
+            for (var i = 0; i < IoProducable<IoJobSource>.StateMapSize; i++)
             {
 
                 var count = Interlocked.Read(ref Counters[i]);
@@ -103,7 +93,7 @@ namespace zero.core.patterns.bushes
                 if ( i>0 )
                 {
                     heading.Append(
-                        $"{((IoProducable<IoConcurrentProcess>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                        $"{((IoProducable<IoJobSource>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append(string.Format("{0} | ",
                         (string.Format("{0:0,000.0}ms", ave)).ToString(CultureInfo.InvariantCulture)
                         .PadLeft(padding + 8)));
@@ -112,5 +102,7 @@ namespace zero.core.patterns.bushes
 
             _logger.Trace($"`{Description}' Counters: {heading}{str}");
         }
+
+        public abstract void Close();
     }
 }

@@ -1,23 +1,26 @@
 ﻿using System;
+using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.models;
 using zero.core.patterns.bushes;
 
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoConcurrentProcess"/> that can be used by <see cref="IoProducerConsumer{TJob,TSource}"/>
+    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoJobSource"/> that can be used by <see cref="IoProducerConsumer{TJob,TSource}"/>
     /// </summary>
-    public class IoNetClient: IoConcurrentProcess
+    public class IoNetClient: IoJobSource
     {
         /// <summary>
         /// Conctructor for listening
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
-        public IoNetClient(IoSocket remote)
+        /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
+        public IoNetClient(IoSocket remote, int readAhead):base(readAhead)
         {
             _remoteSocket = remote;
             _logger = LogManager.GetCurrentClassLogger();
@@ -30,7 +33,8 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="hostname">The hostname to connect to</param>
         /// <param name="port">The listening port</param>
-        public IoNetClient(string hostname, int port)
+        /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
+        public IoNetClient(string hostname, int port, int readAhead):base(readAhead)
         {
             _hostname = hostname;
             _port = port;
@@ -75,21 +79,7 @@ namespace zero.core.network.ip
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_rx_timeout = 3000;
-
-        /// <summary>
-        /// Transmit buffer size
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected int parm_tx_buffer_size = 1650 * 10;
-
-        /// <summary>
-        /// Receive buffer size
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected int parm_rx_buffer_size;
-
+        
         /// <summary>
         /// Called when disconnect is detected
         /// </summary>
@@ -105,7 +95,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Closes the connection
         /// </summary>
-        public void Close()
+        public override void Close()
         {
             Spinners.Cancel();
 
@@ -115,8 +105,8 @@ namespace zero.core.network.ip
             _remoteSocket = null;
             
             //Unlock any blockers
-            ConsumeSemaphore?.Dispose();
-            ProduceSemaphore?.Close();
+            ProducerBarrier?.Dispose();
+            ConsumerBarrier?.Dispose();
             
             _logger.Debug($"Closed connection `{Address}'");
         }
@@ -155,19 +145,21 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="callback">The tcp client functions</param>
         /// <returns>True on success, false otherwise</returns>
-        public async Task<bool> Execute(Func<IoSocket, Task<bool>> callback)
+        public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
         {
             //Is the TCP connection up?
-            if (!Up())//TODO fix up
-                return false;
+            if (!IsSocketConnected()) //TODO fix up
+                throw new IOException("Socket has disconnected");
+
             try
             {
                 return await callback(_remoteSocket);
             }
-            catch
+            catch(Exception e)
             {
                 //Did the TCP connection drop?
-                Up();
+                if (!IsSocketConnected())
+                    throw new IOException("Socket has disconnected", e);
                 throw;
             }
         }
@@ -181,14 +173,13 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Detects TCP connection drops
+        /// Detects socket drops
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
-        public bool Up()
+        public bool IsSocketConnected()
         {
             try
             {
-                
                 if (_remoteSocket?.NativeSocket != null && _remoteSocket.NativeSocket.ProtocolType == ProtocolType.Tcp )
                 {
                     //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
@@ -210,8 +201,8 @@ namespace zero.core.network.ip
 
                     return true;
                 }
-                else
-                    return true;
+
+                return true;
             }
             catch (Exception e)
             {
@@ -224,5 +215,10 @@ namespace zero.core.network.ip
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
         public string Address => $"{_hostname}:{_port}";
+
+        public override string ToString()
+        {
+            return Address;
+        }
     }
 }

@@ -11,7 +11,7 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TSource">The concurrent process type</typeparam>
     public class IoWorkStateTransition<TSource> : IOHeapItem
-    where TSource : IoConcurrentProcess
+    where TSource : IoJobSource
     {
         /// <summary>
         /// The previous state

@@ -13,7 +13,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// The TCP flaviour of <see cref="IoSocket"/>
     /// </summary>
-    class IoTcpSocket :IoSocket
+    class IoTcpSocket : IoSocket
     {
         /// <summary>
         /// Constructs a new TCP socket
@@ -144,42 +144,18 @@ namespace zero.core.network.ip
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Reads data from a TCP socket async
         /// </summary>
-        /// <param name="message">The protocol message object that holds the buffers to read data into</param>
+        /// <param name="buffer">The buffer to read into</param>
+        /// <param name="offset">The offset into the buffer</param>
+        /// <param name="length">The maximum bytes to read into the buffer</param>        
         /// <returns>The number of bytes read</returns>
-        public override async Task<int> ReadAsync(IoMessage<IoNetClient> message) //TODO can we go back to array buffers?
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length) //TODO can we go back to array buffers?
         {
-            try
-            {
-                //--------------------------------------------------------------
-                // RawSocket.BeginReceive barrier
-                //--------------------------------------------------------------
-                var awaiter = RecvSemaphoreSlim.WaitAsync(Spinners.Token);
-                await awaiter;
-                if (awaiter.Status != TaskStatus.RanToCompletion)
-                    return 0;
-
-                var bytesRead = Task.Factory.FromAsync(
-                        RawSocket.BeginReceive((byte[])(Array)message.Buffer, message.BufferOffset, message.BufferSize, SocketFlags.None, null, null),
-                        RawSocket.EndReceive)
-                    .HandleCancellation(Spinners.Token);
-                
-                //Mark this operation so that possible fragmented datums can be recombined correctly later on
-                message.FragmentNumber = RecvCount++;
-
-                message.BytesRead += await bytesRead;
-
-                RecvSemaphoreSlim.Release(1);
-
-                return bytesRead.Result;
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, "Error reading bytes from socket: ");
-                throw;
-            }
+                return await Task.Factory.FromAsync(RawSocket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
+                    RawSocket.EndReceive).HandleCancellation(Spinners.Token);
         }
     }
 }

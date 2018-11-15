@@ -1,9 +1,12 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using System.Threading.Tasks;
 using zero.core.patterns.bushes;
 using NLog;
+using Tangle.Net.Cryptography;
+using Tangle.Net.Entity;
 using zero.core.conf;
 using zero.core.network.ip;
 using zero.core.ternary;
@@ -30,18 +33,6 @@ namespace zero.core.models
 
             WorkDescription = source.Address;
             _logger = LogManager.GetCurrentClassLogger();
-            
-            //TODO make hot
-            _producerTimeout = TimeSpan.FromMilliseconds(parm_lockstep_produce_timeout);
-
-            SettingChangedEvent += (sender, pair) =>
-            {
-                if (pair.Key == nameof(parm_lockstep_produce_timeout))
-                {
-                    parm_lockstep_produce_timeout = (long) pair.Value;
-                    _producerTimeout = TimeSpan.FromMilliseconds(parm_lockstep_produce_timeout);
-                }                    
-            };
         }
 
         /// <summary>
@@ -58,7 +49,7 @@ namespace zero.core.models
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
-        public override int BytesLeftToProcess => BytesRead - BufferOffset + DatumLength - 1;
+        public override int BytesLeftToProcess => BytesRead - BufferOffset;
 
         /// <summary>
         /// The length of tangle protocol messages
@@ -97,110 +88,111 @@ namespace zero.core.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_lockstep_consume_timeout = 120000; //TODO make this adapting
+        public int parm_producer_wait_for_consumer_timeout = 500; //TODO make this adapting
 
         /// <summary>
         /// The time a producer will wait for a consumer to release it before aborting in ms
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_lockstep_produce_timeout = 500;
-
-        /// <summary>
-        /// How long the producer is willing to wait for the previous consumer before reporting that it is slowing production down.
-        /// </summary>
-        private TimeSpan _producerTimeout; 
+        public int parm_consumer_wait_for_producer_timeout = 500;
         
+        /// <summary>
+        /// Used to control how long we wait for the producer before we report it
+        /// </summary>
+        private readonly Stopwatch _producerStopwatch = new Stopwatch();
+
+
+        private void ProcessProtocolMessage()
+        {
+            for (int i = 0; i < DatumCount; i++)
+            {
+                ternary.Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
+                var trytes = Converter.TritsToTrytes(TritBuffer);
+
+                var tx = Transaction.FromTrytes(new TransactionTrytes(trytes));
+                //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
+                _logger.Info($"addr = {tx.Address}, value = {(tx.Value / 1000000).ToString().PadLeft(17, ' ')} Mi, f = {DatumFragmentLength != 0}");
+
+                BufferOffset += IoTangleMessage.DatumLength;
+            }
+
+            ProcessState = State.Consumed;
+        }
+
+        /// <inheritdoc />
         /// <summary>
         /// Manages the barrier between the consumer and the producer
         /// </summary>
-        /// <returns>The <see cref="IoWorkStateTransition{TSource}.State"/> of the barrier's outcome</returns>
-        public override State ConsumeBarrier()
+        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.State" /> of the barrier's outcome</returns>
+        public override async Task<State> ConsumeAsync()
         {
-            try
-            {
-                //----------------------------------------------------------------------------
-                // PRODUCER BARRIER (we wait for the producer to finish before we consume)
-                //----------------------------------------------------------------------------
-                if (!Source.ProduceSemaphore.WaitOne((int) parm_lockstep_consume_timeout))
-                {
-                    var produceState = ProcessState;
+            ProcessState = State.Consuming;
 
-                    ProcessState = State.ProduceTo;
-
-                    if (produceState < State.Error && !Source.Spinners.IsCancellationRequested)
-                        ProcessState = State.ConsumeCancelled;
-                    else
-                        ProcessState = State.ConsumerSkipped;
-                }
-                
-                if (ProcessState < State.Error && Source.Spinners.IsCancellationRequested)
-                    ProcessState = State.ConsumeCancelled;
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"Cosuming Job `{Description}' returned with errors:");
-                ProcessState = State.ConsumeErr;
-            }
-            finally
-            {
-                //----------------------------------------------------------------------------------------
-                // RELEASE CONSUMER BARRIER (our producer has finished release the next one that is waiting at the gate)
-                //----------------------------------------------------------------------------------------
-                Source.ConsumeSemaphore.Release(1);
-            }
+            //TODO Find a more elegant way for this terrible hack
+            //Disgard the neighbor port data
             
-            return ProcessState;
-        }
 
+            //Process protocol messages
+            ProcessProtocolMessage();
+
+            //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
+            //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");
+            
+
+            return ProcessState;
+        }       
+
+        /// <inheritdoc />
         /// <summary>
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<State> ProduceAsync()
+        public override async Task<State> ProduceAsync(IoProducable<IoNetClient> fragment)
         {
-            //while we have not received all the data we expect, read more from the network client
-            var success = false;
-
+            ProcessState = State.Producing;
+            var previousJobFragment = (IoMessage<IoNetClient>)fragment;
             try
             {
-                // We run this piece of code inside this execute callback so that the lower layers can do some TCP error detections when failures are detected
-                success = await Source.Execute(async ioSocket =>
+                // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
+                await Source.Execute(async ioSocket =>
                 {
-                    //TODO
+                    //TODO maybe we squash datum fragmentation here? But it will double responsiveness.
                     //while (BytesRead < MaxBufferSize && !CancellationTokenSource.IsCancellationRequested)
                     {
-                        
                         //----------------------------------------------------------------------------
-                        // CONSUMER BARRIER (We cannot process the stream in parallel. Therefor, we 
-                        // wait for a consumer to release us as soon as its producer has released it )
+                        // BARRIER
+                        // We are only allowed to run ahead of the consumer by some configurable
+                        // amount of steps. Instead of say just filling up memory buffers.
+                        // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        var stopwatch = Stopwatch.StartNew();
-                        if (!await Source.ConsumeSemaphore.WaitAsync(_producerTimeout,Source.Spinners.Token))
+                        _producerStopwatch.Restart();
+                        if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Source.Spinners.Token))
                         {                            
                             if (!Source.Spinners.IsCancellationRequested)
                             {                                
                                 ProcessState = State.ConsumeTo;
-                                stopwatch.Stop();
-                                _logger.Warn($"`{Description}' timed out waiting for CONSUMER to release, Waited = `{stopwatch.ElapsedMilliseconds}ms', Willing = `{parm_lockstep_produce_timeout}ms'");
+                                _producerStopwatch.Stop();
+                                _logger.Warn($"`{Description}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_consumer_wait_for_producer_timeout}ms'");
 
-                                //LocalConfigBus.AddOrUpdate(nameof(parm_lockstep_produce_timeout), a=>0, 
+                                //TODO finish when config is fixed
+                                //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
                                 //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) State.Consumed]) /
                                 //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
                             }
                             else
                                 ProcessState = State.ConsumeCancelled;
-                            return false;
+                            return Task.CompletedTask;
                         }
 
                         if (Source.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.ConsumeCancelled;
-                            return false;
+                            return Task.CompletedTask;
                         }
                             
                         //Async read the message from the message stream
-                        await ioSocket.ReadAsync(this).ContinueWith(
+                        await ioSocket.ReadAsync((byte [])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
                         rx =>
                         {
                             switch (rx.Status)
@@ -209,64 +201,69 @@ namespace zero.core.models
                                 case TaskStatus.Canceled:                                            
                                 case TaskStatus.Faulted:
                                     ProcessState = rx.Status == TaskStatus.Canceled? State.ProduceCancelled: State.ProduceErr;
-                                //Faulted                                        
                                     Source.Spinners.Cancel();
-
-                                    ioSocket.Close();
-                                    
-                                    _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' was faulted:");
-
-                                    //Release the other side so that it can detect the failure
-                                    if (!Source.ProduceSemaphore.SafeWaitHandle.IsClosed)
-                                        Source.ProduceSemaphore.Release(1);
+                                    Source.Close();
+                                    _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' returned with errors:");
                                     break;
                                 //Success
-                                case TaskStatus.RanToCompletion:
-                                    ProcessState = State.Produced;
-                                    //----------------------------------------------------------------------------------------
-                                    // RELEASE THE CONSUMER, work is ready
-                                    //----------------------------------------------------------------------------------------
-                                    Source.ProduceSemaphore.Release(1);
+                                case TaskStatus.RanToCompletion:                                                                        
+                                    BytesRead = rx.Result;
 
-                                    _logger.Trace($"({Id}) Filled {BytesRead}/{BufferSize} ({(int)(BytesRead / (double)BufferSize * 100)}%)");
+                                    if (Id == 0)
+                                    {
+                                        _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
+                                        BufferOffset += 10;
+                                        BytesRead -= 10;
+                                    }
+
+                                    //Copy a previously read job buffer datum fragment into the current job buffer
+                                    if (previousJobFragment != null)
+                                    {
+                                        BufferOffset -= previousJobFragment.DatumFragmentLength;
+                                        BytesRead += previousJobFragment.DatumFragmentLength;
+
+                                        Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
+                                    
+                                        //Update buffer pointers                                        
+                                    }
+
+                                    //Set how many datums we have available to process
+                                    DatumCount = BytesLeftToProcess / DatumLength;
+                                    DatumFragmentLength = BytesRead % DatumLength;
+
+                                    //set process state to Produced or fragmented
+                                    ProcessState = DatumFragmentLength == 0 ? State.Produced : State.Fragmented;
+                                    
+                                    _logger.Trace($"({Id}) RX => `{BytesRead}/{BufferSize}', fragment = `{DatumFragmentLength}', buf = `{(int)(BytesRead / (double)BufferSize * 100)}%'");
 
                                     break;
                                 default:
-                                //case TaskStatus.Created:
-                                //case TaskStatus.Running:
-                                //case TaskStatus.WaitingForActivation:
-                                //case TaskStatus.WaitingForChildrenToComplete:
-                                //case TaskStatus.WaitingToRun:
                                     ProcessState = State.ProduceErr;
-                                    throw new InvalidAsynchronousStateException(
-                                        $"Job =`{Description}', State={rx.Status}");
+                                    throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                             }                                                                        
                         }, Source.Spinners.Token);                        
                         
                         if (Source.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.Cancelled;
-                            return false;
+                            return Task.CompletedTask;
                         }
-
-                        return true;
                     }
+                    return Task.CompletedTask;
                 });
             }
             catch (Exception e)
-            {
-                success = false;
+            {                
                 _logger.Warn(e.InnerException ?? e, $"Producing job `{Description}' returned with errors:");
             }
             finally
             {                
-                if (!success && ProcessState == State.Producing)
+                if (ProcessState == State.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
                     ProcessState = State.ProduceErr;                    
                 }                
             }
-
             return ProcessState;
         }
     }

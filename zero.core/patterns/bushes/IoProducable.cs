@@ -16,7 +16,7 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TSource"></typeparam>
     public abstract class IoProducable<TSource> : IoConfigurable, IOHeapItem
-    where TSource : IoConcurrentProcess
+    where TSource : IoJobSource
     {
         /// <summary>
         /// Constructor
@@ -45,10 +45,10 @@ namespace zero.core.patterns.bushes
             Undefined,
             Producing,
             Produced,
+            Fragmented,
             Queued,
             Consuming,
-            ConsumerSkipped,
-            ConsumerFragmented,
+            ConsumerSkipped,            
             Consumed,
             Accept,
             Reject,            
@@ -83,13 +83,13 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Callback that processes the next job in the queue
         /// </summary>
-        public abstract State ConsumeBarrier();
+        public abstract Task<State> ConsumeAsync();
 
         /// <summary>
         /// Callback the generates the next job
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
-        public abstract Task<State> ProduceAsync();
+        public abstract Task<State> ProduceAsync(IoProducable<TSource> fragment);
 
         /// <summary>
         /// The heap containing our state transition items

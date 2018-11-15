@@ -14,7 +14,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// Abstracts TCP and UDP
     /// </summary>
-    public abstract class IoSocket : IoConcurrentProcess
+    public abstract class IoSocket
     {
         /// <inheritdoc />
         /// <summary>
@@ -58,6 +58,11 @@ namespace zero.core.network.ip
         /// The underlying .net socket that is abstracted
         /// </summary>
         protected Socket RawSocket;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// A string depicting protocol type url preable
@@ -118,21 +123,6 @@ namespace zero.core.network.ip
         /// A handle to dispose upstream cancellation hooks
         /// </summary>
         private readonly CancellationTokenRegistration _cancellationTokenRegistration;
-
-        /// <summary>
-        /// Used to chain two consecutive receives together so that fragments can be combined correctly. 
-        /// </summary>
-        protected volatile uint RecvCount = 0;
-
-        /// <summary>
-        /// Required because Socket.BeginRecv is not reentrant
-        /// </summary>
-        protected SemaphoreSlim RecvSemaphoreSlim = new SemaphoreSlim(1);
-
-        /// <summary>
-        /// Required because Socket.BeginSend is not reentrant
-        /// </summary>
-        protected SemaphoreSlim SendSemaphoreSlim = new SemaphoreSlim(1);
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -230,7 +220,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Close this socket
         /// </summary>
-        public void Close()
+        public virtual void Close()
         {
             _cancellationTokenRegistration.Dispose();
             Spinners.Cancel();
@@ -261,13 +251,15 @@ namespace zero.core.network.ip
         /// <param name="length">The number of bytes to send</param>
         /// <returns></returns>
         public abstract Task<int> SendAsync(byte[] getBytes, int offset, int length);
-      
+
         /// <summary>
         /// Reads a message from the socket
         /// </summary>
-        /// <param name="message">The buffer for this receive </param>
+        /// <param name="buffer">The buffer to read into</param>
+        /// <param name="offset">The offset into the buffer</param>
+        /// <param name="length">The maximum bytes to read into the buffer</param>        
         /// <returns>The amounts of bytes read</returns>
-        public abstract Task<int> ReadAsync(IoMessage<IoNetClient> message);
+        public abstract Task<int> ReadAsync(byte[] buffer, int offset, int length);
         
     }
 }

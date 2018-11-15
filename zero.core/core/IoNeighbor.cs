@@ -1,17 +1,18 @@
 ﻿using System;
-using System.Security.Cryptography;
-using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using zero.core.models;
 using zero.core.network.ip;
+using zero.core.patterns.bushes;
 using zero.core.patterns.misc;
 
 namespace zero.core.core
 {
+    /// <inheritdoc />
     /// <summary>
     /// Represents a node's neighbor
     /// </summary>
-    public class IoNeighbor : IoMessageHandler<IoNetClient>
+    public class IoNeighbor : IoProducerConsumer<IoMessage<IoNetClient>, IoNetClient>
     {
         /// <summary>
         /// Construct
@@ -19,12 +20,11 @@ namespace zero.core.core
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
         public IoNeighbor(IoNetClient ioNetClient, Func<IoMessage<IoNetClient>> mallocMessage)
-            : base($"neighbor {ioNetClient.Address}", mallocMessage)
+            : base($"neighbor {ioNetClient.Address}", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            IoNetClient = ioNetClient;
 
-            Spinners.Token.Register(() => IoNetClient?.Close());
+            Spinners.Token.Register(() => WorkSource?.Close());
         }
 
         /// <summary>
@@ -36,23 +36,7 @@ namespace zero.core.core
         /// Called when this neighbor is closed
         /// </summary>
         public event EventHandler Closed;
-
-        #region properties
-        
-        private IoNetClient _ioNetClient;
-        /// <summary>
-        /// The client wrapper porperty, sets up <see cref="IoMessageHandler{IoNetClient}.StreamDescriptor"/> to <see cref="network.ip.IoNetClient.Address"/>
-        /// </summary>
-        public IoNetClient IoNetClient
-        {
-            get => _ioNetClient;
-            set
-            {
-                _ioNetClient = value;
-                StreamDescriptor = _ioNetClient.Address;
-            }
-        }
-        #endregion
+       
 
         /// <summary>
         /// Close this neighbor

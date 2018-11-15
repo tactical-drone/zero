@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
+using zero.core.patterns.bushes;
 using zero.core.patterns.schedulers;
 
 namespace zero.core.core
@@ -15,13 +16,12 @@ namespace zero.core.core
     /// <summary>
     /// A p2p node
     /// </summary>
-    public class IoNode<TPeer> : IoConfigurable
-    where TPeer:IoNeighbor
+    public class IoNode : IoConfigurable        
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(Func<IoNetClient, TPeer> mallocNeighbor)
+        public IoNode(Func<IoNetClient, IoNeighbor> mallocNeighbor)
         {
             _mallocNeighbor = mallocNeighbor;
             _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
@@ -36,7 +36,7 @@ namespace zero.core.core
         /// <summary>
         /// Used to allocate peers when connections are made
         /// </summary>
-        private readonly Func<IoNetClient, TPeer> _mallocNeighbor;
+        private readonly Func<IoNetClient, IoNeighbor> _mallocNeighbor;
 
         /// <summary>
         /// The wrapper for <see cref="IoNetServer"/>
@@ -158,7 +158,7 @@ namespace zero.core.core
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
-                    _neighbors.TryRemove(((IoNeighbor) s).IoNetClient.Address, out var _);
+                    _neighbors.TryRemove(((IoNeighbor)s).WorkSource.Address, out var _);
                 };
 
                 // Add new neighbor
@@ -175,7 +175,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.IoNetClient.Address}' processing thread returned with errors:");
+                    _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Address}' processing thread returned with errors:");
                 }
             });
         }
@@ -202,7 +202,7 @@ namespace zero.core.core
                         var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (_neighbors.TryAdd(newNeighbor.IoNetClient.Address, newNeighbor))
+                        if (_neighbors.TryAdd(newNeighbor.WorkSource.Address, newNeighbor))
                         {
                             try
                             {
@@ -212,15 +212,15 @@ namespace zero.core.core
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e, $"Neighbor `{newNeighbor.IoNetClient.Address}' processing thread returned with errors:");
+                                _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Address}' processing thread returned with errors:");
                             }
-                            
+
                             //TODO remove this into the protocol?
                             await newClient.Execute(client =>
                             {
                                 client?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
-                                    Encoding.ASCII.GetBytes("0000015600").Length);
-                                return Task.FromResult(true);
+                                     Encoding.ASCII.GetBytes("0000015600").Length);
+                                return Task.FromResult(Task.CompletedTask) ;
                             });
                         }
                         else //strange case
@@ -237,10 +237,10 @@ namespace zero.core.core
                     await Task.Delay(6000);
                 }
 
-                if (!newNeighbor?.IoNetClient?.Connected ?? false)
+                if (!newNeighbor?.WorkSource?.Connected ?? false)
                 {
                     newNeighbor.Close();
-                    _neighbors.TryRemove(newNeighbor.IoNetClient.Address, out _);
+                    _neighbors.TryRemove(newNeighbor.WorkSource.Address, out _);
                     newNeighbor = null;
                     //TODO parm
                     await Task.Delay(1000);

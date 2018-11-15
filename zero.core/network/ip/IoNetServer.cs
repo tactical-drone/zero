@@ -62,10 +62,12 @@ namespace zero.core.network.ip
         private IoSocket _listener;
 
         /// <summary>
-        /// A reference to all neighbors in the system
+        /// The amount of socket reads the producer is allowed to lead the consumer
         /// </summary>
-        //private readonly ConcurrentDictionary<string, Neighbor> _globalNeighbors;
-        
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_tcp_read_ahead = 5;
+
         /// <summary>
         /// The Address format in IP:port
         /// </summary>
@@ -102,7 +104,7 @@ namespace zero.core.network.ip
                     try
                     {
                         //Execute handler
-                        connectionReceivedAction?.Invoke(new IoNetClient(socket));
+                        connectionReceivedAction?.Invoke(new IoNetClient(socket, parm_tcp_read_ahead));
                     }
                     catch (Exception e)
                     {
@@ -124,7 +126,7 @@ namespace zero.core.network.ip
         /// <returns>The tcp client wrapper</returns>
         public async Task<IoNetClient> ConnectAsync(string hostname, int port)
         {
-            var remoteClientTask = new IoNetClient(hostname, port);
+            var remoteClientTask = new IoNetClient(hostname, port, parm_tcp_read_ahead);
 
             //CONNECT
             await remoteClientTask.ConnectAsync().ContinueWith(connectAsync =>
@@ -141,7 +143,7 @@ namespace zero.core.network.ip
                         break;
                     case TaskStatus.RanToCompletion:
                         //On connect success
-                        if (remoteClientTask.Up())
+                        if (remoteClientTask.IsSocketConnected())
                         {
                             _logger.Info($"Connection established `{hostname}:{port}'");
                             break;

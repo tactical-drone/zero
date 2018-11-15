@@ -10,7 +10,7 @@ namespace zero.core.models
     /// An abstract message carrier used by a network stream to fill the <see cref="Buffer"/>
     /// </summary>
     public abstract class IoMessage<TSource> : IoConsumable<TSource>
-    where TSource:IoConcurrentProcess
+    where TSource:IoJobSource
     {
         /// <summary>
         /// Initializes the buffer size to fill
@@ -73,7 +73,7 @@ namespace zero.core.models
         /// <summary>
         /// An identifier used to pair up fragmented socket reads
         /// </summary>
-        public uint FragmentNumber;
+        //public uint FragmentNumber;
 
         /// <summary>
         /// Prepares this item for use after being popped from the heap

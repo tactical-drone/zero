@@ -13,7 +13,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// The UDP flaviour of <see cref="IoSocket"/>
     /// </summary>
-    class IoUdpSocket :IoSocket
+    class IoUdpSocket : IoSocket
     {
         /// <summary>
         /// Constructs the UDP socket
@@ -108,19 +108,17 @@ namespace zero.core.network.ip
         /// <summary>
         /// Read UDP packet data
         /// </summary>
-        /// <param name="message">Used to Q packets read</param>
-        /// <returns></returns>
-        public override async Task<int> ReadAsync(IoMessage<IoNetClient> message)
+        /// <returns>The number of bytes read</returns>
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
         {
             if (RawSocket.IsBound /*&& _socket.Available */ )
             {
                 //_logger.Warn($"===============WE GOT DATA {_socket.Available} THREAD id = {Thread.CurrentThread.ManagedThreadId}");
 
                 //TODO make async
-                var bytesRead = RawSocket.ReceiveFrom((byte[])(Array)message.Buffer, ref _senderRemote);
-                message.BytesRead += bytesRead;
+                var bytesRead = RawSocket.ReceiveFrom(buffer, ref _senderRemote);
 
-                return await Task.FromResult(bytesRead) ;
+                return await Task.FromResult(bytesRead);
             }
             else
             {
