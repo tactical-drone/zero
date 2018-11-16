@@ -149,7 +149,7 @@ namespace zero.core.models
             
 
             return ProcessState;
-        }       
+        }
 
         /// <inheritdoc />
         /// <summary>
@@ -232,6 +232,20 @@ namespace zero.core.models
                                         }                                            
                                     }
 
+                                    //TODO remove this hack
+                                    //Terrible sync hack until we can troll the data for sync later
+                                    if (Source.TcpSynced || (!Source.TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
+                                    {
+                                        Source.TcpSynced = true;
+                                    }
+                                    else
+                                    {
+                                        DatumCount = 0;
+                                        ProcessState = State.Produced;
+                                        _logger.Warn("Syncing...");
+                                        break;
+                                    }
+
                                     //Copy a previously read job buffer datum fragment into the current job buffer
                                     if (previousJobFragment != null)
                                     {
@@ -246,6 +260,8 @@ namespace zero.core.models
                                     //Set how many datums we have available to process
                                     DatumCount = BytesLeftToProcess / DatumLength;
                                     DatumFragmentLength = BytesLeftToProcess % DatumLength;
+
+                                    
 
                                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
                                     IsFragmented = DatumFragmentLength > 0;

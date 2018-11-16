@@ -56,17 +56,17 @@ namespace zero.core.models
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public int DatumLength;
+        public volatile int DatumLength;
 
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatinated to the current buffer
         /// </summary>
-        public int DatumProvisionLength;
+        public volatile int DatumProvisionLength;
 
         /// <summary>
         /// Message receive buffer size
         /// </summary>        
-        public int BufferSize;
+        public volatile int BufferSize;
    
         /// <summary>
         /// Prepares this item for use after being popped from the heap

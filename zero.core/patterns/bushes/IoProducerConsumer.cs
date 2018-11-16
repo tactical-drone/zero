@@ -212,10 +212,6 @@ namespace zero.core.patterns.bushes
                                         //Signal to the consumer that there is work to do
                                         WorkSource.ConsumerBarrier.Release(1);
 
-                                        //Accept a previous fragment
-                                        //if (_previousJobFragment != null)
-                                        //    JobHeap.Return(_previousJobFragment);                                            
-
                                         //Prepare this production's remaining datum fragments for the next production
                                         if(_previousJobFragment != null)
                                             JobHeap.Return(_previousJobFragment);

@@ -90,6 +90,13 @@ namespace zero.core.network.ip
         public bool ContainsExtrabits => _remoteSocket?.NativeSocket.ProtocolType == ProtocolType.Tcp;
 
         /// <summary>
+        /// This is a temporary sync hack for TCP. Sometimes IRI has old data stuck in it's TCP stack that has to be flushed.
+        /// We do this by waiting for IRI to send us exactly the right amount of data. There is a better way but this will do for now
+        /// Until we can troll the data for verified hashes, which will be slower but more accurate.
+        /// </summary>
+        public bool TcpSynced = false;
+
+        /// <summary>
         /// Closes the connection
         /// </summary>
         public override void Close()
