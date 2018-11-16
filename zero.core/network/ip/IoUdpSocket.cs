@@ -65,7 +65,7 @@ namespace zero.core.network.ip
 
                 // Prepare UDP connection orientated things
                 IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-                _senderRemote = (EndPoint) sender;
+                _senderRemote = sender;
             }
             catch (Exception e)
             {
@@ -112,7 +112,7 @@ namespace zero.core.network.ip
         /// <returns>The number of bytes read</returns>
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
         {
-            return await Task.Factory.FromAsync(RawSocket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
+            return await Task.Factory.FromAsync(RawSocket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _senderRemote, null, null),
                 RawSocket.EndReceive).HandleCancellation(Spinners.Token);            
         }
     }
