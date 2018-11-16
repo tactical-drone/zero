@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.models;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -111,21 +112,8 @@ namespace zero.core.network.ip
         /// <returns>The number of bytes read</returns>
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
         {
-            if (RawSocket.IsBound /*&& _socket.Available */ )
-            {
-                //_logger.Warn($"===============WE GOT DATA {_socket.Available} THREAD id = {Thread.CurrentThread.ManagedThreadId}");
-
-                //TODO make async
-                var bytesRead = RawSocket.ReceiveFrom(buffer, ref _senderRemote);
-
-                return await Task.FromResult(bytesRead);
-            }
-            else
-            {
-                _logger.Warn("Unable to read from udp, socket is not bound!");
-                Thread.Sleep(1000);
-                return 0;
-            }
+            return await Task.Factory.FromAsync(RawSocket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
+                RawSocket.EndReceive).HandleCancellation(Spinners.Token);            
         }
     }
 }
