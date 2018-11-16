@@ -59,7 +59,7 @@ namespace zero.core.network.ip
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_read_ahead = 1;
+        protected int parm_tcp_read_ahead = 5;
 
         /// <summary>
         /// The Address format in IP:port
