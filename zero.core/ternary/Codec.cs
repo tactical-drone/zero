@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace zero.core.ternary
 {
@@ -16,6 +17,16 @@ namespace zero.core.ternary
         {
             Init();
         }
+
+        /// <summary>
+        /// The size of the tryte symbol alpabet
+        /// </summary>
+        private const int AlphabetLength = 27;
+
+        /// <summary>
+        /// The symbols used for the tryte alphabet
+        /// </summary>
+        private static readonly char[] Alphabet = { '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z' };
 
         /// <summary>
         /// The radix of ternary
@@ -95,7 +106,7 @@ namespace zero.core.ternary
         /// <param name="buffOffset">The offset into the buffer to start the decoding</param>
         /// <param name="tritBuffer">The buffer to store the decoded trits into</param>
         /// <param name="length">The number of bytes in the array to convert</param>        
-        public static void GetTrits(sbyte[] buffer, int buffOffset, int[] tritBuffer, int length)
+        public static void GetTrits(sbyte[] buffer, int buffOffset, sbyte[] tritBuffer, int length)
         {
             var curPos = 0;
 
@@ -107,6 +118,26 @@ namespace zero.core.ternary
 
             while (curPos < tritBuffer.Length)
                 tritBuffer[curPos++] = 0;
+        }
+
+        /// <summary>
+        /// Converts an array of trits into an array of trytes
+        /// </summary>
+        /// <param name="buffer">The trit buffer</param>
+        /// <param name="offset">The offset into the buffer to start reading from</param>
+        /// <param name="trytes">A buffer containing the result of the decoded trits</param>
+        /// <param name="length">The number of trits to convert</param>
+        /// <returns></returns>
+        public static void GetTrytes(sbyte[] buffer, int offset, StringBuilder trytes, int length)
+        {
+            trytes.Clear();            
+            for (var i = 0; i < (length + TritsPerTryte - 1) / TritsPerTryte; i++)
+            {
+                var j = buffer[offset + i * 3] + buffer[offset + i * 3 + 1] * 3 + buffer[offset + i * 3 + 2] * 9;
+                if (j < 0)
+                    j += AlphabetLength;
+                trytes.Append(Alphabet[j]);
+            }
         }
     }
 }

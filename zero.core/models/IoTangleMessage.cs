@@ -43,7 +43,12 @@ namespace zero.core.models
         /// <summary>
         /// Used to store one datum's worth of decoded trits
         /// </summary>
-        public int[] TritBuffer = new int[TransactionSize * Codec.TritsPerByte - 1];
+        public sbyte[] TritBuffer = new sbyte[TransactionSize * Codec.TritsPerByte - 1];
+
+        /// <summary>
+        /// Used to store one datum's worth of decoded trytes
+        /// </summary>
+        public StringBuilder TryteBuffer = new StringBuilder((TransactionSize * Codec.TritsPerByte - 1)/3);
 
         /// <inheritdoc />
         /// <summary>
@@ -81,7 +86,7 @@ namespace zero.core.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 10;
+        public int parm_datums_per_buffer = 50;
 
         /// <summary>
         /// The time a consumer will wait for a producer to release it before aborting in ms
@@ -102,15 +107,18 @@ namespace zero.core.models
         /// </summary>
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
 
-
+        /// <summary>
+        /// Processes a iri datum
+        /// </summary>
         private void ProcessProtocolMessage()
         {
             for (int i = 0; i < DatumCount; i++)
             {
-                ternary.Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
-                var trytes = Converter.TritsToTrytes(TritBuffer);
+                Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
+                Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
 
-                var tx = Transaction.FromTrytes(new TransactionTrytes(trytes));
+                var tx = Transaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));
+
                 //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
                 _logger.Info($"addr = {tx.Address}, value = {(tx.Value / 1000000).ToString().PadLeft(17, ' ')} Mi, f = {DatumFragmentLength != 0}");
 
