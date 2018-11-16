@@ -1,6 +1,8 @@
 ﻿using System;
 using NLog;
+using zero.core.conf;
 using zero.core.core;
+using zero.core.network.ip;
 using zero.core.protocol;
 
 namespace zero.sync
@@ -11,12 +13,14 @@ namespace zero.sync
         {
             LogManager.LoadConfiguration("nlog.config");
 
-            var tangleNode = new IoNode(ioNetClient=>new TanglePeer(ioNetClient));
+            var tangleNode = new IoNode(IoNodeAddress.Create("tcp://192.168.1.2", 15600), ioNetClient=>new TanglePeer(ioNetClient));
 
-            #pragma warning disable 4014
+#pragma warning disable 4014
             tangleNode.Start();
-            #pragma warning restore 4014
-            
+            tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com", 15600));
+#pragma warning restore 4014
+
+
             Console.WriteLine("Press any key to shutdown");
             
             Console.ReadLine();

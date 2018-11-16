@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -21,8 +22,9 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(Func<IoNetClient, IoNeighbor> mallocNeighbor)
+        public IoNode(IoNodeAddress address, Func<IoNetClient, IoNeighbor> mallocNeighbor)
         {
+            _address = address;
             _mallocNeighbor = mallocNeighbor;
             _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
             _logger = LogManager.GetCurrentClassLogger();
@@ -32,6 +34,11 @@ namespace zero.core.core
         /// logger
         /// </summary>
         private readonly Logger _logger;
+
+        /// <summary>
+        /// The listening address of this node
+        /// </summary>
+        private readonly IoNodeAddress _address;
 
         /// <summary>
         /// Used to allocate peers when connections are made
@@ -57,63 +64,7 @@ namespace zero.core.core
         /// The sheduler used to process messages from all neighbors 
         /// </summary>
         private readonly LimitedThreadScheduler _limitedNeighborThreadScheduler;
-
-        /// <summary>
-        /// The TCP listen address
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected string parm_tcp_listen_address = "tcp://192.168.1.2"; //TODO move this into tanglepeer or zero.sync?
-
-        /// <summary>
-        /// The TCP listen port number
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected UInt16 parm_tcp_listen_port = 15600;
-
-        /// <summary>
-        /// The TCP listen address
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected string parm_tcp_connect_address = "tcp://unimatrix.uksouth.cloudapp.azure.com";
-
-        /// <summary>
-        /// The TCP listen port number
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected UInt16 parm_tcp_connect_port = 15600;
-
-        /// <summary>
-        /// The UDP listen address
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected string parm_udp_listen_address = "udp://192.168.1.2";
-
-        /// <summary>
-        /// The UDP listen port number
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected UInt16 parm_udp_listen_port = 14600;
-
-        /// <summary>
-        /// The UDP listen address
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected string parm_udp_connect_address = "udp://unimatrix.uksouth.cloudapp.azure.com";
-
-        /// <summary>
-        /// The UDP listen port number
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected UInt16 parm_udp_connect_port = 14600;
-
+               
         /// <summary>
         /// The UDP listen port number
         /// </summary>
@@ -122,32 +73,19 @@ namespace zero.core.core
         protected int parm_max_neighbor_pc_threads = 1;
 
         /// <summary>
-        /// Starts the network layer
+        /// Starts the node's listener
         /// </summary>
-        async Task SpawnNetworkAsync(string localIp, int localPort, string remoteIp, int remotePort)
+        async Task SpawnListenerAsync()
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = new IoNetServer(localIp, localPort, _spinners.Token);
+            _netServer = new IoNetServer(_address, _spinners.Token);
 
-#pragma warning disable 4014
-            KeepOnListeningAsync();
-#pragma warning restore 4014
-
-            await StayConnectedAsync(remoteIp, remotePort);
-        }
-
-        /// <summary>
-        /// Start the listener
-        /// </summary>
-        /// <returns>The listener task</returns>
-        private async Task KeepOnListeningAsync()
-        {
             await _netServer.StartListenerAsync(remoteClient =>
             {
                 var newNeighbor = _mallocNeighbor(remoteClient);
-                
+
                 // Register close hooks
                 var cancelRegistration = _spinners.Token.Register(() =>
                 {
@@ -165,28 +103,27 @@ namespace zero.core.core
                 if (!_neighbors.TryAdd(remoteClient.Address, newNeighbor))
                 {
                     newNeighbor.Close();
-                    _logger.Warn( $"Neighbor `{remoteClient.Address}' already connected. Possible spoof investigate!");
+                    _logger.Warn($"Neighbor `{remoteClient.Address}' already connected. Possible spoof investigate!");
                 }
 
                 //Start the producer consumer on the neighbor scheduler
                 try
                 {
-                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token),_spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);                    
+                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
                 }
                 catch (Exception e)
                 {
                     _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Address}' processing thread returned with errors:");
                 }
             });
-        }
+        }        
 
         /// <summary>
         /// Make sure a connection stays up
-        /// </summary>
-        /// <param name="remoteIp">The remote ip to connect to</param>
-        /// <param name="remotePort">The remote port to connect to</param>
+        /// </summary>        
+        /// <param name="address">The remote node address</param>
         /// <returns>The async task</returns>
-        private async Task StayConnectedAsync(string remoteIp, int remotePort)
+        public async Task SpawnConnectionAsync(IoNodeAddress address)
         {
             IoNeighbor newNeighbor = null;
 
@@ -195,7 +132,7 @@ namespace zero.core.core
             {
                 if (newNeighbor == null)
                 {
-                    var newClient = await _netServer.ConnectAsync(remoteIp, remotePort);
+                    var newClient = await _netServer.ConnectAsync(address);
 
                     if (newClient.Connected)
                     {
@@ -257,7 +194,7 @@ namespace zero.core.core
             try
             {
 #pragma warning disable 4014
-                SpawnNetworkAsync(parm_tcp_listen_address, parm_tcp_listen_port, parm_tcp_connect_address, parm_tcp_connect_port).ContinueWith(_=> _logger.Info("You will be assimilated!"));
+                SpawnListenerAsync().ContinueWith(_=> _logger.Info("You will be assimilated!"));
 #pragma warning restore 4014                
             }
             catch (Exception e)

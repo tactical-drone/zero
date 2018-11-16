@@ -127,7 +127,6 @@ namespace zero.core.ternary
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="trytes">A buffer containing the result of the decoded trits</param>
         /// <param name="length">The number of trits to convert</param>
-        /// <returns></returns>
         public static void GetTrytes(sbyte[] buffer, int offset, StringBuilder trytes, int length)
         {
             trytes.Clear();            
