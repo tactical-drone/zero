@@ -24,12 +24,15 @@ namespace zero.core.models
         /// Constructs buffers that hold tangle message information
         /// </summary>  
         /// <param name="source">The network source where messages are to be obtained</param>
-        public IoTangleMessage(IoNetClient source):base(DatumLength)
+        public IoTangleMessage(IoNetClient source)
         {            
             Source = source;
+            
+            DatumLength = MessageLength + (Source.ContainsExtrabits ? MessageCrcLength : 0);
+            DatumProvisionLength = DatumLength - 1;
 
             BufferSize = DatumLength * parm_datums_per_buffer;
-            Buffer = new sbyte[BufferSize + DatumLength - 1];
+            Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             WorkDescription = source.Address;
             _logger = LogManager.GetCurrentClassLogger();
@@ -39,6 +42,8 @@ namespace zero.core.models
         /// logger
         /// </summary>
         private readonly Logger _logger;
+
+        public bool IsTcp = false;
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -50,11 +55,10 @@ namespace zero.core.models
         /// </summary>
         public StringBuilder TryteBuffer = new StringBuilder((TransactionSize * Codec.TritsPerByte - 1)/3);
 
-        /// <inheritdoc />
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
-        public override int BytesLeftToProcess => BytesRead - BufferOffset;
+        public int BytesLeftToProcess => BytesRead - BufferOffset + DatumProvisionLength;
 
         /// <summary>
         /// The length of tangle protocol messages
@@ -76,10 +80,6 @@ namespace zero.core.models
         /// </summary>
         public const int TransactionHashSize = 46;
 
-        /// <summary>
-        /// The protocol message length
-        /// </summary>
-        public new const int DatumLength = MessageLength + MessageCrcLength;
 
         /// <summary>
         /// Maximul number of datums this buffer can hold
@@ -120,9 +120,9 @@ namespace zero.core.models
                 var tx = Transaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));
 
                 //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
-                _logger.Info($"addr = {tx.Address}, value = {(tx.Value / 1000000).ToString().PadLeft(17, ' ')} Mi, f = {DatumFragmentLength != 0}");
+                _logger.Info($"({Id}) {tx.Address}, v = {(tx.Value / 1000000).ToString().PadLeft(17, ' ')} Mi, f = {DatumFragmentLength != 0}");
 
-                BufferOffset += IoTangleMessage.DatumLength;
+                BufferOffset += DatumLength;
             }
 
             ProcessState = State.Consumed;
@@ -214,14 +214,22 @@ namespace zero.core.models
                                     _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' returned with errors:");
                                     break;
                                 //Success
-                                case TaskStatus.RanToCompletion:                                                                        
-                                    BytesRead = rx.Result;
+                                case TaskStatus.RanToCompletion:
+                                    var bytesRead = rx.Result;
+                                    BytesRead = bytesRead;
 
-                                    if (Id == 0)
+                                    if (Id == 0 && Source.ContainsExtrabits)
                                     {
-                                        _logger.Trace($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
+                                        _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                         BufferOffset += 10;
                                         BytesRead -= 10;
+                                        bytesRead -= 10;
+
+                                        if (BytesLeftToProcess < 0)
+                                        {
+                                            ProcessState = State.Produced;
+                                            break;
+                                        }                                            
                                     }
 
                                     //Copy a previously read job buffer datum fragment into the current job buffer
@@ -229,7 +237,7 @@ namespace zero.core.models
                                     {
                                         BufferOffset -= previousJobFragment.DatumFragmentLength;
                                         BytesRead += previousJobFragment.DatumFragmentLength;
-
+                                        DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
                                         Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
                                     
                                         //Update buffer pointers                                        
@@ -237,12 +245,14 @@ namespace zero.core.models
 
                                     //Set how many datums we have available to process
                                     DatumCount = BytesLeftToProcess / DatumLength;
-                                    DatumFragmentLength = BytesRead % DatumLength;
+                                    DatumFragmentLength = BytesLeftToProcess % DatumLength;
 
-                                    //set process state to Produced or fragmented
-                                    ProcessState = DatumFragmentLength == 0 ? State.Produced : State.Fragmented;
+                                    //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                                    IsFragmented = DatumFragmentLength > 0;
+
+                                    ProcessState = State.Produced;
                                     
-                                    _logger.Trace($"({Id}) RX => `{BytesRead}/{BufferSize}', fragment = `{DatumFragmentLength}', buf = `{(int)(BytesRead / (double)BufferSize * 100)}%'");
+                                    _logger.Trace($"({Id}) RX=> fragment=`{previousJobFragment?.DatumFragmentLength ?? 0}', read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumLength}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize+DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
 
                                     break;
                                 default:

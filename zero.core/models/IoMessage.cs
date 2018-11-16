@@ -15,10 +15,8 @@ namespace zero.core.models
         /// <summary>
         /// Initializes the buffer size to fill
         /// </summary>
-        protected IoMessage(int datumLength)
+        protected IoMessage()
         {
-            DatumLength = datumLength;
-
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             SettingChangedEvent += (sender, pair) =>
             {
@@ -46,35 +44,30 @@ namespace zero.core.models
         public volatile int BufferOffset;
 
         /// <summary>
-        /// The number of bytes left to process in this buffer
-        /// </summary>
-        public virtual int BytesLeftToProcess { get; set; }
-
-        /// <summary>
         /// Total number of datums contained inside the buffer
         /// </summary>
-        public int DatumCount { get; set; }
+        public volatile int DatumCount;
 
         /// <summary>
         /// The number of bytes remaining of a fragmented datum
         /// </summary>
-        public int DatumFragmentLength { get; set; }
+        public volatile int DatumFragmentLength;
 
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public readonly int DatumLength;
+        public int DatumLength;
+
+        /// <summary>
+        /// The length of the buffer offset to allow previous fragments to be concatinated to the current buffer
+        /// </summary>
+        public int DatumProvisionLength;
 
         /// <summary>
         /// Message receive buffer size
         /// </summary>        
         public int BufferSize;
-
-        /// <summary>
-        /// An identifier used to pair up fragmented socket reads
-        /// </summary>
-        //public uint FragmentNumber;
-
+   
         /// <summary>
         /// Prepares this item for use after being popped from the heap
         /// </summary>
@@ -82,7 +75,8 @@ namespace zero.core.models
         public override IOHeapItem Constructor()
         {
             BytesRead = 0;
-            BufferOffset = DatumLength - 1;
+            DatumProvisionLength = DatumLength - 1;
+            BufferOffset = DatumProvisionLength;
             return !Reconfigure ? base.Constructor() : null;
         }
     }

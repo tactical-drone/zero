@@ -73,6 +73,7 @@ namespace zero.core.network.ip
                     $"There was an error handling new connection from `{Protocol}{RemoteAddress}:{RemotePort}' to `{Protocol}{LocalAddress}:{LocalPort}'");
             }
 
+            RemoteUdpAddress = address;
             //_socket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoChecksum, 1);
             //_socket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoChecksum, true);
             //_socket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.ChecksumCoverage, 1);            

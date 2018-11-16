@@ -24,20 +24,17 @@ namespace zero.core.network.ip
         {
             _remoteSocket = remote;
             _logger = LogManager.GetCurrentClassLogger();
-            _hostname = _remoteSocket.RemoteAddress?.ToString() ?? "N/A";
-            _port = _remoteSocket?.RemotePort ?? 0;
+            _address = IoNodeAddress.Create(_remoteSocket.RemoteAddress ?? _remoteSocket.LocalAddress, _remoteSocket.RemoteAddress != null? _remoteSocket.RemotePort: _remoteSocket.LocalPort);            
         }
 
         /// <summary>
         /// Constructor for connecting
         /// </summary>
-        /// <param name="hostname">The hostname to connect to</param>
-        /// <param name="port">The listening port</param>
+        /// <param name="address">The address associated with this network client</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(string hostname, int port, int readAhead):base(readAhead)
+        public IoNetClient(IoNodeAddress address, int readAhead):base(readAhead)
         {
-            _hostname = hostname;
-            _port = port;
+            _address = address;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -47,14 +44,9 @@ namespace zero.core.network.ip
         private readonly Logger _logger;
 
         /// <summary>
-        /// hostname
+        /// The remote address associated with this client
         /// </summary>
-        private readonly string _hostname;
-
-        /// <summary>
-        /// port
-        /// </summary>
-        private readonly int _port;
+        private readonly IoNodeAddress _address;
 
         /// <summary>
         /// A description of this client. Currently the remote address
@@ -93,6 +85,11 @@ namespace zero.core.network.ip
         public bool Connected => _remoteSocket?.NativeSocket?.Connected??false;
 
         /// <summary>
+        /// A flag to indicate if those pesky extra tcp bits are contained in the datum
+        /// </summary>
+        public bool ContainsExtrabits => _remoteSocket?.NativeSocket.ProtocolType == ProtocolType.Tcp;
+
+        /// <summary>
         /// Closes the connection
         /// </summary>
         public override void Close()
@@ -120,7 +117,7 @@ namespace zero.core.network.ip
             _remoteSocket?.Close();
 
             //create a new rawSocket
-            _remoteSocket = IoSocket.GetKindFromUrl(_hostname, _spinners.Token);
+            _remoteSocket = IoSocket.GetKindFromUrl(_address.Url, _spinners.Token);
 
             _cancellationTokenRegistration = Spinners.Token.Register(() => _remoteSocket?.Spinners.Cancel());            
 
@@ -134,7 +131,7 @@ namespace zero.core.network.ip
             _logger.Info($"Connecting to `{Address}'");
             
             //connect to the remote rawSocket
-            await _remoteSocket.ConnectAsync(IoSocket.StripIp(_hostname) , _port).ContinueWith(_ =>
+            await _remoteSocket.ConnectAsync(IoSocket.StripIp(_address.Url) , _address.Port).ContinueWith(_ =>
                 {
                     _remoteSocket.Disconnected += (s, e) => _cancellationTokenRegistration.Dispose();
                 });
@@ -214,11 +211,6 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string Address => $"{_hostname}:{_port}";
-
-        public override string ToString()
-        {
-            return Address;
-        }
+        public string Address => _address.ToString();        
     }
 }

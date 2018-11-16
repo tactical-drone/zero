@@ -45,7 +45,6 @@ namespace zero.core.patterns.bushes
             Undefined,
             Producing,
             Produced,
-            Fragmented,
             Queued,
             Consuming,
             ConsumerSkipped,            
@@ -105,6 +104,11 @@ namespace zero.core.patterns.bushes
         /// The current state
         /// </summary>
         public volatile IoWorkStateTransition<TSource> CurrentState;
+
+        /// <summary>
+        /// Indicates that this job contains unprocessed fragments
+        /// </summary>
+        public volatile bool IsFragmented;
 
         /// <summary>
         /// Update state history
@@ -169,6 +173,7 @@ namespace zero.core.patterns.bushes
             CurrentState = null;
 
             ProcessState = State.Undefined;
+            IsFragmented = false;
 
             return this;
         }
@@ -184,7 +189,6 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Print the state transition history for this work
         /// </summary>
-        /// <param name="reverse"></param>
         public void PrintStateHistory()
         {
             var curState = StateTransitionHistory[0];

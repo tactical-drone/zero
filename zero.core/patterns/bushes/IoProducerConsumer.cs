@@ -201,11 +201,8 @@ namespace zero.core.patterns.bushes
                                         TConsumer currJobFragment = null;
                                         
                                         //Does production yield fragmented datums?
-                                        if (nextJob.ProcessState == IoProducable<TSource>.State.Fragmented)
-                                        {
-                                            nextJob.ProcessState = IoProducable<TSource>.State.Produced;
+                                        if (nextJob.IsFragmented)
                                             currJobFragment = nextJob;
-                                        }
                                         
                                         //Enqueue the job for the consumer
                                         nextJob.ProcessState = IoProducable<TSource>.State.Queued;
@@ -220,6 +217,9 @@ namespace zero.core.patterns.bushes
                                         //    JobHeap.Return(_previousJobFragment);                                            
 
                                         //Prepare this production's remaining datum fragments for the next production
+                                        if(_previousJobFragment != null)
+                                            JobHeap.Return(_previousJobFragment);
+
                                         _previousJobFragment = currJobFragment;
                                     }
                                     else //produce job returned with errors
@@ -321,8 +321,9 @@ namespace zero.core.patterns.bushes
                                     if (currJob.ProcessState == IoProducable<TSource>.State.Consumed)
                                     {
                                         currJob.ProcessState = IoProducable<TSource>.State.Accept;
-
-                                        JobHeap.Return(currJob);
+                                        
+                                        if(!currJob.IsFragmented)
+                                            JobHeap.Return(currJob);
                                     } 
                                     else //Consume failed?
                                     {

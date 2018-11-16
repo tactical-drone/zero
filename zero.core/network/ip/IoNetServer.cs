@@ -32,7 +32,6 @@ namespace zero.core.network.ip
 
             _spinners = new CancellationTokenSource();
             cancellationToken.Register(_spinners.Cancel);
-
         }
 
         /// <summary>
@@ -60,12 +59,12 @@ namespace zero.core.network.ip
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_read_ahead = 5;
+        protected int parm_tcp_read_ahead = 1;
 
         /// <summary>
         /// The Address format in IP:port
         /// </summary>
-        public string Address => $"{_listeningAddress.Url}:{_listeningAddress.Port}";
+        public string Address => _listeningAddress.ToString();
 
 
         /// <summary>
@@ -107,7 +106,8 @@ namespace zero.core.network.ip
                     }
                 });
 
-                _logger.Debug($"Listener loop `{Address}' exited");
+                if(_listener.NativeSocket.ProtocolType == ProtocolType.Tcp)
+                    _logger.Debug($"Listener loop `{Address}' exited");
                 return this;
             }//, _spinners.Token);
         }
@@ -119,7 +119,7 @@ namespace zero.core.network.ip
         /// <returns>The tcp client wrapper</returns>
         public async Task<IoNetClient> ConnectAsync(IoNodeAddress address)
         {
-            var remoteClientTask = new IoNetClient(address.Url, address.Port, parm_tcp_read_ahead);
+            var remoteClientTask = new IoNetClient(address, parm_tcp_read_ahead);
 
             //CONNECT
             await remoteClientTask.ConnectAsync().ContinueWith(connectAsync =>

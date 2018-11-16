@@ -40,5 +40,14 @@ namespace zero.core.network.ip
         {
             return new IoNodeAddress(url, port);
         }
+
+        /// <summary>
+        /// The Url string in form url://ip:port
+        /// </summary>
+        /// <returns>The Url string in form url://ip:port</returns>
+        public override string ToString()
+        {
+            return Url + ":" + Port;
+        }
     }
 }

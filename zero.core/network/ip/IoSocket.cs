@@ -72,7 +72,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The remote address (used for logging)
         /// </summary>
-        private string _remoteAddress = "[url not set]";
+        public string RemoteUdpAddress = null;
 
         /// <summary>
         /// Remote port (used for logging)
@@ -97,7 +97,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Public access to remote address (used for logging)
         /// </summary>
-        public string RemoteAddress => RawSocket?.RemoteAddress()?.ToString() ?? _remoteAddress;
+        public string RemoteAddress => RawSocket?.RemoteAddress()?.ToString() ?? RemoteUdpAddress;
 
         /// <summary>
         /// Public access to remote port (used for logging)
@@ -189,7 +189,7 @@ namespace zero.core.network.ip
             if(RawSocket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
-            _remoteAddress = address;
+            RemoteUdpAddress = address;
             _remotePort = port;
 
             //tcp
@@ -213,7 +213,7 @@ namespace zero.core.network.ip
             else //udp
             {
                 //set UDP connection orientated things
-                RemoteEndPoint = new IPEndPoint(Dns.GetHostAddresses(_remoteAddress)[0], _remotePort);
+                RemoteEndPoint = new IPEndPoint(Dns.GetHostAddresses(RemoteUdpAddress)[0], _remotePort);
             }
         }
 
