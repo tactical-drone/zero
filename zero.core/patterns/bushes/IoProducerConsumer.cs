@@ -115,7 +115,11 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected LimitedThreadScheduler JobThreadScheduler;
 
-        private TConsumer _previousJobFragment = null;
+        /// <summary>
+        /// Maintains a handle to a job if fragmentation was detected so that the
+        /// producer can marhal fragments into the next production
+        /// </summary>
+        private volatile TConsumer _previousJobFragment;
 
         /// <summary>
         /// Maximum amount of producers that can be buffered before we stop pruction of new jobs
@@ -194,18 +198,19 @@ namespace zero.core.patterns.bushes
                             {
                                 //Allocate a job from the heap
                                 if ((nextJob = JobHeap.Take()) != null)
-                                {                                    
+                                {            
+                                                                                                            
                                     //Fetch a job from TSource. Did we get one?
                                     if (await nextJob.ProduceAsync(_previousJobFragment) < IoProducable<TSource>.State.Error)
                                     {
                                         TConsumer currJobFragment = null;
                                         
                                         //Does production yield fragmented datums?
-                                        if (nextJob.IsFragmented)
+                                        if (nextJob.StillHasUnprocessedFragments)
                                             currJobFragment = nextJob;
                                         
                                         //Enqueue the job for the consumer
-                                        nextJob.ProcessState = IoProducable<TSource>.State.Queued;
+                                        nextJob.ProcessState = IoProducable<TSource>.State.Queued;                                        
                                         _queue.Enqueue(nextJob);
                                         wasQueued = true;
 
@@ -213,9 +218,18 @@ namespace zero.core.patterns.bushes
                                         WorkSource.ConsumerBarrier.Release(1);
 
                                         //Prepare this production's remaining datum fragments for the next production
-                                        if(_previousJobFragment != null)
-                                            JobHeap.Return(_previousJobFragment);
-
+                                        if (_previousJobFragment != null)
+                                        {
+                                            lock (_previousJobFragment)
+                                            {
+                                                //If this job is not under the consumer's control, we need to return it to the heap 
+                                                if (_previousJobFragment.ProcessState > IoProducable<TSource>.State.Consumed)
+                                                    JobHeap.Return(_previousJobFragment);
+                                                else //Signal control back to the consumer that it now has control over this job
+                                                    _previousJobFragment.StillHasUnprocessedFragments = false;
+                                            }
+                                        }
+                                        
                                         _previousJobFragment = currJobFragment;
                                     }
                                     else //produce job returned with errors
@@ -253,6 +267,7 @@ namespace zero.core.patterns.bushes
                                 if (nextJob != null && !wasQueued)
                                 {
                                     nextJob.ProcessState = IoProducable<TSource>.State.Reject;
+                                    _logger.Error("Returning job back to the heap!");
                                     JobHeap.Return(nextJob);
                                 }
                             }
@@ -318,18 +333,19 @@ namespace zero.core.patterns.bushes
                                     {
                                         currJob.ProcessState = IoProducable<TSource>.State.Accept;
                                         
-                                        if(!currJob.IsFragmented)
+                                        if(!currJob.StillHasUnprocessedFragments)
                                             JobHeap.Return(currJob);
                                     } 
                                     else //Consume failed?
                                     {
                                         currJob.ProcessState = IoProducable<TSource>.State.Reject;
-                                        JobHeap.Return(currJob);
+                                        if(!currJob.StillHasUnprocessedFragments)//TODO how do we handle this? The stream will be out of sync? Maybe set TcpSync back to false?
+                                            JobHeap.Return(currJob);
                                     }
 
-                                    if ((currJob.Id % parm_stats_mod_count) == 0)
+                                    //if ((currJob.Id % parm_stats_mod_count) == 0)
                                     {
-                                        _logger.Trace($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
+                                        _logger.Warn($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
                                         //job.PrintStateHistory();                                            
                                     }
 
@@ -360,231 +376,6 @@ namespace zero.core.patterns.bushes
             }
 
         }
-
-
-        //        /// <summary>
-        //        /// Starts this producer consumer
-        //        /// </summary>
-        //        /// <param name="cancellationToken">The kill signal</param>
-        //        public async Task SpawnProcessingAsyncold(CancellationToken cancellationToken)
-        //        {
-        //            using (cancellationToken.Register(() => Spinners.Cancel()))
-        //            {
-        //                //main loop
-        //                _logger.Debug($"Starting producer/consumer `{Description}'");
-
-        //                while (!Spinners.IsCancellationRequested)
-        //                {
-        //                    //CONSUME
-        //                    if (_queue.Count > 0)
-        //                    {
-        //                        //-----------------------------------------------------------------
-        //                        // ASYNC WORK
-        //                        //-----------------------------------------------------------------
-        //#pragma warning disable 4014
-        //                        Task.Factory.StartNew(() =>
-        //#pragma warning restore 4014
-        //                        {
-        //                            try
-        //                            {
-        //                                while (_queue.TryTake(out var currJob, 0, Spinners.Token))
-        //                                {
-        //                                    try
-        //                                    {
-        //                                        try
-        //                                        {
-        //                                            //TODO async this function instead of the Task.Run
-        //                                            //call the work callback                                    
-        //                                            if (ConsumeAsync(currJob, _previousJobFragment) >= IoProducable<TSource>.State.Error)
-        //                                            {
-        //                                                _logger.Warn($"Consuming job `{currJob.Description}' returned with errors, state = {currJob.ProcessState}");
-        //                                            }
-
-        //                                            //Notify observer
-        //                                            _observer?.OnNext(currJob);
-        //                                        }
-        //                                        catch (Exception e)
-        //                                        {
-        //                                            _logger.Error(e.InnerException ?? e,
-        //                                                $"Consuming job `{currJob.Description}' returned with errors:");
-        //                                        }
-
-        //                                        if ((currJob.Id % parm_stats_mod_count) == 0)
-        //                                        {
-        //                                            _logger.Trace($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
-        //                                            //job.PrintStateHistory();                                            
-        //                                        }
-        //                                    }
-        //                                    finally
-        //                                    {
-        //                                        if (currJob != null)
-        //                                        {
-        //                                            //Consume success?
-        //                                            if (currJob.ProcessState == IoProducable<TSource>.State.Consumed)
-        //                                            {
-        //                                                currJob.ProcessState = IoProducable<TSource>.State.Accept;
-
-        //                                                JobHeap.Return(currJob);
-
-        //                                                //Also accept the previous job fragment
-        //                                                if (_previousJobFragment != null)
-        //                                                {
-        //                                                    _previousJobFragment.ProcessState = IoProducable<TSource>.State.Consumed;
-        //                                                    _previousJobFragment.ProcessState = IoProducable<TSource>.State.Accept;
-        //                                                    JobHeap.Return(_previousJobFragment);
-        //                                                    _previousJobFragment = null;
-        //                                                }
-        //                                            } //Consume signalled a job with remaining datum fragment
-        //                                            else if (currJob.ProcessState == IoProducable<TSource>.State.Fragmented)
-        //                                            {
-        //                                                // Finalize the previous job fragment
-        //                                                if (_previousJobFragment != null)
-        //                                                {
-        //                                                    _previousJobFragment.ProcessState = IoProducable<TSource>.State.Consumed;
-        //                                                    _previousJobFragment.ProcessState = IoProducable<TSource>.State.Accept;
-
-        //                                                    JobHeap.Return(_previousJobFragment);
-        //                                                }
-
-        //                                                // Prepare a job fragment for the next consume from the current 
-        //                                                _previousJobFragment = currJob;
-        //                                            }
-        //                                            else //Consume failed?
-        //                                            {
-        //                                                currJob.ProcessState = IoProducable<TSource>.State.Reject;
-        //                                                JobHeap.Return(currJob);
-        //                                                if (_previousJobFragment != null)
-        //                                                {
-        //                                                    _previousJobFragment.ProcessState = IoProducable<TSource>.State.Reject;
-        //                                                    JobHeap.Return(_previousJobFragment);
-        //                                                    _previousJobFragment = null;
-        //                                                }
-        //                                            }
-
-        //                                            currJob.Source.PrintCounters();
-        //                                        }
-        //                                    }
-        //                                }
-        //                            }
-        //                            catch (Exception e)
-        //                            {
-        //                                _logger.Error(e, "Consumer dequeuer returned with errors:");
-        //                            }
-        //                            finally
-        //                            {
-        //                                //GC.Collect(GC.MaxGeneration);
-        //                            }
-
-        //                        }, Spinners.Token, TaskCreationOptions.LongRunning, JobThreadScheduler);
-        //                    }
-
-        //                    //Rate limit producer
-        //                    //TODO fix
-        //                    if (parm_min_frame_time > -1)
-        //                    {
-        //                        //Thread.Sleep((int)parm_min_frame_time);
-        //                        await Task.Delay(parm_min_frame_time, Spinners.Token);
-        //                    }
-
-        //                    //PRODUCE
-        //                    if (_queue.Count < parm_max_q_size)
-        //                    {
-        //                        TConsumer nextJob = null;
-        //                        try
-        //                        {
-        //                            //Allocate a job from the heap                                                
-        //                            nextJob = JobHeap.Take();
-
-        //                            if (nextJob != null)
-        //                            {
-        //                                //Find new jobs                        
-        //                                nextJob.ProcessState = IoProducable<TSource>.State.Producing;
-        //                                if (await nextJob.ProduceAsync() < IoProducable<TSource>.State.Error)
-        //                                {
-        //                                    try
-        //                                    {
-        //                                        nextJob.ProcessState = IoProducable<TSource>.State.Queued;
-        //                                        _queue.Add(nextJob, Spinners.Token);
-        //                                    }
-        //                                    catch (Exception e)
-        //                                    {
-        //                                        _logger.Error(e,
-        //                                            $"Adding job to queue failed, IsCancellationRequested = `{Spinners.Token.IsCancellationRequested}'");
-        //                                        nextJob.ProcessState = IoProducable<TSource>.State.ProduceCancelled;
-        //                                    }
-        //                                }
-        //                                else
-        //                                {
-        //                                    if (nextJob.ProcessState == IoProducable<TSource>.State.Cancelled)
-        //                                        Spinners.Cancel();
-
-        //                                    var sleepTimeMs =
-        //                                        nextJob.Source.Counters[(int)IoProducable<TSource>.State.Reject] + 1 /
-        //                                        (nextJob.Source.Counters[(int)IoProducable<TSource>.State.Accept] +
-        //                                         parm_error_timeout);
-        //                                    _logger.Debug(
-        //                                        $"{nextJob.Description}, Reject = {nextJob.Source.Counters[(int)IoProducable<TSource>.State.Reject]}, Accept = {nextJob.Source.Counters[(int)IoProducable<TSource>.State.Accept]}");
-        //                                    _logger.Debug(
-        //                                        $"Producing job `{nextJob.Description}' did not complete, sleeping for {sleepTimeMs}ms...");
-        //                                    Thread.Sleep((int)sleepTimeMs);
-
-        //                                    continue;
-        //                                }
-
-
-        //                                //TODO Switch priorities?
-        //                                //Try find some jobs from the side
-        //                                if (nextJob.ProcessState != IoProducable<TSource>.State.Queued &&
-        //                                    _ingressBalancer.TryTake(out var job))
-        //                                {
-        //                                    //Que for work
-        //                                    job.ProcessState = IoProducable<TSource>.State.Produced;
-        //                                    try
-        //                                    {
-        //                                        job.ProcessState = IoProducable<TSource>.State.Queued;
-        //                                        _queue.Add(job, Spinners.Token);
-        //                                        //boiler
-        //                                    }
-        //                                    catch (Exception e)
-        //                                    {
-        //                                        _logger.Error(e,
-        //                                            $"Adding job to queue failed, IsCancellationRequested = `{Spinners.Token.IsCancellationRequested}'");
-        //                                        job.ProcessState = IoProducable<TSource>.State.ProduceCancelled;
-        //                                    }
-        //                                }
-        //                            }
-        //                            else
-        //                            {
-        //                                _logger.Trace($"Producing `{Description}` failed. Cannot allocate job structure");
-        //                                Thread.Sleep((int)parm_error_timeout);
-        //                            }
-        //                        }
-        //                        catch (OperationCanceledException)
-        //                        {
-        //                            _logger.Debug($"Producer `{Description}' was stopped");
-        //                        }
-        //                        catch (Exception e)
-        //                        {
-        //                            _logger.Error(e, $"Producing `{Description}' returned with errors:");
-        //                        }
-        //                        finally
-        //                        {
-        //                            //prevent leaks
-        //                            if (nextJob != null && nextJob.ProcessState != IoProducable<TSource>.State.Queued)
-        //                            {
-        //                                nextJob.ProcessState = IoProducable<TSource>.State.Reject;
-        //                                JobHeap.Return(nextJob);
-        //                            }
-        //                        }
-        //                    }
-        //                    else //We have run out of buffer space. Go consume
-        //                    {
-        //                        _logger.Trace(
-        //                            $"Producer consumer `{Description}' waiting for consumer to catch up! parm_max_q_size = `{parm_max_q_size}'");
-        //                    }
-        //                }
-        //            }
-        //        }
 
         /// <summary>
         /// Subscribe to this producer, one at a time.

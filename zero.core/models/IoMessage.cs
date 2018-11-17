@@ -77,7 +77,9 @@ namespace zero.core.models
             BytesRead = 0;
             DatumProvisionLength = DatumLength - 1;
             BufferOffset = DatumProvisionLength;
-            return !Reconfigure ? base.Constructor() : null;
+            
+            //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
+            return base.Constructor();
         }
     }
 }

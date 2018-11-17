@@ -108,7 +108,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
         /// </summary>
-        public volatile bool IsFragmented;
+        public volatile bool StillHasUnprocessedFragments;
 
         /// <summary>
         /// Update state history
@@ -147,7 +147,20 @@ namespace zero.core.patterns.bushes
             if (prevState != null)
                 prevState.Next = CurrentState;
 
-            CurrentState.State = value;
+            // We need a lock if this job contained fragments because there is a race condition of ownership between 
+            // the producer and the consumer as to who returns this job to the heap. If the consumer has consumed this
+            // job it is the producers responsibility to return this job to the heap because it still needs to
+            // move the fragments to a future job. If the consumer still needs to  process this job then the consumer
+            // needs to return this job to the heap. Who exactly has control is determined by the StillHasUnprocessedFragments
+            // state. The producer will set this value to false when it has moved the datum fragments to another job so that
+            // it can be processed
+            if (StillHasUnprocessedFragments && value == State.Consumed)
+            {
+                lock(this)
+                    CurrentState.State = value;
+            }
+            else
+                CurrentState.State = value;
 
             //Timestamps
             CurrentState.EnterTime = CurrentState.ExitTime = DateTime.Now;
@@ -173,7 +186,7 @@ namespace zero.core.patterns.bushes
             CurrentState = null;
 
             ProcessState = State.Undefined;
-            IsFragmented = false;
+            StillHasUnprocessedFragments = false;
 
             return this;
         }

@@ -260,11 +260,9 @@ namespace zero.core.models
                                     //Set how many datums we have available to process
                                     DatumCount = BytesLeftToProcess / DatumLength;
                                     DatumFragmentLength = BytesLeftToProcess % DatumLength;
-
                                     
-
                                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                    IsFragmented = DatumFragmentLength > 0;
+                                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
                                     ProcessState = State.Produced;
                                     
