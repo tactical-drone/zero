@@ -267,7 +267,6 @@ namespace zero.core.patterns.bushes
                                 if (nextJob != null && !wasQueued)
                                 {
                                     nextJob.ProcessState = IoProducable<TSource>.State.Reject;
-                                    _logger.Error("Returning job back to the heap!");
                                     JobHeap.Return(nextJob);
                                 }
                             }
