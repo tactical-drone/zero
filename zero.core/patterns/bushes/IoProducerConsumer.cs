@@ -343,9 +343,9 @@ namespace zero.core.patterns.bushes
                                             JobHeap.Return(currJob);
                                     }
 
-                                    //if ((currJob.Id % parm_stats_mod_count) == 0)
+                                    if ((currJob.Id % parm_stats_mod_count) == 0)
                                     {
-                                        _logger.Warn($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
+                                        _logger.Trace($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
                                         //job.PrintStateHistory();                                            
                                     }
 
