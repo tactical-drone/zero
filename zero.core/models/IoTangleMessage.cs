@@ -34,7 +34,7 @@ namespace zero.core.models
             BufferSize = DatumLength * parm_datums_per_buffer;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
-            WorkDescription = source.Address;
+            WorkDescription = source.AddressString;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -217,6 +217,14 @@ namespace zero.core.models
                                 case TaskStatus.RanToCompletion:
                                     var bytesRead = rx.Result;
                                     BytesRead = bytesRead;
+
+                                    //TODO double check this hack
+                                    if (BytesRead == 0)
+                                    {
+                                        ProcessState = State.ProduceSkipped;
+                                        break;
+                                    }
+                                        
 
                                     if (Id == 0 && Source.ContainsExtrabits)
                                     {

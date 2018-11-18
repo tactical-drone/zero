@@ -14,24 +14,26 @@ using zero.core.conf;
 
 namespace zero.core.network.ip
 {
+    /// <inheritdoc />
     /// <summary>
-    /// A wrap for <see cref="IoSocket"/> to make it host a server
+    /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
     /// </summary>
-    public class IoNetServer:IoConfigurable
+    public abstract class IoNetServer : IoConfigurable
     {
+        /// <inheritdoc />
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Kill signal</param>
-        public IoNetServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken)
+        /// <param name="cancellationToken">Cancellation hooks</param>
+        protected IoNetServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken)
         {
-            _listeningAddress = listeningAddress;
+            ListeningAddress = listeningAddress;
 
             _logger = LogManager.GetCurrentClassLogger();
 
-            _spinners = new CancellationTokenSource();
-            cancellationToken.Register(_spinners.Cancel);
+            Spinners = new CancellationTokenSource();
+            cancellationToken.Register(Close);
         }
 
         /// <summary>
@@ -42,122 +44,103 @@ namespace zero.core.network.ip
         /// <summary>
         /// The listening address of this server
         /// </summary>
-        private readonly IoNodeAddress _listeningAddress;
-
-        /// <summary>
-        /// Cancel all listener tasks
-        /// </summary>
-        private readonly CancellationTokenSource _spinners;
+        protected readonly IoNodeAddress ListeningAddress;        
 
         /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped
         /// </summary>
-        private IoSocket _listener;
+        protected IoSocket IoListenSocket;
+
+        /// <summary>
+        /// Cancel all listener tasks
+        /// </summary>
+        protected readonly CancellationTokenSource Spinners;
+
+        /// <summary>
+        /// The cancellation registration handle
+        /// </summary>
+        private CancellationTokenRegistration _cancellationRegistration;
 
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_read_ahead = 10;
+        protected int parm_read_ahead = 10;        
 
         /// <summary>
-        /// The Address format in IP:port
+        /// Start the listener
         /// </summary>
-        public string Address => _listeningAddress.ToString();
-
-
-        /// <summary>
-        /// A reference to the <see cref="TcpListener"/>
-        /// </summary>
-        /// public TcpListener TcpListener => _listener;
-        /// <summary>
-        /// StartAsync a listener
-        /// </summary>
-        /// <param name="connectionReceivedAction">Action to execute on connection</param>
-        public async Task<IoNetServer> StartListenerAsync(Action<IoNetClient> connectionReceivedAction)
+        /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        public virtual Task<bool> StartListenerAsync(Action<IoNetClient> connectionReceivedAction)
         {
-            if(_listener != null)
-                throw new ConstraintException($"tcpLister has already been started for {Address}");
-
-            //async
-            //return await Task.Run(async () =>
-            {
-                _listener = IoSocket.GetKindFromUrl(_listeningAddress.Url, _spinners.Token);
-                
-                await _listener.ListenAsync(IoSocket.StripIp(_listeningAddress.Url), _listeningAddress.Port, socket =>
-                {
-                    if (socket.NativeSocket.ProtocolType == ProtocolType.Tcp)
-                        _logger.Debug($"Got a connection request from `{socket.RemoteAddress}:{socket.RemotePort}'");
-
-                    _logger.Info(socket.NativeSocket.ProtocolType == ProtocolType.Tcp
-                        ? $"`{socket.Protocol}{socket.RemoteAddress}:{socket.RemotePort}' connected!"
-                        : $"`{socket.Protocol}{socket.LocalAddress}:{socket.LocalPort}' ready for UDP messages");
-
-                    try
-                    {
-                        //Execute handler
-                        connectionReceivedAction?.Invoke(new IoNetClient(socket, parm_tcp_read_ahead));
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Error(e, $"Connection received handler returned with errors:");
-                        socket.Close();
-                    }
-                });
-
-                if(_listener.NativeSocket.ProtocolType == ProtocolType.Tcp)
-                    _logger.Debug($"Listener loop `{Address}' exited");
-                return this;
-            }//, _spinners.Token);
+            if (IoListenSocket != null)
+                throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
+            return Task.FromResult(true);
         }
 
         /// <summary>
         /// Connect to a host async
         /// </summary>
-        /// <param name="address">The remote node address</param>
+        /// <param name="_">A stub</param>
+        /// <param name="ioNetClient">The client to connect to</param>
         /// <returns>The tcp client wrapper</returns>
-        public async Task<IoNetClient> ConnectAsync(IoNodeAddress address)
+        public virtual async Task<IoNetClient> ConnectAsync(IoNodeAddress _, IoNetClient ioNetClient = null)
         {
-            var remoteClientTask = new IoNetClient(address, parm_tcp_read_ahead);
-
-            //CONNECT
-            await remoteClientTask.ConnectAsync().ContinueWith(connectAsync =>
+            if (await ioNetClient.ConnectAsync().ContinueWith(t =>
             {
-                switch (connectAsync.Status)
+                if (!t.Result)
                 {
-                    case TaskStatus.Canceled:
-                        _logger.Warn($"Connecting to `{address.Url}:{address.Port}' was cancelled");
-                        remoteClientTask.Close();
-                        break;
-                    case TaskStatus.Faulted:
-                        _logger.Error(connectAsync.Exception.InnerException??connectAsync.Exception, $"Connecting to `{Address}' was faulted:");
-                        remoteClientTask.Close();
-                        break;
-                    case TaskStatus.RanToCompletion:
-                        //On connect success
-                        if (remoteClientTask.IsSocketConnected())
-                        {
-                            _logger.Info($"Connection established `{address.Url}:{address.Port}'");
-                            break;
-                        }
-                        else// On connect failure
-                        {
-                            _logger.Warn($"Unable to connect to `{address.Url}:{address.Port}'");
-                            remoteClientTask.Close();
-                            break;
-                        }
+                    ioNetClient.Close();
+                    return false;
+                }
 
-                    case TaskStatus.Created:                        
-                    case TaskStatus.Running:
-                    case TaskStatus.WaitingForActivation:
-                    case TaskStatus.WaitingForChildrenToComplete:
-                    case TaskStatus.WaitingToRun:
-                        throw new InvalidAsynchronousStateException(
-                            $"Connecting to `{Address}', state = {connectAsync.Status}");
-                }                
-            },_spinners.Token);
-            return remoteClientTask;
+                if (ioNetClient.IsSocketConnected())
+                {
+                    _logger.Info($"Connection established to `{ioNetClient}'");
+                    return true;
+                }
+                else // On connect failure
+                {
+                    _logger.Warn($"Unable to connect to `{ioNetClient}'");
+                    ioNetClient.Close();
+                    return false;
+                }
+            }, Spinners.Token))
+            {
+                return ioNetClient;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Closes this server
+        /// </summary>
+        public virtual void Close()
+        {
+            //This method must always be at the top or we might recurse
+            _cancellationRegistration.Dispose();
+
+            Spinners.Cancel();
+            IoListenSocket.Close();
+        }
+
+        /// <summary>
+        /// Figures out the correct server to use from the url, <see cref="IoTcpServer"/> or <see cref="IoUdpServer"/>
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="spinner"></param>
+        /// <returns></returns>
+        public static IoNetServer GetKindFromUrl(IoNodeAddress address, CancellationToken spinner)
+        {
+            if (address.Protocol()== ProtocolType.Tcp)
+                return new IoTcpServer(address, spinner);
+
+            if (address.Protocol() == ProtocolType.Udp)
+                return new IoUdpServer(address, spinner);
+
+            return null;
         }
     }
 }

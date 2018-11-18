@@ -45,6 +45,7 @@ namespace zero.core.patterns.bushes
             Undefined,
             Producing,
             Produced,
+            ProduceSkipped,
             Queued,
             Consuming,
             ConsumerSkipped,            

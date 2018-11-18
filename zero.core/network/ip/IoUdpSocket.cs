@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.models;
 using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
@@ -16,6 +13,7 @@ namespace zero.core.network.ip
     /// </summary>
     class IoUdpSocket : IoSocket
     {
+        /// <inheritdoc />
         /// <summary>
         /// Constructs the UDP socket
         /// </summary>
@@ -25,14 +23,14 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// A copy constructor
         /// </summary>
-        /// <param name="rawSocket">The underlying socket</param>
-        /// <param name="address">The address listened on </param>
-        /// <param name="port">The listening port</param>
+        /// <param name="socket">The underlying socket</param>
+        /// <param name="address">The address listened on</param>
         /// <param name="cancellationToken">Token used for canncellation</param>
-        public IoUdpSocket(Socket rawSocket, string address, int port, CancellationToken cancellationToken) : base(rawSocket, address, port, cancellationToken)
+        public IoUdpSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken) : base(socket, address, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -45,41 +43,38 @@ namespace zero.core.network.ip
         /// <summary>
         /// Used to retrieve the sender information of a UDP packet and prevent mallocs for each call to receive
         /// </summary>
-        private EndPoint _senderRemote;
+        private EndPoint _udpRemoteEndpointInfo;
 
+        /// <inheritdoc />
         /// <summary>
         /// Listen for UDP traffic
         /// </summary>
-        /// <param name="address">The listen address</param>
-        /// <param name="port">The listen port</param>
-        /// <param name="callback">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="IoTcpSocket"/></param>
+        /// <param name="address">The address to listen on</param>
+        /// <param name="callback">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
         /// <returns></returns>
-        public override async Task ListenAsync(string address, int port, Action<IoSocket> callback)
+        public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> callback)
         {
-            await base.ListenAsync(address, port, callback);
+            if (!await base.ListenAsync(address, callback))
+                return false;
 
             try
             {
                 //Call the new connection esablished handler
                 callback(this);
 
-                // Prepare UDP connection orientated things
-                IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-                _senderRemote = sender;
+                // Prepare UDP connection orientated things                
+                _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 0);
             }
             catch (Exception e)
             {
-                _logger.Error(e,
-                    $"There was an error handling new connection from `{Protocol}{RemoteAddress}:{RemotePort}' to `{Protocol}{LocalAddress}:{LocalPort}'");
+                _logger.Error(e, $"There was an error handling new connection from `udp://{RemoteAddress}' to `udp://{LocalIpAndPort}'");
+                return false;
             }
 
-            RemoteUdpAddress = address;
-            //_socket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoChecksum, 1);
-            //_socket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoChecksum, true);
-            //_socket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.ChecksumCoverage, 1);            
-            //var v =_socket.GetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoChecksum);            
+            return true;
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Send UDP packet
         /// </summary>
@@ -89,32 +84,57 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<int> SendAsync(byte[] getBytes, int offset, int length)
         {
-            await RawSocket.SendToAsync(getBytes, SocketFlags.None, RemoteEndPoint).ContinueWith(
+            //TODO HACKS! Remove
+            if (!IsConnectingSocket)
+                return 0;
+            await Socket.SendToAsync(getBytes, SocketFlags.None, Address.IpEndPoint).ContinueWith(
                 t =>
                 {
                     switch (t.Status)
                     {
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Sending to {Protocol}{RemoteAddress}:{RemotePort} failed");
+                            _logger.Error(t.Exception, $"Sending to udp://{RemoteIpAndPort} failed");
                             Close();
                             break;
                         case TaskStatus.RanToCompletion:
-                            _logger.Trace($"Sent {length} bytes to {Protocol}{RemoteAddress}:{RemotePort}");
+                            _logger.Trace($"Sent {length} bytes to udp://{RemoteIpAndPort}");
                             break;
                     }
                 }, Spinners.Token);
             return length;
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Read UDP packet data
         /// </summary>
         /// <returns>The number of bytes read</returns>
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
         {
-            return await Task.Factory.FromAsync(RawSocket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _senderRemote, null, null),
-                RawSocket.EndReceive).HandleCancellation(Spinners.Token);            
+            //TODO HACKS! Remove
+            if (!IsListeningSocket)
+                return 0;
+            try
+            {
+                return await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
+                    Socket.EndReceive).HandleCancellation(Spinners.Token);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+                return 0;
+            }
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Connection status
+        /// </summary>
+        /// <returns>True if the connection is up, false otherwise</returns>
+        public override bool Connected()
+        {
+            return Address.IpEndPoint != null || _udpRemoteEndpointInfo != null;
         }
     }
 }

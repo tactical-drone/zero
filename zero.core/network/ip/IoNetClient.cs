@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.models;
 using zero.core.patterns.bushes;
 
 namespace zero.core.network.ip
@@ -22,9 +21,9 @@ namespace zero.core.network.ip
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
         public IoNetClient(IoSocket remote, int readAhead):base(readAhead)
         {
-            _remoteSocket = remote;
+            IoSocket = remote;
             _logger = LogManager.GetCurrentClassLogger();
-            _address = IoNodeAddress.Create(_remoteSocket.RemoteAddress ?? _remoteSocket.LocalAddress, _remoteSocket.RemoteAddress != null? _remoteSocket.RemotePort: _remoteSocket.LocalPort);            
+            Address = remote.Address;
         }
 
         /// <summary>
@@ -34,7 +33,7 @@ namespace zero.core.network.ip
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
         public IoNetClient(IoNodeAddress address, int readAhead):base(readAhead)
         {
-            _address = address;
+            Address = address;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -46,17 +45,17 @@ namespace zero.core.network.ip
         /// <summary>
         /// The remote address associated with this client
         /// </summary>
-        private readonly IoNodeAddress _address;
+        protected readonly IoNodeAddress Address;
 
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        protected override string Description => Address;
+        protected override string Description => AddressString;
 
         /// <summary>
-        /// The tcpclient that is being wrapped
+        /// Abstracted dotnet udp and tcp socket
         /// </summary>
-        private IoSocket _remoteSocket;
+        protected IoSocket IoSocket;
 
         /// <summary>
         /// Transmit timeout in ms
@@ -77,17 +76,20 @@ namespace zero.core.network.ip
         /// </summary>
         public event EventHandler Disconnected;
 
+        /// <summary>
+        /// Cancellation hooks
+        /// </summary>
         private readonly CancellationTokenSource _spinners = new CancellationTokenSource(); //TODO hook this up
-        private CancellationTokenRegistration _cancellationTokenRegistration;
 
-
-        //Is the client rawSocket still up?
-        public bool Connected => _remoteSocket?.NativeSocket?.Connected??false;
+        /// <summary>
+        /// Handle to unregister cancellation registrations
+        /// </summary>
+        private CancellationTokenRegistration _cancellationRegistratison;
 
         /// <summary>
         /// A flag to indicate if those pesky extra tcp bits are contained in the datum
         /// </summary>
-        public bool ContainsExtrabits => _remoteSocket?.NativeSocket.ProtocolType == ProtocolType.Tcp;
+        public bool ContainsExtrabits => IoSocket.IsTcpSocket;
 
         /// <summary>
         /// This is a temporary sync hack for TCP. Sometimes IRI has old data stuck in it's TCP stack that has to be flushed.
@@ -105,43 +107,38 @@ namespace zero.core.network.ip
 
             OnDisconnected();            
             
-            _remoteSocket?.Close();
-            _remoteSocket = null;
+            IoSocket?.Close();
+            IoSocket = null;
             
             //Unlock any blockers
             ProducerBarrier?.Dispose();
             ConsumerBarrier?.Dispose();
             
-            _logger.Debug($"Closed connection `{Address}'");
+            _logger.Debug($"Closed connection `{AddressString}'");
         }
 
         /// <summary>
         /// Connects to a remote listener
         /// </summary>
-        /// <returns>The async task handler</returns>
-        public async Task ConnectAsync()
-        {
-            _remoteSocket?.Close();
+        /// <returns>True if succeeded, false otherwise</returns>
+        public virtual async Task<bool> ConnectAsync()
+        {            
+            var connectAsyncTask = IoSocket.ConnectAsync(Address);
 
-            //create a new rawSocket
-            _remoteSocket = IoSocket.GetKindFromUrl(_address.Url, _spinners.Token);
+            _logger.Debug($"Connecting to `{Address}'");
 
-            _cancellationTokenRegistration = Spinners.Token.Register(() => _remoteSocket?.Spinners.Cancel());            
-
-            //_remoteSocket.NativeSocket.SendTimeout = parm_tx_timeout;
-            //_remoteSocket.NativeSocket.ReceiveTimeout = parm_rx_timeout;
-            //_remoteSocket.NativeSocket.ReceiveBufferSize = parm_tx_buffer_size;
-            //_remoteSocket.NativeSocket.SendBufferSize = parm_rx_buffer_size;
-            if(_remoteSocket.NativeSocket.ProtocolType == ProtocolType.Tcp)
-                _remoteSocket.NativeSocket.LingerState = new LingerOption(true, 1);
-
-            _logger.Info($"Connecting to `{Address}'");
-            
-            //connect to the remote rawSocket
-            await _remoteSocket.ConnectAsync(IoSocket.StripIp(_address.Url) , _address.Port).ContinueWith(_ =>
+            return await connectAsyncTask.ContinueWith(t =>
+            {
+                if (t.Result)
                 {
-                    _remoteSocket.Disconnected += (s, e) => _cancellationTokenRegistration.Dispose();
-                });
+                    _cancellationRegistratison = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
+
+                    IoSocket.Disconnected += (s, e) => _cancellationRegistratison.Dispose();
+
+                    _logger.Info($"Connected to `{AddressString}'");
+                }
+                return connectAsyncTask;
+            }).Unwrap();
         }
 
         /// <summary>
@@ -157,7 +154,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await callback(_remoteSocket);
+                return await callback(IoSocket);
             }
             catch(Exception e)
             {
@@ -177,25 +174,24 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Detects socket drops
+        /// Detects socket drops //TODO this needs some work or testing
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
         public bool IsSocketConnected()
         {
             try
             {
-                if (_remoteSocket?.NativeSocket != null && _remoteSocket.NativeSocket.ProtocolType == ProtocolType.Tcp )
+                if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket )
                 {
                     //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
                     //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
                     //var selectWrite = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectWrite)? "OK" : "FAILED";
 
                     //TODO more checks?
-                    if (!_remoteSocket.NativeSocket
-                        .Connected /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
+                    if (!IoSocket.Connected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
                     {
                         //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                        _logger.Warn($"Connection to `{Address}' disconnected!");
+                        _logger.Warn($"Connection to `{AddressString}' disconnected!");
 
                         //Do cleanup
                         Close();
@@ -205,8 +201,10 @@ namespace zero.core.network.ip
 
                     return true;
                 }
-
-                return true;
+                else
+                {
+                    return IoSocket?.Connected() ?? false;
+                }                
             }
             catch (Exception e)
             {
@@ -218,6 +216,6 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string Address => _address.ToString();        
+        public string AddressString => Address.ToString();        
     }
 }

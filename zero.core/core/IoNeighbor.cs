@@ -20,7 +20,7 @@ namespace zero.core.core
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
         public IoNeighbor(IoNetClient ioNetClient, Func<IoMessage<IoNetClient>> mallocMessage)
-            : base($"neighbor {ioNetClient.Address}", ioNetClient, mallocMessage)
+            : base($"neighbor {ioNetClient.AddressString}", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
 

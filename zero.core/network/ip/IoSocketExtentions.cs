@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace zero.core.network.ip
 {
@@ -28,7 +25,6 @@ namespace zero.core.network.ip
             if( endpoint.ProtocolType == ProtocolType.Tcp )
                 return ((IPEndPoint) endpoint.RemoteEndPoint)?.Port ?? 0;
             return 0;
-
         }
     }
 }

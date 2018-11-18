@@ -176,6 +176,14 @@ namespace zero.core.patterns.bushes
 
 
         /// <summary>
+        /// How long a producer will sleep for when it is getting skipped productions
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_producer_skipped_delay = 60000;
+
+
+        /// <summary>
         /// Starts this producer consumer
         /// </summary>
         /// <param name="cancellationToken">The kill signal</param>
@@ -203,6 +211,15 @@ namespace zero.core.patterns.bushes
                                     //Fetch a job from TSource. Did we get one?
                                     if (await nextJob.ProduceAsync(_previousJobFragment) < IoProducable<TSource>.State.Error)
                                     {
+                                        //TODO Double check this hack
+                                        //Basically implace to handle this weird double connection business on the TCP side
+                                        if (nextJob.ProcessState == IoProducable<TSource>.State.ProduceSkipped)
+                                        {
+                                            nextJob.ProcessState = IoProducable<TSource>.State.Accept;
+                                            await Task.Delay(parm_producer_skipped_delay, cancellationToken);
+                                            continue;
+                                        }
+
                                         TConsumer currJobFragment = null;
                                         
                                         //Does production yield fragmented datums?
@@ -266,7 +283,9 @@ namespace zero.core.patterns.bushes
                                 //prevent leaks
                                 if (nextJob != null && !wasQueued)
                                 {
-                                    nextJob.ProcessState = IoProducable<TSource>.State.Reject;
+                                    //TODO Double check this hack
+                                    if(nextJob.ProcessState!=IoProducable<TSource>.State.Accept)
+                                        nextJob.ProcessState = IoProducable<TSource>.State.Reject;
                                     JobHeap.Return(nextJob);
                                 }
                             }

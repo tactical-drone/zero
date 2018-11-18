@@ -26,7 +26,7 @@ namespace zero.core.network.ip
         protected IoSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            RawSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
+            Socket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
 
             _cancellationTokenRegistration = cancellationToken.Register(() => Spinners.Cancel());
         }
@@ -35,18 +35,17 @@ namespace zero.core.network.ip
         /// <summary>
         /// A copy constructor used by listeners
         /// </summary>
-        /// <param name="rawSocket">The listening socket</param>
+        /// <param name="socket">The listening socket</param>
         /// <param name="address">The address is is listening on</param>
         /// <param name="port">The port it is listening on</param>
         /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        protected IoSocket(Socket rawSocket, string address, int port, CancellationToken cancellationToken)
+        protected IoSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            RawSocket = rawSocket;
-            _localAddress = address;
-            _localPort = port;
+            Socket = socket;
+            Address = address;
 
-            _cancellationTokenRegistration = cancellationToken.Register(() => Spinners.Cancel());
+            _cancellationTokenRegistration = cancellationToken.Register(Close);
         }
 
         /// <summary>
@@ -57,72 +56,72 @@ namespace zero.core.network.ip
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        protected Socket RawSocket;
+        protected Socket Socket;
 
         /// <summary>
-        /// 
+        /// The original node address this socket is supposed to work with
+        /// </summary>
+        public IoNodeAddress Address;
+
+        /// <summary>
+        /// An indication that this socket is a listening socket
+        /// </summary>
+        protected bool IsListeningSocket = false;
+
+        /// <summary>
+        /// An indication that this socket is a connecting socket
+        /// </summary>
+        protected bool IsConnectingSocket = false;
+
+        /// <summary>
+        /// Cancellation sources.
         /// </summary>
         public readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
-        /// A string depicting protocol type url preable
-        /// </summary>
-        public string Protocol => RawSocket?.SocketType == SocketType.Stream? "tcp://":"udp://";
-        
-        /// <summary>
-        /// The remote address (used for logging)
-        /// </summary>
-        public string RemoteUdpAddress = null;
-
-        /// <summary>
-        /// Remote port (used for logging)
-        /// </summary>
-        private int _remotePort = 0;
-
-        /// <summary>
-        /// The local address (used for logging)
-        /// </summary>
-        private string _localAddress = "[url not set]";
-
-        /// <summary>
-        /// The local port (used for logging)
-        /// </summary>
-        private int _localPort = 0;
-
-        /// <summary>
-        /// The remote endpoint used to make UDP more connection orientated
-        /// </summary>
-        protected IPEndPoint RemoteEndPoint;
-
-        /// <summary>
         /// Public access to remote address (used for logging)
         /// </summary>
-        public string RemoteAddress => RawSocket?.RemoteAddress()?.ToString() ?? RemoteUdpAddress;
+        public string RemoteAddress => Socket?.RemoteAddress()?.ToString() ?? Address.IpEndPoint?.Address?.ToString()??Address.Url;
 
         /// <summary>
         /// Public access to remote port (used for logging)
         /// </summary>
-        public int RemotePort => RawSocket?.RemotePort()?? _remotePort;
+        public int RemotePort => Socket?.RemotePort() ?? Address.IpEndPoint?.Port ?? Address.Port;
+
+        /// <summary>
+        /// Returns the remote address as a string ip:port
+        /// </summary>
+        public string RemoteIpAndPort => $"{RemoteAddress}:{RemotePort}";
 
         /// <summary>
         /// Public access to local address (used for logging)
         /// </summary>
-        public string LocalAddress => RawSocket.LocalAddress().ToString();
+        public string LocalAddress => Socket.LocalAddress().ToString();
 
         /// <summary>
         /// Public access to local port (used for logging)
         /// </summary>
-        public int LocalPort => RawSocket.LocalPort();
+        public int LocalPort => Socket.LocalPort();
+
+        /// <summary>
+        /// Returns the remote address as a string ip:port
+        /// </summary>
+        public string LocalIpAndPort => $"{LocalAddress}:{LocalPort}";
 
         /// <summary>
         /// Public access to the underlying socket 
         /// </summary>
-        public Socket NativeSocket => RawSocket;
+        public Socket NativeSocket => Socket;
 
         /// <summary>
         /// A handle to dispose upstream cancellation hooks
         /// </summary>
-        private readonly CancellationTokenRegistration _cancellationTokenRegistration;
+        private CancellationTokenRegistration _cancellationTokenRegistration;
+
+        /// <summary>
+        /// Returns true if this is a TCP socket
+        /// </summary>
+        public bool IsTcpSocket => Socket.ProtocolType == ProtocolType.Tcp;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -148,73 +147,55 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Strips the IP from a URL string
-        /// </summary>
-        /// <param name="url">The url to be stripped</param>
-        /// <returns>The ip contained in the url</returns>
-        public static string StripIp(string url)
-        {
-            return url.Replace("tcp://", "").Replace("udp://", "").Split(":")[0];
-        }
-
-        /// <summary>
         /// Listen for TCP or UDP data depending on the URL scheme used. udp://address:port or tcp://address:port
         /// </summary>
-        /// <param name="address">The listen address</param>
-        /// <param name="port">The listen port</param>
-        /// <param name="callback">The callback that accesses a newly created socket</param>
-        public virtual Task ListenAsync(string address, int port, Action<IoSocket> callback)
+        /// <param name="address">Address to listen on</param>
+        /// <param name="connectionHandler">The callback that handles a new connection</param>
+        /// <returns>True on success, false otherwise</returns>
+        public virtual Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
         {
-            if (RawSocket.IsBound)
-                throw new InvalidOperationException("Cannot connect, socket is already bound!");
+            //If there was a coding mistake throw
+            if (Socket.IsBound)
+                throw new InvalidOperationException($"Starting listener failed, socket `{address}' is already bound!");
 
-            RemoteEndPoint = new IPEndPoint(IPAddress.Parse(address), port);
-                    
-            RawSocket.Bind(RemoteEndPoint);            
+            if (IsConnectingSocket)
+                throw new InvalidOperationException($"This socket was already used to connect to `{Address}'. Make a new one!");
 
-            _localAddress = address;
-            _localPort = port;
+            IsListeningSocket = true;
 
-            return Task.CompletedTask;
+            Address = address;
+
+            try
+            {
+                Socket.Bind(Address.IpEndPoint);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"Unable to bind socket at `{Address}':");
+                return Task.FromResult(false);
+            }
+
+            return Task.FromResult(true);
         }
 
         /// <summary>
         /// Connect to a remote endpoint
         /// </summary>
-        /// <param name="address">The remote ip address to connect to</param>
-        /// <param name="port">The remote port</param>
+        /// <param name="address">The address to connect to</param>
         /// <returns></returns>
-        public async Task ConnectAsync(string address, int port)
+        public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
         {            
-            if(RawSocket.IsBound)
+            if(Socket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
-            RemoteUdpAddress = address;
-            _remotePort = port;
+            if (IsListeningSocket)
+                throw new InvalidOperationException($"This socket was already used to listen at `{Address}'. Make a new one!");
 
-            //tcp
-            if (RawSocket.ProtocolType == ProtocolType.Tcp)
-            {
-                await RawSocket.ConnectAsync(address, port).ContinueWith(r =>
-                {
-                    switch (r.Status)
-                    {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            _logger.Error(r.Exception, $"Connecting to `{Protocol}{RemoteAddress}:{RemotePort}' failed.");
-                            break;
-                        case TaskStatus.RanToCompletion:
-                            _logger.Info($"Connected to `{Protocol}{RemoteAddress}:{RemotePort}");
+            IsConnectingSocket = true;
 
-                            break;
-                    }
-                }, Spinners.Token);
-            }
-            else //udp
-            {
-                //set UDP connection orientated things
-                RemoteEndPoint = new IPEndPoint(Dns.GetHostAddresses(RemoteUdpAddress)[0], _remotePort);
-            }
+            Address = address;
+
+            return true;
         }
 
         /// <summary>
@@ -222,12 +203,20 @@ namespace zero.core.network.ip
         /// </summary>
         public virtual void Close()
         {
+            //This has to be at the top or we might recurse
             _cancellationTokenRegistration.Dispose();
-            Spinners.Cancel();
-            OnDisconnected();
-            RawSocket?.Close();
-            RawSocket?.Dispose();
-            RawSocket = null;
+
+            //Cancel everything that is running
+            Spinners.Cancel();            
+
+            //Signal to users that we are disconnecting
+            OnDisconnected();                          
+            
+            //Close the socket
+            Socket.Shutdown(SocketShutdown.Both);
+            Socket.Close();
+            Socket.Dispose();
+            Socket = null;
         }
 
         /// <summary>
@@ -260,6 +249,12 @@ namespace zero.core.network.ip
         /// <param name="length">The maximum bytes to read into the buffer</param>        
         /// <returns>The amounts of bytes read</returns>
         public abstract Task<int> ReadAsync(byte[] buffer, int offset, int length);
-        
+
+        /// <summary>
+        /// Connection status
+        /// </summary>
+        /// <returns>True if the connection is up, false otherwise</returns>
+        public abstract bool Connected();
+
     }
 }

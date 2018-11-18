@@ -80,7 +80,7 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = new IoNetServer(_address, _spinners.Token);
+            _netServer = IoNetServer.GetKindFromUrl(_address, _spinners.Token);
 
             await _netServer.StartListenerAsync(remoteClient =>
             {
@@ -96,14 +96,14 @@ namespace zero.core.core
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
-                    _neighbors.TryRemove(((IoNeighbor)s).WorkSource.Address, out var _);
+                    _neighbors.TryRemove(((IoNeighbor)s).WorkSource.AddressString, out var _);
                 };
 
                 // Add new neighbor
-                if (!_neighbors.TryAdd(remoteClient.Address, newNeighbor))
+                if (!_neighbors.TryAdd(remoteClient.AddressString, newNeighbor))
                 {
                     newNeighbor.Close();
-                    _logger.Warn($"Neighbor `{remoteClient.Address}' already connected. Possible spoof investigate!");
+                    _logger.Warn($"Neighbor `{remoteClient.AddressString}' already connected. Possible spoof investigate!");
                 }
 
                 //Start the producer consumer on the neighbor scheduler
@@ -113,7 +113,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Address}' processing thread returned with errors:");
+                    _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.AddressString}' processing thread returned with errors:");
                 }
             });
         }        
@@ -127,19 +127,18 @@ namespace zero.core.core
         {
             IoNeighbor newNeighbor = null;
 
-            //Connect to test server         
             while (!_spinners.IsCancellationRequested)
             {
                 if (newNeighbor == null)
                 {
                     var newClient = await _netServer.ConnectAsync(address);
 
-                    if (newClient.Connected)
+                    if (newClient.IsSocketConnected())
                     {
                         var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (_neighbors.TryAdd(newNeighbor.WorkSource.Address, newNeighbor))
+                        if (_neighbors.TryAdd(newNeighbor.WorkSource.AddressString, newNeighbor))
                         {
                             try
                             {
@@ -149,10 +148,11 @@ namespace zero.core.core
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Address}' processing thread returned with errors:");
+                                _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.AddressString}' processing thread returned with errors:");
                             }
 
                             //TODO remove this into the protocol?
+                            if(newClient.IsSocketConnected())
                             await newClient.Execute(client =>
                             {
                                 client?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
@@ -174,10 +174,10 @@ namespace zero.core.core
                     await Task.Delay(6000);
                 }
 
-                if (!newNeighbor?.WorkSource?.Connected ?? false)
+                if (!newNeighbor?.WorkSource?.IsSocketConnected() ?? false)
                 {
                     newNeighbor.Close();
-                    _neighbors.TryRemove(newNeighbor.WorkSource.Address, out _);
+                    _neighbors.TryRemove(newNeighbor.WorkSource.AddressString, out _);
                     newNeighbor = null;
                     //TODO parm
                     await Task.Delay(1000);
