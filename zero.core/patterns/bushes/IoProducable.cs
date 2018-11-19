@@ -14,16 +14,16 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Produces work that needs to be done
     /// </summary>
-    /// <typeparam name="TSource"></typeparam>
-    public abstract class IoProducable<TSource> : IoConfigurable, IOHeapItem
-    where TSource : IoJobSource
+    /// <typeparam name="TProducer"></typeparam>
+    public abstract class IoProducable<TProducer> : IoConfigurable, IOHeapItem
+    where TProducer : IoJobSource
     {
         /// <summary>
         /// Constructor
         /// </summary>
         protected IoProducable()
         {
-            _stateTransitionHeap.Make = () => new IoWorkStateTransition<TSource>();
+            _stateTransitionHeap.Make = () => new IoWorkStateTransition<TProducer>();
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -78,7 +78,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public TSource Source;
+        public TProducer Source;
 
         /// <summary>
         /// Callback that processes the next job in the queue
@@ -89,22 +89,22 @@ namespace zero.core.patterns.bushes
         /// Callback the generates the next job
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
-        public abstract Task<State> ProduceAsync(IoProducable<TSource> fragment);
+        public abstract Task<State> ProduceAsync(IoProducable<TProducer> fragment);
 
         /// <summary>
         /// The heap containing our state transition items
         /// </summary>
-        private readonly IoHeap<IoWorkStateTransition<TSource>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TSource>>(Enum.GetNames(typeof(State)).Length);
+        private readonly IoHeap<IoWorkStateTransition<TProducer>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TProducer>>(Enum.GetNames(typeof(State)).Length);
         
         /// <summary>
-        /// The state transtition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TSource}"/>
+        /// The state transtition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
         /// </summary>      
-        public readonly IoWorkStateTransition<TSource>[] StateTransitionHistory = new IoWorkStateTransition<TSource>[Enum.GetNames(typeof(State)).Length];
+        public readonly IoWorkStateTransition<TProducer>[] StateTransitionHistory = new IoWorkStateTransition<TProducer>[Enum.GetNames(typeof(State)).Length];
 
         /// <summary>
         /// The current state
         /// </summary>
-        public volatile IoWorkStateTransition<TSource> CurrentState;
+        public volatile IoWorkStateTransition<TProducer> CurrentState;
 
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
@@ -225,7 +225,7 @@ namespace zero.core.patterns.bushes
         /// Log the state
         /// </summary>
         /// <param name="currentState">The instance to be printed</param>
-        private void PrintState(IoWorkStateTransition<TSource> currentState)
+        private void PrintState(IoWorkStateTransition<TProducer> currentState)
         {
             _logger.Info("Work`{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
                 Description,

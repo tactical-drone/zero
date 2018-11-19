@@ -9,8 +9,8 @@ namespace zero.core.models
     /// <summary>
     /// An abstract message carrier used by a network stream to fill the <see cref="Buffer"/>
     /// </summary>
-    public abstract class IoMessage<TSource> : IoConsumable<TSource>
-    where TSource:IoJobSource
+    public abstract class IoMessage<TProducer> : IoConsumable<TProducer>
+    where TProducer:IoJobSource
     {
         /// <summary>
         /// Initializes the buffer size to fill

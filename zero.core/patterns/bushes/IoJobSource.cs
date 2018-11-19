@@ -9,7 +9,7 @@ using zero.core.conf;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used by <see cref="IoProducerConsumer{TConsumer,TSource}"/> as a source of work
+    /// Used by <see cref="IoProducerConsumer{TConsumer,TProducer}"/> as a source of work
     /// </summary>
     public abstract class IoJobSource : IoConfigurable
     {
@@ -40,7 +40,7 @@ namespace zero.core.patterns.bushes
         protected virtual string Description => ToString();
 
         /// <summary>
-        /// Counters for <see cref="IoProducable{TSource}.State"/>
+        /// Counters for <see cref="IoProducable{TProducer}.State"/>
         /// </summary>
         public long[] Counters = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];
 

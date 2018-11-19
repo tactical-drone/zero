@@ -10,7 +10,7 @@ using zero.core.patterns.bushes;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoJobSource"/> that can be used by <see cref="IoProducerConsumer{TJob,TSource}"/>
+    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoJobSource"/> that can be used by <see cref="IoProducerConsumer{TJob,TProducer}"/>
     /// </summary>
     public class IoNetClient: IoJobSource
     {

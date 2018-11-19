@@ -18,10 +18,10 @@ namespace zero.core.patterns.bushes
     /// Producer Consumer pattern
     /// </summary>
     /// <typeparam name="TConsumer">The consumer wrapper</typeparam>
-    /// <typeparam name="TSource">Where work is sourced (produced) from</typeparam>
-    public abstract class IoProducerConsumer<TConsumer, TSource> : IoConfigurable, IObservable<IoConsumable<TSource>>
-        where TSource : IoJobSource
-        where TConsumer : IoConsumable<TSource> 
+    /// <typeparam name="TProducer">Where work is sourced (produced) from</typeparam>
+    public abstract class IoProducerConsumer<TConsumer, TProducer> : IoConfigurable, IObservable<IoConsumable<TProducer>>
+        where TProducer : IoJobSource
+        where TConsumer : IoConsumable<TProducer> 
     {
         /// <summary>
         /// Constructor
@@ -29,7 +29,7 @@ namespace zero.core.patterns.bushes
         /// <param name="description"></param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
-        protected IoProducerConsumer(string description, TSource source, Func<TConsumer> mallocMessage)
+        protected IoProducerConsumer(string description, TProducer source, Func<TConsumer> mallocMessage)
         {
             Description = description;
             WorkSource = source;
@@ -63,7 +63,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The source of the messages
         /// </summary>
-        public TSource WorkSource;
+        public TProducer WorkSource;
 
         /// <summary>
         /// The job queue
@@ -103,12 +103,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The current observer, there can only be one
         /// </summary>
-        private IObserver<IoConsumable<TSource>> _observer;
+        private IObserver<IoConsumable<TProducer>> _observer;
 
         /// <summary>
         /// A connectable observer, used to multicast messages
         /// </summary>
-        public IConnectableObservable<IoConsumable<TSource>> ObservableRouter { private set; get; }
+        public IConnectableObservable<IoConsumable<TProducer>> ObservableRouter { private set; get; }
 
         /// <summary>
         /// The scheduler used to do work on
@@ -208,14 +208,14 @@ namespace zero.core.patterns.bushes
                                 if ((nextJob = JobHeap.Take()) != null)
                                 {            
                                                                                                             
-                                    //Fetch a job from TSource. Did we get one?
-                                    if (await nextJob.ProduceAsync(_previousJobFragment) < IoProducable<TSource>.State.Error)
+                                    //Fetch a job from TProducer. Did we get one?
+                                    if (await nextJob.ProduceAsync(_previousJobFragment) < IoProducable<TProducer>.State.Error)
                                     {
                                         //TODO Double check this hack
                                         //Basically implace to handle this weird double connection business on the TCP side
-                                        if (nextJob.ProcessState == IoProducable<TSource>.State.ProduceSkipped)
+                                        if (nextJob.ProcessState == IoProducable<TProducer>.State.ProduceSkipped)
                                         {
-                                            nextJob.ProcessState = IoProducable<TSource>.State.Accept;
+                                            nextJob.ProcessState = IoProducable<TProducer>.State.Accept;
                                             await Task.Delay(parm_producer_skipped_delay, cancellationToken);
                                             continue;
                                         }
@@ -227,7 +227,7 @@ namespace zero.core.patterns.bushes
                                             currJobFragment = nextJob;
                                         
                                         //Enqueue the job for the consumer
-                                        nextJob.ProcessState = IoProducable<TSource>.State.Queued;                                        
+                                        nextJob.ProcessState = IoProducable<TProducer>.State.Queued;                                        
                                         _queue.Enqueue(nextJob);
                                         wasQueued = true;
 
@@ -240,7 +240,7 @@ namespace zero.core.patterns.bushes
                                             lock (_previousJobFragment)
                                             {
                                                 //If this job is not under the consumer's control, we need to return it to the heap 
-                                                if (_previousJobFragment.ProcessState > IoProducable<TSource>.State.Consumed)
+                                                if (_previousJobFragment.ProcessState > IoProducable<TProducer>.State.Consumed)
                                                     JobHeap.Return(_previousJobFragment);
                                                 else //Signal control back to the consumer that it now has control over this job
                                                     _previousJobFragment.StillHasUnprocessedFragments = false;
@@ -251,7 +251,7 @@ namespace zero.core.patterns.bushes
                                     }
                                     else //produce job returned with errors
                                     {
-                                        if (nextJob.ProcessState == IoProducable<TSource>.State.Cancelled)
+                                        if (nextJob.ProcessState == IoProducable<TProducer>.State.Cancelled)
                                         {
                                             Spinners.Cancel();
                                             _logger.Debug($"Producer `{Description}' is shutting down");
@@ -260,8 +260,8 @@ namespace zero.core.patterns.bushes
                                         
                                         //TODO double check what we are supposed to do here?
                                         //TODO what about the previous fragment?
-                                        var sleepTimeMs = nextJob.Source.Counters[(int)IoProducable<TSource>.State.Reject] + 1 / (nextJob.Source.Counters[(int)IoProducable<TSource>.State.Accept] + parm_error_timeout);
-                                        _logger.Debug($"{nextJob.Description}, Reject = {nextJob.Source.Counters[(int)IoProducable<TSource>.State.Reject]}, Accept = {nextJob.Source.Counters[(int)IoProducable<TSource>.State.Accept]}");
+                                        var sleepTimeMs = nextJob.Source.Counters[(int)IoProducable<TProducer>.State.Reject] + 1 / (nextJob.Source.Counters[(int)IoProducable<TProducer>.State.Accept] + parm_error_timeout);
+                                        _logger.Debug($"{nextJob.Description}, Reject = {nextJob.Source.Counters[(int)IoProducable<TProducer>.State.Reject]}, Accept = {nextJob.Source.Counters[(int)IoProducable<TProducer>.State.Accept]}");
                                         _logger.Debug($"`{Description}' producing job `{nextJob.Description}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
 
                                         await Task.Delay((int)sleepTimeMs, Spinners.Token);
@@ -284,8 +284,8 @@ namespace zero.core.patterns.bushes
                                 if (nextJob != null && !wasQueued)
                                 {
                                     //TODO Double check this hack
-                                    if(nextJob.ProcessState!=IoProducable<TSource>.State.Accept)
-                                        nextJob.ProcessState = IoProducable<TSource>.State.Reject;
+                                    if(nextJob.ProcessState!=IoProducable<TProducer>.State.Accept)
+                                        nextJob.ProcessState = IoProducable<TProducer>.State.Reject;
                                     JobHeap.Return(nextJob);
                                 }
                             }
@@ -329,7 +329,7 @@ namespace zero.core.patterns.bushes
                                 try
                                 {
                                     //Consume the job
-                                    if (await currJob.ConsumeAsync() >= IoProducable<TSource>.State.Error)
+                                    if (await currJob.ConsumeAsync() >= IoProducable<TProducer>.State.Error)
                                     {
                                         _logger.Warn($"`{Description}' consuming job `{currJob.Description}' was unsuccessful, state = {currJob.ProcessState}");
                                     }
@@ -347,16 +347,16 @@ namespace zero.core.patterns.bushes
                                     WorkSource.ProducerBarrier.Release(1);
 
                                     //Consume success?
-                                    if (currJob.ProcessState == IoProducable<TSource>.State.Consumed)
+                                    if (currJob.ProcessState == IoProducable<TProducer>.State.Consumed)
                                     {
-                                        currJob.ProcessState = IoProducable<TSource>.State.Accept;
+                                        currJob.ProcessState = IoProducable<TProducer>.State.Accept;
                                         
                                         if(!currJob.StillHasUnprocessedFragments)
                                             JobHeap.Return(currJob);
                                     } 
                                     else //Consume failed?
                                     {
-                                        currJob.ProcessState = IoProducable<TSource>.State.Reject;
+                                        currJob.ProcessState = IoProducable<TProducer>.State.Reject;
                                         if(!currJob.StillHasUnprocessedFragments)//TODO how do we handle this? The stream will be out of sync? Maybe set TcpSync back to false?
                                             JobHeap.Return(currJob);
                                     }
@@ -400,7 +400,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="observer">The observer that has to be notified</param>
         /// <returns></returns>
-        public IDisposable Subscribe(IObserver<IoConsumable<TSource>> observer)
+        public IDisposable Subscribe(IObserver<IoConsumable<TProducer>> observer)
         {
             _observer = observer;
             return IoAnonymousDiposable.Create(() => { _observer = null; });

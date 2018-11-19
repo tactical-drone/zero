@@ -9,24 +9,24 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
-    /// <typeparam name="TSource">The concurrent process type</typeparam>
-    public class IoWorkStateTransition<TSource> : IOHeapItem
-    where TSource : IoJobSource
+    /// <typeparam name="TProducer">The concurrent process type</typeparam>
+    public class IoWorkStateTransition<TProducer> : IOHeapItem
+    where TProducer : IoJobSource
     {
         /// <summary>
         /// The previous state
         /// </summary>
-        public volatile IoWorkStateTransition<TSource> Previous;
+        public volatile IoWorkStateTransition<TProducer> Previous;
 
         /// <summary>
         /// The next state
         /// </summary>
-        public volatile IoWorkStateTransition<TSource> Next;
+        public volatile IoWorkStateTransition<TProducer> Next;
 
         /// <summary>
         /// The represented state
         /// </summary>
-        public volatile IoProducable<TSource>.State State;
+        public volatile IoProducable<TProducer>.State State;
 
         /// <summary>
         /// Timestamp when this state was entered
@@ -61,7 +61,7 @@ namespace zero.core.patterns.bushes
         {
             ExitTime = EnterTime = DateTime.Now;
             Previous = Next = null;
-            State = IoProducable<TSource>.State.Undefined;
+            State = IoProducable<TProducer>.State.Undefined;
             return this;
         }
 
@@ -82,6 +82,6 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The default state string padded
         /// </summary>
-        public string DefaultPadded => IoProducable<TSource>.State.Undefined.ToString().PadLeft(StateStrPadding);
+        public string DefaultPadded => IoProducable<TProducer>.State.Undefined.ToString().PadLeft(StateStrPadding);
     }
 }

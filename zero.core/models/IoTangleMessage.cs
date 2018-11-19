@@ -14,8 +14,8 @@ using zero.core.ternary;
 namespace zero.core.models
 {
     /// <summary>
-    /// Specialises a generic <see cref="IoMessage{TSource}"/> into a spesfic one for the tangle. This class contains details of how a message is to be 
-    /// extracted from <see cref="IoMessage{TSource}"/>
+    /// Specialises a generic <see cref="IoMessage{TProducer}"/> into a spesfic one for the tangle. This class contains details of how a message is to be 
+    /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
     public class IoTangleMessage : IoMessage<IoNetClient>
     {

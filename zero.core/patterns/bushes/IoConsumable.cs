@@ -8,9 +8,9 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Jobs that need to be consumed by the workers
     /// </summary>
-    /// <typeparam name="TSource"></typeparam>
-    public abstract class IoConsumable<TSource> : IoProducable<TSource>
-    where TSource : IoJobSource
+    /// <typeparam name="TProducer"></typeparam>
+    public abstract class IoConsumable<TProducer> : IoProducable<TProducer>
+    where TProducer : IoJobSource
     {
         /// <summary>
         /// A description of the work
