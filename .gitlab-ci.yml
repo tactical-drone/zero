@@ -1,0 +1,18 @@
+image: microsoft/dotnet:latest
+
+stages:
+  - build
+  
+variables:
+  project: "zero.sync"
+
+before_script:
+  - "dotnet restore"
+
+build:
+  stage: build
+  variables:
+    build_path: "$project"
+  script:
+    - "cd $build_path"
+    - "dotnet build"
