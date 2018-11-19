@@ -34,7 +34,7 @@ namespace zero.api.Controllers
         [HttpGet]
         public string Get()
         {
-            return "erebros";            
+            return "Unimatrix zero";            
         }                
 
         //[HttpGet("{id}")]

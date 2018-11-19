@@ -54,7 +54,7 @@ namespace zero.core.api.commands
         public virtual async Task<ResponseBase> ProcessCommand(JObject jsonCommandobJObject)
 #pragma warning restore 1998
         {
-            return new ErrorResponse {error = $"An undefined error has occured"};
+            return new ErrorResponse {error = $"An undefined error has occurred"};
         }
 
         public class ResponseBase

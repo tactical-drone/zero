@@ -15,7 +15,7 @@ namespace zero.core.network.ip
     public class IoNetClient: IoJobSource
     {
         /// <summary>
-        /// Conctructor for listening
+        /// Constructor for listening
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>

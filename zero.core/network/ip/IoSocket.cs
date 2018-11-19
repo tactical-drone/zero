@@ -1,13 +1,9 @@
 ﻿using System;
-using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using zero.core.patterns.misc;
 using NLog;
 using zero.core.conf;
-using zero.core.models;
-using zero.core.patterns.bushes;
 
 namespace zero.core.network.ip
 {
@@ -36,8 +32,7 @@ namespace zero.core.network.ip
         /// A copy constructor used by listeners
         /// </summary>
         /// <param name="socket">The listening socket</param>
-        /// <param name="address">The address is is listening on</param>
-        /// <param name="port">The port it is listening on</param>
+        /// <param name="address">The address listened on</param>
         /// <param name="cancellationToken">Signals all blockers to cancel</param>
         protected IoSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken)
         {
@@ -182,7 +177,7 @@ namespace zero.core.network.ip
         /// Connect to a remote endpoint
         /// </summary>
         /// <param name="address">The address to connect to</param>
-        /// <returns></returns>
+        /// <returns>True on success, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
         {            
             if(Socket.IsBound)

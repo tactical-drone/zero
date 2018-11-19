@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 
 namespace zero.core.network.ip
 {
@@ -53,7 +50,7 @@ namespace zero.core.network.ip
         public string IpAndPort => $"{Ip}:{Port}";
 
         /// <summary>
-        /// Returns the adress in the format url:port
+        /// Returns the address in the format url:port
         /// </summary>
         public string UrlAndPort => $"{Url}:{Port}";
 
@@ -84,7 +81,7 @@ namespace zero.core.network.ip
         /// <returns>The ip contained in the url</returns>
         public static string StripIpFromUrlString(string url)
         {
-            if( !url.Contains("tcp://") && !url.Contains("udp://"))
+            if (!url.Contains("tcp://") && !url.Contains("udp://"))
                 throw new ArgumentException($"Url string must be in the format tcp://IP:PORT or udp://IP:PORT");
 
             return url.Replace("tcp://", "").Replace("udp://", "").Split(":")[0];
@@ -104,6 +101,5 @@ namespace zero.core.network.ip
 
             return ProtocolType.Unknown;
         }
-        
-}
+    }
 }

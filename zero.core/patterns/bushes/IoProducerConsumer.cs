@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using Org.BouncyCastle.Ocsp;
 using zero.core.conf;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -71,12 +69,12 @@ namespace zero.core.patterns.bushes
         private readonly ConcurrentQueue<TConsumer> _queue = new ConcurrentQueue<TConsumer>();
 
         /// <summary>
-        /// A seperate ingress point to the q
+        /// A separate ingress point to the q
         /// </summary>
         private readonly BlockingCollection<TConsumer> _ingressBalancer = new BlockingCollection<TConsumer>();
 
         /// <summary>
-        /// Q signalling
+        /// Q signaling
         /// </summary>
         private readonly AutoResetEvent _preInsertEvent = new AutoResetEvent(false);
 
@@ -117,12 +115,12 @@ namespace zero.core.patterns.bushes
 
         /// <summary>
         /// Maintains a handle to a job if fragmentation was detected so that the
-        /// producer can marhal fragments into the next production
+        /// producer can marshal fragments into the next production
         /// </summary>
         private volatile TConsumer _previousJobFragment;
 
         /// <summary>
-        /// Maximum amount of producers that can be buffered before we stop pruction of new jobs
+        /// Maximum amount of producers that can be buffered before we stop production of new jobs
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -150,7 +148,7 @@ namespace zero.core.patterns.bushes
         protected int parm_min_frame_time = 10;
 
         /// <summary>
-        /// The amount of time to wait between retries when the producer cannnot allocate job management structures
+        /// The amount of time to wait between retries when the producer cannot allocate job management structures
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -212,7 +210,7 @@ namespace zero.core.patterns.bushes
                                     if (await nextJob.ProduceAsync(_previousJobFragment) < IoProducable<TProducer>.State.Error)
                                     {
                                         //TODO Double check this hack
-                                        //Basically implace to handle this weird double connection business on the TCP side
+                                        //Basically to handle this weird double connection business on the TCP iri side
                                         if (nextJob.ProcessState == IoProducable<TProducer>.State.ProduceSkipped)
                                         {
                                             nextJob.ProcessState = IoProducable<TProducer>.State.Accept;
@@ -357,8 +355,14 @@ namespace zero.core.patterns.bushes
                                     else //Consume failed?
                                     {
                                         currJob.ProcessState = IoProducable<TProducer>.State.Reject;
-                                        if(!currJob.StillHasUnprocessedFragments)//TODO how do we handle this? The stream will be out of sync? Maybe set TcpSync back to false?
+                                        if (!currJob.StillHasUnprocessedFragments)
+                                        {
                                             JobHeap.Return(currJob);
+                                        }
+                                        else
+                                        {
+                                            currJob.MoveUnprocessedToFragment();
+                                        }                                            
                                     }
 
                                     if ((currJob.Id % parm_stats_mod_count) == 0)
@@ -373,13 +377,13 @@ namespace zero.core.patterns.bushes
                             }
                             else
                             {
-                                _logger.Warn($"`{Description}' producer signalled that a job is ready but nothing found in the jobQueue. Strange BUG!");
+                                _logger.Warn($"`{Description}' producer signaled that a job is ready but nothing found in the jobQueue. Strange BUG!");
                                 WorkSource.ProducerBarrier.Release(1);
                             }
                         }
                         catch (Exception e)
                         {
-                            _logger.Error(e, "Consumer dequeuer returned with errors:");
+                            _logger.Error(e, "Consumer dequeue returned with errors:");
                         }
                         finally
                         {
@@ -388,7 +392,7 @@ namespace zero.core.patterns.bushes
                     }
                 }, TaskCreationOptions.LongRunning);
 
-                //Wait for teardown
+                //Wait for tear down
 
                 await Task.WhenAll(new Task[] { producerTask, consumerTask });
             }

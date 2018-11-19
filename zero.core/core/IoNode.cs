@@ -56,12 +56,12 @@ namespace zero.core.core
         private readonly ConcurrentDictionary<string, IoNeighbor> _neighbors = new ConcurrentDictionary<string, IoNeighbor>();
 
         /// <summary>
-        /// Used to cancel downstream proccesses
+        /// Used to cancel downstream processes
         /// </summary>
         private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
 
         /// <summary>
-        /// The sheduler used to process messages from all neighbors 
+        /// The scheduler used to process messages from all neighbors 
         /// </summary>
         private readonly LimitedThreadScheduler _limitedNeighborThreadScheduler;
                

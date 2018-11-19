@@ -1,16 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 
 namespace zero.core.network.ip
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// The TCP flavor of <see cref="IoNetServer"/>
+    /// </summary>
+    /// <seealso cref="zero.core.network.ip.IoNetServer" />
     public class IoTcpServer:IoNetServer
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="IoTcpServer"/> class.
+        /// </summary>
+        /// <param name="listeningAddress">The listening address</param>
+        /// <param name="cancellationToken">Cancellation hooks</param>
         /// <inheritdoc />
         public IoTcpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(listeningAddress, cancellationToken)
         {
@@ -22,7 +27,11 @@ namespace zero.core.network.ip
         /// </summary>
         private readonly Logger _logger;
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Start the listener
+        /// </summary>
+        /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <returns>True on success, false otherwise</returns>
         public override async Task<bool> StartListenerAsync(Action<IoNetClient> connectionReceivedAction)
         {
             if (!await base.StartListenerAsync(connectionReceivedAction))
@@ -44,6 +53,12 @@ namespace zero.core.network.ip
             });
         }
 
+        /// <summary>
+        /// Connects the asynchronous.
+        /// </summary>
+        /// <param name="address">The address.</param>
+        /// <param name="_">The .</param>
+        /// <returns>The tcp client object managing this socket connection</returns>
         public override async Task<IoNetClient> ConnectAsync(IoNodeAddress address, IoNetClient _)
         {
             var ioTcpclient = new IoTcpClient(address, parm_read_ahead);

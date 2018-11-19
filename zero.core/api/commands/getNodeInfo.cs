@@ -16,7 +16,7 @@ namespace zero.core.api.commands
         {
             var response = new Response
             {
-                appName = "erebros",
+                appName = "unimatrix zero",
                 appVersion = "v0.1.0",
                 duration = 0,
                 jreAvailableProcessors = (ushort) Environment.ProcessorCount,

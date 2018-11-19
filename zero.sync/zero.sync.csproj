@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="console-example-internal.log" />
     <None Remove="nlog.config" />
   </ItemGroup>
 

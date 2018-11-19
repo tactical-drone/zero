@@ -56,12 +56,12 @@ namespace zero.core.patterns.bushes
         public SemaphoreSlim ConsumerBarrier;
 
         /// <summary>
-        /// The cosumer semaphore
+        /// The consumer semaphore
         /// </summary>
         public SemaphoreSlim ProducerBarrier;
 
         /// <summary>
-        /// <see cref="PrintCounters"/> only prints events that took lonnger that this value in microseconds
+        /// <see cref="PrintCounters"/> only prints events that took longer that this value in microseconds
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -103,6 +103,9 @@ namespace zero.core.patterns.bushes
             _logger.Trace($"`{Description}' Counters: {heading}{str}");
         }
 
+        /// <summary>
+        /// Closes this source
+        /// </summary>
         public abstract void Close();
     }
 }

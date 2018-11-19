@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using zero.core.patterns.bushes;
 using NLog;
-using Tangle.Net.Cryptography;
 using Tangle.Net.Entity;
 using zero.core.conf;
 using zero.core.network.ip;
@@ -14,7 +13,7 @@ using zero.core.ternary;
 namespace zero.core.models
 {
     /// <summary>
-    /// Specialises a generic <see cref="IoMessage{TProducer}"/> into a spesfic one for the tangle. This class contains details of how a message is to be 
+    /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
     public class IoTangleMessage : IoMessage<IoNetClient>
@@ -82,7 +81,7 @@ namespace zero.core.models
 
 
         /// <summary>
-        /// Maximul number of datums this buffer can hold
+        /// Maximum number of datums this buffer can hold
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -138,7 +137,7 @@ namespace zero.core.models
             ProcessState = State.Consuming;
 
             //TODO Find a more elegant way for this terrible hack
-            //Disgard the neighbor port data
+            //Discard the neighbor port data
             
 
             //Process protocol messages
@@ -305,6 +304,14 @@ namespace zero.core.models
                 }                
             }
             return ProcessState;
+        }
+
+        /// <summary>
+        /// Set unprocessed data as more fragments.
+        /// </summary>
+        public override void MoveUnprocessedToFragment()
+        {
+            DatumFragmentLength += BytesLeftToProcess;           
         }
     }
 }

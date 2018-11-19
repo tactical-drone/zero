@@ -6,8 +6,18 @@ using System.Threading.Tasks;
 
 namespace zero.core.patterns.misc
 {
+    /// <summary>
+    /// Some useful task extensions
+    /// </summary>
     public static class TaskExtensions
     {
+        /// <summary>
+        /// Executes a task but interrupts it manually if cancellation is requested
+        /// </summary>
+        /// <typeparam name="TResult">The type of the result.</typeparam>
+        /// <param name="asyncTask">The asynchronous task.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The original task, or the cancellation task if this task was canceled</returns>
         public static async Task<TResult> HandleCancellation<TResult>(
             this Task<TResult> asyncTask,
             CancellationToken cancellationToken)

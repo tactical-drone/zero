@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
-using zero.core.models;
 
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The TCP flaviour of <see cref="IoSocket"/>
+    /// The TCP flavor of <see cref="IoSocket"/>
     /// </summary>
     class IoTcpSocket : IoSocket
     {
@@ -108,6 +105,11 @@ namespace zero.core.network.ip
             return true;
         }
 
+        /// <summary>
+        /// Connect to a remote endpoint
+        /// </summary>
+        /// <param name="address">The address to connect to</param>
+        /// <returns>True on success, false otherwise</returns>
         public override async Task<bool> ConnectAsync(IoNodeAddress address)
         {
             if (!await base.ConnectAsync(address))

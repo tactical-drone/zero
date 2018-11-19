@@ -97,7 +97,7 @@ namespace zero.core.patterns.bushes
         private readonly IoHeap<IoWorkStateTransition<TProducer>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TProducer>>(Enum.GetNames(typeof(State)).Length);
         
         /// <summary>
-        /// The state transtition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
+        /// The state transition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
         /// </summary>      
         public readonly IoWorkStateTransition<TProducer>[] StateTransitionHistory = new IoWorkStateTransition<TProducer>[Enum.GetNames(typeof(State)).Length];
 
@@ -114,7 +114,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Update state history
         /// </summary>
-        /// <param name="value">State state</param>
+        /// <param name="value">The new state value</param>
         private void UpdateStateTransitionHistory(State value)
         {
             //Update the previous state's exit time
@@ -253,7 +253,7 @@ namespace zero.core.patterns.bushes
                 //Update timestamps
                 UpdateStateTransitionHistory(value);
 
-                //generate a uinique id
+                //generate a unique id
                 if (value == State.Undefined)
                 {
                     Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]); //TODO why do we need this again?
@@ -265,5 +265,10 @@ namespace zero.core.patterns.bushes
                 }
             }
         }
+
+        /// <summary>
+        /// Set unprocessed data as more fragments.
+        /// </summary>
+        public abstract void MoveUnprocessedToFragment();
     }
 }

@@ -39,7 +39,7 @@ namespace zero.core.models
         public volatile int BytesRead;
 
         /// <summary>
-        /// The number of bytes proccessed from the buffer
+        /// The number of bytes processed from the buffer
         /// </summary>
         public volatile int BufferOffset;
 
@@ -59,7 +59,7 @@ namespace zero.core.models
         public volatile int DatumLength;
 
         /// <summary>
-        /// The length of the buffer offset to allow previous fragments to be concatinated to the current buffer
+        /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
         /// </summary>
         public volatile int DatumProvisionLength;
 

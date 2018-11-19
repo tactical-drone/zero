@@ -17,7 +17,7 @@ namespace zero.core.conf
         /// </summary>
         public IoConfigurable()
         {
-            //Initialize the parameter dictonary
+            //Initialize the parameter dictionary
             GetType().GetFields().ToList().Where(p => p.IsDefined(typeof(IoParameter))).ToList().ForEach(
                 p =>
                 {

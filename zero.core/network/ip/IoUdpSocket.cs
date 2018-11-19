@@ -9,7 +9,7 @@ using zero.core.patterns.misc;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The UDP flaviour of <see cref="IoSocket"/>
+    /// The UDP flavor of <see cref="IoSocket"/>
     /// </summary>
     class IoUdpSocket : IoSocket
     {
@@ -29,7 +29,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socket">The underlying socket</param>
         /// <param name="address">The address listened on</param>
-        /// <param name="cancellationToken">Token used for canncellation</param>
+        /// <param name="cancellationToken">Token used for cancellation</param>
         public IoUdpSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken) : base(socket, address, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -59,7 +59,7 @@ namespace zero.core.network.ip
 
             try
             {
-                //Call the new connection esablished handler
+                //Call the new connection established handler
                 callback(this);
 
                 // Prepare UDP connection orientated things                

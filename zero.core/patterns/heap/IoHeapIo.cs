@@ -41,7 +41,7 @@ namespace zero.core.patterns.heap
                 while (next == null)
                 {
                     Interlocked.Increment(ref CurrentHeapSize);
-                    _logger.Trace($"Flusing `{GetType()}'");
+                    _logger.Trace($"Flushing `{GetType()}'");
 
                     //Return another item from the heap
                     if ((next = (T) base.Take(parms)) == null)

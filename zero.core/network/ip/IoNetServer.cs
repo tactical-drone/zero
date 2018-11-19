@@ -1,14 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Data;
-using System.Diagnostics;
-using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using zero.core.core;
-using Microsoft.Extensions.Primitives;
 using NLog;
 using zero.core.conf;
 
@@ -66,12 +60,13 @@ namespace zero.core.network.ip
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_read_ahead = 10;        
+        protected int parm_read_ahead = 10;
 
         /// <summary>
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <returns>True on success, false otherwise</returns>
         public virtual Task<bool> StartListenerAsync(Action<IoNetClient> connectionReceivedAction)
         {
             if (IoListenSocket != null)
@@ -84,7 +79,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="_">A stub</param>
         /// <param name="ioNetClient">The client to connect to</param>
-        /// <returns>The tcp client wrapper</returns>
+        /// <returns>The client object managing this socket connection</returns>
         public virtual async Task<IoNetClient> ConnectAsync(IoNodeAddress _, IoNetClient ioNetClient = null)
         {
             if (await ioNetClient.ConnectAsync().ContinueWith(t =>

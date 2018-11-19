@@ -29,12 +29,12 @@ namespace zero.core.patterns.bushes
         public volatile IoProducable<TProducer>.State State;
 
         /// <summary>
-        /// Timestamp when this state was entered
+        /// Timestamped when this state was entered
         /// </summary>
         public DateTime EnterTime;
 
         /// <summary>
-        /// Timestamp when this state was exited
+        /// Timestamped when this state was exited
         /// </summary>
         public DateTime ExitTime;
 
@@ -56,7 +56,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Prepares this item for use after popped from the heap
         /// </summary>
-        /// <returns>The intsance</returns>
+        /// <returns>The instance</returns>
         public IOHeapItem Constructor()
         {
             ExitTime = EnterTime = DateTime.Now;
@@ -66,7 +66,7 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Calcylates the max state string length used for log formatting purposes
+        /// Calculates the max state string length used for log formatting purposes
         /// </summary>
         public static readonly int StateStrPadding = Enum.GetNames(typeof(IoProducable<>.State)).ToList().Select(s => s.Length).Max();
 

@@ -6,7 +6,7 @@ using System.Text;
 namespace zero.core.ternary
 {
     /// <summary>
-    /// A helper class to encode and decode ternary ecodings
+    /// A helper class to encode and decode ternary encodings
     /// </summary>
     public class Codec
     {
@@ -19,7 +19,7 @@ namespace zero.core.ternary
         }
 
         /// <summary>
-        /// The size of the tryte symbol alpabet
+        /// The size of the tryte symbol alphabet
         /// </summary>
         private const int AlphabetLength = 27;
 
