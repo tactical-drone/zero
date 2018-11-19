@@ -13,10 +13,8 @@ Requires dotnet core 2.1 SDK to be installed
 
 ## Building and running
 
-1. `git submodule init`
-2. `git submodule update`
-3. `dotnet restore`
-4. `cd zero.sync`
-5. `dotnet build`
-6. `dotnet run`
+1. `dotnet restore`
+2. `cd zero.sync`
+3. `dotnet build`
+4. `dotnet run`
 
