@@ -7,6 +7,7 @@ variables:
   project: "zero.sync"
 
 before_script:
+  - "dotnet --version"
   - "dotnet restore"
 
 build:
