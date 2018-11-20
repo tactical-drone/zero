@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\.gitignore" Link=".gitignore" />
     <None Include="..\readme.md" Link="readme.md" />
   </ItemGroup>
 

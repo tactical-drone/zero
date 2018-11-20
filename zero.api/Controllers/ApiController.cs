@@ -6,6 +6,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using zero.core.api.commands;
 using zero.core.patterns;
 using zero.core.patterns.misc;
@@ -20,7 +22,9 @@ using NLog;
 
 namespace zero.api.Controllers
 {
-    [Route("/")]
+    [ApiController]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [Route("/api")]
     public class ApiController : Controller
     {
         readonly Logger _logger;
@@ -32,9 +36,9 @@ namespace zero.api.Controllers
         }
 
         [HttpGet]
-        public string Get()
+        public JsonResult Get()
         {
-            return "Unimatrix zero";            
+            return new JsonResult("You will be assimilated!");            
         }                
 
         //[HttpGet("{id}")]

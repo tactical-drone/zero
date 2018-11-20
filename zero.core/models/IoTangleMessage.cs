@@ -111,15 +111,19 @@ namespace zero.core.models
         /// </summary>
         private void ProcessProtocolMessage()
         {
+            var s = new Stopwatch();
+            s.Start();
             for (int i = 0; i < DatumCount; i++)
             {
+                s.Restart();
                 Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
                 Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
 
                 var tx = Transaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));
+                s.Stop();
 
                 //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
-                _logger.Info($"({Id}) {tx.Address}, v = {(tx.Value / 1000000).ToString().PadLeft(17, ' ')} Mi, f = {DatumFragmentLength != 0}");
+                _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', t=`{s.ElapsedMilliseconds}ms'");
 
                 BufferOffset += DatumLength;
             }

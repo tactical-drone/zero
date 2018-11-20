@@ -1,0 +1,62 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <UserSecretsId>aspnet-zero.web-CD9D731D-EAF2-4AE1-BA7E-B7A59B989DDD</UserSecretsId>
+    <TypeScriptToolsVersion>3.1</TypeScriptToolsVersion>
+    <typescriptcompileblocked>true</typescriptcompileblocked>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="dist\**" />
+    <Content Remove="dist\**" />
+    <EmbeddedResource Remove="dist\**" />
+    <None Remove="dist\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="aurelia_project\environments\dev.ts" />
+    <Content Include="aurelia_project\environments\prod.ts" />
+    <Content Include="aurelia_project\environments\stage.ts" />
+    <Content Include="aurelia_project\generators\attribute.ts" />
+    <Content Include="aurelia_project\generators\binding-behavior.ts" />
+    <Content Include="aurelia_project\generators\component.ts" />
+    <Content Include="aurelia_project\generators\element.ts" />
+    <Content Include="aurelia_project\generators\generator.ts" />
+    <Content Include="aurelia_project\generators\task.ts" />
+    <Content Include="aurelia_project\generators\value-converter.ts" />
+    <Content Include="aurelia_project\tasks\build.ts" />
+    <Content Include="aurelia_project\tasks\environment.ts" />
+    <Content Include="aurelia_project\tasks\jest.ts" />
+    <Content Include="aurelia_project\tasks\karma.ts" />
+    <Content Include="aurelia_project\tasks\run.ts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Razor.Design" Version="2.1.2" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="2.1.6" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="src\resources\attributes\" />
+    <Folder Include="src\resources\binding-behaviors\" />
+    <Folder Include="src\resources\elements\" />
+    <Folder Include="src\resources\value-converters\" />
+  </ItemGroup>
+
+  <Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">
+    <!-- As part of publishing, ensure the JS resources are freshly built in production mode -->
+    <Exec Command="npm install" />
+    <Exec Command="au build" />
+    <!-- Include the newly-built files in the publish output -->
+    <ItemGroup>
+      <DistFiles Include="wwwroot\dist\**" />
+      <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>%(DistFiles.Identity)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+</Project>
