@@ -115,8 +115,25 @@ module.exports = ({ production, server, extractCss, coverage, analyze } = {}) =>
         new ModuleDependenciesPlugin({
             'aurelia-testing': ['./compile-spy', './view-spy']
         }),
+        //new HtmlWebpackPlugin({
+        //    template: 'index.ejs',
+        //    minify: production
+        //        ? {
+        //            removeComments: true,
+        //            collapseWhitespace: true
+        //        }
+        //        : undefined,
+        //    metadata: {
+        //        // available in index.ejs //
+        //        title,
+        //        server,
+        //        baseUrl
+        //    }
+        //}),        
         new HtmlWebpackPlugin({
-            template: 'index.ejs',
+            inject : false, 
+            template: './Views/Shared/_LayoutTemplate.cshtml',
+            filename: '../../Views/Shared/_Layout.cshtml',
             minify: production
                 ? {
                     removeComments: true,

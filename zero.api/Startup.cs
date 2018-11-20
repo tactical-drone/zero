@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 
 namespace zero.api
 {
@@ -23,6 +20,19 @@ namespace zero.api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddAuthentication()
+                .AddCookie(cfg => cfg.SlidingExpiration = true)
+                .AddJwtBearer(cfg =>
+                {
+                    cfg.SaveToken = true;
+                    cfg.TokenValidationParameters = new TokenValidationParameters()
+                    {
+                        ValidIssuer = Configuration["Tokens:Issuer"],
+                        ValidAudience = Configuration["Tokens:Issuer"],
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Tokens:Key"]))
+                    };
+                });
+
             services.AddCors();
             services.AddMvc();
         }
@@ -36,11 +46,12 @@ namespace zero.api
             }
 
             app.UseCors(
-                options => options.AllowAnyMethod()
-                    .AllowAnyOrigin()
+                options => options
+                    .SetIsOriginAllowed(s => s.Contains("https://localhost"))
                     .AllowAnyHeader()
-                    .AllowCredentials()
+                    .AllowAnyMethod()                    
             );
+
             app.UseMvc();
         }
     }

@@ -1,43 +1,33 @@
 import { inject } from 'aurelia-framework';
 import { HttpClient } from 'aurelia-fetch-client';
 
-@inject('serverConfig')
+@inject('serverConfig', HttpClient)
 export class app {
     data;
     message = 'We are the borg.';
     http;
     serverConfig;
 
-    constructor(serverConfig) {
+    constructor(serverConfig, http) {
         this.serverConfig = serverConfig;
-        this.http = new HttpClient();
+        this.http = http;
         this.http.configure(config => {
             config
                 .useStandardConfiguration()
-                .withBaseUrl('/api')
                 .withDefaults({
                     mode: 'cors',
-                    headers: { 
+                    headers: {
                         'Accept': 'application/json',
-                        'Authorization': 'Bearer ' + this.serverConfig.token
+                        'Authorization': 'Bearer ' + this.serverConfig.token,
                     },                    
                 });
         });   
-//this.loadData();
+        this.loadData();
     }
 
     loadData() {
         this.http.fetch('http://localhost:14256/api')
-            .withDefaults({
-                mode: 'no-cors',
-                headers: {
-                    'Accept': 'application/json',
-                    'Authorization': 'Bearer ' + this.serverConfig.token
-                },
-            })
             .then(response => response.json())
-            .then(result => {
-                this.message = result;
-            });
+            .then(result =>this.message = result);
     }
 }

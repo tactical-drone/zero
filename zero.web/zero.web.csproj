@@ -43,6 +43,7 @@
     <Folder Include="src\resources\binding-behaviors\" />
     <Folder Include="src\resources\elements\" />
     <Folder Include="src\resources\value-converters\" />
+    <Folder Include="wwwroot\dist\" />
   </ItemGroup>
 
   <Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">
