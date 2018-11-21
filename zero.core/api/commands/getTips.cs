@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class getTips : ApiCommand
+    public class getTips : IoItApiCommand
     {
         public getTips() : base(nameof(getTips))
         {

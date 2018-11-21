@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
 
 namespace zero.core.network.ip
 {
     /// <summary>
     /// Used to store address information of remote nodes
     /// </summary>
+    [DataContract]  
     public class IoNodeAddress
     {
         /// <summary>
@@ -27,31 +29,37 @@ namespace zero.core.network.ip
         /// <summary>
         /// The address url of the node
         /// </summary>
+        [DataMember]
         public string Url;
 
         /// <summary>
         /// The listening port of the remote node
         /// </summary>
+        [DataMember]
         public int Port;
 
         /// <summary>
         /// <see cref="IoNodeAddress"/> wrapped as <see cref="System.Net.IPEndPoint"/>
         /// </summary>
+        [IgnoreDataMember]
         public IPEndPoint IpEndPoint;
 
         /// <summary>
         /// The Ip
         /// </summary>
+        [IgnoreDataMember]
         public string Ip;
 
         /// <summary>
         /// Returns the address as ip:port
         /// </summary>
+        [IgnoreDataMember]
         public string IpAndPort => $"{Ip}:{Port}";
 
         /// <summary>
         /// Returns the address in the format url:port
         /// </summary>
+        [IgnoreDataMember]
         public string UrlAndPort => $"{Url}:{Port}";
 
         /// <summary>

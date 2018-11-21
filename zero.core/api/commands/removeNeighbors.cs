@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class removeNeighbors : ApiCommand
+    public class removeNeighbors : IoItApiCommand
     {
         public List<string> uris;
 

@@ -8,15 +8,15 @@ namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "ObjectCreationAsStatement")]
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class ApiCommand
+    public class IoItApiCommand
     {
-        private static readonly ConcurrentDictionary<string, ApiCommand> ApiLookup =
-            new ConcurrentDictionary<string, ApiCommand>();
+        private static readonly ConcurrentDictionary<string, IoItApiCommand> ApiLookup =
+            new ConcurrentDictionary<string, IoItApiCommand>();
 
         private static readonly Logger Logger;
         public string command;
 
-        static ApiCommand()
+        static IoItApiCommand()
         {
             new getNodeInfo();
             new getNeighbors();
@@ -32,10 +32,10 @@ namespace zero.core.api.commands
             new interruptAttachingToTangle();
             new broadcastTransactions();
             new storeTransactions();
-            Logger = LogManager.GetLogger(nameof(ApiCommand));
+            Logger = LogManager.GetLogger(nameof(IoItApiCommand));
         }
 
-        public ApiCommand(string key)
+        public IoItApiCommand(string key)
         {
             ApiLookup.TryAdd(key, this);
         }

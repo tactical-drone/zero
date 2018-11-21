@@ -1,13 +1,19 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.Net.Http.Headers;
+using zero.core.api;
+using zero.core.api.interfaces;
 
 namespace zero.api
 {
+    /// <summary>
+    /// Starts asp.net core
+    /// </summary>
     public class Startup
     {
         public Startup(IConfiguration configuration)
@@ -33,8 +39,20 @@ namespace zero.api
                     };
                 });
 
-            services.AddCors();
-            services.AddMvc();
+            services.AddCors(options =>
+            {
+                options.AddPolicy("ApiCorsPolicy",
+                    builder => builder.SetIsOriginAllowed(s => s.Contains("https://localhost"))
+                        .AllowAnyMethod()
+                        .AllowAnyHeader());
+            });
+
+            services.AddMvc()
+                .SetCompatibilityVersion(CompatibilityVersion.Version_2_1)
+                .AddApplicationPart(typeof(IIoNodeService).GetTypeInfo().Assembly);
+
+            //Add node services            
+            services.AddSingleton<IIoNodeService>(new IoNodeService());
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -45,13 +63,7 @@ namespace zero.api
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseCors(
-                options => options
-                    .SetIsOriginAllowed(s => s.Contains("https://localhost"))
-                    .AllowAnyHeader()
-                    .AllowAnyMethod()                    
-            );
-
+            app.UseCors("ApiCorsPolicy");            
             app.UseMvc();
         }
     }

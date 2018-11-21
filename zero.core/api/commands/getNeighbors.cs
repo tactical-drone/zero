@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    internal class getNeighbors : ApiCommand
+    internal class getNeighbors : IoItApiCommand
     {
         public getNeighbors() : base(nameof(getNeighbors))
         {

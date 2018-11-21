@@ -6,7 +6,7 @@ using Newtonsoft.Json.Linq;
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class getNodeInfo : ApiCommand
+    public class getNodeInfo : IoItApiCommand
     {
         public getNodeInfo() : base(nameof(getNodeInfo))
         {

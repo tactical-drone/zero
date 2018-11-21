@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class getTrytes : ApiCommand
+    public class getTrytes : IoItApiCommand
     {
         public List<string> hashes;
 

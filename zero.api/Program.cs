@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.IO;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -17,28 +13,35 @@ namespace zero.api
         public static void Main(string[] args)
         {
             InitNlog();
+
             BuildWebHost(args).Run();
         }
 
+        private static Logger _logger;
+
         private static void InitNlog()
         {
-            var logger = NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
-            try
-            {
-                logger.Debug("Init");
-            }
-            catch (Exception e)
-            {
-                //NLog: catch setup errors
-                logger.Error(e, "Stopped program because of exception");
-                throw;
-            }           
+           _logger = NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
         }
 
         public static IWebHost BuildWebHost(string[] args) =>
             WebHost.CreateDefaultBuilder(args)
-                .UseStartup<Startup>()
+                .ConfigureAppConfiguration((hostingContext, configApp) =>
+                {
+                    configApp.SetBasePath(Directory.GetCurrentDirectory());
+                    configApp.AddJsonFile("appsettings.json", optional: true);
+                    configApp.AddJsonFile($"appsettings.{hostingContext.HostingEnvironment.EnvironmentName}.json",optional: true);
+                    configApp.AddEnvironmentVariables();
+                    configApp.AddCommandLine(args);
+                    
+                })                
+                .ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+                })
                 .UseNLog()
+                .UseStartup<Startup>()
                 .Build();
     }
 }

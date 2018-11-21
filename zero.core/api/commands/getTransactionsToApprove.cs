@@ -3,7 +3,7 @@
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class getTransactionsToApprove : ApiCommand
+    public class getTransactionsToApprove : IoItApiCommand
     {
         public uint depth;
 

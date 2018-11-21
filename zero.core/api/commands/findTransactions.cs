@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace zero.core.api.commands
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    public class findTransactions : ApiCommand
+    public class findTransactions : IoItApiCommand
     {
         public List<string> addresses;
         public List<string> approvees;
