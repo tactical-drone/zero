@@ -260,3 +260,4 @@ paket-files/
 __pycache__/
 *.pyc
 /zero.api/internal-nlog.txt
+/zero.web/Views/Shared/_Layout.cshtml
