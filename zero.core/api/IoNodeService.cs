@@ -48,6 +48,9 @@ namespace zero.core.api
         [HttpPost]
         public IoApiReturn Post(IoNodeAddress address)
         {
+            if( !address.IsValid )
+                return IoApiReturn.Result(false,address.ValidationErrorString);
+
             if (!_nodes.TryAdd(address.UrlAndPort, new IoNode(address, ioNetClient => new TanglePeer(ioNetClient))))
             {
                 var errStr = $"Cannot create node `${address.UrlAndPort}', a node with that id already exists";

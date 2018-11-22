@@ -8,6 +8,7 @@ const { ProvidePlugin } = require('webpack');
 //const { ProvidePlugin } = require('./node_modules/webpack');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const packageConfig = require("./package.json");
+const tsNameof = require("ts-nameof");
 
 // config helpers:
 const ensureArray = (config) => config && (Array.isArray(config) ? config : [config]) || [];
@@ -28,7 +29,6 @@ const cssRules = [
 
 module.exports = ({ production, server, extractCss, coverage, analyze } = {}) =>
 ({
-//module.exports = {
     resolve: {
         extensions: ['.ts', '.js'],
         modules: [srcDir, 'node_modules'],
@@ -104,7 +104,16 @@ module.exports = ({ production, server, extractCss, coverage, analyze } = {}) =>
                     exclude: [/\.{spec,test}\.[jt]s$/i],
                     enforce: 'post',
                     options: { esModules: true },
-                })
+                }),
+            {
+                test: /\.tsx?$/,
+                use: [{
+                    loader: 'ts-loader', // or awesome-typescript-loader
+                    options: {
+                        getCustomTransformers: () => ({ before: [tsNameof] })
+                    }
+                }]
+            }
         ]
     },
     plugins: [

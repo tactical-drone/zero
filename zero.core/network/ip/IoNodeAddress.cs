@@ -20,9 +20,18 @@ namespace zero.core.network.ip
         {
             Url = url;
             Port = port;
-            Ip = StripIpFromUrlString(Url);
 
-            //IpEndPoint = new IPEndPoint(IPAddress.Parse(StripIpFromUrlString(Url)), Port);
+            try
+            {
+                Ip = StripIpFromUrlString(Url);
+            }
+            catch (ArgumentException e)
+            {
+                IsValid = false;
+                ValidationErrorString = e.Message;
+                return;
+            }
+
             IpEndPoint = new IPEndPoint(Dns.GetHostAddresses(StripIpFromUrlString(Url))[0], Port);
         }
 
@@ -49,6 +58,17 @@ namespace zero.core.network.ip
         /// </summary>
         [IgnoreDataMember]
         public string Ip;
+
+        /// <summary>
+        /// Returns true if the URL format is valid.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool IsValid = false;
+
+        /// <summary>
+        /// The validation error string detailing validation errors
+        /// </summary>
+        public string ValidationErrorString = null;
 
         /// <summary>
         /// Returns the address as ip:port

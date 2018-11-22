@@ -1,8 +1,9 @@
 <template>
-    <h1>unimatrix zero</h1>       
-    Listen address: <input type="text" value.bind="url"/>:<input value.bind="port" />
-    <p/>
-    <button type="button" click.delegate="createNode()">Create node</button>
-    <p/>
+    <h1>unimatrix zero</h1>
+    Listen address: <input type="text" value.bind="url" />:
+    <input value.bind="port" />
+    <p />
+    <button type="button" click.delegate="nodeServices.createNode(url,port)">Create node</button>
+    <p />
     ${message}
 </template>

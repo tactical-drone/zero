@@ -19,7 +19,7 @@
   "include": [
     "./src/**/*.ts",
     "./test/**/*.ts",
-    "./custom_typings/**/*.d.ts"
+    "./custom_typings/**/*.d.ts", "src/core"
   ],
   "exclude": [
     "node_modules",

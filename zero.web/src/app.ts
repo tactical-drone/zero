@@ -1,42 +1,22 @@
-import { inject } from 'aurelia-framework';
-import { HttpClient, json } from 'aurelia-fetch-client';
+import {inject, computedFrom, observable} from 'aurelia-framework';
+import { IoNodeServices } from 'services/IoNodeService';
+import {} from "ts-nameof";
 
-@inject('serverConfig', HttpClient)
+@inject(IoNodeServices)
 export class app {
-    data;
-    message = 'We are the borg.';
-    http;
-    serverConfig;
+    constructor(nodeService:IoNodeServices) {
+        this.nodeServices = nodeService;
+    }
+
+    //@observable
+    nodeServices: IoNodeServices = undefined;
+
+    @computedFrom(nameof.full(this.nodeServices.response, -2))
+    get message(): string {
+        return this.nodeServices.response.message;
+    }
+
+    //binds
     url: string;
     port: number;
-
-    constructor(serverConfig, http) {
-        this.serverConfig = serverConfig;
-        this.http = http;
-        this.http.configure(config => {
-            config
-                .useStandardConfiguration()
-                .withDefaults({                    
-                    headers: {
-                        'Accept': 'application/json',
-                        'Authorization': 'Bearer ' + this.serverConfig.token,
-                    },                    
-                });
-        });   
-    }
-
-    createNode() {
-
-        let address = {
-            "url" : this.url,
-            "port": this.port
-        }
-
-        this.http.fetch('http://localhost:14256/api/node', {
-                method: 'post',
-                body: json(address)
-            })
-            .then(response => response.json())
-            .then(result =>this.message = "success =" + result.success + ", " + result.message);
-    }
 }
