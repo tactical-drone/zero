@@ -3,13 +3,13 @@ import {HttpClient,json} from 'aurelia-fetch-client';
 import { Container, observable } from 'aurelia-framework';
 import { IoApiReturn } from "./IoApiReturn";
 
+class Promise<T0 extends IoApiReturn>{}
+
 export class IoApi {
     httpClient: HttpClient;
     zcfg: IoConfiguration;
 
-    //@observable
     response: IoApiReturn = undefined;
-
 
     constructor() {
         this.httpClient = Container.instance.get(HttpClient);
@@ -28,11 +28,12 @@ export class IoApi {
     }
 
     post(baseUrl: string, parms: any): Promise<IoApiReturn> {
-        return this.httpClient.fetch(this.zcfg.apiUrl + baseUrl, {
-            method: 'post',
-            body: json(parms)
-        })
+        return this.httpClient.fetch(this.zcfg.apiUrl + baseUrl,
+                {
+                    method: 'post',
+                    body: json(parms)
+                })
             .then(response => response.json())
-            .then(response => this.response = response)            
+            .then(response => this.response = response);
     }
 }

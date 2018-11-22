@@ -8,7 +8,6 @@ export class app {
         this.nodeServices = nodeService;
     }
 
-    //@observable
     nodeServices: IoNodeServices = undefined;
 
     @computedFrom(nameof.full(this.nodeServices.response, -2))
