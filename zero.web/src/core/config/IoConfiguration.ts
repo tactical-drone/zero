@@ -7,6 +7,6 @@ export class IoConfiguration {
         this.scfg = serverConfig;
     }
 
-    scfg : any;
+    scfg : any; 
     apiUrl: string = 'http://localhost:14256';
 }

@@ -1,11 +1,24 @@
 <template>
+    <!--<require from="aurelia-kendoui-bridge/listview/listview"></require>-->
+    <!--<require from="aurelia-kendoui-bridge/common/template"></require>-->
     <h1>unimatrix zero</h1>
-    Listen address: <input type="text" value.bind="url" />:
+    Listen address:
+    <input type="text" value.bind="url" />:
     <input value.bind="port" />
     <p />
     <button type="button" click.delegate="nodeServices.createNode(url,port)">Create node</button>
     <p />
+
+    <!--<ak-list-view k-data-source.bind="dataSource">
+        <ak-template>
+            <div class="product">
+                <p>${data}</p>
+            </div>
+        </ak-template>
+    </ak-list-view>-->
+
+    <div ref="pager" class="k-pager-wrap"></div>
     <footer>
         <h2>${message}</h2>
-    </footer>    
+    </footer>
 </template>

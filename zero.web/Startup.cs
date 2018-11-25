@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SpaServices.Webpack;
 using Microsoft.EntityFrameworkCore;
@@ -52,10 +52,14 @@ namespace zero.web
 
                 app.UseWebpackDevMiddleware(new WebpackDevMiddlewareOptions
                 {
-                    HotModuleReplacement = false,
+                    HotModuleReplacement = true,
                     ConfigFile = "webpack.netcore.config.js",
                     HotModuleReplacementClientOptions = new Dictionary<string, string> { { "reload", "true" } },
-                    EnvParam = "development"
+                    //EnvParam = new
+                    //{
+                    //    production = false,
+                    //    analyze = true
+                    //}
                 });
             }
             else
@@ -65,10 +69,10 @@ namespace zero.web
             }
 
             app.UseStaticFiles();
-            app.UseHttpsRedirection();            
+            //app.UseHttpsRedirection();            
             app.UseCookiePolicy();
             app.UseAuthentication();
-
+            
             app.UseMvc(routes =>
             {
                 routes.MapRoute(

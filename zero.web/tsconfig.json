@@ -1,5 +1,5 @@
 {
-  "compileOnSave": true,
+  "compileOnSave": false,
   "compilerOptions": {
     "target": "es5",
     "module": "esnext",
@@ -16,16 +16,13 @@
       "dom"
     ]
   },
+  "exclude": [
+    "./tmp/*"
+  ],
   "include": [
     "./src/**/*.ts",
     "./test/**/*.ts",
-    "./custom_typings/**/*.d.ts", "src/core"
-  ],
-  "exclude": [
-    "node_modules",
-    "aurelia_project",
-    "wwwroot",
-    "./*.js"
+    "./custom_typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": false

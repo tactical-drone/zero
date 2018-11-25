@@ -1,170 +1,29 @@
-const path = require('path');
+const webpackConfig = require('./webpack.config');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const ExtractTextPlugin = require('extract-text-webpack-plugin');
+const CleanWebpackPlugin = require('clean-webpack-plugin');
 const project = require('./aurelia_project/aurelia.json');
-const { AureliaPlugin, ModuleDependenciesPlugin } = require('aurelia-webpack-plugin');
-const { ProvidePlugin } = require('webpack');
-//const { ProvidePlugin } = require('./node_modules/webpack');
-const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-const packageConfig = require("./package.json");
-const tsNameof = require("ts-nameof");
+var originalConfig = webpackConfig({});
 
-// config helpers:
-const ensureArray = (config) => config && (Array.isArray(config) ? config : [config]) || [];
-const when = (condition, config, negativeConfig) =>
-    condition ? ensureArray(config) : ensureArray(negativeConfig);
-
-// primary config:
-const title = 'unimatrix zero';
-const outDir = path.resolve(__dirname, project.platform.output);
-const srcDir = path.resolve(__dirname, 'src');
-const nodeModulesDir = path.resolve(__dirname, 'node_modules');
-const baseUrl = '/';
-
-
-const cssRules = [
-    { loader: 'css-loader' },
-];
-
-module.exports = ({ production, server, extractCss, coverage, analyze } = {}) =>
-({
-    resolve: {
-        extensions: ['.ts', '.js'],
-        modules: [srcDir, 'node_modules'],
-    },
-    entry: {
-        app: ['aurelia-bootstrapper'],
-        vendor: ['bluebird'],
-    },
-    //entry: 'aurelia-bootstrapper',
-    mode: production ? 'production' : 'development',
-    output: {
-        path: outDir,
-        publicPath: baseUrl,
-        filename: production ? '[name].[chunkhash].bundle.js' : '[name].[hash].bundle.js',
-        sourceMapFilename: production ? '[name].[chunkhash].bundle.map' : '[name].[hash].bundle.map',
-        chunkFilename: production ? '[name].[chunkhash].chunk.js' : '[name].[hash].chunk.js'
-    },
-    performance: { hints: false },
-    //devServer: {
-    //    contentBase: outDir,
-    //    proxy: {
-    //        "/": packageConfig["jest"]["globals"]["BaseUrl"]
-    //    },
-    //    // serve index.html for all 404 (required for push-state)
-    //    historyApiFallback: true
-    //},
-    devtool: production ? 'nosources-source-map' : 'cheap-module-eval-source-map',
-    module: {        
-        rules: [
-            // CSS required in JS/TS files should use the style-loader that auto-injects it into the website
-            // only when the issuer is a .js/.ts file, so the loaders are not applied inside html templates
-            {
-                test: /\.css$/i,
-                issuer: [{ not: [{ test: /\.html$/i }] }],
-                use: extractCss
-                    ? ExtractTextPlugin.extract({
-                        fallback: 'style-loader',
-                        use: cssRules
-                    })
-                    : ['style-loader', ...cssRules],
-            },
-            {
-                test: /\.css$/i,
-                issuer: [{ test: /\.html$/i }],
-                // CSS required in templates cannot be extracted safely
-                // because Aurelia would try to require it again in runtime
-                use: cssRules
-            },
-            { test: /\.html$/i, loader: 'html-loader' },
-            { test: /\.tsx?$/, loader: "ts-loader" },
-            { test: /\.json$/i, loader: 'json-loader' },
-            // use Bluebird as the global Promise implementation:
-            { test: /[\/\\]node_modules[\/\\]bluebird[\/\\].+\.js$/, loader: 'expose-loader?Promise' },
-            // embed small images and fonts as Data Urls and larger ones as files:
-            { test: /\.(png|gif|jpg|cur)$/i, loader: 'url-loader', options: { limit: 8192 } },
-            {
-                test: /\.woff2(\?v=[0-9]\.[0-9]\.[0-9])?$/i,
-                loader: 'url-loader',
-                options: { limit: 10000, mimetype: 'application/font-woff2' }
-            },
-            {
-                test: /\.woff(\?v=[0-9]\.[0-9]\.[0-9])?$/i,
-                loader: 'url-loader',
-                options: { limit: 10000, mimetype: 'application/font-woff' }
-            },
-            // load these fonts normally, as files:
-            { test: /\.(ttf|eot|svg|otf)(\?v=[0-9]\.[0-9]\.[0-9])?$/i, loader: 'file-loader' },
-            ...when(coverage,
-                {
-                    test: /\.[jt]s$/i,
-                    loader: 'istanbul-instrumenter-loader',
-                    include: srcDir,
-                    exclude: [/\.{spec,test}\.[jt]s$/i],
-                    enforce: 'post',
-                    options: { esModules: true },
-                }),
-            {
-                test: /\.tsx?$/,
-                use: [{
-                    loader: 'ts-loader', // or awesome-typescript-loader
-                    options: {
-                        getCustomTransformers: () => ({ before: [tsNameof] })
-                    }
-                }]
+module.exports = () => {
+    let config = originalConfig;
+    // output files without hashes
+    config.output.filename = '[name].bundle.js';
+    //config.plugins.splice(config.plugins.findIndex((x) => x.constructor.name === HtmlWebpackPlugin.name), 1);
+    // fix output path for .net core development
+    config.module.rules = config.module.rules.map(x => {
+        if (x.loader && (x.loader === 'url-loader' || x.loader === 'file-loader')) {
+            if (!x.options) {
+                x.options = {};
             }
-        ]
-    },
-    plugins: [
-        new AureliaPlugin(),
-        new ProvidePlugin({
-            'Promise': 'bluebird'
-        }),
-        new ModuleDependenciesPlugin({
-            'aurelia-testing': ['./compile-spy', './view-spy']
-        }),
-        //new HtmlWebpackPlugin({
-        //    template: 'index.ejs',
-        //    minify: production
-        //        ? {
-        //            removeComments: true,
-        //            collapseWhitespace: true
-        //        }
-        //        : undefined,
-        //    metadata: {
-        //        // available in index.ejs //
-        //        title,
-        //        server,
-        //        baseUrl
-        //    }
-        //}),        
-        new HtmlWebpackPlugin({
-            inject : false, 
-            template: './Views/Shared/_LayoutTemplate.cshtml',
-            filename: '../../Views/Shared/_Layout.cshtml',
-            minify: production
-                ? {
-                    removeComments: true,
-                    collapseWhitespace: true
-                }
-                : undefined,
-            metadata: {
-                // available in index.ejs //
-                title,
-                server,
-                baseUrl
-            }
-        }),        
-        ...when(extractCss,
-            new ExtractTextPlugin({
-                filename: production ? '[md5:contenthash:hex:20].css' : '[id].css',
-                allChunks: true
-            })),
-        ...when(production,
-            new CopyWebpackPlugin([
-                { from: 'static/favicon.ico', to: 'favicon.ico' }
-            ])),
-        ...when(analyze, new BundleAnalyzerPlugin())
-    ],
-});
+            x.options.publicPath = project.platform.output.replace('wwwroot', '') + '/';
+        }
+        return x;
+    });
+    config.plugins = [
+        // first clean the output directory
+        new CleanWebpackPlugin([config.output.path]),
+        ...config.plugins
+    ];
+
+    return config;
+};

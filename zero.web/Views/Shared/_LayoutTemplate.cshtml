@@ -3,15 +3,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
-
+    <base href="<%- htmlWebpackPlugin.options.metadata.baseUrl %>">  
 </head>
 <body>
     @RenderBody()
-
     <% for (var chunk in htmlWebpackPlugin.files.chunks) { %>
     <script src="<%= htmlWebpackPlugin.files.chunks[chunk].entry %>"></script>
     <% } %>
 
+    <% if (htmlWebpackPlugin.options.metadata.server) { %>
+    <!-- Webpack Dev Server reload -->
+    <script src="/webpack-dev-server.js"></script>
+    <% } %>
     @RenderSection("scripts", required: false)
 </body>
 </html>

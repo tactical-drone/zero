@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -46,7 +47,7 @@ namespace zero.core.api
         /// <param name="address">The listening address to start a node on</param>
         /// <returns>true on success, false otherwise</returns>
         [HttpPost]
-        public IoApiReturn Post(IoNodeAddress address)
+       public IoApiReturn Post(IoNodeAddress address)
         {
             if( !address.IsValid )
                 return IoApiReturn.Result(false,address.ValidationErrorString);
@@ -64,6 +65,14 @@ namespace zero.core.api
 
             _logger.Debug(dbgStr);
             return IoApiReturn.Result(true, dbgStr);
-        }        
+        }
+
+        [Route("/api/node/logs")]
+        [HttpGet]
+        public IoApiReturn Logs()
+        {
+            return IoApiReturn.Result(true, "logs", new List<string>(new[] {"Log entry 1", "Log entry 2"}));
+        }
+
     }
 }
