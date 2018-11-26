@@ -8,7 +8,7 @@ const { AureliaPlugin, ModuleDependenciesPlugin } = require('aurelia-webpack-plu
 const { ProvidePlugin } = require('webpack');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const tsNameof = require("ts-nameof");
-var ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
+//var ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 
 // config helpers:
 const ensureArray = (config) => config && (Array.isArray(config) ? config : [config]) || [];
@@ -36,7 +36,7 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
     },
     entry: {
         app: ['aurelia-bootstrapper'],
-        vendor: ['bluebird', 'jquery', 'bootstrap', 'aurelia-kendoui-bridge',
+        //vendor: ['bluebird', 'jquery', 'bootstrap', 'aurelia-kendoui-bridge',
             //'kendo-ui-core',
             //'aurelia-templating-binding',
             //'aurelia-templating-resources',
@@ -52,7 +52,7 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
             //'aurelia-router',
             //'aurelia-templating',
             //'aurelia-dependency-injection'
-        ]
+        //]
     },
     mode: production ? 'production' : 'development',
     output: {
@@ -96,7 +96,7 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
                     enforce: true,
                     priority: 20
                 },
-                // This picks up everything else being used from node_modules
+                 //This picks up everything else being used from node_modules
                 vendors: {
                     test: /[\\/]node_modules[\\/]/,
                     name: "vendor",

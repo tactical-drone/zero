@@ -1,12 +1,7 @@
 import { computedFrom, observable, BindingEngine, autoinject, ICollectionObserverSplice, bindable } from "aurelia-framework";
 import { IoNodeServices } from 'services/IoNodeService';
-//import {} from "ts-nameof";
-import "aurelia-kendoui-bridge";
-//import "reflect-metadata"
-//import "promise"
-//import "@progress/kendo-ui"
-import "kendo-ui-core"
-//import "@types/kendo-ui"
+
+import "kendo-ui-core";
 
 import { IoApiReturn } from 'core/api/IoApiReturn';
 
@@ -24,8 +19,8 @@ export class app {
                     url: "http://localhost:14256/api/node/logs",
                     type: "GET",
                     dataType: "json",
-                    beforeSend: function (xhr) {
-                        xhr.setRequestHeader('Authorization', token);
+                    beforeSend: function(xhr) {
+                         xhr.setRequestHeader('Authorization', token);
                     }                    
                 },                 
             },
