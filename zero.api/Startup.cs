@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json.Serialization;
 using zero.core.api;
 using zero.core.api.interfaces;
 
@@ -50,6 +51,13 @@ namespace zero.api
             services.AddMvc()
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_1)
                 .AddApplicationPart(typeof(IIoNodeService).GetTypeInfo().Assembly);
+                //.AddJsonOptions(opts =>
+                //{
+                //    opts.SerializerSettings.ContractResolver = new DefaultContractResolver()
+                //    {
+                //        NamingStrategy = new DefaultNamingStrategy()
+                //    };
+                //});
 
             //Add node services            
             services.AddSingleton<IIoNodeService>(new IoNodeService());

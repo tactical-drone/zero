@@ -1,11 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using NLog;
 using zero.core.api.interfaces;
+using zero.core.api.models;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.protocol;
@@ -71,7 +74,7 @@ namespace zero.core.api
         [HttpGet]
         public IoApiReturn Logs()
         {
-            return IoApiReturn.Result(true, "logs", new List<string>(new[] {"Log entry 1", "Log entry 2"}));
+            return IoApiReturn.Result(true, "logs", new[] {new IoLogEntry{logMsg="Entry 1"}, new IoLogEntry { logMsg = "Entry 2" }, new IoLogEntry { logMsg = "Entry 3" }});
         }
 
     }

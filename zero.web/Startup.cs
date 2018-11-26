@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using zero.web.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json.Serialization;
 
 namespace zero.web
 {
@@ -40,7 +41,15 @@ namespace zero.web
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
+            //.AddJsonOptions(opts =>
+            //{
+            //    opts.SerializerSettings.ContractResolver = new DefaultContractResolver()
+            //    {
+            //        NamingStrategy = new DefaultNamingStrategy()
+            //    };
+            //});
         }
+
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)

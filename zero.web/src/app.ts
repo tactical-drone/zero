@@ -1,11 +1,13 @@
-import { computedFrom, observable, BindingEngine, autoinject, ICollectionObserverSplice} from "aurelia-framework";
+import { computedFrom, observable, BindingEngine, autoinject, ICollectionObserverSplice, bindable } from "aurelia-framework";
 import { IoNodeServices } from 'services/IoNodeService';
 //import {} from "ts-nameof";
-//import "aurelia-kendoui-bridge";
+import "aurelia-kendoui-bridge";
 //import "reflect-metadata"
 //import "promise"
 //import "@progress/kendo-ui"
-//import "jquery"
+import "kendo-ui-core"
+//import "@types/kendo-ui"
+
 import { IoApiReturn } from 'core/api/IoApiReturn';
 
 @autoinject
@@ -13,38 +15,45 @@ export class app {
     constructor(nodeService: IoNodeServices, bindingEngine: BindingEngine) {
         this.nodeServices = nodeService;
         /*this.fetchLogs();*/
-        
+
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
-        let token = this.nodeServices.zcfg.scfg.token;
-        //this.dataSource = new kendo.data.DataSource({
-        //    transport: {
-        //        read: {
-        //            url: "http://localhost:14256/api/node/logs",
-        //            type: "GET",
-        //            dataType: "jsonp"                    
-        //        }
-        //        /*beforeSend: function (req) {
-        //            req.setRequestHeader('Authorization', 'Bearer ' + token);
-        //        }*/
-        //    }
-        //});
+        let token = 'Bearer ' + this.nodeServices.zcfg.scfg.token;
+        this.dataSource = new kendo.data.DataSource({
+            transport: {
+                read: {
+                    url: "http://localhost:14256/api/node/logs",
+                    type: "GET",
+                    dataType: "json",
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader('Authorization', token);
+                    }                    
+                },                 
+            },
+            schema: {
+                data: "rows"
+            }
+        });     
     }
 
-    nodeServices: IoNodeServices;
+    @observable nodeServices: IoNodeServices;
 
     @observable
     logs: IoApiReturn[] = [];
-    
-    dataSource: any;
 
-    //attached() {
-    //    kendo.jQuery(this.pager).kendoPager({
-    //        dataSource: this.dataSource                        
-    //    });        
-    //}
+    //@bindable
+    dataSource: kendo.data.DataSource;
 
-    //@computedFrom(nameof.full(this.nodeServices.response, -2))
-    @computedFrom('nodeServices.response')
+    attached() {
+        //kendo.jQuery(this.pager).kendoPager({
+        //    dataSource: this.dataSource
+        //});
+        
+        //$("#logView").kendoListBox({
+        //    dataSource: this.dataSource
+        //});
+    }
+
+    @computedFrom(nameof.full(this.nodeServices.response, -2))
     get message(): string {
         return this.nodeServices.response.message;
     }
@@ -72,13 +81,13 @@ export class app {
                 this.logs.push(response);
             });
         }
-            
+
     }
 
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-    
+
     //binds
     url: string;
     port: number;

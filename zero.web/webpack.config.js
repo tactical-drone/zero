@@ -7,7 +7,8 @@ const project = require('./aurelia_project/aurelia.json');
 const { AureliaPlugin, ModuleDependenciesPlugin } = require('aurelia-webpack-plugin');
 const { ProvidePlugin } = require('webpack');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-//const tsNameof = require("ts-nameof");
+const tsNameof = require("ts-nameof");
+var ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 
 // config helpers:
 const ensureArray = (config) => config && (Array.isArray(config) ? config : [config]) || [];
@@ -27,15 +28,31 @@ const cssRules = [
 
 module.exports = ({ production, server, extractCss, coverage, analyze, karma } = {}) => ({
     resolve: {
-        extensions: ['.ts', '.js'],
+        extensions: ['.ts', '.tsx','.js'],
         modules: [srcDir, nodeModulesDir],
         // Enforce single aurelia-binding, to avoid v1/v2 duplication due to
         // out-of-date dependencies on 3rd party aurelia plugins
         alias: { 'aurelia-binding': path.resolve(__dirname, 'node_modules/aurelia-binding') }
     },
     entry: {
-        app: ['aurelia-bootstrapper']
-        //vendor: ['bluebird', 'jquery', 'bootstrap']
+        app: ['aurelia-bootstrapper'],
+        vendor: ['bluebird', 'jquery', 'bootstrap', 'aurelia-kendoui-bridge',
+            //'kendo-ui-core',
+            //'aurelia-templating-binding',
+            //'aurelia-templating-resources',
+            //'aurelia-templating-router',
+            //'aurelia-event-aggregator',
+            //'aurelia-fetch-client',
+            //'aurelia-framework',
+            //'aurelia-history-browser',
+            //'aurelia-logging-console',
+            //'aurelia-pal-browser',
+            //'aurelia-polyfills',
+            //'aurelia-route-recognizer',
+            //'aurelia-router',
+            //'aurelia-templating',
+            //'aurelia-dependency-injection'
+        ]
     },
     mode: production ? 'production' : 'development',
     output: {
@@ -135,7 +152,26 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
                 issuer: /\.html?$/i
             },
             { test: /\.html$/i, loader: 'html-loader' },
-            { test: /\.ts$/, loader: "ts-loader" },
+            //{ test: /\.ts$/, loader: "ts-loader" },
+            {
+                test: /\.tsx?$/,
+                use: [
+                    //{ loader: 'cache-loader' },
+                    //{
+                    //    loader: 'thread-loader',
+                    //    options: {
+                    //        // there should be 1 cpu for the fork-ts-checker-webpack-plugin
+                    //        workers: require('os').cpus().length - 1
+                    //    }
+                    //},
+                    {                    
+                    loader: 'ts-loader', // or awesome-typescript-loader
+                    options: {
+                        getCustomTransformers: () => ({ before: [tsNameof] }),
+                        happyPackMode: true
+                    }
+                }]
+            },
             // use Bluebird as the global Promise implementation:
             { test: /[\/\\]node_modules[\/\\]bluebird[\/\\].+\.js$/, loader: 'expose-loader?Promise' },
             // embed small images and fonts as Data Urls and larger ones as files:
@@ -148,7 +184,14 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
                 test: /\.[jt]s$/i, loader: 'istanbul-instrumenter-loader',
                 include: srcDir, exclude: [/\.{spec,test}\.[jt]s$/i],
                 enforce: 'post', options: { esModules: true },
-            })
+            }),
+            {
+                test: require.resolve('jquery'),
+                use: [
+                    { loader: 'expose-loader', options: 'jQuery' },
+                    { loader: 'expose-loader', options: '$' }
+                ]
+            }
         ]
     },
     plugins: [
@@ -159,10 +202,10 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
             //'$': 'jquery',
             //'jQuery': 'jquery',
             //'window.jQuery': 'jquery',
-            //Popper: ['popper.js', 'default'] // Bootstrap 4 Dependency.
+            Popper: ['popper.js', 'default'] // Bootstrap 4 Dependency.
         }),
         new ModuleDependenciesPlugin({
-            'aurelia-testing': ['./compile-spy', './view-spy']
+            'aurelia-testing': ['./compile-spy', './view-spy'],
         }),
         new HtmlWebpackPlugin({
             template: './Views/Shared/_LayoutTemplate.cshtml',
@@ -182,6 +225,7 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
         })),
         ...when(production || server, new CopyWebpackPlugin([
             { from: 'static', to: outDir }])),
-        ...when(analyze, new BundleAnalyzerPlugin())
+        ...when(analyze, new BundleAnalyzerPlugin()),
+        //new ForkTsCheckerWebpackPlugin({ checkSyntacticErrors: true })
     ]
 });

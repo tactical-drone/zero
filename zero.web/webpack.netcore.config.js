@@ -7,7 +7,7 @@ var originalConfig = webpackConfig({});
 module.exports = () => {
     let config = originalConfig;
     // output files without hashes
-    config.output.filename = '[name].bundle.js';
+    //config.output.filename = '[name].bundle.js';
     //config.plugins.splice(config.plugins.findIndex((x) => x.constructor.name === HtmlWebpackPlugin.name), 1);
     // fix output path for .net core development
     config.module.rules = config.module.rules.map(x => {
