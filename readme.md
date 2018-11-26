@@ -9,7 +9,11 @@ A borg scout ship, a harmless vessel exploring the vast expanses of the tangle.
 ## Requirements
 
 Requires dotnet core 2.2 SDK to be installed
-- https://www.microsoft.com/net/download/thank-you/dotnet-sdk-2.2.100-preview3-windows-x64-binaries
+- https://www.microsoft.com/net/download/dotnet-core/2.2
+- Linux
+  - https://www.microsoft.com/net/download/thank-you/dotnet-sdk-2.2.100-preview3-linux-x64-binaries
+- Windows
+  - https://www.microsoft.com/net/download/thank-you/dotnet-sdk-2.2.100-preview3-windows-x64-binaries
 
 ## Building and running
 
