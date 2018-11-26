@@ -1,10 +1,10 @@
 ﻿export class IoApiReturn {
-    constructor(success: boolean, message: string, data:any) {
+    constructor(success: boolean, message: string, rows: any) {
         this.success = success;
         this.message = message;
-        this.data = data;
+        this.rows = rows;        
     }
     success: boolean;
     message: string;
-    data : any;
+    rows : any;
 }

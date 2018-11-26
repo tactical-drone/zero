@@ -12,6 +12,7 @@ import "kendo-ui-core";
 //import '@progress/kendo-ui/css/web/kendo.bootstrap.min.css'
 
 import * as Bluebird from 'bluebird';
+//import * as Promise from "bluebird";
 
 
 //<link rel="stylesheet" href = "/../node_modules/kendo-ui-core/css/web/kendo.common.core.min.css" >

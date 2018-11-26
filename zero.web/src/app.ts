@@ -9,26 +9,12 @@ import { IoApiReturn } from 'core/api/IoApiReturn';
 export class app {
     constructor(nodeService: IoNodeServices, bindingEngine: BindingEngine) {
         this.nodeServices = nodeService;
-        this.fetchLogs();
+        this.nodeServices.stream(() => { return this.nodeServices.getLogs(); }, this.logs, 500);
 
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
         let token = 'Bearer ' + this.nodeServices.zcfg.scfg.token;
-        this.dataSource = new kendo.data.DataSource({
-            transport: {
-                update: {
-                    url: "http://localhost:14256/api/node/logs",
-                    type: "GET",
-                    dataType: "json",
-                    beforeSend: function(xhr) {
-                         xhr.setRequestHeader('Authorization', token);
-                    }                    
-                },                 
-            },
-            schema: {
-                data: "rows"
-            }
-        });  
-        
+        this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
+
     }
     
     nodeServices: IoNodeServices;
@@ -49,25 +35,9 @@ export class app {
         this.dataSource.add({ logMsg: "Entry 4" });
     }
 
-    @computedFrom(nameof.full(this.nodeServices.response, -2))
+    @computedFrom(nameof.full(this.nodeServices.apiReponse, -2))
     get message(): string {
-        return this.nodeServices.response.message;
-    }
-
-    async fetchLogs() {
-        while (true) {
-            await this.sleep(1);
-            this.nodeServices.getLogs().then(response => {
-                //this.logs.push.apply(this.logs, response.rows);                
-
-                this.dataSource.data().push.apply(this.dataSource.data(), response.rows);                
-            });
-        }
-
-    }
-
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return this.nodeServices.apiReponse.message;
     }
 
     //binds

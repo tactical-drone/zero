@@ -17,7 +17,7 @@
         </ak-template>
     </ak-list-view>-->
 
-    <ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">
+    <ak-list-view ref="logView" k-data-source.bind="logs" view-model.ref="listview">
         <ak-template>
             <span class="logrow">log : ${logMsg}</span>
         </ak-template>
