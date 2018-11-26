@@ -11,6 +11,12 @@
     <button type="button" click.delegate="nodeServices.createNode(url,port)">Create node</button>
     <p />
 
+    <!--<ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">
+        <ak-template>
+            <span class="logrow">log : ${logMsg}</span>
+        </ak-template>
+    </ak-list-view>-->
+
     <ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">
         <ak-template>
             <span class="logrow">log : ${logMsg}</span>
@@ -22,13 +28,13 @@
         <h2>${message}</h2>
     </footer>
 
-    <style>    
+    <style>
         .logrow {
-            display:block
+            display: block
         }
-    </style >
+    </style>
 
-        <!-- <style >
+    <!-- <style >
         .product {
                   float: left;
                   width: 220px;

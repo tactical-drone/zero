@@ -9,13 +9,13 @@ import { IoApiReturn } from 'core/api/IoApiReturn';
 export class app {
     constructor(nodeService: IoNodeServices, bindingEngine: BindingEngine) {
         this.nodeServices = nodeService;
-        /*this.fetchLogs();*/
+        this.fetchLogs();
 
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
         let token = 'Bearer ' + this.nodeServices.zcfg.scfg.token;
         this.dataSource = new kendo.data.DataSource({
             transport: {
-                read: {
+                update: {
                     url: "http://localhost:14256/api/node/logs",
                     type: "GET",
                     dataType: "json",
@@ -27,15 +27,14 @@ export class app {
             schema: {
                 data: "rows"
             }
-        });     
+        });  
+        
     }
+    
+    nodeServices: IoNodeServices;
+    
+    logs: kendo.data.ObservableArray = new kendo.data.ObservableArray([]);
 
-    @observable nodeServices: IoNodeServices;
-
-    @observable
-    logs: IoApiReturn[] = [];
-
-    //@bindable
     dataSource: kendo.data.DataSource;
 
     attached() {
@@ -46,6 +45,8 @@ export class app {
         //$("#logView").kendoListBox({
         //    dataSource: this.dataSource
         //});
+
+        this.dataSource.add({ logMsg: "Entry 4" });
     }
 
     @computedFrom(nameof.full(this.nodeServices.response, -2))
@@ -53,27 +54,13 @@ export class app {
         return this.nodeServices.response.message;
     }
 
-    //collectionChanged(splices: Array<ICollectionObserverSplice<IoApiReturn>>) {
-    //    for (var i = 0; i < splices.length; i++) {
-    //        var splice: ICollectionObserverSplice<string> = splices[i];
-
-    //        var valuesAdded = this.logs.slice(splice.index, splice.index + splice.addedCount);
-    //        if (valuesAdded.length > 0) {
-    //            console.log(`The following values were inserted at ${splice.index}: ${JSON.stringify(valuesAdded)}`);
-    //            this.logs = splices;
-    //        }
-
-    //        if (splice.removed.length > 0) {
-    //            console.log(`The following values were removed from ${splice.index}: ${JSON.stringify(splice.removed)}`);
-    //        }
-    //    }
-    //}
-
     async fetchLogs() {
         while (true) {
-            await this.sleep(1000);
+            await this.sleep(1);
             this.nodeServices.getLogs().then(response => {
-                this.logs.push(response);
+                //this.logs.push.apply(this.logs, response.rows);                
+
+                this.dataSource.data().push.apply(this.dataSource.data(), response.rows);                
             });
         }
 
