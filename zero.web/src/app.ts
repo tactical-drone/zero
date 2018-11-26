@@ -3,19 +3,20 @@ import { IoNodeServices } from 'services/IoNodeService';
 
 import "kendo-ui-core";
 
-import { IoApiReturn } from 'core/api/IoApiReturn';
-
 @autoinject
 export class app {
+
     constructor(nodeService: IoNodeServices, bindingEngine: BindingEngine) {
         this.nodeServices = nodeService;
-        this.nodeServices.stream(() => { return this.nodeServices.getLogs(); }, this.logs, 500);
+        this.nodeServices.streamUnShift(() => { return this.nodeServices.getLogs(); }, this.logs, this.logSleepTime);
 
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
-        let token = 'Bearer ' + this.nodeServices.zcfg.scfg.token;
+        
         this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
 
     }
+
+    logSleepTime:number = 500;
     
     nodeServices: IoNodeServices;
     
@@ -30,9 +31,7 @@ export class app {
         
         //$("#logView").kendoListBox({
         //    dataSource: this.dataSource
-        //});
-
-        this.dataSource.add({ logMsg: "Entry 4" });
+        //});        
     }
 
     @computedFrom(nameof.full(this.nodeServices.apiReponse, -2))
@@ -42,5 +41,10 @@ export class app {
 
     //binds
     url: string;
-    port: number;
+
+    rows = [
+        { collapsible: false, size: '25%'},
+        { collapsible: false, scrollable: false},
+        { collapsible: false, size: '5%'}        
+    ];
 }

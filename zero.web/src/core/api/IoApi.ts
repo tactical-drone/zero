@@ -72,11 +72,27 @@ export class IoApi {
         });
     }
 
-    async stream(apiCall: (response)=>Promise<IoApiReturn>, buffer: kendo.data.ObservableArray, rate: number) {
+    async streamShift(apiCall: (response)=>Promise<IoApiReturn>, buffer: kendo.data.ObservableArray, rate: number) {
         while (this.spinners) {
             await this.sleep(rate);
             await apiCall(null).then(response => {
+                //Array.prototype.push.apply(buffer, response.rows);
                 buffer.push.apply(buffer, response.rows);                                
+            });
+        }
+    }
+
+    async streamUnShift(apiCall: (response) => Promise<IoApiReturn>, buffer: kendo.data.ObservableArray, rate: number) {
+        while (this.spinners) {
+            await this.sleep(rate);
+            await apiCall(null).then(async response => {                
+                buffer.unshift.apply(buffer, response.rows);
+                if (buffer.length > 60) {
+                    for (var i = buffer.length; i > 58; i--) {
+                        await this.sleep(0);
+                        buffer.pop();
+                    }
+                }                
             });
         }
     }

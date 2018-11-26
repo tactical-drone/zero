@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using NLog;
+using NLog.Config;
+using NLog.Targets;
 using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
@@ -32,12 +34,16 @@ namespace zero.core.api
         public IoNodeService()
         {
             _logger = LogManager.GetCurrentClassLogger();
+
+            _apiLogger = LogManager.Configuration.FindTargetByName<MemoryTarget>("apiLogger");                        
         }
 
         /// <summary>
         /// The logger
         /// </summary>
         private readonly Logger _logger;
+
+        private readonly MemoryTarget _apiLogger;
 
         /// <summary>
         /// The nodes managed by this service
@@ -74,7 +80,11 @@ namespace zero.core.api
         [HttpGet]
         public IoApiReturn Logs()
         {
-            return IoApiReturn.Result(true, "logs", new[] {new IoLogEntry{logMsg="Entry 1"}, new IoLogEntry { logMsg = "Entry 2" }, new IoLogEntry { logMsg = "Entry 3" }});
+            var data = _apiLogger.Logs.Select(l => new IoLogEntry(l)).ToList();
+            var retval = IoApiReturn.Result(true,$"{data.Count} {nameof(Logs)} returned",data);
+            _apiLogger.Logs.Clear();
+            return retval;
+            //return IoApiReturn.Result(true, "logs", new[] {new IoLogEntry{logMsg="Entry 1"}, new IoLogEntry { logMsg = "Entry 2" }, new IoLogEntry { logMsg = "Entry 3" }});
         }
 
     }

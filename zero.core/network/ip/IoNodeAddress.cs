@@ -14,15 +14,14 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructs a new node address
         /// </summary>
-        /// <param name="url">The node url in the form tcp:// or udp://</param>
-        /// <param name="port">The node listening port</param>
-        public IoNodeAddress(string url, int port)
-        {
-            Url = url;
-            Port = port;
-
+        /// <param name="url">The node url in the form tcp://IP:port or udp://IP:port</param>
+        public IoNodeAddress(string url)
+        {            
             try
             {
+                var urlAndPort = url.Split(":");
+                Url = urlAndPort[0] + ":" + urlAndPort[1];
+                Port = int.Parse(urlAndPort[2]);
                 Ip = StripIpFromUrlString(Url);
             }
             catch (ArgumentException e)
@@ -44,7 +43,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The listening port of the remote node
         /// </summary>
-        [DataMember]
+        [IgnoreDataMember]
         public int Port;
 
         /// <summary>
@@ -63,7 +62,7 @@ namespace zero.core.network.ip
         /// Returns true if the URL format is valid.
         /// </summary>
         [IgnoreDataMember]
-        public bool IsValid = false;
+        public bool IsValid = true;
 
         /// <summary>
         /// The validation error string detailing validation errors
@@ -88,9 +87,9 @@ namespace zero.core.network.ip
         /// <param name="url">The node url in the form tcp:// or udp://</param>
         /// <param name="port">The node listening port</param>
         /// <returns></returns>
-        public static IoNodeAddress Create(string url, int port)
+        public static IoNodeAddress Create(string url)
         {
-            return new IoNodeAddress(url, port);
+            return new IoNodeAddress(url);
         }
 
         /// <summary>
