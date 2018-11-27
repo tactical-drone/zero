@@ -10,7 +10,7 @@ namespace zero.core.conf
     /// <summary>
     /// Configuration storage, retrieval and mutation
     /// </summary>
-    public class IoConfigurable
+    public class IoConfigurable 
     {
         /// <summary>
         /// Constructor that gathers all parameters from instances by scanning for the <see cref="IoParameter"/> attribute
@@ -68,11 +68,6 @@ namespace zero.core.conf
         /// <summary>
         /// A handle to the subscription to the local config bus 
         /// </summary>
-        private IDisposable _localConfigBusSubscription;
-
-        /// <summary>
-        /// Signals upstream systems that this instance has been reconfigured
-        /// </summary>
-        public bool Reconfigure;
+        private IDisposable _localConfigBusSubscription;        
     }
 }

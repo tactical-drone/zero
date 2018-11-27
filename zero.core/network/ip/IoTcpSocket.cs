@@ -10,7 +10,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// The TCP flavor of <see cref="IoSocket"/>
     /// </summary>
-    class IoTcpSocket : IoSocket
+    class IoTcpSocket : IoNetSocket
     {
         /// <summary>
         /// Constructs a new TCP socket

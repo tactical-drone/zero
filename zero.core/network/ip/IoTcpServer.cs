@@ -2,17 +2,19 @@
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The TCP flavor of <see cref="IoNetServer"/>
+    /// The TCP flavor of <see cref="IoNetServer{TJob}"/>
     /// </summary>
-    /// <seealso cref="zero.core.network.ip.IoNetServer" />
-    public class IoTcpServer:IoNetServer
+    /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
+    public class IoTcpServer<TJob>:IoNetServer<TJob> 
+        where TJob : IIoJob
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpServer"/> class.
+        /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
         /// <param name="cancellationToken">Cancellation hooks</param>
@@ -32,7 +34,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient> connectionReceivedAction)
+        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction)
         {
             if (!await base.StartListenerAsync(connectionReceivedAction))
                 return false;
@@ -43,7 +45,7 @@ namespace zero.core.network.ip
             {                                                                    
                 try
                 {                    
-                    connectionReceivedAction?.Invoke(new IoTcpClient(ioSocket, parm_read_ahead));
+                    connectionReceivedAction?.Invoke(new IoTcpClient<TJob>(ioSocket, parm_read_ahead));
                 }
                 catch (Exception e)
                 {
@@ -59,9 +61,9 @@ namespace zero.core.network.ip
         /// <param name="address">The address.</param>
         /// <param name="_">The .</param>
         /// <returns>The tcp client object managing this socket connection</returns>
-        public override async Task<IoNetClient> ConnectAsync(IoNodeAddress address, IoNetClient _)
+        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
         {
-            var ioTcpclient = new IoTcpClient(address, parm_read_ahead);
+            var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
             return await base.ConnectAsync(null, ioTcpclient);
         }
     }

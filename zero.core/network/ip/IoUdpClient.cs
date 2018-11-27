@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
 {
@@ -6,14 +7,15 @@ namespace zero.core.network.ip
     /// The UDP flavor of <see cref="IoNetClient"/>
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetClient" />
-    class IoUdpClient :IoNetClient
+    class IoUdpClient<TJob> :IoNetClient<TJob> 
+        where TJob : IIoJob
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpClient"/> class.
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoUdpClient(IoSocket remote, int readAhead) : base(remote, readAhead)
+        public IoUdpClient(IoSocket remote, int readAhead) : base((IoNetSocket) remote, readAhead)
         {
         }
 

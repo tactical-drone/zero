@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
 {
@@ -12,7 +13,8 @@ namespace zero.core.network.ip
     /// <summary>
     /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
     /// </summary>
-    public abstract class IoNetServer : IoConfigurable
+    public abstract class IoNetServer<TJob> : IoConfigurable
+    where TJob:IIoJob
     {
         /// <inheritdoc />
         /// <summary>
@@ -67,7 +69,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> StartListenerAsync(Action<IoNetClient> connectionReceivedAction)
+        public virtual Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
@@ -80,7 +82,7 @@ namespace zero.core.network.ip
         /// <param name="_">A stub</param>
         /// <param name="ioNetClient">The client to connect to</param>
         /// <returns>The client object managing this socket connection</returns>
-        public virtual async Task<IoNetClient> ConnectAsync(IoNodeAddress _, IoNetClient ioNetClient = null)
+        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress _, IoNetClient<TJob> ioNetClient = null)
         {
             if (await ioNetClient.ConnectAsync().ContinueWith(t =>
             {
@@ -127,13 +129,13 @@ namespace zero.core.network.ip
         /// <param name="address"></param>
         /// <param name="spinner"></param>
         /// <returns></returns>
-        public static IoNetServer GetKindFromUrl(IoNodeAddress address, CancellationToken spinner)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, CancellationToken spinner)
         {
             if (address.Protocol()== ProtocolType.Tcp)
-                return new IoTcpServer(address, spinner);
+                return new IoTcpServer<TJob>(address, spinner);
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer(address, spinner);
+                return new IoUdpServer<TJob>(address, spinner);
 
             return null;
         }

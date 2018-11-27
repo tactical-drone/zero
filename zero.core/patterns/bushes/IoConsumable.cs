@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
+using zero.core.network.ip;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
@@ -8,9 +10,9 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Jobs that need to be consumed by the workers
     /// </summary>
-    /// <typeparam name="TProducer"></typeparam>
-    public abstract class IoConsumable<TProducer> : IoProducable<TProducer>
-    where TProducer : IoJobSource
+    /// <typeparam name="TJob">The type of the job</typeparam>
+    public abstract class IoConsumable<TJob> : IoProducable<TJob>
+        where TJob : IIoJob
     {
         /// <summary>
         /// A description of the work
@@ -20,6 +22,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The overall description of the work that needs to be done and the job that is doing it
         /// </summary>
-        public override string Description => $"({Id}) {JobDescription} {WorkDescription}";        
+        public override string Description => $"({Id}) {JobDescription} {WorkDescription}";
+
+        /// <summary>
+        /// Consumes the job
+        /// </summary>
+        /// <returns>The state of the consumption</returns>
+        public abstract Task<State> ConsumeAsync();
     }
 }

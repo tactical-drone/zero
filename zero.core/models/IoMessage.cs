@@ -1,16 +1,20 @@
 ﻿using System;
+using System.Threading.Tasks;
 using zero.core.conf;
+using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.protocol;
 
 namespace zero.core.models
 {
+    /// <inheritdoc />
     /// <summary>
-    /// An abstract message carrier used by a network stream to fill the <see cref="Buffer"/>
+    /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
-    public abstract class IoMessage<TProducer> : IoConsumable<TProducer>
-    where TProducer:IoJobSource
+    public abstract class IoMessage<TJob> : IoConsumable<TJob>//, IIoMessage<TJob> 
+        where TJob : IIoJob
     {
         /// <summary>
         /// Initializes the buffer size to fill
@@ -18,14 +22,14 @@ namespace zero.core.models
         protected IoMessage()
         {
             //Set this instance to flush when settings change, new ones will be created with the correct settings
-            SettingChangedEvent += (sender, pair) =>
-            {
-                if (pair.Key == nameof(BufferSize))
-                {
-                    BufferSize = (int) pair.Value;
-                    Buffer = new sbyte[BufferSize];
-                }                    
-            };
+            //SettingChangedEvent += (sender, pair) =>
+            //{
+            //    if (pair.Key == nameof(BufferSize))
+            //    {
+            //        BufferSize = (int) pair.Value;
+            //        Buffer = new sbyte[BufferSize];
+            //    }                    
+            //};
         }
 
         /// <summary>
@@ -72,7 +76,7 @@ namespace zero.core.models
         /// Prepares this item for use after being popped from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        public override IOHeapItem Constructor()
+        public override IIoHeapItem Constructor()
         {
             BytesRead = 0;
             DatumProvisionLength = DatumLength - 1;
@@ -81,5 +85,6 @@ namespace zero.core.models
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.Constructor();
         }
+        
     }
 }

@@ -16,18 +16,18 @@ namespace zero.core.models
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
-    public class IoTangleMessage : IoMessage<IoNetClient>
+    public class IoTangleMessage : IoMessage<IoTangleMessage>
     {
         /// <inheritdoc />
         /// <summary>
         /// Constructs buffers that hold tangle message information
         /// </summary>  
         /// <param name="source">The network source where messages are to be obtained</param>
-        public IoTangleMessage(IoNetClient source)
+        public IoTangleMessage(IoNetClient<IoTangleMessage> source)
         {            
             Source = source;
             
-            DatumLength = MessageLength + (Source.ContainsExtrabits ? MessageCrcLength : 0);
+            DatumLength = MessageLength + ((Source is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
             DatumProvisionLength = DatumLength - 1;
 
             BufferSize = DatumLength * parm_datums_per_buffer;
@@ -42,7 +42,10 @@ namespace zero.core.models
         /// </summary>
         private readonly Logger _logger;
 
-        public bool IsTcp = false;
+        /// <summary>
+        /// The ultimate source of workload
+        /// </summary>
+        public sealed override IoJobSource<IoTangleMessage> Source { get; protected set; }
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -159,10 +162,10 @@ namespace zero.core.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<State> ProduceAsync(IoProducable<IoNetClient> fragment)
+        public override async Task<State> ProduceAsync(IoProducable<IoTangleMessage> fragment)        
         {
             ProcessState = State.Producing;
-            var previousJobFragment = (IoMessage<IoNetClient>)fragment;
+            var previousJobFragment = (IoMessage<IoTangleMessage>)fragment;
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
@@ -203,7 +206,7 @@ namespace zero.core.models
                         }
                             
                         //Async read the message from the message stream
-                        await ioSocket.ReadAsync((byte [])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
+                        await ((IoSocket)ioSocket).ReadAsync((byte [])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
                         rx =>
                         {
                             switch (rx.Status)
@@ -229,7 +232,7 @@ namespace zero.core.models
                                     }
                                         
 
-                                    if (Id == 0 && Source.ContainsExtrabits)
+                                    if (Id == 0 && Source is IoTcpClient<IoTangleMessage>)
                                     {
                                         _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                         BufferOffset += 10;
@@ -245,9 +248,9 @@ namespace zero.core.models
 
                                     //TODO remove this hack
                                     //Terrible sync hack until we can troll the data for sync later
-                                    if (Source.TcpSynced || (!Source.TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
+                                    if (((IoNetClient<IoTangleMessage>)Source).TcpSynced || (!((IoNetClient<IoTangleMessage>)Source).TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
                                     {
-                                        Source.TcpSynced = true;
+                                        ((IoNetClient<IoTangleMessage>)Source).TcpSynced = true;
                                     }
                                     else
                                     {
@@ -309,6 +312,7 @@ namespace zero.core.models
             }
             return ProcessState;
         }
+                
 
         /// <summary>
         /// Set unprocessed data as more fragments.

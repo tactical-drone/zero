@@ -12,11 +12,14 @@
                 <h1 align="center">unimatrix zero</h1>
                 <hr />
                 Listen address:
-                <input type="text" value.bind="url" style="width: 200px" />:
+                <input type="text" value.bind="url" style="width: 200px" />
                 <hr />
                 <p />
                 <button type="button" click.delegate="nodeServices.createNode(url)">Create node</button>
                 <p />
+                Query tag: <input type="text" value.bind="tagQuery" style="width: 200px" />:
+                <p />
+                <button type="button">Set query tag</button>
                 <hr />
             </div>
             <!--<ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">

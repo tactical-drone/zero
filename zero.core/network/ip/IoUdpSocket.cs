@@ -11,7 +11,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// The UDP flavor of <see cref="IoSocket"/>
     /// </summary>
-    class IoUdpSocket : IoSocket
+    class IoUdpSocket : IoNetSocket
     {
         /// <inheritdoc />
         /// <summary>

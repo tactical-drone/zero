@@ -3,15 +3,19 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.network.ip;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used by <see cref="IoProducerConsumer{TConsumer,TProducer}"/> as a source of work
+    /// Used by <see cref="IoProducerConsumer{TConsumer,TProducer,TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoJobSource : IoConfigurable
+    public abstract class IoJobSource <TJob> //: IIoJobSource    
+    where TJob:IIoJob
     {
         /// <summary>
         /// Constructor
@@ -35,30 +39,43 @@ namespace zero.core.patterns.bushes
         public CancellationTokenSource Spinners;
 
         /// <summary>
-        /// Description //TODO
+        /// Keys this instance.
         /// </summary>
-        protected virtual string Description => ToString();
+        /// <returns>The unique key of this instance</returns>
+        public abstract int Key { get; }
+
+        /// <summary>
+        /// Description used as a key
+        /// </summary>
+        public abstract string Description { get; }
 
         /// <summary>
         /// Counters for <see cref="IoProducable{TProducer}.State"/>
         /// </summary>
-        public long[] Counters = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];
+        public long[] Counters { get; set; } = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
-        public long[] ServiceTimes = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];
-
-        //TODO remove publics for DOS
+        public long[] ServiceTimes { get; set; } = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];
+        
         /// <summary>
         /// The producer semaphore
         /// </summary>
-        public SemaphoreSlim ConsumerBarrier;
+        public SemaphoreSlim ConsumerBarrier { get; protected set; }
 
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        public SemaphoreSlim ProducerBarrier;
+        public SemaphoreSlim ProducerBarrier { get; protected set; }
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is operational.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is operational; otherwise, <c>false</c>.
+        /// </value>
+        public abstract bool IsOperational { get; }
 
         /// <summary>
         /// <see cref="PrintCounters"/> only prints events that took longer that this value in microseconds
@@ -78,10 +95,9 @@ namespace zero.core.patterns.bushes
             heading.AppendLine();
             str.AppendLine();
 
-            var padding = IoWorkStateTransition<IoJobSource>.StateStrPadding;
+            var padding = IoWorkStateTransition<TJob>.StateStrPadding;
 
-
-            for (var i = 0; i < IoProducable<IoJobSource>.StateMapSize; i++)
+            for (var i = 0; i < IoProducable<TJob>.StateMapSize; i++)
             {
 
                 var count = Interlocked.Read(ref Counters[i]);
@@ -93,7 +109,7 @@ namespace zero.core.patterns.bushes
                 if ( i>0 )
                 {
                     heading.Append(
-                        $"{((IoProducable<IoJobSource>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                        $"{((IoProducable<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append(string.Format("{0} | ",
                         (string.Format("{0:0,000.0}ms", ave)).ToString(CultureInfo.InvariantCulture)
                         .PadLeft(padding + 8)));
@@ -107,5 +123,12 @@ namespace zero.core.patterns.bushes
         /// Closes this source
         /// </summary>
         public abstract void Close();
+
+        /// <summary>
+        /// Executes the specified function in the context of the source
+        /// </summary>
+        /// <param name="func">The function.</param>
+        /// <returns></returns>
+        public abstract Task<Task> Execute(Func<IIoJobSource, Task<Task>> func);
     }
 }

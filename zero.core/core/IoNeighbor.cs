@@ -4,6 +4,7 @@ using NLog;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.core
@@ -12,14 +13,15 @@ namespace zero.core.core
     /// <summary>
     /// Represents a node's neighbor
     /// </summary>
-    public class IoNeighbor : IoProducerConsumer<IoMessage<IoNetClient>, IoNetClient>
+    public class IoNeighbor<TJob> : IoProducerConsumer<TJob> //, IIoNeighbor<TJob>
+    where TJob : IIoJob
     {
         /// <summary>
         /// Construct
         /// </summary>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
-        public IoNeighbor(IoNetClient ioNetClient, Func<IoMessage<IoNetClient>> mallocMessage)
+        public IoNeighbor(IoNetClient<TJob> ioNetClient, Func<IoConsumable<TJob>> mallocMessage)
             : base($"neighbor {ioNetClient.AddressString}", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -53,7 +55,7 @@ namespace zero.core.core
         /// <summary>
         /// Emits the closed event
         /// </summary>
-        protected virtual void OnClosed()
+        public virtual void OnClosed()
         {
             Closed?.Invoke(this, EventArgs.Empty);
         }

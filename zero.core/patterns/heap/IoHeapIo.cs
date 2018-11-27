@@ -9,7 +9,7 @@ namespace zero.core.patterns.heap
     /// A heap construct that works with Iot types
     /// </summary>
     /// <typeparam name="T">The item type</typeparam>
-    public class IoHeapIo<T>: IoHeap<T> where T: class, IOHeapItem
+    public class IoHeapIo<T>: IoHeap<T> where T: class, IIoHeapItem
     {
         /// <summary>
         /// Construct

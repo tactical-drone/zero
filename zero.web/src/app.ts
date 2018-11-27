@@ -41,6 +41,7 @@ export class app {
 
     //binds
     url: string;
+    tagQuery: string;
 
     rows = [
         { collapsible: false, size: '25%'},

@@ -6,13 +6,15 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
 {
     /// <summary>
     /// Wraps a <see cref="TcpClient"/> into a <see cref="IoJobSource"/> that can be used by <see cref="IoProducerConsumer{TJob,TProducer}"/>
     /// </summary>
-    public class IoNetClient: IoJobSource
+    public class IoNetClient<TJob>: IoJobSource<TJob>
+    where TJob:IIoJob
     {
         /// <summary>
         /// Constructor for listening
@@ -21,7 +23,7 @@ namespace zero.core.network.ip
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
         public IoNetClient(IoSocket remote, int readAhead):base(readAhead)
         {
-            IoSocket = remote;
+            IoSocket = (IoNetSocket) remote;
             _logger = LogManager.GetCurrentClassLogger();
             Address = remote.Address;
         }
@@ -48,14 +50,22 @@ namespace zero.core.network.ip
         protected readonly IoNodeAddress Address;
 
         /// <summary>
+        /// Keys this instance.
+        /// </summary>
+        /// <returns>
+        /// The unique key of this instance
+        /// </returns>
+        public override int Key => IoSocket.LocalPort;
+
+        /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        protected override string Description => AddressString;
+        public override string Description => AddressString;
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
         /// </summary>
-        protected IoSocket IoSocket;
+        protected IoNetSocket IoSocket;
 
         /// <summary>
         /// Transmit timeout in ms
@@ -87,16 +97,19 @@ namespace zero.core.network.ip
         private CancellationTokenRegistration _cancellationRegistratison;
 
         /// <summary>
-        /// A flag to indicate if those pesky extra tcp bits are contained in the datum
-        /// </summary>
-        public bool ContainsExtrabits => IoSocket.IsTcpSocket;
-
-        /// <summary>
         /// This is a temporary sync hack for TCP. Sometimes IRI has old data stuck in it's TCP stack that has to be flushed.
         /// We do this by waiting for IRI to send us exactly the right amount of data. There is a better way but this will do for now
         /// Until we can troll the data for verified hashes, which will be slower but more accurate.
         /// </summary>
         public bool TcpSynced = false;
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is operational.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
+        /// </value>
+        public override bool IsOperational => IsSocketConnected();
 
         /// <summary>
         /// Closes the connection
@@ -116,7 +129,7 @@ namespace zero.core.network.ip
             
             _logger.Debug($"Closed connection `{AddressString}'");
         }
-
+       
         /// <summary>
         /// Connects to a remote listener
         /// </summary>
@@ -146,7 +159,10 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="callback">The tcp client functions</param>
         /// <returns>True on success, false otherwise</returns>
-        public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
+
+
+        //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
+        public override async Task<Task> Execute(Func<IIoJobSource, Task<Task>> callback)
         {
             //Is the TCP connection up?
             if (!IsSocketConnected()) //TODO fix up
@@ -168,7 +184,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Emit disconnect event
         /// </summary>
-        protected virtual void OnDisconnected()
+        public virtual void OnDisconnected()
         {
             Disconnected?.Invoke(this, new EventArgs());
         }

@@ -3,7 +3,7 @@
     /// <summary>
     /// Provides access to lower level heap processes
     /// </summary>
-    public interface IOHeapItem
+    public interface IIoHeapItem
     {
         /// <summary>
         /// Initializes this instance for reuse from the heap. 
@@ -11,6 +11,6 @@
         /// and a new malloc will be done
         /// </summary>
         /// <returns>This instance</returns>
-        IOHeapItem Constructor();
+        IIoHeapItem Constructor();
     }
 }
