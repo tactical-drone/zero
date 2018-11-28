@@ -153,7 +153,7 @@ namespace zero.core.core
 
                             //TODO remove this into the protocol?
                             if(newClient.IsSocketConnected())
-                            await newClient.Execute(client =>
+                            await newClient.Produce(client =>
                             {
                                 ((IoNetSocket)client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
                                      Encoding.ASCII.GetBytes("0000015600").Length);

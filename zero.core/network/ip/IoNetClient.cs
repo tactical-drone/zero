@@ -162,7 +162,7 @@ namespace zero.core.network.ip
 
 
         //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
-        public override async Task<Task> Execute(Func<IIoProducer, Task<Task>> callback)
+        public override async Task<Task> Produce(Func<IIoProducer, Task<Task>> callback)
         {
             //Is the TCP connection up?
             if (!IsSocketConnected()) //TODO fix up

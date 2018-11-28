@@ -37,7 +37,7 @@ namespace zero.core.api
 
             _nodes.SelectMany(n=>n.Value.Neighbors).Select(n=>n.Value).ToList().ForEach(n =>
             {
-                //n.WorkSource. //TODO last
+                //n.WorkSource.
             });
             
         }

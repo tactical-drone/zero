@@ -129,6 +129,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<Task> Execute(Func<IIoProducer, Task<Task>> func);
+        public abstract Task<Task> Produce(Func<IIoProducer, Task<Task>> func);
     }
 }
