@@ -15,7 +15,7 @@ export class IoNodeServices extends IoApi {
         return this.get('/api/node/logs');
     }
 
-    async queryTransactionStream(tagQuery: string): Promise<IoApiReturn> {
-        return this.get('/api/node/stream/tagQuery=' + tagQuery);
+    async queryTransactionStream(id: number, tagQuery: string): Promise<IoApiReturn> {
+        return this.get('/api/node/stream/'+id+'?tagQuery=' + tagQuery);
     }    
 }

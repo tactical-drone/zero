@@ -14,7 +14,7 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Used by <see cref="IoProducerConsumer{TConsumer,TProducer,TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoJobSource <TJob> //: IIoJobSource    
+    public abstract class IoJobSource <TJob>
     where TJob:IIoJob
     {
         /// <summary>

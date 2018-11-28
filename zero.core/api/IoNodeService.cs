@@ -39,7 +39,13 @@ namespace zero.core.api
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _apiLogger = LogManager.Configuration.FindTargetByName<MemoryTarget>("apiLogger");                        
+            _apiLogger = LogManager.Configuration.FindTargetByName<MemoryTarget>("apiLogger"); 
+
+            _nodes.SelectMany(n=>n.Value.Neighbors).Select(n=>n.Value).ToList().ForEach(n =>
+            {
+                //n.WorkSource. //TODO last
+            });
+            
         }
 
         /// <summary>
@@ -89,7 +95,8 @@ namespace zero.core.api
             return retval;            
         }
 
-        [HttpGet("/api/node/stream/{id}{tagQuery:maxlength(27)?}")]
+        [Route("/api/node/stream")]
+        [HttpGet("{id}.{tagQuery:maxlength(27)?}")]
         public IoApiReturn TransactionStreamQuery(int id, [FromBody] string tagQuery)
         {
             if(!_nodes.ContainsKey(id))
