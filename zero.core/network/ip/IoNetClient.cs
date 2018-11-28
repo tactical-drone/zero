@@ -11,10 +11,10 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoJobSource"/> that can be used by <see cref="IoProducerConsumer{TJob,TProducer}"/>
+    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoProducer{TJob}"/> that can be used by <see cref="IoProducerConsumer{TJob}"/>
     /// </summary>
-    public class IoNetClient<TJob>: IoJobSource<TJob>
-    where TJob:IIoJob
+    public class IoNetClient<TJob>: IoProducer<TJob>
+    where TJob:IIoWorker
     {
         /// <summary>
         /// Constructor for listening
@@ -162,7 +162,7 @@ namespace zero.core.network.ip
 
 
         //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
-        public override async Task<Task> Execute(Func<IIoJobSource, Task<Task>> callback)
+        public override async Task<Task> Execute(Func<IIoProducer, Task<Task>> callback)
         {
             //Is the TCP connection up?
             if (!IsSocketConnected()) //TODO fix up

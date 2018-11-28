@@ -25,9 +25,9 @@ namespace zero.core.models
         /// <param name="source">The network source where messages are to be obtained</param>
         public IoTangleMessage(IoNetClient<IoTangleMessage> source)
         {            
-            Source = source;
+            Producer = source;
             
-            DatumLength = MessageLength + ((Source is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
+            DatumLength = MessageLength + ((Producer is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
             DatumProvisionLength = DatumLength - 1;
 
             BufferSize = DatumLength * parm_datums_per_buffer;
@@ -45,7 +45,7 @@ namespace zero.core.models
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public sealed override IoJobSource<IoTangleMessage> Source { get; protected set; }
+        public sealed override IoProducer<IoTangleMessage> Producer { get; protected set; }
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -169,7 +169,7 @@ namespace zero.core.models
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                await Source.Execute(async ioSocket =>
+                await Producer.Execute(async ioSocket =>
                 {
                     //TODO maybe we squash datum fragmentation here? But it will double responsiveness.
                     //while (BytesRead < MaxBufferSize && !CancellationTokenSource.IsCancellationRequested)
@@ -181,9 +181,9 @@ namespace zero.core.models
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
                         _producerStopwatch.Restart();
-                        if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Source.Spinners.Token))
+                        if (!await Producer.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Producer.Spinners.Token))
                         {                            
-                            if (!Source.Spinners.IsCancellationRequested)
+                            if (!Producer.Spinners.IsCancellationRequested)
                             {                                
                                 ProcessState = State.ConsumeTo;
                                 _producerStopwatch.Stop();
@@ -199,7 +199,7 @@ namespace zero.core.models
                             return Task.CompletedTask;
                         }
 
-                        if (Source.Spinners.IsCancellationRequested)
+                        if (Producer.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.ConsumeCancelled;
                             return Task.CompletedTask;
@@ -215,8 +215,8 @@ namespace zero.core.models
                                 case TaskStatus.Canceled:                                            
                                 case TaskStatus.Faulted:
                                     ProcessState = rx.Status == TaskStatus.Canceled? State.ProduceCancelled: State.ProduceErr;
-                                    Source.Spinners.Cancel();
-                                    Source.Close();
+                                    Producer.Spinners.Cancel();
+                                    Producer.Close();
                                     _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' returned with errors:");
                                     break;
                                 //Success
@@ -232,7 +232,7 @@ namespace zero.core.models
                                     }
                                         
 
-                                    if (Id == 0 && Source is IoTcpClient<IoTangleMessage>)
+                                    if (Id == 0 && Producer is IoTcpClient<IoTangleMessage>)
                                     {
                                         _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                         BufferOffset += 10;
@@ -248,9 +248,9 @@ namespace zero.core.models
 
                                     //TODO remove this hack
                                     //Terrible sync hack until we can troll the data for sync later
-                                    if (((IoNetClient<IoTangleMessage>)Source).TcpSynced || (!((IoNetClient<IoTangleMessage>)Source).TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
+                                    if (((IoNetClient<IoTangleMessage>)Producer).TcpSynced || (!((IoNetClient<IoTangleMessage>)Producer).TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
                                     {
-                                        ((IoNetClient<IoTangleMessage>)Source).TcpSynced = true;
+                                        ((IoNetClient<IoTangleMessage>)Producer).TcpSynced = true;
                                     }
                                     else
                                     {
@@ -287,9 +287,9 @@ namespace zero.core.models
                                     ProcessState = State.ProduceErr;
                                     throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                             }                                                                        
-                        }, Source.Spinners.Token);                        
+                        }, Producer.Spinners.Token);                        
                         
-                        if (Source.Spinners.IsCancellationRequested)
+                        if (Producer.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.Cancelled;
                             return Task.CompletedTask;

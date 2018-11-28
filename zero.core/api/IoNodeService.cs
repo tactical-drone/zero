@@ -1,22 +1,16 @@
 ﻿using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Internal;
-using Newtonsoft.Json;
 using NLog;
-using NLog.Config;
 using NLog.Targets;
 using zero.core.api.interfaces;
 using zero.core.api.models;
-using zero.core.conf;
 using zero.core.core;
 using zero.core.models;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
 using zero.core.protocol;
 
 namespace zero.core.api

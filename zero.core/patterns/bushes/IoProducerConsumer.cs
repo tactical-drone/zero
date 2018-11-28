@@ -15,12 +15,10 @@ namespace zero.core.patterns.bushes
 {
     /// <summary>
     /// Producer Consumer pattern
-    /// </summary>
-    /// <typeparam name="TConsumer">The consumer wrapper</typeparam>
-    /// <typeparam name="TSource">Where work is sourced (produced) from</typeparam>
+    /// </summary>    
     /// <typeparam name="TJob">The type of job</typeparam>
     public abstract class IoProducerConsumer<TJob> : IoConfigurable, IObservable<IoConsumable<TJob>>
-        where TJob: IIoJob
+        where TJob: IIoWorker
     {
         /// <summary>
         /// Constructor
@@ -28,7 +26,7 @@ namespace zero.core.patterns.bushes
         /// <param name="description"></param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
-        protected IoProducerConsumer(string description, IoJobSource<TJob> source, Func<IoConsumable<TJob>> mallocMessage)
+        protected IoProducerConsumer(string description, IoProducer<TJob> source, Func<IoConsumable<TJob>> mallocMessage)
         {
             Description = description;
             WorkSource = source;
@@ -62,7 +60,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The source of the messages
         /// </summary>
-        public IoJobSource<TJob> WorkSource;
+        public IoProducer<TJob> WorkSource;
 
         /// <summary>
         /// The job queue
@@ -259,8 +257,8 @@ namespace zero.core.patterns.bushes
                                         
                                         //TODO double check what we are supposed to do here?
                                         //TODO what about the previous fragment?
-                                        var sleepTimeMs = nextJob.Source.Counters[(int)IoProducable<TJob>.State.Reject] + 1 / (nextJob.Source.Counters[(int)IoProducable<TJob>.State.Accept] + parm_error_timeout);
-                                        _logger.Debug($"{nextJob.Description}, Reject = {nextJob.Source.Counters[(int)IoProducable<TJob>.State.Reject]}, Accept = {nextJob.Source.Counters[(int)IoProducable<TJob>.State.Accept]}");
+                                        var sleepTimeMs = nextJob.Producer.Counters[(int)IoProducable<TJob>.State.Reject] + 1 / (nextJob.Producer.Counters[(int)IoProducable<TJob>.State.Accept] + parm_error_timeout);
+                                        _logger.Debug($"{nextJob.Description}, Reject = {nextJob.Producer.Counters[(int)IoProducable<TJob>.State.Reject]}, Accept = {nextJob.Producer.Counters[(int)IoProducable<TJob>.State.Accept]}");
                                         _logger.Debug($"`{Description}' producing job `{nextJob.Description}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
 
                                         await Task.Delay((int)sleepTimeMs, Spinners.Token);
@@ -373,7 +371,7 @@ namespace zero.core.patterns.bushes
                                     }
 
                                     //TODO remove this spam when everything checks out?
-                                    currJob.Source.PrintCounters();
+                                    currJob.Producer.PrintCounters();
                                 }
                             }
                             else

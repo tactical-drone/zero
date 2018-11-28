@@ -7,14 +7,14 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The UDP flavor of <see cref="IoNetServer"/>
+    /// The UDP flavor of <see cref="IoNetServer{TJob}"/>
     /// </summary>
-    /// <seealso cref="zero.core.network.ip.IoNetServer" />
+    /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
     class IoUdpServer<TJob> :IoNetServer<TJob> 
-        where TJob : IIoJob
+        where TJob : IIoWorker
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoUdpServer"/> class.
+        /// Initializes a new instance of the <see cref="IoUdpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
         /// <param name="cancellationToken">Cancellation hooks</param>

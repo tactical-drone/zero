@@ -4,11 +4,11 @@
     {
         public static IoApiReturn Result(bool success, string message = null, object rows = null)
         {
-            return new IoApiReturn{success = success, message = message, rows = rows};
+            return new IoApiReturn{Success = success, Message = message, Rows = rows};
         }
 
-        public bool success;
-        public string message;
-        public object rows;
+        public bool Success;
+        public string Message;
+        public object Rows;
     }
 }

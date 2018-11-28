@@ -12,15 +12,15 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used by <see cref="IoProducerConsumer{TConsumer,TProducer,TJob}"/> as a source of work of type <see cref="TJob"/>
+    /// Used by <see cref="IoProducerConsumer{TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoJobSource <TJob>
-    where TJob:IIoJob
+    public abstract class IoProducer <TJob>
+    where TJob:IIoWorker
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoJobSource(int readAhead)
+        protected IoProducer(int readAhead)
         {            
             ConsumerBarrier = new SemaphoreSlim(0); //TODO make configurable
             ProducerBarrier = new SemaphoreSlim(readAhead); 
@@ -129,6 +129,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<Task> Execute(Func<IIoJobSource, Task<Task>> func);
+        public abstract Task<Task> Execute(Func<IIoProducer, Task<Task>> func);
     }
 }

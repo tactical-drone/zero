@@ -4,11 +4,11 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// The <see cref="IoNetClient"/>'s TCP flavor
+    /// The <see cref="IoNetClient{TJob}"/>'s TCP flavor
     /// </summary>
-    /// <seealso cref="zero.core.network.ip.IoNetClient" />
+    /// <seealso cref="IoNetClient{TJob}" />
     public class IoTcpClient<TJob>:IoNetClient<TJob> 
-        where TJob : IIoJob
+        where TJob : IIoWorker
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient"/> class.

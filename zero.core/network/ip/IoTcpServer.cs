@@ -11,7 +11,7 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
     public class IoTcpServer<TJob>:IoNetServer<TJob> 
-        where TJob : IIoJob
+        where TJob : IIoWorker
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.

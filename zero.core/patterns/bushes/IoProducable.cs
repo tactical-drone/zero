@@ -11,13 +11,12 @@ using zero.core.patterns.heap;
 
 namespace zero.core.patterns.bushes
 {
-    /// <inheritdoc />
     /// <summary>
     /// Produces work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
-    public abstract class IoProducable<TJob> : IoConfigurable, IIoJob
-        where TJob : IIoJob
+    public abstract class IoProducable<TJob> : IoConfigurable, IIoWorker
+        where TJob : IIoWorker
     {
         /// <summary>
         /// Constructor
@@ -80,7 +79,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public virtual IoJobSource<TJob> Source { get; protected set; }
+        public virtual IoProducer<TJob> Producer { get; protected set; }
         
         /// <summary>
         /// The heap containing our state transition items
@@ -119,8 +118,8 @@ namespace zero.core.patterns.bushes
             {
                 CurrentState.ExitTime = DateTime.Now;
 
-                Interlocked.Increment(ref Source.Counters[(int)CurrentState.State]);
-                Interlocked.Add(ref Source.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
+                Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
+                Interlocked.Add(ref Producer.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
             }
 
             //Allocate memory for a new current state
@@ -253,7 +252,7 @@ namespace zero.core.patterns.bushes
                 //generate a unique id
                 if (value == State.Undefined)
                 {
-                    Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]); //TODO why do we need this again?
+                    Id = Interlocked.Read(ref Producer.Counters[(int)State.Undefined]); //TODO why do we need this again?
                 }
 
                 if (value == State.Accept || value == State.Reject)

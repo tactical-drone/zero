@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -9,7 +8,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.schedulers;
 
@@ -19,7 +17,7 @@ namespace zero.core.core
     /// A p2p node
     /// </summary>
     public class IoNode<TJob> : IoConfigurable        
-    where TJob:IIoJob
+    where TJob:IIoWorker
     {
         /// <summary>
         /// Constructor

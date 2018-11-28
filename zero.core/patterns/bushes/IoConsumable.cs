@@ -12,7 +12,7 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TJob">The type of the job</typeparam>
     public abstract class IoConsumable<TJob> : IoProducable<TJob>
-        where TJob : IIoJob
+        where TJob : IIoWorker
     {
         /// <summary>
         /// A description of the work

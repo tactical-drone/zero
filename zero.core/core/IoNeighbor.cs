@@ -13,8 +13,8 @@ namespace zero.core.core
     /// <summary>
     /// Represents a node's neighbor
     /// </summary>
-    public class IoNeighbor<TJob> : IoProducerConsumer<TJob> //, IIoNeighbor<TJob>
-    where TJob : IIoJob
+    public class IoNeighbor<TJob> : IoProducerConsumer<TJob>
+    where TJob : IIoWorker
     {
         /// <summary>
         /// Construct
@@ -39,7 +39,6 @@ namespace zero.core.core
         /// </summary>
         public event EventHandler Closed;
        
-
         /// <summary>
         /// Close this neighbor
         /// </summary>
