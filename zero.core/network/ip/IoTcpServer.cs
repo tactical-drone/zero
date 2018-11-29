@@ -10,8 +10,9 @@ namespace zero.core.network.ip
     /// The TCP flavor of <see cref="IoNetServer{TJob}"/>
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
-    public class IoTcpServer<TJob>:IoNetServer<TJob> 
+    public class IoTcpServer<TJob> : IoNetServer<TJob>
         where TJob : IIoWorker
+        
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.
@@ -42,9 +43,9 @@ namespace zero.core.network.ip
             IoListenSocket = new IoTcpSocket(Spinners.Token);
 
             return await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
-            {                                                                    
+            {
                 try
-                {                    
+                {
                     connectionReceivedAction?.Invoke(new IoTcpClient<TJob>(ioSocket, parm_read_ahead));
                 }
                 catch (Exception e)

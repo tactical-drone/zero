@@ -18,4 +18,8 @@ export class IoNodeServices extends IoApi {
     async queryTransactionStream(id: number, tagQuery: string): Promise<IoApiReturn> {
         return this.get('/api/node/stream/'+id+'?tagQuery=' + tagQuery);
     }    
+
+    async stopListner(id:number): Promise<IoApiReturn> {
+        return this.get('/api/node/stopListener/' + id);
+    }
 }

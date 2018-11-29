@@ -41,5 +41,11 @@ namespace zero.core.patterns.misc
 
             return await readyTask;
         }
-    }
+
+        public static async Task ForEachAsync<T>(this List<T> enumerable, Action<T> action)
+        {
+            foreach (var item in enumerable)                
+                await Task.Run(() => { action(item); }).ConfigureAwait(false);
+        }
+    }    
 }

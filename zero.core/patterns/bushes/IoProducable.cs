@@ -1,9 +1,7 @@
 ﻿using System;
-using System.ComponentModel;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
-using zero.core.patterns.misc;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
@@ -15,17 +13,18 @@ namespace zero.core.patterns.bushes
     /// Produces work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
+    /// <typeparam name="TFJob">The job forward type</typeparam>
     public abstract class IoProducable<TJob> : IoConfigurable, IIoWorker
         where TJob : IIoWorker
+        
     {
         /// <summary>
         /// Constructor
         /// </summary>
         protected IoProducable()
-        {            
-            _stateTransitionHeap.Make = () => new IoWorkStateTransition<TJob>();
+        {
+            _stateTransitionHeap.Make = (jobData) => new IoWorkStateTransition<TJob>();
             _logger = LogManager.GetCurrentClassLogger();
-            Reconfigure = false;
         }
 
         /// <summary>
@@ -49,16 +48,16 @@ namespace zero.core.patterns.bushes
             ProduceSkipped,
             Queued,
             Consuming,
-            ConsumerSkipped,            
+            Forwarded,
             Consumed,
             Accept,
-            Reject,            
-            Finished,            
+            Reject,
+            Finished,
             Error,
             ProduceErr,
             ConsumeErr,
             ConsumeCancelled,
-            ProduceCancelled,            
+            ProduceCancelled,
             ConsumeTo,
             ProduceTo,
             Cancelled,
@@ -74,18 +73,18 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A description of the job and work
         /// </summary>
-        public virtual string Description => WorkDescription;
+        public virtual string ProductionDescription => WorkDescription;
 
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public virtual IoProducer<TJob> Producer { get; protected set; }
-        
+        public virtual IoProducer<TJob> ProducerHandle { get; protected set; }
+
         /// <summary>
         /// The heap containing our state transition items
         /// </summary>
         private readonly IoHeap<IoWorkStateTransition<TJob>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TJob>>(Enum.GetNames(typeof(State)).Length);
-        
+
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
         /// </summary>      
@@ -106,7 +105,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
         public abstract Task<State> ProduceAsync(IoProducable<TJob> fragment);
-        
+
         /// <summary>
         /// Update state history
         /// </summary>
@@ -118,8 +117,8 @@ namespace zero.core.patterns.bushes
             {
                 CurrentState.ExitTime = DateTime.Now;
 
-                Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
-                Interlocked.Add(ref Producer.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
+                Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
+                Interlocked.Add(ref ProducerHandle.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
             }
 
             //Allocate memory for a new current state
@@ -134,10 +133,10 @@ namespace zero.core.patterns.bushes
                     prevState.State = State.Oom;
                     CurrentState = prevState;
                 }
-                    
+
                 return;
             }
-                
+
             //Configure the current state
             CurrentState.Previous = prevState;
 
@@ -153,7 +152,7 @@ namespace zero.core.patterns.bushes
             // it can be processed
             if (StillHasUnprocessedFragments && value == State.Consumed)
             {
-                lock(this)
+                lock (this)
                     CurrentState.State = value;
             }
             else
@@ -171,7 +170,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>This instance</returns>
         public virtual IIoHeapItem Constructor()
-        {            
+        {
             //clear the states from the previous run
             var cur = StateTransitionHistory[0];
             while (cur != null)
@@ -224,7 +223,7 @@ namespace zero.core.patterns.bushes
         public void PrintState(IoWorkStateTransition<TJob> currentState)
         {
             _logger.Info("Work`{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
-                Description,
+                ProductionDescription,
                 (currentState.Previous == null ? CurrentState.DefaultPadded : currentState.Previous.PaddedStr()),
                 (currentState.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
                 currentState.PaddedStr(),
@@ -237,7 +236,7 @@ namespace zero.core.patterns.bushes
         /// The total amount of states
         /// </summary>
         public static readonly int StateMapSize = Enum.GetNames(typeof(State)).Length;
-        
+
         /// <summary>
         /// Gets and sets the state of the work
         /// </summary>
@@ -252,7 +251,7 @@ namespace zero.core.patterns.bushes
                 //generate a unique id
                 if (value == State.Undefined)
                 {
-                    Id = Interlocked.Read(ref Producer.Counters[(int)State.Undefined]); //TODO why do we need this again?
+                    Id = Interlocked.Read(ref ProducerHandle.Counters[(int)State.Undefined]); //TODO why do we need this again?
                 }
 
                 if (value == State.Accept || value == State.Reject)

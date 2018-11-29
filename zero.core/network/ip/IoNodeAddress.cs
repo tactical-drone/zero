@@ -8,7 +8,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// Used to store address information of remote nodes
     /// </summary>
-    [DataContract]  
+    [DataContract]
     public class IoNodeAddress
     {
         /// <summary>
@@ -16,7 +16,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="url">The node url in the form tcp://IP:port or udp://IP:port</param>
         public IoNodeAddress(string url)
-        {            
+        {
             try
             {
                 var urlAndPort = url.Split(":");
@@ -24,10 +24,10 @@ namespace zero.core.network.ip
                 Port = int.Parse(urlAndPort[2]);
                 Ip = StripIpFromUrlString(Url);
             }
-            catch (ArgumentException e)
+            catch (Exception e)
             {
                 IsValid = false;
-                ValidationErrorString = e.Message;
+                ValidationErrorString = $"Unable to parse {url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
                 return;
             }
 

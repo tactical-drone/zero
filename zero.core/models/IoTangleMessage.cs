@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
@@ -7,7 +8,9 @@ using zero.core.patterns.bushes;
 using NLog;
 using Tangle.Net.Entity;
 using zero.core.conf;
+using zero.core.models.producers;
 using zero.core.network.ip;
+using zero.core.patterns.bushes.contracts;
 using zero.core.ternary;
 
 namespace zero.core.models
@@ -18,24 +21,29 @@ namespace zero.core.models
     /// </summary>
     public class IoTangleMessage : IoMessage<IoTangleMessage>
     {
-        /// <inheritdoc />
         /// <summary>
         /// Constructs buffers that hold tangle message information
         /// </summary>  
         /// <param name="source">The network source where messages are to be obtained</param>
-        public IoTangleMessage(IoNetClient<IoTangleMessage> source)
+        public IoTangleMessage(IoProducer<IoTangleMessage> source)
         {
-            Producer = source;
+            ProducerHandle = source;
 
-            DatumLength = MessageLength + ((Producer is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
+            DatumLength = MessageLength + ((ProducerHandle is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
             DatumProvisionLength = DatumLength - 1;
 
             BufferSize = DatumLength * parm_datums_per_buffer;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
-            WorkDescription = source.AddressString;
+            WorkDescription = source.ToString();
             _logger = LogManager.GetCurrentClassLogger();
+
+            _transactionSource = new IoTangleMessageProducer(ProducerHandle);
+
+            IoForward = source.GetForwardProducer(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
         }
+
+        public sealed override string ProductionDescription => base.ProductionDescription;
 
         /// <summary>
         /// logger
@@ -45,7 +53,7 @@ namespace zero.core.models
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public sealed override IoProducer<IoTangleMessage> Producer { get; protected set; }
+        public sealed override IoProducer<IoTangleMessage> ProducerHandle { get; protected set; }
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -82,6 +90,20 @@ namespace zero.core.models
         /// </summary>
         public const int TransactionHashSize = 46;
 
+        /// <summary>
+        /// Used to control how long we wait for the producer before we report it
+        /// </summary>
+        private readonly Stopwatch _producerStopwatch = new Stopwatch();
+
+        /// <summary>
+        /// The decoded tangle transaction
+        /// </summary>
+        private readonly IoTangleMessageProducer _transactionSource;
+
+        /// <summary>
+        /// The transaction broadcaster
+        /// </summary>
+        public IoForward<IoTangleTransaction> IoForward;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -103,16 +125,11 @@ namespace zero.core.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_consumer_wait_for_producer_timeout = 500;
-
-        /// <summary>
-        /// Used to control how long we wait for the producer before we report it
-        /// </summary>
-        private readonly Stopwatch _producerStopwatch = new Stopwatch();
-
+        
         /// <summary>
         /// Processes a iri datum
         /// </summary>
-        private void ProcessProtocolMessage()
+        private async Task ProcessProtocolMessage()
         {
             var s = new Stopwatch();
             s.Start();
@@ -122,14 +139,29 @@ namespace zero.core.models
                 Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
                 Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
 
-                var tx = Transaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));
+                var tx = Transaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));                
                 s.Stop();
+
+                //cog the source
+                await _transactionSource.Produce(source =>
+                 {                     
+                     ((IoTangleMessageProducer)source).Load = tx;
+                     return Task.FromResult(Task.CompletedTask);
+                 });
+
+                //forward transactions
+                if (!await IoForward.ProduceInline(ProducerHandle.Spinners.Token, blockOnConsumerLag: false))
+                {
+                    _logger.Warn($"Failed to broadcast `{IoForward.PrimaryProducer.Description}'");
+                }
 
                 //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
                 _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', t=`{s.ElapsedMilliseconds}ms'");
 
                 BufferOffset += DatumLength;
             }
+
+
 
             ProcessState = State.Consumed;
         }
@@ -148,7 +180,7 @@ namespace zero.core.models
 
 
             //Process protocol messages
-            ProcessProtocolMessage();
+            await ProcessProtocolMessage();
 
             //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
             //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");
@@ -169,7 +201,7 @@ namespace zero.core.models
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                await Producer.Produce(async ioSocket =>
+                await ProducerHandle.Produce(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -178,13 +210,13 @@ namespace zero.core.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await Producer.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Producer.Spinners.Token))
+                    if (!await ProducerHandle.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, ProducerHandle.Spinners.Token))
                     {
-                        if (!Producer.Spinners.IsCancellationRequested)
+                        if (!ProducerHandle.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.ConsumeTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"`{Description}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_consumer_wait_for_producer_timeout}ms'");
+                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_consumer_wait_for_producer_timeout}ms'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
@@ -196,7 +228,7 @@ namespace zero.core.models
                         return Task.CompletedTask;
                     }
 
-                    if (Producer.Spinners.IsCancellationRequested)
+                    if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.ConsumeCancelled;
                         return Task.CompletedTask;
@@ -212,9 +244,9 @@ namespace zero.core.models
                             case TaskStatus.Canceled:
                             case TaskStatus.Faulted:
                                 ProcessState = rx.Status == TaskStatus.Canceled ? State.ProduceCancelled : State.ProduceErr;
-                                Producer.Spinners.Cancel();
-                                Producer.Close();
-                                _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{Description}' returned with errors:");
+                                ProducerHandle.Spinners.Cancel();
+                                ProducerHandle.Close();
+                                _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
                                 break;
                             //Success
                             case TaskStatus.RanToCompletion:
@@ -229,7 +261,7 @@ namespace zero.core.models
                                 }
 
 
-                                if (Id == 0 && Producer is IoTcpClient<IoTangleMessage>)
+                                if (Id == 0 && ProducerHandle is IoTcpClient<IoTangleMessage>)
                                 {
                                     _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                     BufferOffset += 10;
@@ -245,9 +277,9 @@ namespace zero.core.models
 
                                 //TODO remove this hack
                                 //Terrible sync hack until we can troll the data for sync later
-                                if (((IoNetClient<IoTangleMessage>)Producer).TcpSynced || (!((IoNetClient<IoTangleMessage>)Producer).TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
+                                if (((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced || (!((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
                                 {
-                                    ((IoNetClient<IoTangleMessage>)Producer).TcpSynced = true;
+                                    ((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced = true;
                                 }
                                 else
                                 {
@@ -282,11 +314,11 @@ namespace zero.core.models
                                 break;
                             default:
                                 ProcessState = State.ProduceErr;
-                                throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
+                                throw new InvalidAsynchronousStateException($"Job =`{ProductionDescription}', State={rx.Status}");
                         }
-                    }, Producer.Spinners.Token);
+                    }, ProducerHandle.Spinners.Token);
 
-                    if (Producer.Spinners.IsCancellationRequested)
+                    if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.Cancelled;
                         return Task.CompletedTask;
@@ -296,7 +328,7 @@ namespace zero.core.models
             }
             catch (Exception e)
             {
-                _logger.Warn(e.InnerException ?? e, $"Producing job `{Description}' returned with errors:");
+                _logger.Warn(e.InnerException ?? e, $"Producing job `{ProductionDescription}' returned with errors:");
             }
             finally
             {
@@ -316,6 +348,6 @@ namespace zero.core.models
         public override void MoveUnprocessedToFragment()
         {
             DatumFragmentLength += BytesLeftToProcess;
-        }
+        }        
     }
 }

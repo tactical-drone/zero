@@ -10,8 +10,9 @@ namespace zero.core.network.ip
     /// The UDP flavor of <see cref="IoNetServer{TJob}"/>
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
-    class IoUdpServer<TJob> :IoNetServer<TJob> 
+    class IoUdpServer<TJob> : IoNetServer<TJob>
         where TJob : IIoWorker
+        
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpServer{TJob}"/> class.
@@ -48,7 +49,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(new IoUdpClient<TJob>(ioSocket,parm_read_ahead));
+                    connectionReceivedAction?.Invoke(new IoUdpClient<TJob>(ioSocket, parm_read_ahead));
                 }
                 catch (Exception e)
                 {
@@ -70,6 +71,6 @@ namespace zero.core.network.ip
             var ioUdpClient = new IoUdpClient<TJob>(address, parm_read_ahead);
             return await base.ConnectAsync(null, ioUdpClient);
         }
-        
+
     }
 }

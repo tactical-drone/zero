@@ -76,7 +76,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Public access to remote address (used for logging)
         /// </summary>
-        public string RemoteAddress => Socket?.RemoteAddress()?.ToString() ?? Address.IpEndPoint?.Address?.ToString()??Address.Url;
+        public string RemoteAddress => Socket?.RemoteAddress()?.ToString() ?? Address.IpEndPoint?.Address?.ToString() ?? Address.Url;
 
         /// <summary>
         /// Public access to remote port (used for logging)
@@ -179,8 +179,8 @@ namespace zero.core.network.ip
         /// <param name="address">The address to connect to</param>
         /// <returns>True on success, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
-        {            
-            if(Socket.IsBound)
+        {
+            if (Socket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
             if (IsListeningSocket)
@@ -202,13 +202,13 @@ namespace zero.core.network.ip
             _cancellationTokenRegistration.Dispose();
 
             //Cancel everything that is running
-            Spinners.Cancel();            
+            Spinners.Cancel();
 
             //Signal to users that we are disconnecting
-            OnDisconnected();                          
-            
+            OnDisconnected();
+
             //Close the socket
-            Socket.Shutdown(SocketShutdown.Both);
+            //Socket.Shutdown(SocketShutdown.Both);
             Socket.Close();
             Socket.Dispose();
             Socket = null;

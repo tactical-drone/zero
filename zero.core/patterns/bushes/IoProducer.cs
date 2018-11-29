@@ -12,18 +12,17 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used by <see cref="IoProducerConsumer{TJob}"/> as a source of work of type <see cref="TJob"/>
+    /// Used by <see cref="IoProducerConsumer{TJob,TFJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoProducer <TJob>
-    where TJob:IIoWorker
+    public abstract class IoProducer<TJob> : IoConfigurable, IIoProducer where TJob : IIoWorker        
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProducer(int readAhead)
-        {            
+        protected IoProducer(int readAhead = 1)
+        {
             ConsumerBarrier = new SemaphoreSlim(0); //TODO make configurable
-            ProducerBarrier = new SemaphoreSlim(readAhead); 
+            ProducerBarrier = new SemaphoreSlim(readAhead);
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();
         }
@@ -38,6 +37,11 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public CancellationTokenSource Spinners;
 
+        /// <summary>
+        /// The io forward producer
+        /// </summary>
+        protected IIoForward IoForward = null;
+        
         /// <summary>
         /// Keys this instance.
         /// </summary>
@@ -58,7 +62,7 @@ namespace zero.core.patterns.bushes
         /// Total service times per <see cref="Counters"/>
         /// </summary>
         public long[] ServiceTimes { get; set; } = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];
-        
+
         /// <summary>
         /// The producer semaphore
         /// </summary>
@@ -85,6 +89,11 @@ namespace zero.core.patterns.bushes
         protected long parm_event_min_ave_display = 0;
 
         /// <summary>
+        /// returns the forward producer
+        /// </summary>
+        public abstract IoForward<TFJob> GetForwardProducer<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
+
+        /// <summary>
         /// Print counters
         /// </summary>
         public void PrintCounters()
@@ -106,13 +115,11 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if ( i>0 )
+                if (i > 0)
                 {
                     heading.Append(
                         $"{((IoProducable<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
-                    str.Append(string.Format("{0} | ",
-                        (string.Format("{0:0,000.0}ms", ave)).ToString(CultureInfo.InvariantCulture)
-                        .PadLeft(padding + 8)));
+                    str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }
 

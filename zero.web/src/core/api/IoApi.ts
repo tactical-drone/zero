@@ -127,7 +127,11 @@ export class IoApi {
                     method: 'post',
                     body: json(parms)
                 })
-            .then(response => response.json())
+            .then(response => {
+                //if (response.bodyUsed)
+                    return response.json();
+                return new IoApiReturn(false, "No data returned", undefined);
+            })
             .then(response => this.apiReponse = response);
     }
 
@@ -136,7 +140,11 @@ export class IoApi {
                 {
                     method: 'get'
                 })
-            .then(response => response.json())
+             .then(response => {
+                 //if (response.bodyUsed)
+                     return response.json();
+                 return new IoApiReturn(false, "No data returned", undefined);
+             })
             .then(response => this.apiReponse = response);
     }
 

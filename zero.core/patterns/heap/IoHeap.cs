@@ -38,12 +38,17 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        protected long CurrentHeapSize;
+        public long CurrentHeapSize;
 
         /// <summary>
         /// The maximum heap size
         /// </summary>
         private long _maxSize;
+
+        /// <summary>
+        /// The number of outstanding references
+        /// </summary>
+        public long ReferenceCount; //TODO refactor
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
@@ -80,7 +85,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        public virtual T Take(Func<T,T> parms = null)
+        public virtual T Take(Func<T,T> parms = null, object userData = null)
         {
             if (parms == null)
                 parms = arg => arg;
@@ -93,7 +98,8 @@ namespace zero.core.patterns.heap
                 {
                     //Allocate and return
                     Interlocked.Increment(ref CurrentHeapSize);
-                    return parms(Make());
+                    Interlocked.Increment(ref ReferenceCount);
+                    return parms(Make(userData));
                 }
                 else //we have run out of capacity
                 {
@@ -102,6 +108,7 @@ namespace zero.core.patterns.heap
             }
             else //take the item from the heap
             {
+                Interlocked.Increment(ref ReferenceCount);
                 return item;
             }
         }
@@ -112,13 +119,14 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         public void Return(T item)
         {
-            _buffer.Add(item);            
+            _buffer.Add(item);
+            Interlocked.Add(ref ReferenceCount, -1);
         }
 
         /// <summary>
         /// Makes a new item
         /// </summary>
-        public Func<T> Make;
+        public Func<object,T> Make;
 
         /// <summary>
         /// Flushes the buffer
@@ -134,7 +142,13 @@ namespace zero.core.patterns.heap
         /// <returns>The number of free slots</returns>
         public long FreeCapacity() =>_maxSize - Interlocked.Read(ref CurrentHeapSize) ;
 
+        /// <summary>
+        /// Cache size.
+        /// </summary>
+        /// <returns>The number of unused heap items</returns>
         public long CacheSize() => _buffer.Count;
 
+       
+        
     }
 }

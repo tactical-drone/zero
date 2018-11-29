@@ -7,15 +7,16 @@ namespace zero.core.network.ip
     /// The UDP flavor of <see cref="IoNetClient{TJob}"/>
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetClient{TJob}" />
-    class IoUdpClient<TJob> :IoNetClient<TJob> 
+    class IoUdpClient<TJob> : IoNetClient<TJob>
         where TJob : IIoWorker
+        
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpClient{TJob}"/> class.
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoUdpClient(IoSocket remote, int readAhead) : base((IoNetSocket) remote, readAhead)
+        public IoUdpClient(IoSocket remote, int readAhead) : base((IoNetSocket)remote, readAhead)
         {
         }
 

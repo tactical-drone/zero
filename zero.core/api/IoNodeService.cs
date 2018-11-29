@@ -1,16 +1,22 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NLog.Targets;
+using Tangle.Net.Entity;
 using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
 using zero.core.models;
+using zero.core.models.producers;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using zero.core.protocol;
 
 namespace zero.core.api
@@ -34,11 +40,6 @@ namespace zero.core.api
             _logger = LogManager.GetCurrentClassLogger();
 
             _apiLogger = LogManager.Configuration.FindTargetByName<MemoryTarget>("apiLogger"); 
-
-            _nodes.SelectMany(n=>n.Value.Neighbors).Select(n=>n.Value).ToList().ForEach(n =>
-            {
-                //n.WorkSource.
-            });
             
         }
 
@@ -47,12 +48,15 @@ namespace zero.core.api
         /// </summary>
         private readonly Logger _logger;
 
+        /// <summary>
+        /// The nlog API logger hooks
+        /// </summary>
         private readonly MemoryTarget _apiLogger;
 
         /// <summary>
         /// The nodes managed by this service
         /// </summary>
-        private readonly ConcurrentDictionary<int, IoNode<IoTangleMessage>> _nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage>>();
+        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage>> _nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage>>();
         /// <summary>
         /// Posts the specified address.
         /// </summary>
@@ -89,21 +93,54 @@ namespace zero.core.api
             return retval;            
         }
 
-        [Route("/api/node/stream")]
-        [HttpGet("{id}.{tagQuery:maxlength(27)?}")]
-        public IoApiReturn TransactionStreamQuery(int id, [FromBody] string tagQuery)
+        [Route("/api/node/stream/{id}")]
+        [HttpGet]
+        public IActionResult TransactionStreamQuery([FromRoute]int id, [FromQuery] string tagQuery)
         {
             if(!_nodes.ContainsKey(id))
-                return IoApiReturn.Result(false, $"Cound not find listener with id=`{id}'");
+                return new JsonResult(IoApiReturn.Result(false, $"Could not find listener with id=`{id}'"));
+            var transactions = new List<Transaction>();
 
-            foreach (var keyValuePair in _nodes[id].Neighbors)
-            {
-                var neighbor = keyValuePair.Value;
-            }
-            var data = _apiLogger.Logs.Select(l => new IoLogEntry(l)).ToList();
-            var retval = IoApiReturn.Result(true, $"{data.Count} {nameof(Logs)} returned", data);
-            _apiLogger.Logs.Clear();
-            return retval;
+            int count = 0;
+#pragma warning disable 4014
+            _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
+                .ForEach(async n =>
+#pragma warning restore 4014
+                {
+                    var hub = n.PrimaryProducer.GetForwardProducer<IoTangleTransaction>();
+
+                    if (hub != null)
+                    {
+
+                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 50)
+                        {
+                            await hub.ConsumeInline(message =>
+                            {
+                                var msg = ((IoTangleTransaction) message);
+                                if (msg.Transaction.Tag.Value.Contains(tagQuery))
+                                    transactions.Add(msg.Transaction);
+                            });
+                            count++;
+                        }
+                    }
+                    else
+                        _logger.Warn("Hub is empty!");
+                });
+
+            return new JsonResult(IoApiReturn.Result(true, $"Found `{transactions.Count}' transactions, scanned `{count}'", transactions));            
+        }
+
+        [Route("/api/node/stopListener/{id}")]
+        [HttpGet]
+        public IoApiReturn StopListener([FromRoute] int id)
+        {
+            if(!_nodes.ContainsKey(id))
+                return IoApiReturn.Result(false, $"Neighbor with listener port `{id}' does not exist");
+            
+            _nodes[id].Stop();
+            _nodes.TryRemove(id, out _);
+
+            return IoApiReturn.Result(true, $"Removed neighbor `{id}'");
         }
     }
 }

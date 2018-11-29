@@ -14,19 +14,19 @@ namespace zero.core.core
     /// Represents a node's neighbor
     /// </summary>
     public class IoNeighbor<TJob> : IoProducerConsumer<TJob>
-    where TJob : IIoWorker
+    where TJob : IIoWorker     
     {
         /// <summary>
         /// Construct
         /// </summary>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
-        public IoNeighbor(IoNetClient<TJob> ioNetClient, Func<IoConsumable<TJob>> mallocMessage)
+        public IoNeighbor(IoNetClient<TJob> ioNetClient, Func<object,IoConsumable<TJob>> mallocMessage)
             : base($"neighbor {ioNetClient.AddressString}", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            Spinners.Token.Register(() => WorkSource?.Close());
+            Spinners.Token.Register(() => PrimaryProducer?.Close());
         }
 
         /// <summary>
@@ -44,7 +44,7 @@ namespace zero.core.core
         /// </summary>
         public void Close()
         {
-            _logger.Info($"Closing neighbor `{Description}'");
+            _logger.Info($"Closing neighbor `{PrimaryProducerDescription}'");
 
             Spinners.Cancel();            
 

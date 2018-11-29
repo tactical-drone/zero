@@ -8,12 +8,14 @@ export class app {
 
     constructor(nodeService: IoNodeServices, bindingEngine: BindingEngine) {
         this.nodeServices = nodeService;
-        this.nodeServices.streamUnShift(() => { return this.nodeServices.getLogs(); }, this.logs, this.logSleepTime);
+
+        //this.nodeServices.streamUnShift(() => { return this.nodeServices.getLogs(); }, this.logs, this.logSleepTime);
 
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
         
         this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
 
+        this.getTransactions();
     }
 
     logSleepTime:number = 500;
@@ -39,13 +41,33 @@ export class app {
         return this.nodeServices.apiReponse.message;
     }
 
+    async getTransactions() {
+        while (true) {
+            await this.nodeServices.queryTransactionStream(15600, this.tagQuery)
+                .then(async response => {
+                    this.logs.unshift.apply(this.logs, response.rows);
+                    if (this.logs.length > 60) {
+                        for (var i = this.logs.length; i > 58; i--) {
+                            await this.nodeServices.sleep(0);
+                            this.logs.pop();
+                        }
+                    }
+                });
+            await  this.nodeServices.sleep(500);
+        }        
+    }
+
+    async stopNeighbor() {
+        await this.nodeServices.stopListner(this.stopNeighborId);
+    }
+
     //binds
-    url: string;
-    tagQuery: string;
+    url: string = 'tcp://192.168.1.2:15600';
+    tagQuery: string = '9999';
+    stopNeighborId: number = 15600;
 
     rows = [
-        { collapsible: false, size: '25%'},
-        { collapsible: false, scrollable: false},
-        { collapsible: false, size: '5%'}        
+        { collapsible: false, size: '260px'},
+        { collapsible: false, size: '500px', scrollable: false},
     ];
 }

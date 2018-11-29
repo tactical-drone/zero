@@ -25,13 +25,13 @@ namespace zero.core.patterns.heap
         /// Take an item but call the constructor first
         /// </summary>
         /// <returns>The constructed heap item</returns>
-        public override T Take(Func<T,T> parms = null)
+        public override T Take(Func<T,T> parms = null, object userData = null)
         {
             object next = null;
             try
             {
                 //Allocate memory
-                if ((next = base.Take(parms)) == null)
+                if ((next = base.Take(parms, userData)) == null)
                     return null;
 
                 //Construct
@@ -44,7 +44,7 @@ namespace zero.core.patterns.heap
                     _logger.Trace($"Flushing `{GetType()}'");
 
                     //Return another item from the heap
-                    if ((next = (T) base.Take(parms)) == null)
+                    if ((next = (T) base.Take(parms,userData)) == null)
                     {
                         _logger.Error($"`{GetType()}', unable to allocate memory");
                         return null;

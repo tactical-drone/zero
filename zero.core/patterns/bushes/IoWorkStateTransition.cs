@@ -12,8 +12,10 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TProducer">The concurrent process type</typeparam>
     /// <typeparam name="TJob">The type of job produced</typeparam>
-    public class IoWorkStateTransition<TJob> : IIoHeapItem    
+    /// <typeparam name="TFJob">The job forward type</typeparam>
+    public class IoWorkStateTransition<TJob> : IIoHeapItem
         where TJob : IIoWorker
+        
     {
         /// <summary>
         /// The previous state
@@ -53,7 +55,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The absolute time this job took so far
         /// </summary>
-        public TimeSpan Delta => Previous == null? Mu: Previous.Delta + Mu;
+        public TimeSpan Delta => Previous == null ? Mu : Previous.Delta + Mu;
 
         /// <summary>
         /// Prepares this item for use after popped from the heap

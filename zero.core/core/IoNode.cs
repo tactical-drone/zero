@@ -17,7 +17,7 @@ namespace zero.core.core
     /// A p2p node
     /// </summary>
     public class IoNode<TJob> : IoConfigurable        
-    where TJob:IIoWorker
+    where TJob:IIoWorker    
     {
         /// <summary>
         /// Constructor
@@ -96,7 +96,7 @@ namespace zero.core.core
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
-                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).WorkSource.Key, out var _);
+                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out var _);
                 };
 
                 // Add new neighbor
@@ -113,7 +113,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Description}' processing thread returned with errors:");
+                    _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
                 }
             });
         }        
@@ -135,10 +135,10 @@ namespace zero.core.core
 
                     if (newClient.IsSocketConnected())
                     {
-                        var neighbor = newNeighbor = _mallocNeighbor((IoNetClient<TJob>) newClient);
+                        var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (Neighbors.TryAdd(newNeighbor.WorkSource.Key, newNeighbor))
+                        if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))
                         {
                             try
                             {
@@ -148,7 +148,7 @@ namespace zero.core.core
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.Description}' processing thread returned with errors:");
+                                _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
                             }
 
                             //TODO remove this into the protocol?
@@ -174,10 +174,10 @@ namespace zero.core.core
                     await Task.Delay(6000);
                 }
 
-                if (!newNeighbor?.WorkSource?.IsOperational ?? false)
+                if (!newNeighbor?.PrimaryProducer?.IsOperational ?? false)
                 {
                     newNeighbor.Close();
-                    Neighbors.TryRemove(newNeighbor.WorkSource.Key, out _);
+                    Neighbors.TryRemove(newNeighbor.PrimaryProducer.Key, out _);
                     newNeighbor = null;
                     //TODO parm
                     await Task.Delay(1000);

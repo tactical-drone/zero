@@ -14,12 +14,13 @@ namespace zero.core.models
     /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
     public abstract class IoMessage<TJob> : IoConsumable<TJob>
-        where TJob : IIoWorker
+        where TJob : IIoWorker 
+        
     {
         /// <summary>
         /// Initializes the buffer size to fill
         /// </summary>
-        protected IoMessage()
+        protected IoMessage()            
         {
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             //SettingChangedEvent += (sender, pair) =>

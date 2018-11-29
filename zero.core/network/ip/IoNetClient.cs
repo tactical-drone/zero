@@ -4,7 +4,10 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using Tangle.Net.Entity;
 using zero.core.conf;
+using zero.core.models;
+using zero.core.patterns;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -13,17 +16,18 @@ namespace zero.core.network.ip
     /// <summary>
     /// Wraps a <see cref="TcpClient"/> into a <see cref="IoProducer{TJob}"/> that can be used by <see cref="IoProducerConsumer{TJob}"/>
     /// </summary>
-    public class IoNetClient<TJob>: IoProducer<TJob>
-    where TJob:IIoWorker
+    public class IoNetClient<TJob> : IoProducer<TJob>
+    where TJob : IIoWorker
+    
     {
         /// <summary>
         /// Constructor for listening
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoSocket remote, int readAhead):base(readAhead)
+        public IoNetClient(IoSocket remote, int readAhead) : base(readAhead)
         {
-            IoSocket = (IoNetSocket) remote;
+            IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
             Address = remote.Address;
         }
@@ -33,7 +37,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">The address associated with this network client</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoNodeAddress address, int readAhead):base(readAhead)
+        public IoNetClient(IoNodeAddress address, int readAhead) : base(readAhead)
         {
             Address = address;
             _logger = LogManager.GetCurrentClassLogger();
@@ -49,13 +53,26 @@ namespace zero.core.network.ip
         /// </summary>
         protected readonly IoNodeAddress Address;
 
+        public override IoForward<TFJob> GetForwardProducer<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
+        {
+            if (IoForward == null)
+            {
+               if( producer == null || mallocMessage == null)
+                    _logger.Warn("Producer cannot be null! One must first be supplied");
+
+                IoForward = new IoForward<TFJob>(Description, producer, mallocMessage);
+            }
+               
+            return (IoForward<TFJob>) IoForward;
+        }
+
         /// <summary>
         /// Keys this instance.
         /// </summary>
         /// <returns>
         /// The unique key of this instance
         /// </returns>
-        public override int Key => IoSocket.LocalPort;
+        public override int Key => IoSocket?.LocalPort??-1;
 
         /// <summary>
         /// A description of this client. Currently the remote address
@@ -80,7 +97,7 @@ namespace zero.core.network.ip
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_rx_timeout = 3000;
-        
+
         /// <summary>
         /// Called when disconnect is detected
         /// </summary>
@@ -118,24 +135,24 @@ namespace zero.core.network.ip
         {
             Spinners.Cancel();
 
-            OnDisconnected();            
-            
+            OnDisconnected();
+
             IoSocket?.Close();
             IoSocket = null;
-            
+
             //Unlock any blockers
             ProducerBarrier?.Dispose();
             ConsumerBarrier?.Dispose();
-            
+
             _logger.Debug($"Closed connection `{AddressString}'");
         }
-       
+
         /// <summary>
         /// Connects to a remote listener
         /// </summary>
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync()
-        {            
+        {
             var connectAsyncTask = IoSocket.ConnectAsync(Address);
 
             _logger.Debug($"Connecting to `{Address}'");
@@ -165,19 +182,19 @@ namespace zero.core.network.ip
         public override async Task<Task> Produce(Func<IIoProducer, Task<Task>> callback)
         {
             //Is the TCP connection up?
-            if (!IsSocketConnected()) //TODO fix up
+            if (!IsOperational) //TODO fix up
                 throw new IOException("Socket has disconnected");
 
             try
             {
                 return await callback(IoSocket);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 //Did the TCP connection drop?
                 if (!IsSocketConnected())
                     throw new IOException("Socket has disconnected", e);
-                throw;
+                throw; //TODO fix this
             }
         }
 
@@ -197,7 +214,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket )
+                if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket)
                 {
                     //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
                     //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
@@ -220,7 +237,7 @@ namespace zero.core.network.ip
                 else
                 {
                     return IoSocket?.Connected() ?? false;
-                }                
+                }
             }
             catch (Exception e)
             {
@@ -232,6 +249,6 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => Address.ToString();        
+        public string AddressString => Address.ToString();
     }
 }

@@ -14,7 +14,8 @@ namespace zero.core.network.ip
     /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
     /// </summary>
     public abstract class IoNetServer<TJob> : IoConfigurable
-    where TJob:IIoWorker
+    where TJob : IIoWorker
+    
     {
         /// <inheritdoc />
         /// <summary>
@@ -40,7 +41,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The listening address of this server
         /// </summary>
-        protected readonly IoNodeAddress ListeningAddress;        
+        protected readonly IoNodeAddress ListeningAddress;
 
         /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped
@@ -131,7 +132,7 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, CancellationToken spinner)
         {
-            if (address.Protocol()== ProtocolType.Tcp)
+            if (address.Protocol() == ProtocolType.Tcp)
                 return new IoTcpServer<TJob>(address, spinner);
 
             if (address.Protocol() == ProtocolType.Udp)
