@@ -13,7 +13,6 @@ namespace zero.core.patterns.bushes
     /// Produces work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
-    /// <typeparam name="TFJob">The job forward type</typeparam>
     public abstract class IoProducable<TJob> : IoConfigurable, IIoWorker
         where TJob : IIoWorker
         

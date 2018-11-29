@@ -11,7 +11,6 @@ namespace zero.core.patterns.bushes
     /// Jobs that need to be consumed by the workers
     /// </summary>
     /// <typeparam name="TJob">The type of the job</typeparam>
-    /// <typeparam name="TFJob">The job forward type</typeparam>
     public abstract class IoConsumable<TJob> : IoProducable<TJob>
         where TJob : IIoWorker
         

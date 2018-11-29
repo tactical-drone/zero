@@ -27,20 +27,29 @@ namespace zero.core.models
         /// <param name="source">The network source where messages are to be obtained</param>
         public IoTangleMessage(IoProducer<IoTangleMessage> source)
         {
+            _logger = LogManager.GetCurrentClassLogger();
+
+            //Every job knows which source produced it
             ProducerHandle = source;
 
+            //Set some tangle specific protocol constants
             DatumLength = MessageLength + ((ProducerHandle is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
             DatumProvisionLength = DatumLength - 1;
 
+            //Init buffers
             BufferSize = DatumLength * parm_datums_per_buffer;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
-            WorkDescription = source.ToString();
-            _logger = LogManager.GetCurrentClassLogger();
+            //Configure a description of this consumer
+            WorkDescription = source.ToString();            
 
+            //Configure forwarding of jobs
             _transactionSource = new IoTangleMessageProducer(ProducerHandle);
-
             IoForward = source.GetForwardProducer(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
+
+            //tweak this producer
+            IoForward.parm_consumer_wait_for_producer_timeout = 0;
+            IoForward.parm_producer_skipped_delay = 5000;
         }
 
         public sealed override string ProductionDescription => base.ProductionDescription;
@@ -117,7 +126,7 @@ namespace zero.core.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_wait_for_consumer_timeout = 500; //TODO make this adapting
+        public int parm_producer_wait_for_consumer_timeout = 10; //TODO make this adapting
 
         /// <summary>
         /// The time a producer will wait for a consumer to release it before aborting in ms
@@ -150,7 +159,7 @@ namespace zero.core.models
                  });
 
                 //forward transactions
-                if (!await IoForward.ProduceInline(ProducerHandle.Spinners.Token, blockOnConsumerLag: false))
+                if (!await IoForward.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
                 {
                     _logger.Warn($"Failed to broadcast `{IoForward.PrimaryProducer.Description}'");
                 }

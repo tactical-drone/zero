@@ -12,7 +12,7 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used by <see cref="IoProducerConsumer{TJob,TFJob}"/> as a source of work of type <see cref="TJob"/>
+    /// Used by <see cref="IoProducerConsumer{TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
     public abstract class IoProducer<TJob> : IoConfigurable, IIoProducer where TJob : IIoWorker        
     {

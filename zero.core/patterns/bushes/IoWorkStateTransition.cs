@@ -10,9 +10,7 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
-    /// <typeparam name="TProducer">The concurrent process type</typeparam>
     /// <typeparam name="TJob">The type of job produced</typeparam>
-    /// <typeparam name="TFJob">The job forward type</typeparam>
     public class IoWorkStateTransition<TJob> : IIoHeapItem
         where TJob : IIoWorker
         

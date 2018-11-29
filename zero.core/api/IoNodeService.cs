@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -14,9 +13,7 @@ using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
 using zero.core.models;
-using zero.core.models.producers;
 using zero.core.network.ip;
-using zero.core.patterns.misc;
 using zero.core.protocol;
 
 namespace zero.core.api
@@ -95,13 +92,15 @@ namespace zero.core.api
 
         [Route("/api/node/stream/{id}")]
         [HttpGet]
-        public IActionResult TransactionStreamQuery([FromRoute]int id, [FromQuery] string tagQuery)
+        public IoApiReturn TransactionStreamQuery([FromRoute]int id, [FromQuery] string tagQuery)
         {
             if(!_nodes.ContainsKey(id))
-                return new JsonResult(IoApiReturn.Result(false, $"Could not find listener with id=`{id}'"));
+                return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
             var transactions = new List<Transaction>();
 
             int count = 0;
+            long outstanding = 0;
+            long freeBufferSpace = 0;
 #pragma warning disable 4014
             _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
                 .ForEach(async n =>
@@ -114,20 +113,27 @@ namespace zero.core.api
 
                         while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 50)
                         {
-                            await hub.ConsumeInline(message =>
+                            await hub.ConsumeAsync(message =>
                             {
+                                if(message == null)
+                                    return;
+
                                 var msg = ((IoTangleTransaction) message);
                                 if (msg.Transaction.Tag.Value.Contains(tagQuery))
                                     transactions.Add(msg.Transaction);
-                            });
+                            }, sleepOnProducerLag:false);
                             count++;
                         }
+
+                        outstanding = Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount);
+                        freeBufferSpace = hub.JobMetaHeap.FreeCapacity();
                     }
                     else
-                        _logger.Warn("Hub is empty!");
+                        _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");
                 });
 
-            return new JsonResult(IoApiReturn.Result(true, $"Found `{transactions.Count}' transactions, scanned `{count}'", transactions));            
+            //TODO remove diagnostic output
+            return IoApiReturn.Result(true, $"Found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}'", transactions);            
         }
 
         [Route("/api/node/stopListener/{id}")]
@@ -140,7 +146,7 @@ namespace zero.core.api
             _nodes[id].Stop();
             _nodes.TryRemove(id, out _);
 
-            return IoApiReturn.Result(true, $"Removed neighbor `{id}'");
+            return IoApiReturn.Result(true, $"Successfully stopped neighbor `{id}'");
         }
     }
 }

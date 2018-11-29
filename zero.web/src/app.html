@@ -1,7 +1,8 @@
 <template>
     <require from="aurelia-kendoui-bridge/listview/listview"></require>
     <require from="aurelia-kendoui-bridge/common/template"></require>
-    <require from="aurelia-kendoui-bridge/splitter/splitter"></require>
+    <require from="aurelia-kendoui-bridge/splitter/splitter"></require>    
+    <require from="./resources/converters/DateFormatValueConverter"></require>
 
     <div style="fill-rule: inherit">
         <!--<require from="./basic-use.css!css"></require>-->
@@ -12,7 +13,7 @@
                 <h1 align="center">unimatrix zero</h1>
                 <hr />
                 Listen address:
-                <input type="text" value.bind="url" style="width: 200px" />
+                <input id="urlTextString" type="text" value.bind="url" style="width: 200px" />
                 <button type="button" click.delegate="nodeServices.createNode(url)">Create node</button>
                 <p />
                 Neighbor Id: <input type="number" value.bind="stopNeighborId" style="width: 200px" />
@@ -45,7 +46,7 @@
             <div id="logView" class="logwindow" data-role="view" data-stretch="true">
                 <ak-list-view ref="logView" k-data-source.bind="logs">
                     <ak-template>
-                        <div class="logrow"><pre class="pre">log : ${timestamp} - ${address.value}:[${tag.value}] ${value}</pre></div>
+                        <div class="logrow"><pre class="pre">log : ${timestamp | dateFormat} - ${address.value}:[${tag.value}] ${value}</pre></div>
                     </ak-template>
                 </ak-list-view>
             </div>

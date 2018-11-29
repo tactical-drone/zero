@@ -58,7 +58,7 @@ namespace zero.core.network.ip
             if (IoForward == null)
             {
                if( producer == null || mallocMessage == null)
-                    _logger.Warn("Producer cannot be null! One must first be supplied");
+                    _logger.Warn($"Waiting for the multicast producer of `{Description}' to initialize...");
 
                 IoForward = new IoForward<TFJob>(Description, producer, mallocMessage);
             }
