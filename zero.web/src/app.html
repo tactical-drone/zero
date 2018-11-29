@@ -1,9 +1,10 @@
 <template>
     <require from="aurelia-kendoui-bridge/listview/listview"></require>
     <require from="aurelia-kendoui-bridge/common/template"></require>
-    <require from="aurelia-kendoui-bridge/splitter/splitter"></require>
+    <require from="aurelia-kendoui-bridge/splitter/splitter"></require>    
+    <require from="./resources/converters/DateFormatValueConverter"></require>
 
-    <div>
+    <div style="fill-rule: inherit">
         <!--<require from="./basic-use.css!css"></require>-->
         <div id="rows" ak-splitter="k-orientation: vertical;
              k-panes.bind: rows;
@@ -12,11 +13,21 @@
                 <h1 align="center">unimatrix zero</h1>
                 <hr />
                 Listen address:
-                <input type="text" value.bind="url" style="width: 200px" />:
-                <hr />
-                <p />
+                <input id="urlTextString" type="text" value.bind="url" style="width: 200px" />
                 <button type="button" click.delegate="nodeServices.createNode(url)">Create node</button>
                 <p />
+                Neighbor Id: <input type="number" value.bind="stopNeighborId" style="width: 200px" />
+                <button type="button" click.delegate="stopNeighbor()">Stop</button>
+                <p />
+                <hr />
+                Query tag: <input type="text" value.bind="tagQuery" style="width: 200px" />
+                <hr />
+                <p />
+                <div class="statusBar">
+                    <div style="width: 100%; height:20px">
+                        <p>${message}</p>
+                    </div>
+                </div>
                 <hr />
             </div>
             <!--<ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">
@@ -24,22 +35,22 @@
                     <span class="logrow">log : ${logMsg}</span>
                 </ak-template>
             </ak-list-view>-->
-
-            <div id="logView" class="logwindow" data-role="view" data-stretch="true">
+            <!--<div id="logView" class="logwindow" data-role="view" data-stretch="true">
                 <ak-list-view ref="logView" k-data-source.bind="logs">
                     <ak-template>
                         <div class="logrow"><pre class="pre">log : ${logMsg}</pre></div>
                     </ak-template>
                 </ak-list-view>
+            </div>-->
+
+            <div id="logView" class="logwindow" data-role="view" data-stretch="true">
+                <ak-list-view ref="logView" k-data-source.bind="logs">
+                    <ak-template>
+                        <div class="logrow"><pre class="pre">log : ${timestamp | dateFormat} - ${address.value}:[${tag.value}] ${value}</pre></div>
+                    </ak-template>
+                </ak-list-view>
             </div>
 
-            <!--<div ref="pager" class="k-pager-wrap"></div>-->
-            <div id="footer" class="statusBar">
-                <div style="width: 100%; height:20px">
-                    <hr style="color: black" />
-                    <p>${message}</p>
-                </div>
-            </div>
         </div>
     </div>
     <style>
@@ -64,9 +75,10 @@
         }
 
         #footer {
-            height: 100%;
+            //height: 100%;
             margin: 0;
             padding: 0;
+            vertical-align: text-bottom
         }
 
         .k-listview {
@@ -89,7 +101,8 @@
             /*min-height: 200px;
             height: auto;
             margin-bottom: 20px;*/
-            overflow: auto;
+            overflow: hidden;
+            vertical-align: top;
         }
 
         .k-listview:after {

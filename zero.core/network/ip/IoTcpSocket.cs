@@ -10,7 +10,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// The TCP flavor of <see cref="IoSocket"/>
     /// </summary>
-    class IoTcpSocket : IoSocket
+    class IoTcpSocket : IoNetSocket
     {
         /// <summary>
         /// Constructs a new TCP socket
@@ -71,8 +71,8 @@ namespace zero.core.network.ip
                         case TaskStatus.Faulted:
                             _logger.Error(t.Exception, $"Listener `{Address}' returned with status `{t.Status}':");
                             break;
-                        case TaskStatus.RanToCompletion:                            
-                            
+                        case TaskStatus.RanToCompletion:
+
                             var newSocket = new IoTcpSocket(t.Result, Address, Spinners.Token);
 
                             //Do some pointless sanity checking
@@ -92,7 +92,7 @@ namespace zero.core.network.ip
                             catch (Exception e)
                             {
                                 _logger.Error(e, $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.Address}'");
-                            }                            
+                            }
                             break;
                         default:
                             _logger.Error($"Listener for `{Address}' went into unknown state `{t.Status}'");
@@ -213,7 +213,7 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool Connected()
         {
-            return Socket.IsBound &&  Socket.Connected;//TODO this might not be enough
+            return Socket.IsBound && Socket.Connected;//TODO this might not be enough
         }
     }
 }

@@ -4,24 +4,30 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using Tangle.Net.Entity;
 using zero.core.conf;
+using zero.core.models;
+using zero.core.patterns;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoJobSource"/> that can be used by <see cref="IoProducerConsumer{TJob,TProducer}"/>
+    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoProducer{TJob}"/> that can be used by <see cref="IoProducerConsumer{TJob}"/>
     /// </summary>
-    public class IoNetClient: IoJobSource
+    public class IoNetClient<TJob> : IoProducer<TJob>
+    where TJob : IIoWorker
+    
     {
         /// <summary>
         /// Constructor for listening
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoSocket remote, int readAhead):base(readAhead)
+        public IoNetClient(IoSocket remote, int readAhead) : base(readAhead)
         {
-            IoSocket = remote;
+            IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
             Address = remote.Address;
         }
@@ -31,7 +37,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">The address associated with this network client</param>
         /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoNodeAddress address, int readAhead):base(readAhead)
+        public IoNetClient(IoNodeAddress address, int readAhead) : base(readAhead)
         {
             Address = address;
             _logger = LogManager.GetCurrentClassLogger();
@@ -47,15 +53,36 @@ namespace zero.core.network.ip
         /// </summary>
         protected readonly IoNodeAddress Address;
 
+        public override IoForward<TFJob> GetForwardProducer<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
+        {
+            if (IoForward == null)
+            {
+               if( producer == null || mallocMessage == null)
+                    _logger.Warn($"Waiting for the multicast producer of `{Description}' to initialize...");
+
+                IoForward = new IoForward<TFJob>(Description, producer, mallocMessage);
+            }
+               
+            return (IoForward<TFJob>) IoForward;
+        }
+
+        /// <summary>
+        /// Keys this instance.
+        /// </summary>
+        /// <returns>
+        /// The unique key of this instance
+        /// </returns>
+        public override int Key => IoSocket?.LocalPort??-1;
+
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        protected override string Description => AddressString;
+        public override string Description => AddressString;
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
         /// </summary>
-        protected IoSocket IoSocket;
+        protected IoNetSocket IoSocket;
 
         /// <summary>
         /// Transmit timeout in ms
@@ -70,7 +97,7 @@ namespace zero.core.network.ip
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_rx_timeout = 3000;
-        
+
         /// <summary>
         /// Called when disconnect is detected
         /// </summary>
@@ -87,16 +114,19 @@ namespace zero.core.network.ip
         private CancellationTokenRegistration _cancellationRegistratison;
 
         /// <summary>
-        /// A flag to indicate if those pesky extra tcp bits are contained in the datum
-        /// </summary>
-        public bool ContainsExtrabits => IoSocket.IsTcpSocket;
-
-        /// <summary>
         /// This is a temporary sync hack for TCP. Sometimes IRI has old data stuck in it's TCP stack that has to be flushed.
         /// We do this by waiting for IRI to send us exactly the right amount of data. There is a better way but this will do for now
         /// Until we can troll the data for verified hashes, which will be slower but more accurate.
         /// </summary>
         public bool TcpSynced = false;
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is operational.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
+        /// </value>
+        public override bool IsOperational => IsSocketConnected();
 
         /// <summary>
         /// Closes the connection
@@ -105,15 +135,15 @@ namespace zero.core.network.ip
         {
             Spinners.Cancel();
 
-            OnDisconnected();            
-            
+            OnDisconnected();
+
             IoSocket?.Close();
             IoSocket = null;
-            
+
             //Unlock any blockers
             ProducerBarrier?.Dispose();
             ConsumerBarrier?.Dispose();
-            
+
             _logger.Debug($"Closed connection `{AddressString}'");
         }
 
@@ -122,7 +152,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync()
-        {            
+        {
             var connectAsyncTask = IoSocket.ConnectAsync(Address);
 
             _logger.Debug($"Connecting to `{Address}'");
@@ -146,29 +176,32 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="callback">The tcp client functions</param>
         /// <returns>True on success, false otherwise</returns>
-        public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
+
+
+        //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
+        public override async Task<Task> Produce(Func<IIoProducer, Task<Task>> callback)
         {
             //Is the TCP connection up?
-            if (!IsSocketConnected()) //TODO fix up
+            if (!IsOperational) //TODO fix up
                 throw new IOException("Socket has disconnected");
 
             try
             {
                 return await callback(IoSocket);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 //Did the TCP connection drop?
                 if (!IsSocketConnected())
                     throw new IOException("Socket has disconnected", e);
-                throw;
+                throw; //TODO fix this
             }
         }
 
         /// <summary>
         /// Emit disconnect event
         /// </summary>
-        protected virtual void OnDisconnected()
+        public virtual void OnDisconnected()
         {
             Disconnected?.Invoke(this, new EventArgs());
         }
@@ -181,7 +214,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket )
+                if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket)
                 {
                     //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
                     //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
@@ -204,7 +237,7 @@ namespace zero.core.network.ip
                 else
                 {
                     return IoSocket?.Connected() ?? false;
-                }                
+                }
             }
             catch (Exception e)
             {
@@ -216,6 +249,6 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => Address.ToString();        
+        public string AddressString => Address.ToString();
     }
 }

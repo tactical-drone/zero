@@ -15,7 +15,7 @@ namespace zero.core.network.ip
         /// <returns>The local address</returns>
         public static IPAddress LocalAddress(this Socket socket)
         {
-            return ((IPEndPoint) socket.LocalEndPoint).Address;
+            return ((IPEndPoint)socket.LocalEndPoint).Address;
         }
 
         /// <summary>
@@ -35,7 +35,7 @@ namespace zero.core.network.ip
         /// <returns>The remote address</returns>
         public static IPAddress RemoteAddress(this Socket socket)
         {
-            return socket.ProtocolType == ProtocolType.Tcp ? ((IPEndPoint) socket.RemoteEndPoint)?.Address : null;//TODO fix null pointer on RemoteEndpoint
+            return socket.ProtocolType == ProtocolType.Tcp ? ((IPEndPoint)socket.RemoteEndPoint)?.Address : null;//TODO fix null pointer on RemoteEndpoint
         }
 
         /// <summary>
@@ -45,8 +45,8 @@ namespace zero.core.network.ip
         /// <returns>The remote port</returns>
         public static int RemotePort(this Socket endpoint)
         {
-            if( endpoint.ProtocolType == ProtocolType.Tcp )
-                return ((IPEndPoint) endpoint.RemoteEndPoint)?.Port ?? 0;
+            if (endpoint.ProtocolType == ProtocolType.Tcp)
+                return ((IPEndPoint)endpoint.RemoteEndPoint)?.Port ?? 0;
             return 0;
         }
     }

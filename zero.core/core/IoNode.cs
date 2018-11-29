@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -9,7 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.schedulers;
 
 namespace zero.core.core
@@ -17,12 +16,13 @@ namespace zero.core.core
     /// <summary>
     /// A p2p node
     /// </summary>
-    public class IoNode : IoConfigurable        
+    public class IoNode<TJob> : IoConfigurable        
+    where TJob:IIoWorker    
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNetClient, IoNeighbor> mallocNeighbor)
+        public IoNode(IoNodeAddress address, Func<IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor)
         {
             _address = address;
             _mallocNeighbor = mallocNeighbor;
@@ -43,17 +43,17 @@ namespace zero.core.core
         /// <summary>
         /// Used to allocate peers when connections are made
         /// </summary>
-        private readonly Func<IoNetClient, IoNeighbor> _mallocNeighbor;
+        private readonly Func<IoNetClient<TJob>, IoNeighbor<TJob>> _mallocNeighbor;
 
         /// <summary>
         /// The wrapper for <see cref="IoNetServer"/>
         /// </summary>
-        private IoNetServer _netServer;
+        private IoNetServer<TJob> _netServer;
 
         /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        private readonly ConcurrentDictionary<string, IoNeighbor> _neighbors = new ConcurrentDictionary<string, IoNeighbor>();
+        public readonly ConcurrentDictionary<int, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<int, IoNeighbor<TJob>>();
 
         /// <summary>
         /// Used to cancel downstream processes
@@ -80,7 +80,7 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = IoNetServer.GetKindFromUrl(_address, _spinners.Token);
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token);
 
             await _netServer.StartListenerAsync(remoteClient =>
             {
@@ -96,11 +96,11 @@ namespace zero.core.core
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
-                    _neighbors.TryRemove(((IoNeighbor)s).WorkSource.AddressString, out var _);
+                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out var _);
                 };
 
                 // Add new neighbor
-                if (!_neighbors.TryAdd(remoteClient.AddressString, newNeighbor))
+                if (!Neighbors.TryAdd(remoteClient.Key, newNeighbor))
                 {
                     newNeighbor.Close();
                     _logger.Warn($"Neighbor `{remoteClient.AddressString}' already connected. Possible spoof investigate!");
@@ -113,7 +113,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.AddressString}' processing thread returned with errors:");
+                    _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
                 }
             });
         }        
@@ -125,7 +125,7 @@ namespace zero.core.core
         /// <returns>The async task</returns>
         public async Task SpawnConnectionAsync(IoNodeAddress address)
         {
-            IoNeighbor newNeighbor = null;
+            IoNeighbor<TJob> newNeighbor = null;
 
             while (!_spinners.IsCancellationRequested)
             {
@@ -138,7 +138,7 @@ namespace zero.core.core
                         var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (_neighbors.TryAdd(newNeighbor.WorkSource.AddressString, newNeighbor))
+                        if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))
                         {
                             try
                             {
@@ -148,14 +148,14 @@ namespace zero.core.core
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e, $"Neighbor `{newNeighbor.WorkSource.AddressString}' processing thread returned with errors:");
+                                _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
                             }
 
                             //TODO remove this into the protocol?
                             if(newClient.IsSocketConnected())
-                            await newClient.Execute(client =>
+                            await newClient.Produce(client =>
                             {
-                                client?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
+                                ((IoNetSocket)client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
                                      Encoding.ASCII.GetBytes("0000015600").Length);
                                 return Task.FromResult(Task.CompletedTask) ;
                             });
@@ -174,10 +174,10 @@ namespace zero.core.core
                     await Task.Delay(6000);
                 }
 
-                if (!newNeighbor?.WorkSource?.IsSocketConnected() ?? false)
+                if (!newNeighbor?.PrimaryProducer?.IsOperational ?? false)
                 {
                     newNeighbor.Close();
-                    _neighbors.TryRemove(newNeighbor.WorkSource.AddressString, out _);
+                    Neighbors.TryRemove(newNeighbor.PrimaryProducer.Key, out _);
                     newNeighbor = null;
                     //TODO parm
                     await Task.Delay(1000);
@@ -209,8 +209,8 @@ namespace zero.core.core
         public void Stop()
         {
             _spinners.Cancel();
-            _neighbors.ToList().ForEach(n => n.Value.Close());
-            _neighbors.Clear();
+            Neighbors.ToList().ForEach(n => n.Value.Close());
+            Neighbors.Clear();
             _logger.Info("Resistance is futile");
         }
     }

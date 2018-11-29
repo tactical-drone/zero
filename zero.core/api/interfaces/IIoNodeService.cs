@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using zero.core.network.ip;
+﻿using zero.core.network.ip;
 
 namespace zero.core.api.interfaces
 {

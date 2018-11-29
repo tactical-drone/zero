@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.heap;
 
@@ -9,24 +10,25 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
-    /// <typeparam name="TProducer">The concurrent process type</typeparam>
-    public class IoWorkStateTransition<TProducer> : IOHeapItem
-    where TProducer : IoJobSource
+    /// <typeparam name="TJob">The type of job produced</typeparam>
+    public class IoWorkStateTransition<TJob> : IIoHeapItem
+        where TJob : IIoWorker
+        
     {
         /// <summary>
         /// The previous state
         /// </summary>
-        public volatile IoWorkStateTransition<TProducer> Previous;
+        public volatile IoWorkStateTransition<TJob> Previous;
 
         /// <summary>
         /// The next state
         /// </summary>
-        public volatile IoWorkStateTransition<TProducer> Next;
+        public volatile IoWorkStateTransition<TJob> Next;
 
         /// <summary>
         /// The represented state
         /// </summary>
-        public volatile IoProducable<TProducer>.State State;
+        public volatile IoProducable<TJob>.State State;
 
         /// <summary>
         /// Timestamped when this state was entered
@@ -51,17 +53,17 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The absolute time this job took so far
         /// </summary>
-        public TimeSpan Delta => Previous == null? Mu: Previous.Delta + Mu;
+        public TimeSpan Delta => Previous == null ? Mu : Previous.Delta + Mu;
 
         /// <summary>
         /// Prepares this item for use after popped from the heap
         /// </summary>
         /// <returns>The instance</returns>
-        public IOHeapItem Constructor()
+        public IIoHeapItem Constructor()
         {
             ExitTime = EnterTime = DateTime.Now;
             Previous = Next = null;
-            State = IoProducable<TProducer>.State.Undefined;
+            State = IoProducable<TJob>.State.Undefined;
             return this;
         }
 
@@ -82,6 +84,6 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The default state string padded
         /// </summary>
-        public string DefaultPadded => IoProducable<TProducer>.State.Undefined.ToString().PadLeft(StateStrPadding);
+        public string DefaultPadded => IoProducable<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
     }
 }
