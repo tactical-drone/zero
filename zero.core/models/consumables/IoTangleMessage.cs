@@ -215,7 +215,7 @@ namespace zero.core.models.consumables
                     {
                         if (!ProducerHandle.Spinners.IsCancellationRequested)
                         {
-                            ProcessState = State.ConsumeTo;
+                            ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
                             _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms'");
 
@@ -225,13 +225,13 @@ namespace zero.core.models.consumables
                             //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
                         }
                         else
-                            ProcessState = State.ConsumeCancelled;
+                            ProcessState = State.ProduceCancelled;
                         return Task.CompletedTask;
                     }
 
                     if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
-                        ProcessState = State.ConsumeCancelled;
+                        ProcessState = State.ProduceCancelled;
                         return Task.CompletedTask;
                     }
 

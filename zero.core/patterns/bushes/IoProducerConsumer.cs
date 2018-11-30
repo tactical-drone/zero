@@ -217,7 +217,9 @@ namespace zero.core.patterns.bushes
                             if (nextJob.ProcessState == IoProducable<TJob>.State.ProduceSkipped)
                             {
                                 nextJob.ProcessState = IoProducable<TJob>.State.Accept;
-                                await Task.Delay(parm_producer_skipped_delay, cancellationToken);
+
+                                if(sleepOnConsumerLag)
+                                    await Task.Delay(parm_producer_skipped_delay, cancellationToken);
                                 return true;
                             }
 

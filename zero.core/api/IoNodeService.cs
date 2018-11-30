@@ -118,7 +118,7 @@ namespace zero.core.api
                     if (hub != null)
                     {
 
-                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 100)
+                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 1000)
                         {
                             await hub.ConsumeAsync(message =>
                             {

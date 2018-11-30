@@ -48,13 +48,13 @@ namespace zero.core.models
             {
                 if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
                 {
-                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ConsumeTo : State.ConsumeCancelled;
+                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProduceCancelled;
                     return Task.CompletedTask;
                 }
 
                 if (ProducerHandle.Spinners.IsCancellationRequested)
                 {
-                    ProcessState = State.ConsumeCancelled;
+                    ProcessState = State.ProduceCancelled;
                     return Task.CompletedTask;
                 }
 
