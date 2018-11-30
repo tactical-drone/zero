@@ -15,7 +15,7 @@ export class app {
         
         this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
 
-        this.getTransactions();
+        this.queryTags();
     }
 
     logSleepTime:number = 500;
@@ -34,6 +34,9 @@ export class app {
         //$("#logView").kendoListBox({
         //    dataSource: this.dataSource
         //});        
+        //$("#pager").kendoPager({
+        //    dataSource: this.dataSource
+        //});
     }
 
     @computedFrom(nameof.full(this.nodeServices.apiReponse, -2))
@@ -41,7 +44,7 @@ export class app {
         return this.nodeServices.apiReponse.message;
     }
 
-    async getTransactions() {
+    async queryTags() {
         while (true) {
             await this.nodeServices.queryTransactionStream(15600, this.tagQuery)
                 .then(async response => {
@@ -66,8 +69,9 @@ export class app {
     tagQuery: string = '9999';
     stopNeighborId: number = 15600;
 
-    rows = [
-        { collapsible: false, size: '260px'},
-        { collapsible: false, size: '500px', scrollable: false},
+    vericalRows = [
+        { collapsible: false, resizable: false, scrollable: false, size: '180px', min: '180px'},
+        { collapsible: false, resizable: false, scrollable: false },
+        { collapsible: false, resizable: false, scrollable: false, size: '30px', min: '30px'}
     ];
 }

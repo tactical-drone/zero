@@ -1,35 +1,51 @@
 <template>
     <require from="aurelia-kendoui-bridge/listview/listview"></require>
     <require from="aurelia-kendoui-bridge/common/template"></require>
-    <require from="aurelia-kendoui-bridge/splitter/splitter"></require>    
+    <require from="aurelia-kendoui-bridge/splitter/splitter"></require>
     <require from="./resources/converters/DateFormatValueConverter"></require>
+    <require from="./resources/css/app.css"></require>
 
-    <div style="fill-rule: inherit">
+    <div id="root-panel">
         <!--<require from="./basic-use.css!css"></require>-->
-        <div id="rows" ak-splitter="k-orientation: vertical;
-             k-panes.bind: rows;
-             k-widget.two-way: rows">
+        <div id="rows" ak-splitter="k-orientation: vertical; k-panes.bind: vericalRows">
             <div id="header">
-                <h1 align="center">unimatrix zero</h1>
-                <hr />
-                Listen address:
-                <input id="urlTextString" type="text" value.bind="url" style="width: 200px" />
-                <button type="button" click.delegate="nodeServices.createNode(url)">Create node</button>
-                <p />
-                Neighbor Id: <input type="number" value.bind="stopNeighborId" style="width: 200px" />
-                <button type="button" click.delegate="stopNeighbor()">Stop</button>
-                <p />
-                <hr />
-                Query tag: <input type="text" value.bind="tagQuery" style="width: 200px" />
-                <hr />
-                <p />
-                <div class="statusBar">
-                    <div style="width: 100%; height:20px">
-                        <p>${message}</p>
-                    </div>
+                <div class="pane-content">
+                    <h1 align="center" style="color: black">unimatrix zero</h1>
+                    <hr />
+                    <label style="color: black; margin-right: 5px"><b>Listen address:</b></label>
+                    <span class="k-textbox k-space-left" style="width: 25%;">
+                        <input id="urlTextString" type="text" value.bind="url" style="width: 200px" />
+                    </span>
+                    <button class="k-button" type="button" click.delegate="nodeServices.createNode(url)"><b>Start listener</b></button>
+                    <span style="margin-left: 20px; color: palevioletred; margin-right: 5px">Listener port: </span>
+                    <span class="k-textbox k-space-left" style="width: 25%;">
+                        <input type="number" value.bind="stopNeighborId" style="width: 200px" />
+                    </span>
+                    <button class="k-button" type="button" click.delegate="stopNeighbor()"><b>Stop listener</b></button>
+                    <hr />
+                    <label style="font-size: 20px; color: mediumseagreen"><b>Query tag:</b></label>
+                    <span class="k-textbox k-space-right" style="width: 25%;" >
+                        <input value.bind="tagQuery" type="text" id="icon-left"/>
+                        <a class="k-icon k-i-search">&nbsp;</a>
+                    </span>
                 </div>
-                <hr />
             </div>
+            <div id="main-panel">
+                <div class="pane-content">
+                    <ak-list-view style="" k-data-source.bind="logs">
+                        <ak-template>
+                            <div><pre>${timestamp | dateFormat} - [${address.value}] : tag=[${tag.value}] : hash=[...${hash.value.substring(hash.value.length-10,hash.value.length)}] :value= ${value/1000000} mi</pre></div>
+                        </ak-template>
+                    </ak-list-view>
+                </div>
+            </div>
+                   
+            <div id="footer" >
+                <div style="margin-top: 8px">
+                    <pre style="color: black">${message}</pre>
+                </div>                
+            </div>
+            <!--<div ref="pager" class="k-pager-wrap"></div>-->
             <!--<ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">
                 <ak-template>
                     <span class="logrow">log : ${logMsg}</span>
@@ -43,134 +59,7 @@
                 </ak-list-view>
             </div>-->
 
-            <div id="logView" class="logwindow" data-role="view" data-stretch="true">
-                <ak-list-view ref="logView" k-data-source.bind="logs">
-                    <ak-template>
-                        <div class="logrow"><pre class="pre">log : ${timestamp | dateFormat} - ${address.value}:[${tag.value}] ${value}</pre></div>
-                    </ak-template>
-                </ak-list-view>
-            </div>
-
         </div>
     </div>
-    <style>
-        .pre {
-            background: transparent;
-            display: inline;
-            border: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        #header {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
-        #rows {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
-        #footer {
-            //height: 100%;
-            margin: 0;
-            padding: 0;
-            vertical-align: text-bottom
-        }
-
-        .k-listview {
-            padding: 10px 5px;
-            margin-bottom: 20px;
-            overflow: auto;
-            height: 93%;
-        }
-
-        .logrow {
-            /*min-height: 0;
-            max-height: 40px;
-            margin-bottom: 0;*/
-            font-family: monospace;
-            /*position: relative;*/
-            padding: 0;
-        }
-
-        .logwindow {
-            /*min-height: 200px;
-            height: auto;
-            margin-bottom: 20px;*/
-            overflow: hidden;
-            vertical-align: top;
-        }
-
-        .k-listview:after {
-            content: ".";
-            display: block;
-            height: 0;
-            clear: both;
-            visibility: hidden;
-        }
-
-        .statusBar {
-            /*vertical-align: bottom;
-            position: absolute;
-            bottom: 20px;
-            height: 60px;*/
-            width: 99%;
-            font-family: monospace;
-        }
-
-            .statusBar.hr {
-                display: block;
-                margin-top: 0.0em;
-                margin-bottom: 0.0em;
-                margin-left: auto;
-                margin-right: auto;
-                border-style: inset;
-                border-width: 1px;
-            }
-    </style>
-
-    <!-- <style >
-        .product {
-                  float: left;
-                  width: 220px;
-                  height: 110px;
-                  margin: 0;
-                  padding: 5px;
-                  cursor: pointer;
-              }
-
-        .product img {
-            float: left;
-            width: 110px;
-            height: 110px;
-        }
-
-        .product h3 {
-            margin: 0;
-            padding: 10px 0 0 10px;
-            font-size: .9em;
-            overflow: hidden;
-            font-weight: normal;
-            float: left;
-            max-width: 100px;
-            text-transform: uppercase;
-        }
-
-    /*.k-pager-wrap {
-            border-top: 0;
-        }*/
-
-        /*.demo-section .k-listview:after {
-            content: ".";
-            display: block;
-            height: 0;
-            clear: both;
-            visibility: hidden;
-        }*/
-    </style>-->
 
 </template>

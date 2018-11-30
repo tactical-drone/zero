@@ -1,0 +1,40 @@
+﻿.pane-content {
+    margin: 0 0px;
+}
+
+ak-listview {
+    margin: 10px 5px;
+    margin-bottom: -1px;
+}
+
+pre {
+    margin: 1px;
+    padding: 0;
+}
+
+/*div {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+}*/
+#root-panel {
+    height: 98vh;
+}
+
+#main-panel {
+    height: 100%;
+}
+
+#rows {
+    height: 100%;
+}
+
+#footer {
+    /*border-style: solid;
+    border-width: 2px;
+    border-color: green;*/
+}
+.k-button {
+    color: black;
+}
