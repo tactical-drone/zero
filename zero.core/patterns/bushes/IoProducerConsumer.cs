@@ -181,7 +181,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_consumer_wait_for_producer_timeout = 1000;
+        public int parm_consumer_wait_for_producer_timeout = 5000;
 
 
         /// <summary>
