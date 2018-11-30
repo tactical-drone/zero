@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using NLog;
 using Tangle.Net.Entity;
-using zero.core.models.producers;
+using zero.core.consumables.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -60,7 +59,7 @@ namespace zero.core.models
                 }
 
                 //Basically we just fetch the transaction through the producer
-                Transaction = ((IoTangleMessageProducer)ProducerHandle).Load;
+                Transaction = ((IoTangleMessageSource)ProducerHandle).Load;
                 ProcessState = Transaction != null ? State.Produced : State.ProduceSkipped;
 
                 return Task.FromResult(Task.CompletedTask);

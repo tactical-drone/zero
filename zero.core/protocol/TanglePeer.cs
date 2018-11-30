@@ -1,14 +1,7 @@
-﻿using System;
-using System.Text;
-using System.Threading.Tasks;
-using NLog;
-using Tangle.Net.Cryptography;
-using Tangle.Net.Entity;
-using zero.core.conf;
+﻿using NLog;
 using zero.core.core;
-using zero.core.models;
+using zero.core.models.consumables;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
 using zero.core.patterns.schedulers;
 
 namespace zero.core.protocol

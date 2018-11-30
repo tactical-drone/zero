@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using zero.core.patterns.misc;
 using NLog;
 
 namespace zero.core.patterns.heap

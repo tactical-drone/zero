@@ -1,13 +1,8 @@
-﻿using System;
-using System.Threading.Tasks;
-using zero.core.conf;
-using zero.core.network.ip;
-using zero.core.patterns.bushes;
+﻿using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
-using zero.core.protocol;
 
-namespace zero.core.models
+namespace zero.core.models.generic
 {
     /// <inheritdoc />
     /// <summary>

@@ -9,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using zero.web.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json.Serialization;
 
 namespace zero.web
 {

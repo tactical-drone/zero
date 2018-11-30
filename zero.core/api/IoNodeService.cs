@@ -14,6 +14,7 @@ using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
 using zero.core.models;
+using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.protocol;
 
@@ -73,9 +74,14 @@ namespace zero.core.api
                 return IoApiReturn.Result(true, errStr);
             }
 
+            
             var dbgStr = $"Added listener at `{address.UrlAndPort}'";
             
             _nodes[address.Port].Start();
+
+#pragma warning disable 4014
+            _nodes[address.Port].SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
+#pragma warning restore 4014
 
             _logger.Debug(dbgStr);
             return IoApiReturn.Result(true, dbgStr, address.Port);
@@ -107,7 +113,7 @@ namespace zero.core.api
                 .ForEach(async n =>
 #pragma warning restore 4014
                 {
-                    var hub = n.PrimaryProducer.GetForwardProducer<IoTangleTransaction>();
+                    var hub = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>();
 
                     if (hub != null)
                     {

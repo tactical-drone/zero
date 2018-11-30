@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -89,9 +87,9 @@ namespace zero.core.patterns.bushes
         protected long parm_event_min_ave_display = 0;
 
         /// <summary>
-        /// returns the forward producer
+        /// Returns the source to relay jobs too
         /// </summary>
-        public abstract IoForward<TFJob> GetForwardProducer<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
+        public abstract IoForward<TFJob> GetRelaySource<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
 
         /// <summary>
         /// Print counters

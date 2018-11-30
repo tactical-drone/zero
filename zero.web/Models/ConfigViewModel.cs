@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace zero.web.Models
+﻿namespace zero.web.Models
 {
     public class ConfigViewModel
     {

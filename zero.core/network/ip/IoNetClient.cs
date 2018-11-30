@@ -4,10 +4,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using Tangle.Net.Entity;
 using zero.core.conf;
-using zero.core.models;
-using zero.core.patterns;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -53,7 +50,7 @@ namespace zero.core.network.ip
         /// </summary>
         protected readonly IoNodeAddress Address;
 
-        public override IoForward<TFJob> GetForwardProducer<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
+        public override IoForward<TFJob> GetRelaySource<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
         {
             if (IoForward == null)
             {

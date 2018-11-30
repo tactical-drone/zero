@@ -1,5 +1,3 @@
-using System;
-
 namespace zero.web.Models
 {
     public class ErrorViewModel

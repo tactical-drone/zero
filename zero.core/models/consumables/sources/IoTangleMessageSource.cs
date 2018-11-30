@@ -1,31 +1,31 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using Tangle.Net.Entity;
+using zero.core.models;
+using zero.core.models.consumables;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
-namespace zero.core.models.producers
+namespace zero.core.consumables.sources
 {
     /// <summary>
     /// A producer that serves <see cref="Transaction"/>
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleMessageProducer : IoProducer<IoTangleTransaction>, IIoProducer
+    public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer
     {
-        public IoTangleMessageProducer(IoProducer<IoTangleMessage> producerHandle):base(50)
+        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(50)
         {
             //Saves forwarding producer, to leech some values from it
-            _producerHandle = producerHandle;            
+            _upstreamSource = upstreamSource;            
         }
 
         /// <summary>
         /// The producer that we are forwarding from
         /// </summary>
-        private readonly IoProducer<IoTangleMessage> _producerHandle;
+        private readonly IoProducer<IoTangleMessage> _upstreamSource;
 
         /// <summary>
         /// Used to load the value to be produced
@@ -35,12 +35,12 @@ namespace zero.core.models.producers
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override int Key => _producerHandle.Key;
+        public override int Key => _upstreamSource.Key;
 
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Broadcast tangle transaction from `{_producerHandle.Description}'";
+        public override string Description => $"Broadcast tangle transaction from `{_upstreamSource.Description}'";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -48,7 +48,7 @@ namespace zero.core.models.producers
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => _producerHandle.IsOperational;
+        public override bool IsOperational => _upstreamSource.IsOperational;
 
         /// <summary>
         /// returns the forward producer
@@ -58,7 +58,7 @@ namespace zero.core.models.producers
         /// <param name="mallocMessage"></param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public override IoForward<TFJob> GetForwardProducer<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
+        public override IoForward<TFJob> GetRelaySource<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
         {
             throw new NotImplementedException();
         }

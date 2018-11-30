@@ -1,19 +1,18 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
-using zero.core.patterns.bushes;
 using NLog;
 using Tangle.Net.Entity;
 using zero.core.conf;
-using zero.core.models.producers;
+using zero.core.consumables.sources;
+using zero.core.models.generic;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushes;
 using zero.core.ternary;
 
-namespace zero.core.models
+namespace zero.core.models.consumables
 {
     /// <summary>
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
@@ -44,8 +43,8 @@ namespace zero.core.models
             WorkDescription = source.ToString();            
 
             //Configure forwarding of jobs
-            _transactionSource = new IoTangleMessageProducer(ProducerHandle);
-            IoForward = source.GetForwardProducer(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
+            _transactionSource = new IoTangleMessageSource(ProducerHandle);
+            IoForward = source.GetRelaySource(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
 
             //tweak this producer
             IoForward.parm_consumer_wait_for_producer_timeout = 0;
@@ -107,7 +106,7 @@ namespace zero.core.models
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private readonly IoTangleMessageProducer _transactionSource;
+        private readonly IoTangleMessageSource _transactionSource;
 
         /// <summary>
         /// The transaction broadcaster
@@ -147,7 +146,7 @@ namespace zero.core.models
                 //cog the source
                 await _transactionSource.Produce(source =>
                  {                     
-                     ((IoTangleMessageProducer)source).Load = tx;
+                     ((IoTangleMessageSource)source).Load = tx;
                      return Task.FromResult(Task.CompletedTask);
                  });
 
