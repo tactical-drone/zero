@@ -60,6 +60,14 @@ export class app {
         }        
     }
 
+
+    async startNeighbor() {
+
+        this.nodeServices.createNode(this.url).then(response => {
+            this.curNeighborId = response.rows;
+        });
+    }
+
     async stopNeighbor() {
         await this.nodeServices.stopListner(this.curNeighborId);
     }
