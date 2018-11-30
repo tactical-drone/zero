@@ -120,8 +120,12 @@ namespace zero.core.api
                                     return;
 
                                 var msg = ((IoTangleTransaction) message);
-                                if (msg.Transaction.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+
+                                if (tagQuery == null)
                                     transactions.Add(msg.Transaction);
+                                else if(msg.Transaction.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                                    transactions.Add(msg.Transaction);
+
                             }, sleepOnProducerLag:false);
                             count++;
                         }
@@ -134,7 +138,7 @@ namespace zero.core.api
                 });
 
             //TODO remove diagnostic output
-            return IoApiReturn.Result(true, $"Found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}'", transactions);            
+            return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}'", transactions);            
         }
 
         [Route("/api/node/stopListener/{id}")]

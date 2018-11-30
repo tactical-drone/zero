@@ -46,7 +46,7 @@ export class app {
 
     async queryTags() {
         while (true) {
-            await this.nodeServices.queryTransactionStream(15600, this.tagQuery)
+            await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
                 .then(async response => {
                     this.logs.unshift.apply(this.logs, response.rows);
                     if (this.logs.length > 60) {
@@ -61,13 +61,13 @@ export class app {
     }
 
     async stopNeighbor() {
-        await this.nodeServices.stopListner(this.stopNeighborId);
+        await this.nodeServices.stopListner(this.curNeighborId);
     }
 
     //binds
     url: string = 'tcp://192.168.1.2:15600';
     tagQuery: string = '9999';
-    stopNeighborId: number = 15600;
+    curNeighborId: number = 15600;
 
     vericalRows = [
         { collapsible: false, resizable: false, scrollable: false, size: '180px', min: '180px'},
