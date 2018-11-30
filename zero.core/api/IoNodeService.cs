@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -111,7 +112,7 @@ namespace zero.core.api
                     if (hub != null)
                     {
 
-                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 50)
+                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 100)
                         {
                             await hub.ConsumeAsync(message =>
                             {
@@ -119,7 +120,7 @@ namespace zero.core.api
                                     return;
 
                                 var msg = ((IoTangleTransaction) message);
-                                if (msg.Transaction.Tag.Value.Contains(tagQuery))
+                                if (msg.Transaction.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
                                     transactions.Add(msg.Transaction);
                             }, sleepOnProducerLag:false);
                             count++;

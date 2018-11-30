@@ -198,9 +198,9 @@ module.exports = ({ production, server, extractCss, coverage, analyze, karma } =
         ...when(!karma, new DuplicatePackageCheckerPlugin()),
         new AureliaPlugin(),
         new ProvidePlugin({
-            'Promise': 'bluebird',
-            //'$': 'jquery',
-            //'jQuery': 'jquery',
+            Promise: 'bluebird',
+             $: 'jquery',
+            jQuery: 'jquery',
             //'window.jQuery': 'jquery',
             Popper: ['popper.js', 'default'] // Bootstrap 4 Dependency.
         }),

@@ -30,7 +30,8 @@ Bluebird.config(
 export function configure(aurelia: Aurelia) {
   aurelia.use
       .standardConfiguration()      
-      .plugin(PLATFORM.moduleName("aurelia-kendoui-bridge"), (kendo) => kendo.detect().notifyBindingBehavior())
+      //.plugin(PLATFORM.moduleName("aurelia-kendoui-bridge"), (kendo) => kendo.detect().notifyBindingBehavior())
+      .plugin(PLATFORM.moduleName("aurelia-kendoui-bridge"))
       //.plugin(PLATFORM.moduleName("aurelia-templating"))
       //.plugin(PLATFORM.moduleName("kendo-ui-core"))
       //.plugin(PLATFORM.moduleName("aurelia-dependency-injection"))

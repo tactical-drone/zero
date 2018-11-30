@@ -22,6 +22,7 @@ export class IoApi {
             config
                 .useStandardConfiguration()
                 .withDefaults({
+                    mode: 'cors',
                     headers: {
                         'Accept': 'application/json',
                         'Authorization': 'Bearer ' + this.zcfg.scfg.token
