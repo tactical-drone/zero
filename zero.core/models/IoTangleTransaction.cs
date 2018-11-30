@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
+using NLog;
 using Tangle.Net.Entity;
 using zero.core.models.producers;
 using zero.core.patterns.bushes;
@@ -10,7 +12,7 @@ namespace zero.core.models
     /// <summary>
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>
-    /// <seealso cref="zero.core.patterns.bushes.IoConsumable{zero.core.models.IoTangleTransaction}" />
+    /// <seealso cref="IoTangleTransaction" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public sealed class IoTangleTransaction : IoConsumable<IoTangleTransaction>, IIoProducer
     {
@@ -21,7 +23,12 @@ namespace zero.core.models
         public IoTangleTransaction(IoProducer<IoTangleTransaction> source)
         {
             ProducerHandle = source;
+            _logger = LogManager.GetCurrentClassLogger();
+            WorkDescription = "forward";
+            JobDescription = "tangle transaction";
         }
+
+        private readonly Logger _logger;
 
         /// <summary>
         /// The transaction that is ultimately consumed
@@ -35,14 +42,32 @@ namespace zero.core.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override Task<State> ProduceAsync(IoProducable<IoTangleTransaction> fragment)
+        public override async Task<State> ProduceAsync(IoProducable<IoTangleTransaction> fragment)
         {
-            //Basically we just fetch the transaction through the producer
-            Transaction = ((IoTangleMessageProducer)ProducerHandle).Load;
+                        
+            await ProducerHandle.Produce(async producer =>
+            {
+                if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
+                {
+                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ConsumeTo : State.ConsumeCancelled;
+                    return Task.CompletedTask;
+                }
 
-            //If the producer gave us nothing, mark this production to be skipped
-            ProcessState = Transaction != null ? State.Produced : State.ProduceSkipped;
-            return Task.FromResult(ProcessState);
+                if (ProducerHandle.Spinners.IsCancellationRequested)
+                {
+                    ProcessState = State.ConsumeCancelled;
+                    return Task.CompletedTask;
+                }
+
+                //Basically we just fetch the transaction through the producer
+                Transaction = ((IoTangleMessageProducer)ProducerHandle).Load;
+                ProcessState = Transaction != null ? State.Produced : State.ProduceSkipped;
+
+                return Task.FromResult(Task.CompletedTask);
+            });
+
+            //If the producer gave us nothing, mark this production to be skipped            
+            return ProcessState;
         }
 
         /// <summary>

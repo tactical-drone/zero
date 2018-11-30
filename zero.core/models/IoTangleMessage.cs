@@ -126,14 +126,7 @@ namespace zero.core.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_wait_for_consumer_timeout = 10; //TODO make this adapting
-
-        /// <summary>
-        /// The time a producer will wait for a consumer to release it before aborting in ms
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_consumer_wait_for_producer_timeout = 500;
+        public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting
         
         /// <summary>
         /// Processes a iri datum
@@ -225,7 +218,7 @@ namespace zero.core.models
                         {
                             ProcessState = State.ConsumeTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_consumer_wait_for_producer_timeout}ms'");
+                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
