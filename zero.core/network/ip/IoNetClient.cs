@@ -121,7 +121,18 @@ namespace zero.core.network.ip
         /// We do this by waiting for IRI to send us exactly the right amount of data. There is a better way but this will do for now
         /// Until we can troll the data for verified hashes, which will be slower but more accurate.
         /// </summary>
-        public bool TcpSynced = false;
+        private int _tcpSynced = 20;
+        public bool TcpSynced
+        {
+            get => _tcpSynced == 0;
+            set
+            {
+                if (value && _tcpSynced > 0)
+                    _tcpSynced--;
+                else if(!value)
+                    _tcpSynced = 20;
+            }
+        }
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.

@@ -65,7 +65,7 @@ namespace zero.core.models.extensions
             
             _computedHash = new Hash(Converter.TritsToTrytes(hashTrits));
             
-            return _computedHash.Value.Contains(Hash.Value.Substring(0,10)) && _computedHash.Value.Substring(_computedHash.Value.Length-10, 7).Contains(Hash.Value.Substring(Hash.Value.Length - 10, 7));
+            return _computedHash.Value.Contains(Hash.Value.Substring(0,10)) && _computedHash.Value.Substring(_computedHash.Value.Length-10, 7).Contains(Hash.Value.Substring(Hash.Value.Length - 10, 7));            
         }
 
         public new static HashedTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)

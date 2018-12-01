@@ -271,9 +271,9 @@ namespace zero.core.models.consumables
                                 if (BytesRead == 0)
                                 {
                                     ProcessState = State.ProduceSkipped;
+                                    DatumFragmentLength = 0;
                                     break;
                                 }
-
 
                                 if (Id == 0 && ProducerHandle is IoTcpClient<IoTangleMessage>)
                                 {
@@ -285,18 +285,20 @@ namespace zero.core.models.consumables
                                     if (BytesLeftToProcess == 0)
                                     {
                                         ProcessState = State.Produced;
+                                        DatumFragmentLength = 0;
                                         break;
                                     }
                                 }
 
                                 //TODO remove this hack
                                 //Terrible sync hack until we can troll the data for sync later
-                                if (((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced || (!((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced && ((BytesLeftToProcess % DatumLength) == 0)))
+                                if (!((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced)
                                 {
-                                    ((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced = true;
-                                }
-                                else
-                                {
+
+                                    if ((BytesLeftToProcess % DatumLength) == 0)
+                                    {
+                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced = true;
+                                    }
                                     BytesRead = 0;
                                     DatumCount = 0;
                                     DatumFragmentLength = 0;

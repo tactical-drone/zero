@@ -189,7 +189,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_skipped_delay = 60000;
+        public int parm_producer_skipped_delay = 0;
 
         /// <summary>
         /// Produces the inline instead of in a spin loop
