@@ -46,7 +46,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The number of outstanding references
         /// </summary>
-        public volatile int ReferenceCount; //TODO refactor
+        public long ReferenceCount; //TODO refactor
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
