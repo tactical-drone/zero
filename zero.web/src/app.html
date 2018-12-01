@@ -3,6 +3,7 @@
     <require from="aurelia-kendoui-bridge/common/template"></require>
     <require from="aurelia-kendoui-bridge/splitter/splitter"></require>
     <require from="./resources/converters/DateFormatValueConverter"></require>
+    <require from="./resources/converters/BoolToColorValueConverter"></require>
     <require from="./resources/css/app.css"></require>
 
     <div id="root-panel">
@@ -24,8 +25,8 @@
                     <button class="k-button" type="button" click.delegate="stopNeighbor()"><b>Stop listener</b></button>
                     <hr />
                     <label style="font-size: 20px; color: mediumseagreen"><b>Query tag:</b></label>
-                    <span class="k-textbox k-space-right" style="width: 25%;" >
-                        <input value.bind="tagQuery" type="text" id="icon-left"/>
+                    <span class="k-textbox k-space-right" style="width: 25%;">
+                        <input value.bind="tagQuery" type="text" id="icon-left" />
                         <a class="k-icon k-i-search">&nbsp;</a>
                     </span>
                 </div>
@@ -34,16 +35,16 @@
                 <div class="pane-content">
                     <ak-list-view style="" k-data-source.bind="logs">
                         <ak-template>
-                            <div><pre>${timestamp | dateFormat} - [${address.value}] : tag=[${tag.value}] : hash=[...${hash.value.substring(hash.value.length-10,hash.value.length)}] :value= ${value/1000000} mi</pre></div>
+                            <div><pre>${timestamp | dateFormat} - [${address.value}] : tag=[${tag.value}] : hash=[...<span style.bind="color">${hash.value.substring(hash.value.length-10,hash.value.length)}</span>] :value= ${value/1000000} mi</pre></div>
                         </ak-template>
                     </ak-list-view>
                 </div>
             </div>
-                   
-            <div id="footer" >
+
+            <div id="footer">
                 <div style="margin-top: 8px">
                     <pre style="color: black">${message}</pre>
-                </div>                
+                </div>
             </div>
             <!--<div ref="pager" class="k-pager-wrap"></div>-->
             <!--<ak-list-view ref="logView" k-data-source.bind="dataSource" view-model.ref="listview">

@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -13,9 +15,10 @@ using Tangle.Net.Entity;
 using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
-using zero.core.models;
 using zero.core.models.consumables;
+using zero.core.models.extensions;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using zero.core.protocol;
 
 namespace zero.core.api
@@ -108,6 +111,8 @@ namespace zero.core.api
             int count = 0;
             long outstanding = 0;
             long freeBufferSpace = 0;
+
+            Stopwatch stopwatch = new Stopwatch();
 #pragma warning disable 4014
             _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
                 .ForEach(async n =>
@@ -117,26 +122,39 @@ namespace zero.core.api
 
                     if (hub != null)
                     {
-
-                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0 && count < 1000)
+                        stopwatch.Start();
+                        count = 0;
+                        while (hub.JobMetaHeap.ReferenceCount > 0)
                         {
                             await hub.ConsumeAsync(message =>
                             {
-                                if(message == null)
+                                if (message == null)
                                     return;
 
-                                var msg = ((IoTangleTransaction) message);
+                                var msg = ((IoTangleTransaction)message);
 
-                                if (tagQuery == null)
-                                    transactions.Add(msg.Transaction);
-                                else if(msg.Transaction.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
-                                    transactions.Add(msg.Transaction);
+                                if (count > 50)
+                                {
+                                    msg.Transactions = null;
+                                    return;
+                                }
+                                                                                                    
+                                foreach (var t in msg.Transactions)
+                                {
+                                    if (tagQuery == null)
+                                        transactions.Add(t);
+                                    else if (t.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                                        transactions.Add(t);
+                                    if(++count> 50 )
+                                        break;
+                                }
 
-                            }, sleepOnProducerLag:false);
-                            count++;
+                                msg.Transactions = null;
+
+                            }, sleepOnProducerLag:false);                            
                         }
-
-                        outstanding = Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount);
+                        stopwatch.Stop();
+                        outstanding = hub.JobMetaHeap.ReferenceCount;
                         freeBufferSpace = hub.JobMetaHeap.FreeCapacity();
                     }
                     else
@@ -144,7 +162,7 @@ namespace zero.core.api
                 });
 
             //TODO remove diagnostic output
-            return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}'", transactions);            
+            return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions);            
         }
 
         [Route("/api/node/stopListener/{id}")]

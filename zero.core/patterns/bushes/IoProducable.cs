@@ -49,6 +49,7 @@ namespace zero.core.patterns.bushes
             Consuming,
             Forwarded,
             Consumed,
+            ConsumeInlined,
             Accept,
             Reject,
             Finished,

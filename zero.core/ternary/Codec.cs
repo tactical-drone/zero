@@ -129,7 +129,8 @@ namespace zero.core.ternary
         /// <param name="length">The number of trits to convert</param>
         public static void GetTrytes(sbyte[] buffer, int offset, StringBuilder trytes, int length)
         {
-            trytes.Clear();            
+            trytes.Clear();
+
             for (var i = 0; i < (length + TritsPerTryte - 1) / TritsPerTryte; i++)
             {
                 var j = buffer[offset + i * 3] + buffer[offset + i * 3 + 1] * 3 + buffer[offset + i * 3 + 2] * 9;

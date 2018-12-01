@@ -17,9 +17,9 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProducer(int readAhead = 1)
+        protected IoProducer(int readAhead = 2)
         {
-            ConsumerBarrier = new SemaphoreSlim(0); //TODO make configurable
+            ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAhead);
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();

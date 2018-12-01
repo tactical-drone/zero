@@ -12,16 +12,16 @@ export class app {
         //this.nodeServices.streamUnShift(() => { return this.nodeServices.getLogs(); }, this.logs, this.logSleepTime);
 
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
-        
+
         this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
 
         this.queryTags();
     }
 
-    logSleepTime:number = 500;
-    
+    logSleepTime: number = 500;
+
     nodeServices: IoNodeServices;
-    
+
     logs: kendo.data.ObservableArray = new kendo.data.ObservableArray([]);
 
     dataSource: kendo.data.DataSource;
@@ -30,7 +30,7 @@ export class app {
         //kendo.jQuery(this.pager).kendoPager({
         //    dataSource: this.dataSource
         //});
-        
+
         //$("#logView").kendoListBox({
         //    dataSource: this.dataSource
         //});        
@@ -45,19 +45,26 @@ export class app {
     }
 
     async queryTags() {
+
+        let querying: boolean = false;
+
         while (true) {
-            await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
-                .then(async response => {
-                    this.logs.unshift.apply(this.logs, response.rows);
-                    if (this.logs.length > 60) {
-                        for (var i = this.logs.length; i > 58; i--) {
-                            await this.nodeServices.sleep(0);
-                            this.logs.pop();
+            //if (!querying) {
+                //querying = true;
+                await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
+                    .then(response => {
+                        this.logs.unshift.apply(this.logs, response.rows);
+                        if (this.logs.length > 60) {
+                            for (var i = this.logs.length; i > 58; i--) {
+                                //await this.nodeServices.sleep(0);
+                                this.logs.pop();
+                            }
                         }
-                    }
-                });
-            await  this.nodeServices.sleep(500);
-        }        
+                        //querying = false;
+                    });
+            //}
+            await this.nodeServices.sleep(500);
+        }
     }
 
 
@@ -78,8 +85,8 @@ export class app {
     curNeighborId: number = 15600;
 
     vericalRows = [
-        { collapsible: false, resizable: false, scrollable: false, size: '180px', min: '180px'},
+        { collapsible: false, resizable: false, scrollable: false, size: '180px', min: '180px' },
         { collapsible: false, resizable: false, scrollable: false },
-        { collapsible: false, resizable: false, scrollable: false, size: '30px', min: '30px'}
+        { collapsible: false, resizable: false, scrollable: false, size: '30px', min: '30px' }
     ];
 }

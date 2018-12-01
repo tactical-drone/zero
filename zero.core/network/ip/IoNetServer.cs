@@ -85,7 +85,8 @@ namespace zero.core.network.ip
         /// <returns>The client object managing this socket connection</returns>
         public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress _, IoNetClient<TJob> ioNetClient = null)
         {
-            if (await ioNetClient.ConnectAsync().ContinueWith(t =>
+            //ioNetClient will never be null, the null in the parameter is needed for the interface contract
+            if (ioNetClient != null && await ioNetClient.ConnectAsync().ContinueWith(t =>
             {
                 if (!t.Result)
                 {

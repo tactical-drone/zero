@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Tangle.Net.Entity;
 using zero.core.models;
 using zero.core.models.consumables;
+using zero.core.models.extensions;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -16,7 +19,7 @@ namespace zero.core.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer
     {
-        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(50)
+        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(5)
         {
             //Saves forwarding producer, to leech some values from it
             _upstreamSource = upstreamSource;            
@@ -28,9 +31,9 @@ namespace zero.core.consumables.sources
         private readonly IoProducer<IoTangleMessage> _upstreamSource;
 
         /// <summary>
-        /// Used to load the value to be produced
+        /// Used to load the next value to be produced
         /// </summary>
-        public Transaction Load;
+        public volatile ConcurrentQueue<List<HashedTransaction>>  TxQueue = new ConcurrentQueue<List<HashedTransaction>>();
 
         /// <summary>
         /// Keys this instance.

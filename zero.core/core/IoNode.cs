@@ -126,14 +126,15 @@ namespace zero.core.core
         public async Task SpawnConnectionAsync(IoNodeAddress address)
         {
             IoNeighbor<TJob> newNeighbor = null;
+            bool connectedAtLeastOnce = false;
 
             while (!_spinners.IsCancellationRequested)
             {
-                if (newNeighbor == null)
+                if (newNeighbor == null && !connectedAtLeastOnce)
                 {
                     var newClient = await _netServer.ConnectAsync(address);
 
-                    if (newClient.IsSocketConnected())
+                    if (newClient != null && newClient.IsSocketConnected())
                     {
                         var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
@@ -165,6 +166,8 @@ namespace zero.core.core
                             newNeighbor.Close();
                             newNeighbor = null;
                         }
+
+                        connectedAtLeastOnce = true;
                     }
 
                 }

@@ -118,6 +118,9 @@ namespace zero.core.network.ip
         /// </summary>
         public bool IsTcpSocket => Socket.ProtocolType == ProtocolType.Tcp;
 
+
+        public bool _closed = false;
+
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_socket_listen_backlog = 20;
@@ -198,6 +201,10 @@ namespace zero.core.network.ip
         /// </summary>
         public virtual void Close()
         {
+            if(_closed)
+                return;
+            _closed = true;
+
             //This has to be at the top or we might recurse
             _cancellationTokenRegistration.Dispose();
 
@@ -209,8 +216,8 @@ namespace zero.core.network.ip
 
             //Close the socket
             //Socket.Shutdown(SocketShutdown.Both);
-            Socket.Close();
-            Socket.Dispose();
+            Socket?.Close();
+            Socket?.Dispose();
             Socket = null;
         }
 

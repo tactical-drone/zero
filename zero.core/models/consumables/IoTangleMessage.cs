@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using NLog;
 using Tangle.Net.Entity;
 using zero.core.conf;
 using zero.core.consumables.sources;
+using zero.core.models.extensions;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -32,7 +35,7 @@ namespace zero.core.models.consumables
             ProducerHandle = source;
 
             //Set some tangle specific protocol constants
-            DatumLength = MessageLength + ((ProducerHandle is IoTcpClient<IoTangleMessage>) ? MessageCrcLength : 0);
+            DatumLength = MessageSize + ((ProducerHandle is IoTcpClient<IoTangleMessage>) ? MessageCrcSize : 0);
             DatumProvisionLength = DatumLength - 1;
 
             //Init buffers
@@ -42,13 +45,14 @@ namespace zero.core.models.consumables
             //Configure a description of this consumer
             WorkDescription = source.ToString();            
 
-            //Configure forwarding of jobs
+            //Configure forwarding of jobs            //TODO
             _transactionSource = new IoTangleMessageSource(ProducerHandle);
-            IoForward = source.GetRelaySource(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
+            SecondaryProducer = source.GetRelaySource(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
+            _transactionSource = (IoTangleMessageSource) SecondaryProducer.PrimaryProducer;
 
             //tweak this producer
-            IoForward.parm_consumer_wait_for_producer_timeout = 0;
-            IoForward.parm_producer_skipped_delay = 5000;
+            SecondaryProducer.parm_consumer_wait_for_producer_timeout = 0;
+            SecondaryProducer.parm_producer_skipped_delay = 0;            
         }
 
         public sealed override string ProductionDescription => base.ProductionDescription;
@@ -65,13 +69,23 @@ namespace zero.core.models.consumables
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
-        /// </summary>
-        public sbyte[] TritBuffer = new sbyte[TransactionSize * Codec.TritsPerByte - 1];
+        /// </summary>//TODO
+        public sbyte[] TritBuffer = new sbyte[(TransactionSize * Codec.TritsPerByte - 1)];
 
         /// <summary>
         /// Used to store one datum's worth of decoded trytes
         /// </summary>
-        public StringBuilder TryteBuffer = new StringBuilder((TransactionSize * Codec.TritsPerByte - 1) / 3);
+        public StringBuilder TryteBuffer = new StringBuilder((TransactionSize * Codec.TritsPerByte - 1) / Codec.Radix);
+
+        /// <summary>
+        /// Used to store the hash trits
+        /// </summary>//TODO
+        public sbyte[] TritHashBuffer = new sbyte[((TransactionHashSize ) * Codec.TritsPerByte) + 1];
+        
+        /// <summary>
+        /// Used to store the hash trytes
+        /// </summary>
+        public StringBuilder TryteHashBuffer = new StringBuilder(((TransactionHashSize) * Codec.TritsPerByte + 1) / Codec.Radix);
 
         /// <summary>
         /// The number of bytes left to process in this buffer
@@ -81,12 +95,12 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The length of tangle protocol messages
         /// </summary>
-        public const int MessageLength = 1650;
+        public const int MessageSize = 1650;
 
         /// <summary>
         /// The size of tangle protocol messages crc
         /// </summary>
-        public const int MessageCrcLength = 16;
+        public const int MessageCrcSize = 16;
 
         /// <summary>
         /// Transaction size
@@ -106,12 +120,12 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private readonly IoTangleMessageSource _transactionSource;
+        private static IoTangleMessageSource _transactionSource;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction> IoForward;
+        public IoForward<IoTangleTransaction> SecondaryProducer;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -132,37 +146,43 @@ namespace zero.core.models.consumables
         /// </summary>
         private async Task ProcessProtocolMessage()
         {
+            var newTransactions = new List<HashedTransaction>();
             var s = new Stopwatch();
             s.Start();
             for (int i = 0; i < DatumCount; i++)
             {
                 s.Restart();
-                Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
+                Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);                
                 Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
 
-                var tx = Transaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));                
+                Codec.GetTrits(Buffer, BufferOffset + IoTangleMessage.TransactionSize, TritHashBuffer, IoTangleMessage.TransactionHashSize);
+                Codec.GetTrytes(TritHashBuffer, 0, TryteHashBuffer, TritHashBuffer.Length);
+                var tx = HashedTransaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()), new Hash(TryteHashBuffer.ToString()));
+
+                //var tx = HashedTransaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()));
+
                 s.Stop();
 
-                //cog the source
-                await _transactionSource.Produce(source =>
-                 {                     
-                     ((IoTangleMessageSource)source).Load = tx;
-                     return Task.FromResult(Task.CompletedTask);
-                 });
-
-                //forward transactions
-                if (!await IoForward.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
-                {
-                    _logger.Warn($"Failed to broadcast `{IoForward.PrimaryProducer.Description}'");
-                }
-
+                newTransactions.Add(tx);
+                
                 //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
-                _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', t=`{s.ElapsedMilliseconds}ms'");
+                _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', t=`{s.ElapsedMilliseconds}ms', ok=`{tx.HasPow}'");
 
                 BufferOffset += DatumLength;
             }
 
+            //cog the source
+            await _transactionSource.Produce(source =>
+            {
+                ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
+                return Task.FromResult(Task.CompletedTask);
+            });
 
+            //forward transactions
+            if (!await SecondaryProducer.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            {
+                _logger.Warn($"Failed to broadcast `{SecondaryProducer.PrimaryProducer.Description}'");
+            }
 
             ProcessState = State.Consumed;
         }
@@ -174,18 +194,11 @@ namespace zero.core.models.consumables
         /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.State" /> of the barrier's outcome</returns>
         public override async Task<State> ConsumeAsync()
         {
-            ProcessState = State.Consuming;
-
-            //TODO Find a more elegant way for this terrible hack
-            //Discard the neighbor port data
-
-
             //Process protocol messages
             await ProcessProtocolMessage();
 
             //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
             //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");
-
 
             return ProcessState;
         }
@@ -269,7 +282,7 @@ namespace zero.core.models.consumables
                                     BytesRead -= 10;
                                     bytesRead -= 10;
 
-                                    if (BytesLeftToProcess < 0)
+                                    if (BytesLeftToProcess == 0)
                                     {
                                         ProcessState = State.Produced;
                                         break;
@@ -284,8 +297,10 @@ namespace zero.core.models.consumables
                                 }
                                 else
                                 {
+                                    BytesRead = 0;
                                     DatumCount = 0;
-                                    ProcessState = State.Produced;
+                                    DatumFragmentLength = 0;
+                                    ProcessState = State.ProduceSkipped;
                                     _logger.Warn("Syncing...");
                                     break;
                                 }
@@ -293,11 +308,22 @@ namespace zero.core.models.consumables
                                 //Copy a previously read job buffer datum fragment into the current job buffer
                                 if (previousJobFragment != null)
                                 {
-                                    BufferOffset -= previousJobFragment.DatumFragmentLength;
-                                    BytesRead += previousJobFragment.DatumFragmentLength;
-                                    DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
-                                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
-
+                                    try
+                                    {
+                                        BufferOffset -= previousJobFragment.DatumFragmentLength;
+                                        BytesRead += previousJobFragment.DatumFragmentLength;
+                                        DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
+                                        Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
+                                    }
+                                    catch // we de-synced 
+                                    {
+                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced = false;
+                                        DatumCount = 0;
+                                        BytesRead = 0;
+                                        ProcessState = State.ProduceSkipped;
+                                        DatumFragmentLength = 0;
+                                        break;
+                                    }
                                     //Update buffer pointers                                        
                                 }
 

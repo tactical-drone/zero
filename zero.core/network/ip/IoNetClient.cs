@@ -54,10 +54,16 @@ namespace zero.core.network.ip
         {
             if (IoForward == null)
             {
-               if( producer == null || mallocMessage == null)
+                if (producer == null || mallocMessage == null)
+                {
                     _logger.Warn($"Waiting for the multicast producer of `{Description}' to initialize...");
+                    return null;
+                }
 
-                IoForward = new IoForward<TFJob>(Description, producer, mallocMessage);
+                lock (this)
+                {
+                    IoForward = new IoForward<TFJob>(Description, producer, mallocMessage);
+                }                
             }
                
             return (IoForward<TFJob>) IoForward;
@@ -163,6 +169,10 @@ namespace zero.core.network.ip
                     IoSocket.Disconnected += (s, e) => _cancellationRegistratison.Dispose();
 
                     _logger.Info($"Connected to `{AddressString}'");
+                }
+                else
+                {
+                    _logger.Debug($"Failed to connect to `{AddressString}'");
                 }
                 return connectAsyncTask;
             }).Unwrap();

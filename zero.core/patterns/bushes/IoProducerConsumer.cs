@@ -220,6 +220,8 @@ namespace zero.core.patterns.bushes
 
                                 if(sleepOnConsumerLag)
                                     await Task.Delay(parm_producer_skipped_delay, cancellationToken);
+
+                                PrimaryProducer.ProducerBarrier.Release(1);
                                 return true;
                             }
 
@@ -337,7 +339,10 @@ namespace zero.core.patterns.bushes
 
                     //Production timed out
                     if (sleepOnProducerLag)
-                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' timed out waiting for producer, willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                    {                        
+                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                    }
+                        
 
                     //Try again
                     return Task.CompletedTask;
@@ -346,6 +351,7 @@ namespace zero.core.patterns.bushes
                 //A job was produced. Dequeue it and process
                 if (_queue.TryDequeue(out var currJob))
                 {
+                    currJob.ProcessState = IoProducable<TJob>.State.Consuming;
                     try
                     {
                         //Consume the job
@@ -354,15 +360,17 @@ namespace zero.core.patterns.bushes
                             _logger.Warn($"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
                         }
 
-                        //Only forward jobs that were successfully consumed
-                        if (currJob.ProcessState == IoProducable<TJob>.State.Consumed)
+                        
+                        if (currJob.ProcessState == IoProducable<TJob>.State.ConsumeInlined)
                         {
                             //forward any jobs
+                            currJob.ProcessState = IoProducable<TJob>.State.Consuming;
                             inlineCallback?.Invoke(currJob);
+                            currJob.ProcessState = IoProducable<TJob>.State.Consumed;
+                        }
 
-                            //Notify observer
-                            _observer?.OnNext(currJob);
-                        }                        
+                        //Notify observer
+                        _observer?.OnNext(currJob);
                     }
                     catch (Exception e)
                     {
@@ -414,7 +422,7 @@ namespace zero.core.patterns.bushes
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Consumer dequeue returned with errors:");
+                _logger.Error(e, $"Consumer `{PrimaryProducerDescription}' dequeue returned with errors:");
             }
             finally
             {

@@ -1,12 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
-using Tangle.Net.Entity;
 using zero.core.consumables.sources;
+using zero.core.models.extensions;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
-namespace zero.core.models
+namespace zero.core.models.consumables
 {
     /// <summary>
     /// Stores meta data used when consuming jobs of this kind
@@ -32,7 +33,7 @@ namespace zero.core.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public Transaction Transaction;
+        public List<HashedTransaction> Transactions;
 
         /// <summary>
         /// Callback the generates the next job
@@ -43,7 +44,7 @@ namespace zero.core.models
         /// </returns>
         public override async Task<State> ProduceAsync(IoProducable<IoTangleTransaction> fragment)
         {
-                        
+            ProcessState = State.Producing;
             await ProducerHandle.Produce(async producer =>
             {
                 if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
@@ -58,9 +59,10 @@ namespace zero.core.models
                     return Task.CompletedTask;
                 }
 
-                //Basically we just fetch the transaction through the producer
-                Transaction = ((IoTangleMessageSource)ProducerHandle).Load;
-                ProcessState = Transaction != null ? State.Produced : State.ProduceSkipped;
+                
+                ((IoTangleMessageSource)ProducerHandle).TxQueue.TryDequeue(out Transactions);
+                
+                ProcessState = Transactions == null ? State.ProduceSkipped : State.Produced;                
 
                 return Task.FromResult(Task.CompletedTask);
             });
@@ -87,7 +89,7 @@ namespace zero.core.models
         public override Task<State> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
-            ProcessState = State.Consumed;
+            ProcessState = State.ConsumeInlined;
             return Task.FromResult(ProcessState);
         }
     }    

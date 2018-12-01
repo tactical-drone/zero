@@ -1,4 +1,4 @@
 export function configure(config) {
-    config.globalResources([]);
+    //config.globalResources([]);
 }
 //# sourceMappingURL=index.js.map
