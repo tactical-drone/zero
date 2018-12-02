@@ -237,7 +237,14 @@ namespace zero.core.patterns.bushes
                             wasQueued = true;
 
                             //Signal to the consumer that there is work to do
-                            PrimaryProducer.ConsumerBarrier.Release(1);
+                            try
+                            {
+                                PrimaryProducer.ConsumerBarrier.Release(1);
+                            }
+                            catch
+                            { 
+                                // ignored
+                            }
 
                             //Prepare this production's remaining datum fragments for the next production
                             if (_previousJobFragment != null)
@@ -435,6 +442,9 @@ namespace zero.core.patterns.bushes
                     PrimaryProducer.ProducerBarrier.Release(1);
                 }
             }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (TimeoutException) { }
             catch (Exception e)
             {
                 _logger.Error(e, $"Consumer `{PrimaryProducerDescription}' dequeue returned with errors:");
