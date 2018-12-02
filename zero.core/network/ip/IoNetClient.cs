@@ -121,16 +121,16 @@ namespace zero.core.network.ip
         /// We do this by waiting for IRI to send us exactly the right amount of data. There is a better way but this will do for now
         /// Until we can troll the data for verified hashes, which will be slower but more accurate.
         /// </summary>
-        private int _tcpSynced = 20;
-        public bool TcpSynced
+        private int _synced = 20;
+        public override bool Synced
         {
-            get => _tcpSynced == 0;
+            get => _synced == 0;
             set
             {
-                if (value && _tcpSynced > 0)
-                    _tcpSynced--;
+                if (value && _synced > 0)
+                    _synced--;
                 else if(!value)
-                    _tcpSynced = 20;
+                    _synced = 20;
             }
         }
 

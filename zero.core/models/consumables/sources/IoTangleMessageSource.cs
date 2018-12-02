@@ -53,6 +53,8 @@ namespace zero.core.consumables.sources
         /// </value>
         public override bool IsOperational => _upstreamSource.IsOperational;
 
+        public override bool Synced { get; set; } = true;
+
         /// <summary>
         /// returns the forward producer
         /// </summary>

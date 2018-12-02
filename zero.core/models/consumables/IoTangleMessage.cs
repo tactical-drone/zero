@@ -132,7 +132,7 @@ namespace zero.core.models.consumables
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 50;
+        public int parm_datums_per_buffer = 200;
 
         /// <summary>
         /// The time a consumer will wait for a producer to release it before aborting in ms
@@ -292,12 +292,12 @@ namespace zero.core.models.consumables
 
                                 //TODO remove this hack
                                 //Terrible sync hack until we can troll the data for sync later
-                                if (!((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced)
+                                if (!((IoNetClient<IoTangleMessage>)ProducerHandle).Synced)
                                 {
 
                                     if ((BytesLeftToProcess % DatumLength) == 0)
                                     {
-                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced = true;
+                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).Synced = true;
                                     }
                                     BytesRead = 0;
                                     DatumCount = 0;
@@ -319,7 +319,7 @@ namespace zero.core.models.consumables
                                     }
                                     catch // we de-synced 
                                     {
-                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).TcpSynced = false;
+                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).Synced = false;
                                         DatumCount = 0;
                                         BytesRead = 0;
                                         ProcessState = State.ProduceSkipped;

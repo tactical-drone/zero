@@ -218,7 +218,7 @@ namespace zero.core.patterns.bushes
                             {
                                 nextJob.ProcessState = IoProducable<TJob>.State.Accept;
 
-                                if(sleepOnConsumerLag)
+                                if(sleepOnConsumerLag && nextJob.ProducerHandle.Synced)
                                     await Task.Delay(parm_producer_skipped_delay, cancellationToken);
 
                                 PrimaryProducer.ProducerBarrier.Release(1);

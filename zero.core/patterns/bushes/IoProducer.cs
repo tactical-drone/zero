@@ -80,6 +80,14 @@ namespace zero.core.patterns.bushes
         public abstract bool IsOperational { get; }
 
         /// <summary>
+        /// Gets a value indicating whether this <see cref="IoProducer{TJob}"/> is synced.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if synced; otherwise, <c>false</c>.
+        /// </value>
+        public abstract bool Synced { get; set; }
+
+        /// <summary>
         /// <see cref="PrintCounters"/> only prints events that took longer that this value in microseconds
         /// </summary>
         [IoParameter]
