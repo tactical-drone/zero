@@ -121,7 +121,7 @@ namespace zero.core.network.ip
                 {
                     case TaskStatus.Canceled:
                     case TaskStatus.Faulted:
-                        _logger.Error(r.Exception, $"Connecting to `{Address}' failed:");
+                        //_logger.Error(r.Exception, $"Connecting to `{Address}' failed:");
                         Socket.Close();
                         return Task.FromResult(false);
                     case TaskStatus.RanToCompletion:
@@ -201,7 +201,7 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unable to read from socket `tcp://{RemoteIpAndPort}':");
+                _logger.Trace(e, $"Unable to read from socket `tcp://{RemoteIpAndPort}':");
                 return 0;
             }
         }

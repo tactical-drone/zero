@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using NLog;
 using Tangle.Net.Entity;
 using zero.core.models;
 using zero.core.models.consumables;
@@ -22,8 +23,12 @@ namespace zero.core.consumables.sources
         public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(5)
         {
             //Saves forwarding producer, to leech some values from it
-            _upstreamSource = upstreamSource;            
+            _upstreamSource = upstreamSource;
+            _logger = LogManager.GetCurrentClassLogger();
         }
+
+
+        private readonly Logger _logger;
 
         /// <summary>
         /// The producer that we are forwarding from
@@ -53,6 +58,12 @@ namespace zero.core.consumables.sources
         /// </value>
         public override bool IsOperational => _upstreamSource.IsOperational;
 
+        /// <summary>
+        /// Gets a value indicating whether this <see cref="T:zero.core.patterns.bushes.IoProducer`1" /> is synced.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if synced; otherwise, <c>false</c>.
+        /// </value>
         public override bool Synced { get; set; } = true;
 
         /// <summary>
@@ -82,22 +93,34 @@ namespace zero.core.consumables.sources
         /// </summary>
         /// <param name="callback">The callback.</param>
         /// <returns>The async task</returns>        
-        public override async Task<Task> Produce(Func<IIoProducer, Task<Task>> callback)
+        public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
         {
             //Is the TCP connection up?
-            if (!IsOperational) //TODO fix up
-                throw new IOException("Socket has disconnected");
+            if (!IsOperational)
+            {
+                return false;
+            }
 
             try
             {
                 return await callback(this);
             }
+            catch (TimeoutException)
+            {
+                return false;
+            }
+            catch (TaskCanceledException)
+            {
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
             catch (Exception e)
             {
-                //Did the TCP connection drop?
-                if (!IsOperational)
-                    throw new IOException("Socket has disconnected", e);
-                throw; //TODO fix this
+                _logger.Error(e,$"Producer `{Description}' callback failed:");
+                return false;
             }
         }
     }

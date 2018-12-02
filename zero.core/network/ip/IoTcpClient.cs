@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
+using NLog;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
@@ -11,6 +13,16 @@ namespace zero.core.network.ip
         where TJob : IIoWorker
         
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
+        /// </summary>
+        public IoTcpClient()
+        {
+            _logger = LogManager.CreateNullLogger();
+        }
+
+        private readonly Logger _logger;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient"/> class.
         /// </summary>
@@ -35,6 +47,6 @@ namespace zero.core.network.ip
         {
             IoSocket = new IoTcpSocket(Spinners.Token);
             return await base.ConnectAsync();
-        }
+        }        
     }
 }

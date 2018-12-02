@@ -49,20 +49,15 @@ export class app {
         let querying: boolean = false;
 
         while (true) {
-            //if (!querying) {
-                //querying = true;
-                await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
-                    .then(response => {
-                        this.logs.unshift.apply(this.logs, response.rows);
-                        if (this.logs.length > 60) {
-                            for (var i = this.logs.length; i > 58; i--) {
-                                //await this.nodeServices.sleep(0);
-                                this.logs.pop();
-                            }
+            await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
+                .then(response => {
+                    this.logs.unshift.apply(this.logs, response.rows);
+                    if (this.logs.length > 60) {
+                        for (var i = this.logs.length; i > 58; i--) {
+                            this.logs.pop();
                         }
-                        //querying = false;
-                    });
-            //}
+                    }
+                });
             await this.nodeServices.sleep(500);
         }
     }

@@ -13,10 +13,18 @@ namespace zero.core.network.ip
     /// <summary>
     /// Wraps a <see cref="TcpClient"/> into a <see cref="IoProducer{TJob}"/> that can be used by <see cref="IoProducerConsumer{TJob}"/>
     /// </summary>
-    public class IoNetClient<TJob> : IoProducer<TJob>
+    public abstract class IoNetClient<TJob> : IoProducer<TJob>
     where TJob : IIoWorker
     
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="IoNetClient{TJob}"/> class.
+        /// </summary>
+        protected IoNetClient()
+        {
+            
+        }
+
         /// <summary>
         /// Constructor for listening
         /// </summary>
@@ -135,19 +143,14 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Gets a value indicating whether this instance is operational.
-        /// </summary>
-        /// <value>
-        /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
-        /// </value>
-        public override bool IsOperational => IsSocketConnected();
-
-        /// <summary>
         /// Closes the connection
         /// </summary>
         public override void Close()
         {
-            Spinners.Cancel();
+            if (!Closed)
+                Closed = true;
+
+            Spinners?.Cancel();
 
             OnDisconnected();
 
@@ -197,22 +200,34 @@ namespace zero.core.network.ip
 
 
         //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
-        public override async Task<Task> Produce(Func<IIoProducer, Task<Task>> callback)
+        public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
         {
             //Is the TCP connection up?
-            if (!IsOperational) //TODO fix up
-                throw new IOException("Socket has disconnected");
+            if (!IsOperational)
+            {
+                return false;
+            }                
 
             try
             {
                 return await callback(IoSocket);
             }
+            catch (TimeoutException)
+            {
+                return false;
+            }
+            catch (TaskCanceledException)
+            {
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
             catch (Exception e)
             {
-                //Did the TCP connection drop?
-                if (!IsSocketConnected())
-                    throw new IOException("Socket has disconnected", e);
-                throw; //TODO fix this
+                _logger.Error(e,$"Producer `{Description}' callback failed:");
+                return false;
             }
         }
 
@@ -228,40 +243,43 @@ namespace zero.core.network.ip
         /// Detects socket drops //TODO this needs some work or testing
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
-        public bool IsSocketConnected()
+        public override bool IsOperational
         {
-            try
+            get
             {
-                if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket)
+                try
                 {
-                    //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
-                    //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
-                    //var selectWrite = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectWrite)? "OK" : "FAILED";
-
-                    //TODO more checks?
-                    if (!IoSocket.Connected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
+                    if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket)
                     {
-                        //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                        _logger.Warn($"Connection to `{AddressString}' disconnected!");
+                        //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
+                        //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
+                        //var selectWrite = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectWrite)? "OK" : "FAILED";
 
-                        //Do cleanup
-                        Close();
+                        //TODO more checks?
+                        if (!IoSocket.Connected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
+                        {
+                            //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
+                            _logger.Warn($"Connection to `{AddressString}' disconnected!");
 
-                        return false;
+                            //Do cleanup
+                            Close();
+
+                            return false;
+                        }
+
+                        return true;
                     }
-
-                    return true;
+                    else
+                    {
+                        return IoSocket?.Connected() ?? false;
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    return IoSocket?.Connected() ?? false;
+                    _logger.Error(e, $"The connection to `{Description}' has been closed:");
+                    return false;
                 }
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"The connection to `{Description}' has been closed:");
-                return false;
-            }
+            }            
         }
 
         /// <summary>

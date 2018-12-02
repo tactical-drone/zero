@@ -256,7 +256,8 @@ namespace zero.core.patterns.bushes
                         }
                         else //produce job returned with errors
                         {
-                            if (nextJob.ProcessState == IoProducable<TJob>.State.Cancelled)
+                            if (nextJob.ProcessState == IoProducable<TJob>.State.Cancelled || 
+                                nextJob.ProcessState == IoProducable<TJob>.State.ProduceCancelled)
                             {
                                 Spinners.Cancel();
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
@@ -273,7 +274,15 @@ namespace zero.core.patterns.bushes
                             {
                                 _logger.Debug($"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int)IoProducable<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int)IoProducable<TJob>.State.Accept]}");
                                 _logger.Debug($"`{PrimaryProducerDescription}' producing job `{nextJob.ProductionDescription}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
-                                await Task.Delay((int)sleepTimeMs, Spinners.Token);
+
+                                try
+                                {
+                                    await Task.Delay((int) sleepTimeMs, Spinners.Token);
+                                }
+                                catch
+                                {
+                                    // ignored
+                                }
                             }
 
                         }
@@ -325,7 +334,6 @@ namespace zero.core.patterns.bushes
             {
                 if (PrimaryProducer == null)
                     return Task.CompletedTask;
-
 
                 //Waiting for a job to be produced. Did production fail?
                 if (!await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
@@ -380,7 +388,14 @@ namespace zero.core.patterns.bushes
                     finally
                     {
                         //Signal the producer that it can continue to get more work
-                        PrimaryProducer.ProducerBarrier.Release(1);
+                        try
+                        {
+                            PrimaryProducer.ProducerBarrier.Release(1);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
 
                         //Consume success?
                         if (currJob.ProcessState == IoProducable<TJob>.State.Consumed)
@@ -429,7 +444,7 @@ namespace zero.core.patterns.bushes
                 //GC.Collect(GC.MaxGeneration);
             }
 
-            return Task.CompletedTask; ;
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -448,6 +463,8 @@ namespace zero.core.patterns.bushes
                     while (!Spinners.IsCancellationRequested && spawnProducer)
                     {
                         await ProduceAsync(cancellationToken);
+                        if (!PrimaryProducer.IsOperational)
+                            break;
                     }
                 }, TaskCreationOptions.LongRunning);
 
@@ -458,12 +475,19 @@ namespace zero.core.patterns.bushes
                     while (!Spinners.IsCancellationRequested)
                     {
                         await ConsumeAsync();
+                        if (!PrimaryProducer.IsOperational)
+                            break;
                     }
                 }, TaskCreationOptions.LongRunning);
 
-                //Wait for tear down
-
-                await Task.WhenAll(new Task[] { producerTask, consumerTask });
+                consumerTask.Start();
+                producerTask.Start();
+                
+                //Wait for tear down                
+                await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
+                {
+                    PrimaryProducer.Close();
+                }, cancellationToken);                                
             }
 
         }

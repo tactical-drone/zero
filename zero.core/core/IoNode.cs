@@ -134,7 +134,7 @@ namespace zero.core.core
                 {
                     var newClient = await _netServer.ConnectAsync(address);
 
-                    if (newClient != null && newClient.IsSocketConnected())
+                    if (newClient != null && newClient.IsOperational)
                     {
                         var neighbor = newNeighbor = _mallocNeighbor(newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
@@ -146,7 +146,7 @@ namespace zero.core.core
                             try
                             {
 #pragma warning disable 4014
-                                Task.Factory.StartNew(() => neighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
+                                //Task.Factory.StartNew(() => neighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
 #pragma warning restore 4014
                             }
                             catch (Exception e)
@@ -155,12 +155,12 @@ namespace zero.core.core
                             }
 
                             //TODO remove this into the protocol?
-                            if(newClient.IsSocketConnected())
-                            await newClient.Produce(client =>
+                            if(newClient.IsOperational)
+                            await newClient.ProduceAsync(client =>
                             {
                                 ((IoNetSocket)client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
                                      Encoding.ASCII.GetBytes("0000015600").Length);
-                                return Task.FromResult(Task.CompletedTask) ;
+                                return Task.FromResult(true) ;
                             });
                         }
                         else //strange case
@@ -179,14 +179,14 @@ namespace zero.core.core
                     await Task.Delay(6000);
                 }
 
-                if (!newNeighbor?.PrimaryProducer?.IsOperational ?? false)
-                {
-                    newNeighbor.Close();
-                    Neighbors.TryRemove(newNeighbor.PrimaryProducer.Key, out _);
-                    newNeighbor = null;
-                    //TODO parm
-                    await Task.Delay(1000);
-                }
+                //if (!newNeighbor?.PrimaryProducer?.IsOperational ?? false)
+                //{
+                //    newNeighbor.Close();
+                //    Neighbors.TryRemove(newNeighbor.PrimaryProducer.Key, out _);
+                //    newNeighbor = null;
+                //    //TODO parm
+                //    await Task.Delay(1000);
+                //}
             }
         }
 

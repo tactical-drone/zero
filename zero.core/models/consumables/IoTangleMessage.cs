@@ -43,16 +43,23 @@ namespace zero.core.models.consumables
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
-            WorkDescription = source.ToString();            
+            WorkDescription = source.ToString();
 
             //Configure forwarding of jobs            //TODO
-            _transactionSource = new IoTangleMessageSource(ProducerHandle);
-            SecondaryProducer = source.GetRelaySource(_transactionSource, userData=>new IoTangleTransaction(_transactionSource));
-            _transactionSource = (IoTangleMessageSource) SecondaryProducer.PrimaryProducer;
+            if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(IoTangleMessageSource)))
+            {
+                _transactionSource = new IoTangleMessageSource(ProducerHandle);
+                if (!ProducerHandle.ObjectStorage.TryAdd(nameof(IoTangleMessageSource), _transactionSource))
+                {
+                    _transactionSource = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(IoTangleMessageSource)];
+                }
+            }
+
+            SecondaryProducer = source.GetRelaySource(_transactionSource, userData => new IoTangleTransaction(_transactionSource));
 
             //tweak this producer
             SecondaryProducer.parm_consumer_wait_for_producer_timeout = 0;
-            SecondaryProducer.parm_producer_skipped_delay = 0;            
+            SecondaryProducer.parm_producer_skipped_delay = 0;
         }
 
         public sealed override string ProductionDescription => base.ProductionDescription;
@@ -80,8 +87,8 @@ namespace zero.core.models.consumables
         /// <summary>
         /// Used to store the hash trits
         /// </summary>//TODO
-        public sbyte[] TritHashBuffer = new sbyte[((TransactionHashSize ) * Codec.TritsPerByte) + 1];
-        
+        public sbyte[] TritHashBuffer = new sbyte[((TransactionHashSize) * Codec.TritsPerByte) + 1];
+
         /// <summary>
         /// Used to store the hash trytes
         /// </summary>
@@ -140,7 +147,7 @@ namespace zero.core.models.consumables
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting
-        
+
         /// <summary>
         /// Processes a iri datum
         /// </summary>
@@ -152,7 +159,7 @@ namespace zero.core.models.consumables
             for (int i = 0; i < DatumCount; i++)
             {
                 s.Restart();
-                Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);                
+                Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
                 Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
 
                 Codec.GetTrits(Buffer, BufferOffset + IoTangleMessage.TransactionSize, TritHashBuffer, IoTangleMessage.TransactionHashSize);
@@ -164,7 +171,7 @@ namespace zero.core.models.consumables
                 s.Stop();
 
                 newTransactions.Add(tx);
-                
+
                 //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
                 _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', t=`{s.ElapsedMilliseconds}ms', ok=`{tx.HasPow}'");
 
@@ -172,10 +179,10 @@ namespace zero.core.models.consumables
             }
 
             //cog the source
-            await _transactionSource.Produce(source =>
+            await _transactionSource.ProduceAsync(source =>
             {
                 ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
-                return Task.FromResult(Task.CompletedTask);
+                return Task.FromResult(true);
             });
 
             //forward transactions
@@ -215,7 +222,7 @@ namespace zero.core.models.consumables
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                await ProducerHandle.Produce(async ioSocket =>
+                var sourceTaskSuccess = await ProducerHandle.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -224,6 +231,11 @@ namespace zero.core.models.consumables
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
+                    if (ProducerHandle.ProducerBarrier == null)
+                    {
+                        ProcessState = State.ProduceCancelled;
+                        return true;
+                    }
                     if (!await ProducerHandle.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, ProducerHandle.Spinners.Token))
                     {
                         if (!ProducerHandle.Spinners.IsCancellationRequested)
@@ -239,125 +251,137 @@ namespace zero.core.models.consumables
                         }
                         else
                             ProcessState = State.ProduceCancelled;
-                        return Task.CompletedTask;
+                        return true;
                     }
 
                     if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.ProduceCancelled;
-                        return Task.CompletedTask;
+                        return false;
                     }
 
                     //Async read the message from the message stream
-                    await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
-                    rx =>
+                    if (ProducerHandle.IsOperational)
                     {
-                        switch (rx.Status)
-                        {
-                            //Canceled
-                            case TaskStatus.Canceled:
-                            case TaskStatus.Faulted:
-                                ProcessState = rx.Status == TaskStatus.Canceled ? State.ProduceCancelled : State.ProduceErr;
-                                ProducerHandle.Spinners.Cancel();
-                                ProducerHandle.Close();
-                                _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
-                                break;
-                            //Success
-                            case TaskStatus.RanToCompletion:
-                                var bytesRead = rx.Result;
-                                BytesRead = bytesRead;
-
-                                //TODO double check this hack
-                                if (BytesRead == 0)
+                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
+                            rx =>
+                            {
+                                switch (rx.Status)
                                 {
-                                    ProcessState = State.ProduceSkipped;
-                                    DatumFragmentLength = 0;
-                                    break;
-                                }
+                                    //Canceled
+                                    case TaskStatus.Canceled:
+                                    case TaskStatus.Faulted:
+                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProduceCancelled : State.ProduceErr;
+                                        ProducerHandle.Spinners.Cancel();
+                                        ProducerHandle.Close();
+                                        _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
+                                        break;
+                                    //Success
+                                    case TaskStatus.RanToCompletion:
+                                        var bytesRead = rx.Result;
+                                        BytesRead = bytesRead;
 
-                                if (Id == 0 && ProducerHandle is IoTcpClient<IoTangleMessage>)
-                                {
-                                    _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
-                                    BufferOffset += 10;
-                                    BytesRead -= 10;
-                                    bytesRead -= 10;
+                                        //TODO double check this hack
+                                        if (BytesRead == 0)
+                                        {
+                                            ProcessState = State.ProduceSkipped;
+                                            DatumFragmentLength = 0;
+                                            break;
+                                        }
 
-                                    if (BytesLeftToProcess == 0)
-                                    {
+                                        if (Id == 0 && ProducerHandle is IoTcpClient<IoTangleMessage>)
+                                        {
+                                            _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
+                                            BufferOffset += 10;
+                                            BytesRead -= 10;
+                                            bytesRead -= 10;
+
+                                            if (BytesLeftToProcess == 0)
+                                            {
+                                                ProcessState = State.Produced;
+                                                DatumFragmentLength = 0;
+                                                break;
+                                            }
+                                        }
+
+                                        //TODO remove this hack
+                                        //Terrible sync hack until we can troll the data for sync later
+                                        if (!((IoNetClient<IoTangleMessage>)ProducerHandle).Synced)
+                                        {
+
+                                            if ((BytesLeftToProcess % DatumLength) == 0)
+                                            {
+                                                ((IoNetClient<IoTangleMessage>)ProducerHandle).Synced = true;
+                                            }
+                                            BytesRead = 0;
+                                            DatumCount = 0;
+                                            DatumFragmentLength = 0;
+                                            ProcessState = State.ProduceSkipped;
+                                            _logger.Warn("Syncing...");
+                                            break;
+                                        }
+
+                                        //Copy a previously read job buffer datum fragment into the current job buffer
+                                        if (previousJobFragment != null)
+                                        {
+                                            try
+                                            {
+                                                BufferOffset -= previousJobFragment.DatumFragmentLength;
+                                                BytesRead += previousJobFragment.DatumFragmentLength;
+                                                DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
+                                                Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
+                                            }
+                                            catch // we de-synced 
+                                            {
+                                                ((IoNetClient<IoTangleMessage>)ProducerHandle).Synced = false;
+                                                DatumCount = 0;
+                                                BytesRead = 0;
+                                                ProcessState = State.ProduceSkipped;
+                                                DatumFragmentLength = 0;
+                                                break;
+                                            }
+                                            //Update buffer pointers                                        
+                                        }
+
+                                        //Set how many datums we have available to process
+                                        DatumCount = BytesLeftToProcess / DatumLength;
+                                        DatumFragmentLength = BytesLeftToProcess % DatumLength;
+
+                                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
+
                                         ProcessState = State.Produced;
-                                        DatumFragmentLength = 0;
+
+                                        _logger.Trace($"({Id}) RX=> fragment=`{previousJobFragment?.DatumFragmentLength ?? 0}', read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumLength}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
+
                                         break;
-                                    }
+                                    default:
+                                        ProcessState = State.ProduceErr;
+                                        throw new InvalidAsynchronousStateException($"Job =`{ProductionDescription}', State={rx.Status}");
                                 }
-
-                                //TODO remove this hack
-                                //Terrible sync hack until we can troll the data for sync later
-                                if (!((IoNetClient<IoTangleMessage>)ProducerHandle).Synced)
-                                {
-
-                                    if ((BytesLeftToProcess % DatumLength) == 0)
-                                    {
-                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).Synced = true;
-                                    }
-                                    BytesRead = 0;
-                                    DatumCount = 0;
-                                    DatumFragmentLength = 0;
-                                    ProcessState = State.ProduceSkipped;
-                                    _logger.Warn("Syncing...");
-                                    break;
-                                }
-
-                                //Copy a previously read job buffer datum fragment into the current job buffer
-                                if (previousJobFragment != null)
-                                {
-                                    try
-                                    {
-                                        BufferOffset -= previousJobFragment.DatumFragmentLength;
-                                        BytesRead += previousJobFragment.DatumFragmentLength;
-                                        DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
-                                        Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
-                                    }
-                                    catch // we de-synced 
-                                    {
-                                        ((IoNetClient<IoTangleMessage>)ProducerHandle).Synced = false;
-                                        DatumCount = 0;
-                                        BytesRead = 0;
-                                        ProcessState = State.ProduceSkipped;
-                                        DatumFragmentLength = 0;
-                                        break;
-                                    }
-                                    //Update buffer pointers                                        
-                                }
-
-                                //Set how many datums we have available to process
-                                DatumCount = BytesLeftToProcess / DatumLength;
-                                DatumFragmentLength = BytesLeftToProcess % DatumLength;
-
-                                //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                StillHasUnprocessedFragments = DatumFragmentLength > 0;
-
-                                ProcessState = State.Produced;
-
-                                _logger.Trace($"({Id}) RX=> fragment=`{previousJobFragment?.DatumFragmentLength ?? 0}', read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumLength}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
-
-                                break;
-                            default:
-                                ProcessState = State.ProduceErr;
-                                throw new InvalidAsynchronousStateException($"Job =`{ProductionDescription}', State={rx.Status}");
-                        }
-                    }, ProducerHandle.Spinners.Token);
+                            }, ProducerHandle.Spinners.Token);
+                    }
+                    else
+                    {
+                        ProducerHandle.Close();
+                    }
 
                     if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.Cancelled;
-                        return Task.CompletedTask;
+                        return false;
                     }
-                    return Task.CompletedTask;
+                    return true;
                 });
+
+                if (!sourceTaskSuccess)
+                {
+                    _logger.Trace($"Failed to source job from `{ProducerHandle.Description}' for `{ProductionDescription}'");
+                }
             }
             catch (Exception e)
             {
-                _logger.Warn(e.InnerException ?? e, $"Producing job `{ProductionDescription}' returned with errors:");
+                _logger.Warn(e, $"Producing job `{ProductionDescription}' returned with errors:");
             }
             finally
             {
@@ -377,6 +401,6 @@ namespace zero.core.models.consumables
         public override void MoveUnprocessedToFragment()
         {
             DatumFragmentLength += BytesLeftToProcess;
-        }        
+        }
     }
 }

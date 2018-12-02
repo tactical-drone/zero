@@ -5,13 +5,14 @@ namespace zero.core.api
 {
     public class IoApiReturn //: IActionResult
     {
-        public static IoApiReturn Result(bool success, string message = null, object rows = null)
+        public static IoApiReturn Result(bool success, string message = null, object rows = null, long time = 0)
         {
-            return new IoApiReturn{Success = success, Message = message, Rows = rows};
+            return new IoApiReturn{Success = success, Time = time, Message = message, Rows = rows};
         }
 
         public bool Success;
         public string Message;
+        public long Time;
         public object Rows;
 
         public Task ExecuteResultAsync(ActionContext context)

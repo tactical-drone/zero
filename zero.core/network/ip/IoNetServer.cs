@@ -94,7 +94,7 @@ namespace zero.core.network.ip
                     return false;
                 }
 
-                if (ioNetClient.IsSocketConnected())
+                if (ioNetClient.IsOperational)
                 {
                     _logger.Info($"Connection established to `{ioNetClient}'");
                     return true;

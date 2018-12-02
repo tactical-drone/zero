@@ -25,7 +25,7 @@ namespace zero.core.models.consumables
             ProducerHandle = source;
             _logger = LogManager.GetCurrentClassLogger();
             WorkDescription = "forward";
-            JobDescription = "tangle transaction";
+            JobDescription = $"tangle transaction from `{source.Description}'";
         }
 
         private readonly Logger _logger;
@@ -45,26 +45,31 @@ namespace zero.core.models.consumables
         public override async Task<State> ProduceAsync(IoProducable<IoTangleTransaction> fragment)
         {
             ProcessState = State.Producing;
-            await ProducerHandle.Produce(async producer =>
+            await ProducerHandle.ProduceAsync(async producer =>
             {
+                if (ProducerHandle.ProducerBarrier == null)
+                {
+                    ProcessState = State.ProduceCancelled;
+                    return false;                    
+                }
+
                 if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
                 {
                     ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProduceCancelled;
-                    return Task.CompletedTask;
+                    return false;
                 }
 
                 if (ProducerHandle.Spinners.IsCancellationRequested)
                 {
                     ProcessState = State.ProduceCancelled;
-                    return Task.CompletedTask;
+                    return false;
                 }
-
                 
                 ((IoTangleMessageSource)ProducerHandle).TxQueue.TryDequeue(out Transactions);
                 
                 ProcessState = Transactions == null ? State.ProduceSkipped : State.Produced;                
 
-                return Task.FromResult(Task.CompletedTask);
+                return true;
             });
 
             //If the producer gave us nothing, mark this production to be skipped            

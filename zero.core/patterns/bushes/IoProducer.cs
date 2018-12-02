@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Threading;
@@ -29,6 +30,11 @@ namespace zero.core.patterns.bushes
         /// logger
         /// </summary>
         private readonly Logger _logger;
+
+        /// <summary>
+        /// True if closed
+        /// </summary>
+        protected bool Closed = false;
 
         /// <summary>
         /// Used to signal shutdown
@@ -70,6 +76,11 @@ namespace zero.core.patterns.bushes
         /// The consumer semaphore
         /// </summary>
         public SemaphoreSlim ProducerBarrier { get; protected set; }
+
+        /// <summary>
+        /// Makes available normalized storage for all downstream usages
+        /// </summary>
+        public ConcurrentDictionary<string, object> ObjectStorage = new ConcurrentDictionary<string, object>();
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -142,6 +153,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<Task> Produce(Func<IIoProducer, Task<Task>> func);
+        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);
     }
 }

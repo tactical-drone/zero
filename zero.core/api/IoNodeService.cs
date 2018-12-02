@@ -31,7 +31,7 @@ namespace zero.core.api
     [EnableCors("ApiCorsPolicy")]
     [ApiController]
     [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-    [Route("/api/node")]    
+    [Route("/api/node")]
     public class IoNodeService : Controller, IIoNodeService
     {
         /// <summary>
@@ -41,8 +41,8 @@ namespace zero.core.api
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _apiLogger = LogManager.Configuration.FindTargetByName<MemoryTarget>("apiLogger"); 
-            
+            _apiLogger = LogManager.Configuration.FindTargetByName<MemoryTarget>("apiLogger");
+
         }
 
         /// <summary>
@@ -65,10 +65,10 @@ namespace zero.core.api
         /// <param name="address">The listening address to start a node on</param>
         /// <returns>true on success, false otherwise</returns>
         [HttpPost]
-       public IoApiReturn Post(IoNodeAddress address)
+        public IoApiReturn Post(IoNodeAddress address)
         {
-            if( !address.IsValid )
-                return IoApiReturn.Result(false,address.ValidationErrorString);
+            if (!address.IsValid)
+                return IoApiReturn.Result(false, address.ValidationErrorString);
 
             if (!_nodes.TryAdd(address.Port, new IoNode<IoTangleMessage>(address, ioNetClient => new TanglePeer(ioNetClient))))
             {
@@ -77,9 +77,9 @@ namespace zero.core.api
                 return IoApiReturn.Result(true, errStr);
             }
 
-            
+
             var dbgStr = $"Added listener at `{address.UrlAndPort}'";
-            
+
             _nodes[address.Port].Start();
 
 #pragma warning disable 4014
@@ -93,18 +93,18 @@ namespace zero.core.api
         [Route("/api/node/logs")]
         [HttpGet]
         public IoApiReturn Logs()
-        {            
+        {
             var data = _apiLogger.Logs.Select(l => new IoLogEntry(l)).ToList();
-            var retval = IoApiReturn.Result(true,$"{data.Count} {nameof(Logs)} returned",data);
+            var retval = IoApiReturn.Result(true, $"{data.Count} {nameof(Logs)} returned", data);
             _apiLogger.Logs.Clear();
-            return retval;            
+            return retval;
         }
 
         [Route("/api/node/stream/{id}")]
         [HttpGet]
         public IoApiReturn TransactionStreamQuery([FromRoute]int id, [FromQuery] string tagQuery)
         {
-            if(!_nodes.ContainsKey(id))
+            if (!_nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
             var transactions = new List<Transaction>();
 
@@ -124,7 +124,7 @@ namespace zero.core.api
                     {
                         stopwatch.Start();
                         count = 0;
-                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount)  > 0)
+                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0)
                         {
                             await hub.ConsumeAsync(message =>
                             {
@@ -134,24 +134,21 @@ namespace zero.core.api
                                 var msg = ((IoTangleTransaction)message);
 
                                 if (count > 50)
-                                {
-                                    msg.Transactions = null;
                                     return;
-                                }
-                                                                                                    
+
+                                if(msg.Transactions == null)
+                                    return;
+                                
                                 foreach (var t in msg.Transactions)
                                 {
                                     if (tagQuery == null)
                                         transactions.Add(t);
                                     else if (t.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
                                         transactions.Add(t);
-                                    if(++count> 50 )
+                                    if (++count > 50)
                                         break;
                                 }
-
-                                msg.Transactions = null;
-
-                            }, sleepOnProducerLag:false);                            
+                            }, sleepOnProducerLag: false);
                         }
                         stopwatch.Stop();
                         outstanding = hub.JobMetaHeap.ReferenceCount;
@@ -162,16 +159,16 @@ namespace zero.core.api
                 });
 
             //TODO remove diagnostic output
-            return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions);            
+            return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
         }
 
         [Route("/api/node/stopListener/{id}")]
         [HttpGet]
         public IoApiReturn StopListener([FromRoute] int id)
         {
-            if(!_nodes.ContainsKey(id))
+            if (!_nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Neighbor with listener port `{id}' does not exist");
-            
+
             _nodes[id].Stop();
             _nodes.TryRemove(id, out _);
 
