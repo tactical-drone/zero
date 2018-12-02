@@ -172,7 +172,10 @@ namespace zero.core.models.consumables
 
                 newTransactions.Add(tx);
 
-                //if (tx.Value != 0 && tx.Value < 9999999999999999 && tx.Value > -9999999999999999)
+                //Another sync hack //TODO replace
+                if ((tx.Value != 0) && (tx.Value > 2779530283277761) && (tx.Value < -2779530283277761))
+                    ProducerHandle.Synced = false;
+
                 _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', t=`{s.ElapsedMilliseconds}ms', ok=`{tx.HasPow}'");
 
                 BufferOffset += DatumLength;
