@@ -51,12 +51,14 @@ export class app {
         while (true) {
             await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
                 .then(response => {
-                    this.logs.unshift.apply(this.logs, response.rows);
-                    if (this.logs.length > 60) {
-                        for (var i = this.logs.length; i > 58; i--) {
-                            this.logs.pop();
+                    if (response != null && response.rows != null && response.rows.length > 0) {
+                        this.logs.unshift.apply(this.logs, response.rows);
+                        if (this.logs.length > 60) {
+                            for (var i = this.logs.length; i > 58; i--) {
+                                this.logs.pop();
+                            }
                         }
-                    }
+                    }                    
                 });
             await this.nodeServices.sleep(500);
         }
