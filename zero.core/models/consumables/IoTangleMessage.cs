@@ -203,7 +203,9 @@ namespace zero.core.models.consumables
             //cog the source
             await _transactionSource.ProduceAsync(source =>
             {
-                ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
+                if(ProducerHandle.GetRelaySource<IoTangleTransaction>().PrimaryProducer.ProducerBarrier.CurrentCount != 0)
+                    ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
+
                 return Task.FromResult(true);
             });
 
@@ -302,12 +304,7 @@ namespace zero.core.models.consumables
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    _producerStopwatch.Restart();
-                    if (ProducerHandle.ProducerBarrier == null)
-                    {
-                        ProcessState = State.ProduceCancelled;
-                        return true;
-                    }
+                    _producerStopwatch.Restart();                    
                     if (!await ProducerHandle.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, ProducerHandle.Spinners.Token))
                     {
                         if (!ProducerHandle.Spinners.IsCancellationRequested)
