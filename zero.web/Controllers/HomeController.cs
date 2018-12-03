@@ -21,16 +21,17 @@ namespace zero.web.Controllers
          
         private readonly IConfiguration _configuration;
 
-        [Authorize]
+        //[Authorize]
         public IActionResult Index()
         {
-            var token = GenerateToken(
-                User.Identity.Name,
-                User.IsInRole("admin"),
-                _configuration["Tokens:Issuer"],
-                _configuration["Tokens:Key"]);
+            //var token = GenerateToken(
+            //    User.Identity.Name,
+            //    User.IsInRole("admin"),
+            //    _configuration["Tokens:Issuer"],
+            //    _configuration["Tokens:Key"]);
 
-            return View(new ConfigViewModel { UserName = User.Identity.Name, Token = token });
+            //return View(new ConfigViewModel { UserName = User.Identity.Name, Token = token });
+            return View(new ConfigViewModel { UserName = "borg", Token = "scout" });
         }
 
         public IActionResult About()

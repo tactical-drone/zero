@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 namespace zero.api.Controllers
 {
     [EnableCors("ApiCorsPolicy")]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("/api")]
     [ApiController]
     public class ApiController : Controller

@@ -13,7 +13,7 @@ export class app {
 
         /*let subscription = bindingEngine.collectionObserver(this.logs).subscribe(this.collectionChanged.bind(this));*/
 
-        this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
+        //this.dataSource = this.nodeServices.kendoDataSource("/node/logs");
 
         this.queryTags();
     }
@@ -45,9 +45,6 @@ export class app {
     }
 
     async queryTags() {
-
-        let querying: boolean = false;
-
         while (true) {
             await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
                 .then(response => {
