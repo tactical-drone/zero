@@ -30,7 +30,7 @@ namespace zero.core.api
     /// <seealso cref="zero.core.api.interfaces.IIoNodeService" />
     [EnableCors("ApiCorsPolicy")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("/api/node")]
     public class IoNodeService : Controller, IIoNodeService
     {
