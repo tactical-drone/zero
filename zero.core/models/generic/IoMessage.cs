@@ -56,7 +56,7 @@ namespace zero.core.models.generic
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public volatile int DatumLength;
+        public volatile int DatumSize;
 
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
@@ -75,7 +75,7 @@ namespace zero.core.models.generic
         public override IIoHeapItem Constructor()
         {
             BytesRead = 0;
-            DatumProvisionLength = DatumLength - 1;
+            DatumProvisionLength = DatumSize - 1;
             BufferOffset = DatumProvisionLength;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?

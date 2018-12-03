@@ -48,6 +48,7 @@ namespace zero.core.patterns.bushes
             Queued,
             Consuming,
             Forwarded,
+            Syncing,
             Consumed,
             ConsumeInlined,
             Accept,
@@ -245,6 +246,9 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
+                if(value > 0 && CurrentState.State == value)
+                    return;
+
                 //Update timestamps
                 UpdateStateTransitionHistory(value);
 

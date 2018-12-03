@@ -125,22 +125,12 @@ namespace zero.core.network.ip
         private CancellationTokenRegistration _cancellationRegistratison;
 
         /// <summary>
-        /// This is a temporary sync hack for TCP. Sometimes IRI has old data stuck in it's TCP stack that has to be flushed.
-        /// We do this by waiting for IRI to send us exactly the right amount of data. There is a better way but this will do for now
-        /// Until we can troll the data for verified hashes, which will be slower but more accurate.
+        /// Gets a value indicating whether this <see cref="T:zero.core.patterns.bushes.IoProducer`1" /> is synced.
         /// </summary>
-        private int _synced = 20;
-        public override bool Synced
-        {
-            get => _synced == 0;
-            set
-            {
-                if (value && _synced > 0)
-                    _synced--;
-                else if(!value)
-                    _synced = 20;
-            }
-        }
+        /// <value>
+        /// <c>true</c> if synced; otherwise, <c>false</c>.
+        /// </value>
+        public override bool Synced { get; set; }
 
         /// <summary>
         /// Closes the connection
