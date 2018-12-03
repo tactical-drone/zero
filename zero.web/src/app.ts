@@ -68,7 +68,8 @@ export class app {
     async startNeighbor() {
 
         this.nodeServices.createNode(this.url).then(response => {
-            this.curNeighborId = response.rows;
+            if(response.rows != null)
+                this.curNeighborId = response.rows;
         });
     }
 
