@@ -16,6 +16,7 @@ using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.ternary;
+using zero.interop.entangled.common.trinary;
 
 namespace zero.core.models.consumables
 {
@@ -174,8 +175,10 @@ namespace zero.core.models.consumables
             for (int i = 0; i < DatumCount; i++)
             {
                 s.Restart();
-                                
-                Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
+
+                IoTritByte.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
+
+                //Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
                 Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
 
                 Codec.GetTrits(Buffer, BufferOffset + IoTangleMessage.TransactionSize, TritHashBuffer, IoTangleMessage.TransactionHashSize);

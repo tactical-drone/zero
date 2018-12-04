@@ -35,6 +35,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\submodules\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
+    <ProjectReference Include="..\zero.interop\zero.interop.csproj" />
   </ItemGroup>
 
 </Project>
