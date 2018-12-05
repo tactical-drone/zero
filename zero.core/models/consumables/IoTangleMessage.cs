@@ -2,21 +2,22 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore.Internal;
 using NLog;
-using Tangle.Net.Entity;
 using zero.core.conf;
 using zero.core.consumables.sources;
 using zero.core.misc;
-using zero.core.models.extensions;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.core.ternary;
-using zero.interop.entangled.common.trinary;
+using zero.interop.entangled;
+using zero.interop.entangled.common.model;
+using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.model.mock;
+using zero.interop.entangled.common.model.native;
+using zero.interop.entangled.interfaces;
+using zero.interop.entangled.mock;
 
 namespace zero.core.models.consumables
 {
@@ -34,11 +35,13 @@ namespace zero.core.models.consumables
         {
             _logger = LogManager.GetCurrentClassLogger();
 
+            _entangled = IoEntangled.Default;
+
             //Every job knows which source produced it
             ProducerHandle = source;
 
             //Set some tangle specific protocol constants
-            DatumSize = MessageSize + ((ProducerHandle is IoTcpClient<IoTangleMessage>) ? MessageCrcSize : 0);
+            DatumSize = Codec.MessageSize + ((ProducerHandle is IoTcpClient<IoTangleMessage>) ? Codec.MessageCrcSize : 0);
             DatumProvisionLength = DatumSize - 1;
 
             //Init buffers
@@ -78,49 +81,46 @@ namespace zero.core.models.consumables
         public sealed override IoProducer<IoTangleMessage> ProducerHandle { get; protected set; }
 
         /// <summary>
+        /// The entangled libs
+        /// </summary>
+        private readonly IIoEntangledInterop _entangled;
+
+        /// <summary>
         /// Used to store one datum's worth of decoded trits
         /// </summary>//TODO
-        public sbyte[] TritBuffer = new sbyte[(TransactionSize * Codec.TritsPerByte - 1)];
+        public sbyte[] TritBuffer = new sbyte[Codec.TransactionSize * Codec.TritsPerByte - 1];
 
         /// <summary>
         /// Used to store one datum's worth of decoded trytes
         /// </summary>
-        public StringBuilder TryteBuffer = new StringBuilder((TransactionSize * Codec.TritsPerByte - 1) / Codec.Radix);
+        public StringBuilder TryteBuffer = new StringBuilder((Codec.TransactionSize * Codec.TritsPerByte - 1) / Codec.Radix);
+
+        /// <summary>
+        /// The tryte bytebuffer
+        /// </summary>
+        public sbyte[] TryteByteBuffer = new sbyte[(Codec.TransactionSize * Codec.TritsPerByte - 1) / Codec.Radix];
 
         /// <summary>
         /// Used to store the hash trits
         /// </summary>//TODO
-        public sbyte[] TritHashBuffer = new sbyte[((TransactionHashSize) * Codec.TritsPerByte) + 1];
+        public sbyte[] TritHashBuffer = new sbyte[((Codec.TransactionHashSize) * Codec.TritsPerByte) + 1];
 
         /// <summary>
         /// Used to store the hash trytes
         /// </summary>
-        public StringBuilder TryteHashBuffer = new StringBuilder(((TransactionHashSize) * Codec.TritsPerByte + 1) / Codec.Radix);
+        public StringBuilder TryteHashBuffer = new StringBuilder(((Codec.TransactionHashSize) * Codec.TritsPerByte + 1) / Codec.Radix);
+
+        /// <summary>
+        /// The tryte hash byte buffer
+        /// </summary>
+        public sbyte[] TryteHashByteBuffer = new sbyte[(int) Math.Ceiling((decimal) (Codec.TransactionHashSize * Codec.TritsPerByte / Codec.Radix) + 1)]; //TODO where does this +1 come from? Why is it here?
 
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - BufferOffset + DatumProvisionLength;
 
-        /// <summary>
-        /// The length of tangle protocol messages
-        /// </summary>
-        public const int MessageSize = 1650;
-
-        /// <summary>
-        /// The size of tangle protocol messages crc
-        /// </summary>
-        public const int MessageCrcSize = 16;
-
-        /// <summary>
-        /// Transaction size
-        /// </summary>
-        public const int TransactionSize = 1604;
-
-        /// <summary>
-        /// Size of the transaction hash
-        /// </summary>
-        public const int TransactionHashSize = 46;
+        
 
         /// <summary>
         /// Used to control how long we wait for the producer before we report it
@@ -161,7 +161,8 @@ namespace zero.core.models.consumables
         /// </summary>
         private async Task ProcessProtocolMessage()
         {
-            var newTransactions = new List<HashedTransaction>();
+            var newTransactions = new List<IoMockTransaction>();
+            var newInteropTransactions = new List<IIoInteropTransactionModel>();
             var s = new Stopwatch();
             s.Start();
 
@@ -176,47 +177,47 @@ namespace zero.core.models.consumables
             {
                 s.Restart();
 
-                IoTritByte.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
+                _entangled.Trinary.GetTrits(Buffer, BufferOffset, TritBuffer, Codec.TransactionSize);
+                IIoInteropTransactionModel interopTx = _entangled.Model.GetTransaction(TritBuffer, 0, TryteByteBuffer, TritBuffer.Length);
+                //_entangled.Trinary.GetTrytes(TritBuffer, 0, TryteByteBuffer, TritBuffer.Length);
 
-                //Codec.GetTrits(Buffer, BufferOffset, TritBuffer, IoTangleMessage.TransactionSize);
-                Codec.GetTrytes(TritBuffer, 0, TryteBuffer, TritBuffer.Length);
-
-                Codec.GetTrits(Buffer, BufferOffset + IoTangleMessage.TransactionSize, TritHashBuffer, IoTangleMessage.TransactionHashSize);
-                Codec.GetTrytes(TritHashBuffer, 0, TryteHashBuffer, TritHashBuffer.Length);
-                var tx = HashedTransaction.FromTrytes(new TransactionTrytes(TryteBuffer.ToString()), new Hash(TryteHashBuffer.ToString()));
+                //_entangled.Trinary.GetTrits(Buffer, BufferOffset + IoTangleMessage.TransactionSize, TritHashBuffer, IoTangleMessage.TransactionHashSize);
+                //_entangled.Trinary.GetTrytes(TritHashBuffer, 0, TryteHashByteBuffer, TritHashBuffer.Length);
+                //var tx = HashedTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString((byte[])(Array)TryteByteBuffer)), new Hash(Encoding.ASCII.GetString((byte[])(Array)TryteHashByteBuffer)));
 
                 //Another sync hack //TODO replace
-                if ((tx.Value > 2779530283277761) || (tx.Value < -2779530283277761))
-                {
-                    var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, MessageSize)).ToString("x").PadLeft(16, '0');
+                //if ((tx.Value > 2779530283277761) || (tx.Value < -2779530283277761))
+                //{
+                //    var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, MessageSize)).ToString("x").PadLeft(16, '0');
 
-                    _logger.Warn($"({Id}) [[De synced] `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}']: {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{tx.HasPow}', t= `{s.ElapsedMilliseconds}ms'");
-                    ProducerHandle.Synced = false;
-                }
+                //    _logger.Warn($"({Id}) [[De synced] `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}']: {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{tx.HasPow}', t= `{s.ElapsedMilliseconds}ms'");
+                //    ProducerHandle.Synced = false;
+                //}
 
                 if (ProducerHandle.Synced)
                 {
-                    newTransactions.Add(tx);
-                    _logger.Info($"({Id}) {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{tx.HasPow}', t= `{s.ElapsedMilliseconds}ms'");
+                    //newTransactions.Add(tx);
+                    newInteropTransactions.Add(interopTx);
+                    _logger.Info($"({Id}) {interopTx.Address}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{false}', t= `{s.ElapsedMilliseconds}ms'");
                 }
                                                     
                 BufferOffset += DatumSize;
             }
 
             //cog the source
-            await _transactionSource.ProduceAsync(source =>
-            {
-                if(ProducerHandle.GetRelaySource<IoTangleTransaction>().PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
+            //await _transactionSource.ProduceAsync(source =>
+            //{
+            //    if(ProducerHandle.GetRelaySource<IoTangleTransaction>().PrimaryProducer.ProducerBarrier.CurrentCount != 0)
+            //        ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
 
-                return Task.FromResult(true);
-            });
+            //    return Task.FromResult(true);
+            //});
 
-            //forward transactions
-            if (!await SecondaryProducer.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
-            {
-                _logger.Warn($"Failed to broadcast `{SecondaryProducer.PrimaryProducer.Description}'");
-            }
+            ////forward transactions
+            //if (!await SecondaryProducer.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            //{
+            //    _logger.Warn($"Failed to broadcast `{SecondaryProducer.PrimaryProducer.Description}'");
+            //}
 
             ProcessState = State.Consumed;
         }
@@ -234,11 +235,11 @@ namespace zero.core.models.consumables
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 while (BytesLeftToProcess >= DatumSize)
                 {
-                    var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, MessageSize)).ToString("x").PadLeft(16, '0');
+                    var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
 
-                    for (int j = MessageCrcSize - 1; j > 0; j--)
+                    for (int j = Codec.MessageCrcSize - 1; j > 0; j--)
                     {
-                        if ((byte)Buffer[BufferOffset + MessageSize + j] != crc[j])
+                        if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
                         {
                             syncronizing = false;
                             break;

@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.consumables.sources;
-using zero.core.models.extensions;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.interop.entangled.common.model.mock;
+using zero.interop.entangled.common.model.native;
 
 namespace zero.core.models.consumables
 {
@@ -33,7 +34,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<HashedTransaction> Transactions;
+        public List<IoMockTransaction> Transactions;
 
         /// <summary>
         /// Callback the generates the next job

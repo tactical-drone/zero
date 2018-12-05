@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
-namespace zero.core.ternary
+namespace zero.interop.entangled.mock
 {
     /// <summary>
     /// A helper class to encode and decode ternary encodings
@@ -52,6 +51,26 @@ namespace zero.core.ternary
         /// The number of trits can you pack into a tryte
         /// </summary>
         public const int TritsPerTryte = 3;
+
+        /// <summary>
+        /// The length of tangle protocol messages
+        /// </summary>
+        public const int MessageSize = 1650;
+
+        /// <summary>
+        /// The size of tangle protocol messages crc
+        /// </summary>
+        public const int MessageCrcSize = 16;
+
+        /// <summary>
+        /// Transaction size
+        /// </summary>
+        public const int TransactionSize = 1604;
+
+        /// <summary>
+        /// Size of the transaction hash
+        /// </summary>
+        public const int TransactionHashSize = 46;
 
         /// <summary>
         /// A Lookup for trits from bytes
@@ -127,16 +146,15 @@ namespace zero.core.ternary
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="trytes">A buffer containing the result of the decoded trits</param>
         /// <param name="length">The number of trits to convert</param>
-        public static void GetTrytes(sbyte[] buffer, int offset, StringBuilder trytes, int length)
+        public static void GetTrytes(sbyte[] buffer, int offset, sbyte[] trytes, int length)
         {
-            trytes.Clear();
-
+            var pos = 0;
             for (var i = 0; i < (length + TritsPerTryte - 1) / TritsPerTryte; i++)
             {
                 var j = buffer[offset + i * 3] + buffer[offset + i * 3 + 1] * 3 + buffer[offset + i * 3 + 2] * 9;
                 if (j < 0)
                     j += AlphabetLength;
-                trytes.Append(Alphabet[j]);
+                trytes[pos++] = (sbyte) Alphabet[j];
             }
         }
     }

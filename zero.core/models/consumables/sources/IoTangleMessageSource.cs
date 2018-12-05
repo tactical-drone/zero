@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using NLog;
 using Tangle.Net.Entity;
-using zero.core.models;
 using zero.core.models.consumables;
-using zero.core.models.extensions;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.interop.entangled.common.model.mock;
+using zero.interop.entangled.common.model.native;
 
 namespace zero.core.consumables.sources
 {
@@ -38,7 +37,7 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public volatile ConcurrentQueue<List<HashedTransaction>>  TxQueue = new ConcurrentQueue<List<HashedTransaction>>();
+        public volatile ConcurrentQueue<List<IoMockTransaction>>  TxQueue = new ConcurrentQueue<List<IoMockTransaction>>();
 
         /// <summary>
         /// Keys this instance.

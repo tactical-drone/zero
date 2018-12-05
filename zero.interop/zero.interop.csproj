@@ -2,10 +2,16 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.1</TargetFramework>
+    <LangVersion>7.3</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>TRACE;FLEX_TRIT_ENCODING_5_TRITS_PER_BYTE</DefineConstants>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\submodules\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
+  </ItemGroup>
 
 </Project>

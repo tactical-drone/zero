@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.bushes.contracts;
 

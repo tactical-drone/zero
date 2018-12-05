@@ -1,17 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Text;
+﻿using System.Runtime.Serialization;
 using Tangle.Net.Cryptography;
 using Tangle.Net.Cryptography.Curl;
 using Tangle.Net.Entity;
 using Tangle.Net.Utils;
 
-namespace zero.core.models.extensions
+namespace zero.interop.entangled.common.model.native
 {
-    public class HashedTransaction: Transaction
+    public class IoMockTransaction: Transaction
     {
+        //metadata
+        public long SnapshotIndex;
+        public bool Solid;
+
         private bool _checkedPow = false;
         private bool _hasPow;        
         private TransactionTrytes _trytes;
@@ -68,7 +68,7 @@ namespace zero.core.models.extensions
             return _computedHash.Value.Contains(Hash.Value.Substring(0,10)) && _computedHash.Value.Substring(_computedHash.Value.Length-10, 7).Contains(Hash.Value.Substring(Hash.Value.Length - 10, 7));            
         }
 
-        public new static HashedTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
+        public new static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
         {
             if (hash == null)
             {
@@ -85,7 +85,7 @@ namespace zero.core.models.extensions
             var attachementTimestampLower = trytes.GetChunk(2628, 9).ToTrits();
             var attachementTimestampUpper = trytes.GetChunk(2637, 9).ToTrits();
             var timestamp = trytes.GetChunk(2322, 9).ToTrits();
-            var tx= new HashedTransaction
+            var tx= new IoMockTransaction
             {
                 Address = trytes.GetChunk<Address>(2187, Address.Length),
                 Hash = hash,

@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="interop\" />
     <Folder Include="protocol\overhead\" />
   </ItemGroup>
 

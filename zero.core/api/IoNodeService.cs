@@ -4,9 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -16,9 +13,7 @@ using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
 using zero.core.models.consumables;
-using zero.core.models.extensions;
 using zero.core.network.ip;
-using zero.core.patterns.misc;
 using zero.core.protocol;
 
 namespace zero.core.api
