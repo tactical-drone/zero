@@ -38,7 +38,7 @@ namespace zero.interop.entangled.common.trinary
 #endif
 
         //size_t flex_trits_from_trits(flex_trit_t*const to_flex_trits, size_t const to_len, trit_t const *const trits, size_t const len, size_t const num_trits);
-        [DllImport("flex_trit")]
+        [DllImport("interop")]
         public static extern unsafe int flex_trits_from_trits(sbyte *toFlexTrits, int toLen, sbyte *trits, int len, int numTrits);
 
     }

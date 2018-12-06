@@ -6,6 +6,12 @@ namespace zero.interop.entangled.common.trinary.abstraction
 {
     public class IoInteropTrinary : IIoTrinary
     {
+        //static IoInteropTrinary()
+        //{
+        //    Console.WriteLine("./libtrit_byte.so:" + IoLib.dlopen("./libtrit_tryte.so", IoLib.RtldNow | IoLib.RtldGlobal));
+        //}
+
+
         public unsafe void GetTrits(sbyte[] buffer, int buffOffset, sbyte[] tritBuffer, int length)
         {
             fixed (sbyte* bytes = &buffer[buffOffset])

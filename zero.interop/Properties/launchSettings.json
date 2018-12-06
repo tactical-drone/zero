@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "zero.interop": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "LD_DEBUG": "1"
+      }
+    }
+  }
+}

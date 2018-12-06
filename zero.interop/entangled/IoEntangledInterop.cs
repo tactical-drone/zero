@@ -8,7 +8,7 @@ using zero.interop.entangled.interfaces;
 namespace zero.interop.entangled
 {
     public class IoEntangledInterop : IIoEntangledInterop
-    {        
+    {                
         public IIoTrinary Trinary { get; } = new IoInteropTrinary();
         public IIoInteropModel Model { get; } = new IoInteropModel();
     }

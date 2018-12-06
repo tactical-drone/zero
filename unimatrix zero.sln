@@ -18,9 +18,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tangle.Net.Standard", "subm
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.web", "zero.web\zero.web.csproj", "{3A7D7F13-9CA5-4EED-AA14-A07A46309880}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "interop", "interop", "{C333663D-4F15-48B6-A4EA-E267C6C1CF5C}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "zero.interop", "zero.interop\zero.interop.csproj", "{5BDD2989-836E-478A-B0C1-C52BCCDC4B03}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.interop", "zero.interop\zero.interop.csproj", "{5BDD2989-836E-478A-B0C1-C52BCCDC4B03}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

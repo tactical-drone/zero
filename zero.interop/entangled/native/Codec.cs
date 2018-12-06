@@ -142,16 +142,16 @@ namespace zero.interop.entangled.mock
         /// <summary>
         /// Converts an array of trits into an array of trytes
         /// </summary>
-        /// <param name="buffer">The trit buffer</param>
+        /// <param name="trits">The trit buffer</param>
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="trytes">A buffer containing the result of the decoded trits</param>
         /// <param name="length">The number of trits to convert</param>
-        public static void GetTrytes(sbyte[] buffer, int offset, sbyte[] trytes, int length)
+        public static void GetTrytes(sbyte[] trits, int offset, sbyte[] trytes, int length)
         {
             var pos = 0;
             for (var i = 0; i < (length + TritsPerTryte - 1) / TritsPerTryte; i++)
             {
-                var j = buffer[offset + i * 3] + buffer[offset + i * 3 + 1] * 3 + buffer[offset + i * 3 + 2] * 9;
+                var j = trits[offset + i * 3] + trits[offset + i * 3 + 1] * 3 + trits[offset + i * 3 + 2] * 9;
                 if (j < 0)
                     j += AlphabetLength;
                 trytes[pos++] = (sbyte) Alphabet[j];
