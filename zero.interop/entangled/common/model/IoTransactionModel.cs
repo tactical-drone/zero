@@ -1,20 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
 using System.Text;
 using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.trinary;
-using zero.interop.entangled.common.trinary.abstraction;
-using zero.interop.entangled.mock;
 
 // ReSharper disable InconsistentNaming
 
 namespace zero.interop.entangled.common.model
 {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-    public struct IoTransactionModel :IIoInteropTransactionModel
+    [StructLayout(LayoutKind.Sequential)]
+    public class IoTransactionModel : IIoInteropTransactionModel
     {
         // 2187 trytes = 6561 trits
         //[IgnoreDataMember]
@@ -96,15 +92,15 @@ namespace zero.interop.entangled.common.model
         {
             var tx = new IoTransactionModel
             {
-                signature_or_message = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_6561],
-                address = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243],
-                obsolete_tag = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81],
-                bundle = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243],
-                trunk = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243],
-                branch = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243],
-                tag = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81],
-                nonce = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81],
-                hash = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243]
+                signature_or_message = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_6561 * 2],
+                address = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
+                obsolete_tag = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81 * 2],
+                bundle = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
+                trunk = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
+                branch = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
+                tag = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81 * 2],
+                nonce = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81 * 2],
+                hash = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2]
             };
             return tx;
         }        
@@ -113,10 +109,9 @@ namespace zero.interop.entangled.common.model
         {
             get
             {
-                //sbyte[] trytes = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243/3];
-                //Codec.GetTrytes(address,0,trytes,IoFlexTrit.FLEX_TRIT_SIZE_243);
-                //return Encoding.ASCII.GetString(trytes.Select(t=>(byte)(t)).ToArray());
-                return Encoding.ASCII.GetString(address.Select(t => (byte)(t)).ToArray());
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_ADDRESS];
+                IoEntangled.Default.Trinary.GetTrytes(address,0, trytes, IoTransaction.NUM_TRITS_ADDRESS);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
             {
@@ -148,5 +143,5 @@ namespace zero.interop.entangled.common.model
         public string Hash { get; set; }
         public Int64 SnapshotIndex { get; set; }
         public bool Solid { get; set; }
-    }
+    }    
 }

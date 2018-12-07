@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 
 namespace zero.interop.entangled.common.model.abstraction
@@ -40,8 +41,17 @@ namespace zero.interop.entangled.common.model.abstraction
 
                 //var ret = IoTransaction.transaction_deserialize(trits);
                 var transaction = IoTransactionModel.Init();
-                //Console.WriteLine("./libflex_trit_5.so:" + IoLib.dlopen("./libflex_trit_5.so", IoLib.RtldNow | IoLib.RtldGlobal));
-                IoTransaction.transaction_deserialize_from_trits(transaction, trits);
+
+                IntPtr txPtr = Marshal.AllocHGlobal(Marshal.SizeOf(transaction));
+
+                Marshal.StructureToPtr(transaction, txPtr, false);
+                
+      //Console.WriteLine("./libflex_trit_5.so:" + IoLib.dlopen("./libflex_trit_5.so", IoLib.RtldNow | IoLib.RtldGlobal));
+                var converted = IoTransaction.transaction_deserialize_from_trits(txPtr, trits);
+                Console.WriteLine($"================>{converted}<========================");
+
+                Marshal.PtrToStructure(txPtr, transaction);
+                Marshal.FreeHGlobal(txPtr);
                 //return transaction;
                 return transaction;
             }

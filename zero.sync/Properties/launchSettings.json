@@ -1,10 +1,7 @@
 {
   "profiles": {
     "zero.sync": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "LD_DEBUG": "libs"
-      }
+      "commandName": "Project"
     }
   }
 }
