@@ -6,6 +6,6 @@ namespace zero.interop.entangled.common.model.abstraction
 {
     public interface IIoInteropModel
     {
-        IIoInteropTransactionModel GetTransaction(sbyte[] tritBuffer, int buffOffset = 0, sbyte[] tryteBuffer = null, int length = 0);
+        IIoInteropTransactionModel GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null);
     }
 }

@@ -5,7 +5,7 @@ using NLog;
 using zero.core.consumables.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled.common.model.mock;
+using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.model.native;
 
 namespace zero.core.models.consumables
@@ -34,7 +34,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IoMockTransaction> Transactions;
+        public List<IIoInteropTransactionModel> Transactions;
 
         /// <summary>
         /// Callback the generates the next job

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using zero.interop.entangled.common.trinary.interop;
 
 namespace zero.interop.entangled.common.trinary.abstraction
 {
@@ -12,9 +13,9 @@ namespace zero.interop.entangled.common.trinary.abstraction
         //}
 
 
-        public unsafe void GetTrits(sbyte[] buffer, int buffOffset, sbyte[] tritBuffer, int length)
+        public unsafe void GetTrits(sbyte[] flexTritsBuffer, int buffOffset, sbyte[] tritBuffer, int length)
         {
-            fixed (sbyte* bytes = &buffer[buffOffset])
+            fixed (sbyte* bytes = &flexTritsBuffer[buffOffset])
             {
                 fixed (sbyte* trits = tritBuffer)
                 {
@@ -23,7 +24,7 @@ namespace zero.interop.entangled.common.trinary.abstraction
             }
         }
 
-        public unsafe void GetTrytes(sbyte[] tritBuffer, int offset, sbyte[] tryteBuffer, int length)
+        public unsafe void GetTrytes(sbyte[] tritBuffer, int offset, sbyte[] tryteBuffer, int numTritsToConvert)
         {            
             fixed (sbyte* trits = &tritBuffer[offset])
             {
@@ -32,6 +33,17 @@ namespace zero.interop.entangled.common.trinary.abstraction
                     IoTritTryte.trits_to_trytes(trytes, trits, tritBuffer.Length);
                 }
             }            
+        }
+
+        public unsafe void GetFlexTrytes(sbyte[] tryteBuffer, int toLen, sbyte[] flexTritBuffer, int offset, int _, int numTritsToConvert)
+        {
+            fixed (sbyte* flexTrits = &flexTritBuffer[offset])
+            {
+                fixed (sbyte* trytes = tryteBuffer)
+                {
+                    IoFlexTrit.flex_trits_to_trytes(trytes, toLen, flexTrits, _, numTritsToConvert);
+                }
+            }
         }
     }
 }

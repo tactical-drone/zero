@@ -1,5 +1,6 @@
 #!/bin/bash
 TARGET_DIR="bin/Debug/netcoreapp2.1"
+ENTANGLED_DIR="../entangled"
 
 #cp ../../entangled/bazel-bin/common/trinary/libptrits.so $TARGET_DIR/
 
@@ -18,4 +19,6 @@ TARGET_DIR="bin/Debug/netcoreapp2.1"
 
 #cp ../../entangled/bazel-bin/common/model/libtransaction.so* $TARGET_DIR/
 
-cp ../../entangled/bazel-bin/common/libinterop.so $TARGET_DIR/
+cp $ENTANGLED_DIR/bazel-bin/common/libinterop.so zero.sync/$TARGET_DIR/
+cp $ENTANGLED_DIR/bazel-bin/common/libinterop.so zero.api/$TARGET_DIR/
+

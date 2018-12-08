@@ -15,6 +15,7 @@ using zero.core.core;
 using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.protocol;
+using zero.interop.entangled.common.model.abstraction;
 
 namespace zero.core.api
 {
@@ -101,7 +102,7 @@ namespace zero.core.api
         {
             if (!_nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
-            var transactions = new List<Transaction>();
+            var transactions = new List<IIoInteropTransactionModel>();
 
             int count = 0;
             long outstanding = 0;
@@ -138,7 +139,7 @@ namespace zero.core.api
                                 {
                                     if (tagQuery == null)
                                         transactions.Add(t);
-                                    else if (t.Tag.Value.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                                    else if (t.Tag.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
                                         transactions.Add(t);
                                     if (++count > 50)
                                         break;

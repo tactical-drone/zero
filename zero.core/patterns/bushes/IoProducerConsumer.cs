@@ -433,7 +433,7 @@ namespace zero.core.patterns.bushes
                         }
 
                         //TODO remove this spam when everything checks out?
-                        currJob.ProducerHandle.PrintCounters();
+                        //currJob.ProducerHandle.PrintCounters();
                     }
                 }
                 else

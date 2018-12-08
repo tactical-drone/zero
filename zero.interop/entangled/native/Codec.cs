@@ -156,6 +156,9 @@ namespace zero.interop.entangled.mock
                     j += AlphabetLength;
                 trytes[pos++] = (sbyte) Alphabet[j];
             }
+
+            for (int i = pos; i < trytes.Length; i++)
+                trytes[i] = (sbyte) '9';
         }
     }
 }

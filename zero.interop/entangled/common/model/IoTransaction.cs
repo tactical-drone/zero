@@ -44,8 +44,7 @@ namespace zero.interop.entangled.common.model
         public const int NUM_TRYTES_NONCE = 27;
         public const int NUM_TRYTES_HASH = 81;
 
-
         [DllImport("interop", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int transaction_deserialize_from_trits([Out] IntPtr transaction, sbyte* trits);
+        public static extern int transaction_deserialize_from_trits(out IoTransactionModel transaction, sbyte* trits);
     }
 }

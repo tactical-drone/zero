@@ -7,7 +7,7 @@ using Tangle.Net.Entity;
 using zero.core.models.consumables;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled.common.model.mock;
+using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.model.native;
 
 namespace zero.core.consumables.sources
@@ -37,7 +37,7 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public volatile ConcurrentQueue<List<IoMockTransaction>>  TxQueue = new ConcurrentQueue<List<IoMockTransaction>>();
+        public volatile ConcurrentQueue<List<IIoInteropTransactionModel>>  TxQueue = new ConcurrentQueue<List<IIoInteropTransactionModel>>();
 
         /// <summary>
         /// Keys this instance.

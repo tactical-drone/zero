@@ -35,7 +35,7 @@
                 <div class="pane-content">
                     <ak-list-view style="" k-data-source.bind="logs">
                         <ak-template>
-                            <div><pre>${timestamp | dateFormat} - [${address.value}] : tag=[${tag.value}] : hash=[...<span style.bind="color">${hash.value.substring(hash.value.length-10,hash.value.length)}</span>] :value= ${value/1000000} mi</pre></div>
+                            <div><pre>${timestamp | dateFormat} - [${address}] : tag=[${tag}] : hash=[...<span style.bind="color">${hash.substring(hash.length-10,hash.length)}</span>|<b>${pow.toString().padStart(2)}</b>] :value= ${value/1000000} mi</pre></div>
                         </ak-template>
                     </ak-list-view>
                 </div>

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Text;
 using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.trinary;
@@ -10,107 +11,79 @@ using zero.interop.entangled.common.trinary;
 namespace zero.interop.entangled.common.model
 {
     [StructLayout(LayoutKind.Sequential)]
-    public class IoTransactionModel : IIoInteropTransactionModel
+    public struct IoTransactionModel : IIoInteropTransactionModel
     {
-        // 2187 trytes = 6561 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte signature_or_message[IoFlexTrit.FLEX_TRIT_SIZE_6561];
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_6561)]
+        [IgnoreDataMember]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_6561)]        
         public sbyte[] signature_or_message;
-        // 81 trytes = 243 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte address[IoFlexTrit.FLEX_TRIT_SIZE_243];
+
+        [IgnoreDataMember]
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        public sbyte[] address;
-        // 27 trytes = 81 trits
-        //[IgnoreDataMember]
-        public Int64 value;        
-        // 27 trytes = 81 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte obsolete_tag[IoFlexTrit.FLEX_TRIT_SIZE_81];
+        public sbyte[] address;        
+
+        [IgnoreDataMember]
+        public Int64 value;
+                
+        [IgnoreDataMember]
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
         public sbyte[] obsolete_tag;
-        // 9 trytes = 27 trits
-        //[IgnoreDataMember]
+        
+        [IgnoreDataMember]
         public Int64 timestamp;
-        // 9 trytes = 27 trits
-        //[IgnoreDataMember]
+        
+        [IgnoreDataMember]
         public Int64 current_index;
-        // 9 trytes = 27 trits
-        //[IgnoreDataMember]
+        
+        [IgnoreDataMember]
         public Int64 last_index;
-        // 81 trytes = 243 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte bundle[IoFlexTrit.FLEX_TRIT_SIZE_243];
+
+        [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
         public sbyte[] bundle;
-        // 81 trytes = 243 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte trunk[IoFlexTrit.FLEX_TRIT_SIZE_243];
+        
+        [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
         public sbyte[] trunk;
-        // 81 trytes = 243 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte branch[IoFlexTrit.FLEX_TRIT_SIZE_243];
+        
+        [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
         public sbyte[] branch;
-        // 27 trytes = 81 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte tag[IoFlexTrit.FLEX_TRIT_SIZE_81];
+        
+        [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
         public sbyte[] tag;
-        // 9 trytes = 27 trits
-        //[IgnoreDataMember]
+        
+        [IgnoreDataMember]
         public Int64 attachment_timestamp;
-        // 9 trytes = 27 trits
-        //[IgnoreDataMember]
+        
+        [IgnoreDataMember]
         public Int64 attachment_timestamp_lower;
-        // 9 trytes = 27 trits
-        //[IgnoreDataMember]
+
+        [IgnoreDataMember]
         public Int64 attachment_timestamp_upper;
-        // 27 trytes = 81 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte nonce[IoFlexTrit.FLEX_TRIT_SIZE_81];
+
+        [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
         public sbyte[] nonce;
-        // 81 trytes = 243 trits
-        //[IgnoreDataMember]
-        //public fixed sbyte hash[IoFlexTrit.FLEX_TRIT_SIZE_243];
+
+        [IgnoreDataMember]
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
         public sbyte[] hash;
-        // Total 2754 trytes
 
         //Metadata
-        //[IgnoreDataMember]
+        [IgnoreDataMember]
         public UInt64 snapshot_index;
 
-        //[IgnoreDataMember]
+        [IgnoreDataMember]
         [MarshalAs(UnmanagedType.I1)]
         public bool solid;
-
-        public static IoTransactionModel Init()
-        {
-            var tx = new IoTransactionModel
-            {
-                signature_or_message = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_6561 * 2],
-                address = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
-                obsolete_tag = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81 * 2],
-                bundle = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
-                trunk = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
-                branch = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2],
-                tag = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81 * 2],
-                nonce = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_81 * 2],
-                hash = new sbyte[IoFlexTrit.FLEX_TRIT_SIZE_243 * 2]
-            };
-            return tx;
-        }        
-
+      
         public string Address
         {
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_ADDRESS];
-                IoEntangled.Default.Trinary.GetTrytes(address,0, trytes, IoTransaction.NUM_TRITS_ADDRESS);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, address, 0, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
@@ -119,7 +92,19 @@ namespace zero.interop.entangled.common.model
             }
         }
 
-        public string Message { get; set; }
+        public string Message
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_SIGNATURE];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set
+            {
+
+            }
+        }
 
         public Int64 Value
         {
@@ -128,20 +113,127 @@ namespace zero.interop.entangled.common.model
         }
     
 
-        public string ObsoleteTag { get; set; }
-        public Int64 Timestamp { get; set; }
-        public Int64 CurrentIndex { get; set; }
-        public Int64 LastIndex { get; set; }
-        public string Bundle { get; set; }
-        public string Trunk { get; set; }
-        public string Branch { get; set; }
-        public string Tag { get; set; }
-        public Int64 AttachmentTimestamp { get; set; }
-        public Int64 AttachmentTimestampLower { get; set; }
-        public Int64 AttachmentTimestampUpper { get; set; }
-        public string Nonce { get; set; }
-        public string Hash { get; set; }
-        public Int64 SnapshotIndex { get; set; }
-        public bool Solid { get; set; }
-    }    
+        public string ObsoleteTag
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_OBSOLETE_TAG];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, obsolete_tag, 0, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRITS_OBSOLETE_TAG);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public Int64 Timestamp
+        {
+            get => timestamp;
+            set { }
+        }
+        public Int64 CurrentIndex
+        {
+            get => current_index;
+            set { }
+        }
+        public Int64 LastIndex
+        {
+            get => last_index;
+            set { }
+        }
+        public string Bundle
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_BUNDLE];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, bundle, 0, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public string Trunk
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_TRUNK];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, trunk, 0, IoTransaction.NUM_TRITS_TRUNK, IoTransaction.NUM_TRITS_TRUNK);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public string Branch
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_BRANCH];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, branch, 0, IoTransaction.NUM_TRITS_BRANCH, IoTransaction.NUM_TRITS_BRANCH);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public string Tag
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_TAG];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, tag, 0, IoTransaction.NUM_TRITS_TAG, IoTransaction.NUM_TRITS_TAG);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public Int64 AttachmentTimestamp
+        {
+            get => attachment_timestamp;
+            set { }
+        }
+        public Int64 AttachmentTimestampLower
+        {
+            get => attachment_timestamp_lower;
+            set { }
+        }
+        public Int64 AttachmentTimestampUpper
+        {
+            get => attachment_timestamp_upper;
+            set { }
+        }
+        public string Nonce
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_NONCE];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, nonce, 0, IoTransaction.NUM_TRITS_NONCE, IoTransaction.NUM_TRITS_NONCE);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public string Hash
+        {
+            get
+            {
+                var trytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, hash, 0, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH);
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+            }
+            set { }
+        }
+        public UInt64 SnapshotIndex
+        {
+            get => snapshot_index;
+            set { }
+        }
+        public bool Solid
+        {
+            get => solid;
+            set { }
+        }
+
+        public int Pow { get; set; }
+
+        public string Color
+        {
+            get
+            {
+                if (Pow == 0)
+                    return "color: red";
+                return Pow < 0 ? "color: orange" : "color:green";
+            }
+        }
+    }   
 }

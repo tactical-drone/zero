@@ -12,19 +12,19 @@ namespace zero.interop.entangled.common.model.abstraction
         string Address { get; set; }
 
         [DataMember]
-        long Value { get; set; }
+        Int64 Value { get; set; }
 
         [DataMember]
         string ObsoleteTag { get; set; }
 
         [DataMember]
-        long Timestamp { get; set; }
+        Int64 Timestamp { get; set; }
 
         [DataMember]
-        long CurrentIndex { get; set; }
+        Int64 CurrentIndex { get; set; }
 
         [DataMember]
-        long LastIndex { get; set; }
+        Int64 LastIndex { get; set; }
 
         [DataMember]
         string Bundle { get; set; }
@@ -39,13 +39,13 @@ namespace zero.interop.entangled.common.model.abstraction
         string Tag { get; set; }
 
         [DataMember]
-        long AttachmentTimestamp { get; set; }
+        Int64 AttachmentTimestamp { get; set; }
 
         [DataMember]
-        long AttachmentTimestampLower { get; set; }
+        Int64 AttachmentTimestampLower { get; set; }
 
         [DataMember]
-        long AttachmentTimestampUpper { get; set; }
+        Int64 AttachmentTimestampUpper { get; set; }
 
         [DataMember]
         string Nonce { get; set; }
@@ -54,9 +54,15 @@ namespace zero.interop.entangled.common.model.abstraction
         string Hash { get; set; }
 
         [DataMember]
-        long SnapshotIndex { get; set; }
+        UInt64 SnapshotIndex { get; set; }
 
         [DataMember]
         bool Solid { get; set; }
+
+        [DataMember]
+        int Pow { get; set; }
+
+        [DataMember]
+        string Color { get; }
     }
 }

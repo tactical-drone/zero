@@ -14,7 +14,6 @@ using zero.core.patterns.bushes;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.abstraction;
-using zero.interop.entangled.common.model.mock;
 using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
@@ -88,7 +87,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// Used to store one datum's worth of decoded trits
         /// </summary>//TODO
-        public sbyte[] TritBuffer = new sbyte[Codec.TransactionSize * Codec.TritsPerByte - 1];
+        public sbyte[] TritBuffer = new sbyte[IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRITS_HASH];
 
         /// <summary>
         /// Used to store one datum's worth of decoded trytes
@@ -161,7 +160,6 @@ namespace zero.core.models.consumables
         /// </summary>
         private async Task ProcessProtocolMessage()
         {
-            var newTransactions = new List<IoMockTransaction>();
             var newInteropTransactions = new List<IIoInteropTransactionModel>();
             var s = new Stopwatch();
             s.Start();
@@ -176,48 +174,33 @@ namespace zero.core.models.consumables
             for (int i = 0; i < DatumCount; i++)
             {
                 s.Restart();
-
-                _entangled.Trinary.GetTrits(Buffer, BufferOffset, TritBuffer, Codec.TransactionSize);
-                IIoInteropTransactionModel interopTx = _entangled.Model.GetTransaction(TritBuffer, 0, TryteByteBuffer, TritBuffer.Length);
-                //_entangled.Trinary.GetTrytes(TritBuffer, 0, TryteByteBuffer, TritBuffer.Length);
-
-                //_entangled.Trinary.GetTrits(Buffer, BufferOffset + IoTangleMessage.TransactionSize, TritHashBuffer, IoTangleMessage.TransactionHashSize);
-                //_entangled.Trinary.GetTrytes(TritHashBuffer, 0, TryteHashByteBuffer, TritHashBuffer.Length);
-                //var tx = HashedTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString((byte[])(Array)TryteByteBuffer)), new Hash(Encoding.ASCII.GetString((byte[])(Array)TryteHashByteBuffer)));
-
-                //Another sync hack //TODO replace
-                //if ((tx.Value > 2779530283277761) || (tx.Value < -2779530283277761))
-                //{
-                //    var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, MessageSize)).ToString("x").PadLeft(16, '0');
-
-                //    _logger.Warn($"({Id}) [[De synced] `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}']: {tx.Address}, v={(tx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{tx.HasPow}', t= `{s.ElapsedMilliseconds}ms'");
-                //    ProducerHandle.Synced = false;
-                //}
+                
+                IIoInteropTransactionModel interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
 
                 if (ProducerHandle.Synced)
                 {
-                    //newTransactions.Add(tx);
                     newInteropTransactions.Add(interopTx);
-                    _logger.Info($"({Id}) {interopTx.Address}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{false}', t= `{s.ElapsedMilliseconds}ms'");
+                    if(interopTx.Pow >= 0)
+                        _logger.Info($"({Id}) {interopTx.Address}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
                 }
                                                     
                 BufferOffset += DatumSize;
             }
 
             //cog the source
-            //await _transactionSource.ProduceAsync(source =>
-            //{
-            //    if(ProducerHandle.GetRelaySource<IoTangleTransaction>().PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-            //        ((IoTangleMessageSource)source).TxQueue.Enqueue(newTransactions);
+            await _transactionSource.ProduceAsync(source =>
+            {
+                if (ProducerHandle.GetRelaySource<IoTangleTransaction>().PrimaryProducer.ProducerBarrier.CurrentCount != 0)
+                    ((IoTangleMessageSource)source).TxQueue.Enqueue(newInteropTransactions);
 
-            //    return Task.FromResult(true);
-            //});
+                return Task.FromResult(true);
+            });
 
-            ////forward transactions
-            //if (!await SecondaryProducer.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
-            //{
-            //    _logger.Warn($"Failed to broadcast `{SecondaryProducer.PrimaryProducer.Description}'");
-            //}
+            //forward transactions
+            if (!await SecondaryProducer.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            {
+                _logger.Warn($"Failed to broadcast `{SecondaryProducer.PrimaryProducer.Description}'");
+            }
 
             ProcessState = State.Consumed;
         }
