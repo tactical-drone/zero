@@ -8,72 +8,8 @@ namespace zero.interop.entangled.common.model.native
 {
     public class IoMockTransaction: Transaction
     {
-        public ulong SnapshotIndex;
-        public bool Solid;
-
-        private bool _checkedPow = false;
-        private int _hasPow;        
-        private TransactionTrytes _trytes;
-        private Hash _computedHash = null;
-
-        public int Pow
-        {
-            get
-            {
-                if (_checkedPow)
-                    return _hasPow;
-                else
-                    return _hasPow = CheckPow();
-            }
-            set => _hasPow = value;
-        }
-
-        public int FakePow { get; set; }        
-
-        public string Color
-        {
-            get
-            {
-                if (Pow == 0)
-                    return "color: red";
-                return Pow < 0 ? "color: orange" : "color:green";
-            }
-        }
-
-        private int CheckPow()
-        {
-            _checkedPow = true;
-            var hashTrits = new int[Constants.TritHashLength];
-            var kerl = new Curl();
-            kerl.Absorb(_trytes.ToTrits());
-            kerl.Squeeze(hashTrits);
-            
-            _computedHash = new Hash(Converter.TritsToTrytes(hashTrits));
-            _hasPow = 0;
-
-            if (_computedHash.Value.Contains(Hash.Value.Substring(0, 10)) && _computedHash.Value
-                    .Substring(_computedHash.Value.Length - 11, 6)
-                    .Equals(Hash.Value.Substring(Hash.Value.Length - 11, 6)))
-            {
-                for (var i = _computedHash.Value.Length - 1; i > 0 && _computedHash.Value[i--] == '9'; _hasPow++){}
-            }
-            else
-            {
-                for (var i = _computedHash.Value.Length - 1; i > 0 && _computedHash.Value[i--] == '9'; _hasPow--) { }
-                FakePow = _hasPow;
-                for (var i = Hash.Value.Length - 1; i > 0 && Hash.Value[i--] == '9'; FakePow++) { }
-
-                if (_hasPow == -IoTransaction.NUM_TRYTES_HASH)
-                {
-                    _hasPow = 0;
-                    FakePow = -(FakePow + IoTransaction.NUM_TRYTES_HASH);
-                    if (FakePow == IoTransaction.NUM_TRYTES_HASH)
-                        FakePow = 0;
-                }
-            }
-
-            return _hasPow;
-        }
+        public ulong SnapshotIndex = 0;
+        public bool Solid = false;
 
         public new static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
         {
@@ -109,8 +45,7 @@ namespace zero.interop.entangled.common.model.native
                 Nonce = trytes.GetChunk<Tag>(2646, Tag.Length),                
                 AttachmentTimestamp = Converter.ConvertTritsToBigInt(attachmentTimestamp, 0, attachmentTimestamp.Length).LongValue,
                 AttachmentTimestampLowerBound = Converter.ConvertTritsToBigInt(attachmentTimestampLower, 0, attachmentTimestampLower.Length).LongValue,
-                AttachmentTimestampUpperBound = Converter.ConvertTritsToBigInt(attachmentTimestampUpper, 0, attachmentTimestampUpper.Length).LongValue,
-                _trytes = trytes
+                AttachmentTimestampUpperBound = Converter.ConvertTritsToBigInt(attachmentTimestampUpper, 0, attachmentTimestampUpper.Length).LongValue,                
             };
             return tx;
         }

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.mock;
+using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.interop
 {
@@ -45,29 +46,10 @@ namespace zero.interop.entangled.common.model.interop
                 var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());                
                 var computedHash = txStruct.Hash;
 
-                if (computedHash.Contains(proposedHash.Substring(0, 10)) &&
-                    computedHash.Substring(computedHash.Length - 11, 6)
-                        .Equals(proposedHash.Substring(proposedHash.Length - 11, 6)))
-                {
-                    for (var i = computedHash.Length - 1; i > 0 && computedHash[i--] == '9'; txStruct.Pow++) { }
-                    txStruct.FakePow = 0;
-                }
-                else
-                {
-                    for (var i = computedHash.Length - 1; i > 0 && computedHash[i--] == '9'; txStruct.Pow--) { }
-                    txStruct.FakePow = txStruct.Pow;
-                    for (var i = proposedHash.Length - 1; i > 0 && proposedHash[i--] == '9'; txStruct.FakePow++) { }
+                IIoInteropTransactionModel byref = txStruct;
+                IoPow.Compute(ref byref, computedHash, proposedHash);                
 
-                    if (txStruct.Pow == -IoTransaction.NUM_TRYTES_HASH)
-                    {
-                        txStruct.Pow = 0;
-                        txStruct.FakePow = -(txStruct.FakePow + IoTransaction.NUM_TRYTES_HASH);
-                        if (txStruct.FakePow == IoTransaction.NUM_TRYTES_HASH)
-                            txStruct.FakePow = 0;
-                    }
-                }                
-
-                return txStruct;
+                return byref;
             }
         }
     }

@@ -3,6 +3,7 @@ using System.Text;
 using Tangle.Net.Entity;
 using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.mock;
+using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.native
 {
@@ -15,9 +16,8 @@ namespace zero.interop.entangled.common.model.native
 
             IoEntangled.Default.Trinary.GetTrits(flexTritBuffer, buffOffset, tritBuffer, Codec.MessageSize);
             IoEntangled.Default.Trinary.GetTrytes(tritBuffer, 0, tryteBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION);
-            IoEntangled.Default.Trinary.GetTrytes(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
             
-            var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString(tryteBuffer.Select(c=>(byte)c).ToArray())), new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c=>(byte)c).ToArray())));
+            var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString(tryteBuffer.Select(c => (byte)c).ToArray())));
 
             var interopTransaction = new IoNativeTransactionModel
             {                               
@@ -38,11 +38,17 @@ namespace zero.interop.entangled.common.model.native
                 Nonce = tx.Nonce.Value,
                 Hash = tx.Hash.Value,
                 SnapshotIndex = tx.SnapshotIndex,
-                Solid = tx.Solid,
-                Pow =  tx.Pow, 
-                FakePow =  tx.FakePow,
-                Color = tx.Color
+                Solid = tx.Solid                
             };
+
+            //check pow
+            IoEntangled.Default.Trinary.GetTrytes(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
+
+            var proposedHash = new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c => (byte)c).ToArray())).Value;
+            var computedHash = interopTransaction.Hash;
+
+            IIoInteropTransactionModel byref = interopTransaction;
+            IoPow.Compute(ref byref, computedHash, proposedHash);
 
             return interopTransaction;            
         }

@@ -25,6 +25,14 @@ namespace zero.interop.entangled.common.model.native
         public bool Solid { get; set; }
         public int Pow { get; set; }
         public int FakePow { get; set; }
-        public string Color { get; set; }
+        public string Color
+        {
+            get
+            {
+                if (Pow == 0)
+                    return "color: red";
+                return Pow < 0 ? "color: orange" : "color:green";
+            }
+        }
     }
 }
