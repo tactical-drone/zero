@@ -225,6 +225,7 @@ namespace zero.interop.entangled.common.model
         }
 
         public int Pow { get; set; }
+        public int FakePow { get; set; }
 
         public string Color
         {

@@ -63,6 +63,9 @@ namespace zero.interop.entangled.common.model.abstraction
         int Pow { get; set; }
 
         [DataMember]
+        int FakePow { get; set; }
+
+        [DataMember]
         string Color { get; }
     }
 }

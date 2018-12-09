@@ -12,11 +12,11 @@ namespace zero.interop.entangled.common.model.native
         public bool Solid;
 
         private bool _checkedPow = false;
-        private sbyte _hasPow;        
+        private int _hasPow;        
         private TransactionTrytes _trytes;
         private Hash _computedHash = null;
 
-        public sbyte Pow
+        public int Pow
         {
             get
             {
@@ -28,6 +28,8 @@ namespace zero.interop.entangled.common.model.native
             set => _hasPow = value;
         }
 
+        public int FakePow { get; set; }        
+
         public string Color
         {
             get
@@ -38,7 +40,7 @@ namespace zero.interop.entangled.common.model.native
             }
         }
 
-        private sbyte CheckPow()
+        private int CheckPow()
         {
             _checkedPow = true;
             var hashTrits = new int[Constants.TritHashLength];
@@ -51,13 +53,23 @@ namespace zero.interop.entangled.common.model.native
 
             if (_computedHash.Value.Contains(Hash.Value.Substring(0, 10)) && _computedHash.Value
                     .Substring(_computedHash.Value.Length - 11, 6)
-                    .Contains(Hash.Value.Substring(Hash.Value.Length - 11, 6)))
+                    .Equals(Hash.Value.Substring(Hash.Value.Length - 11, 6)))
             {
                 for (var i = _computedHash.Value.Length - 1; i > 0 && _computedHash.Value[i--] == '9'; _hasPow++){}
             }
             else
             {
                 for (var i = _computedHash.Value.Length - 1; i > 0 && _computedHash.Value[i--] == '9'; _hasPow--) { }
+                FakePow = _hasPow;
+                for (var i = Hash.Value.Length - 1; i > 0 && Hash.Value[i--] == '9'; FakePow++) { }
+
+                if (_hasPow == -IoTransaction.NUM_TRYTES_HASH)
+                {
+                    _hasPow = 0;
+                    FakePow = -(FakePow + IoTransaction.NUM_TRYTES_HASH);
+                    if (FakePow == IoTransaction.NUM_TRYTES_HASH)
+                        FakePow = 0;
+                }
             }
 
             return _hasPow;

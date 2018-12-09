@@ -40,6 +40,7 @@ namespace zero.interop.entangled.common.model.native
                 SnapshotIndex = tx.SnapshotIndex,
                 Solid = tx.Solid,
                 Pow =  tx.Pow, 
+                FakePow =  tx.FakePow,
                 Color = tx.Color
             };
 

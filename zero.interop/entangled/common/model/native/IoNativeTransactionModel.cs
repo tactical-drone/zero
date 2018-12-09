@@ -24,6 +24,7 @@ namespace zero.interop.entangled.common.model.native
         public UInt64 SnapshotIndex { get; set; }
         public bool Solid { get; set; }
         public int Pow { get; set; }
+        public int FakePow { get; set; }
         public string Color { get; set; }
     }
 }
