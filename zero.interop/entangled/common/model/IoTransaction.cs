@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
+using zero.interop.entangled.common.model.interop;
+
 // ReSharper disable InconsistentNaming
 
 namespace zero.interop.entangled.common.model

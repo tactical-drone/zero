@@ -1,0 +1,18 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using Cassandra.Mapping;
+using Cassandra.Mapping.Attributes;
+
+namespace zero.core.data.native.lookups
+{
+    [Table("NativeTransaction")]
+    public class IoNativeHashedBundle
+    {
+        [Column(nameof(Hash)), PartitionKey]
+        public string Hash { get; set; }
+
+        [Column(nameof(Bundle)), ClusteringKey]
+        public string Bundle { get; set; }
+    }
+}

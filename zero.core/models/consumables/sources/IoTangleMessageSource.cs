@@ -8,6 +8,7 @@ using zero.core.models.consumables;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 
 namespace zero.core.consumables.sources

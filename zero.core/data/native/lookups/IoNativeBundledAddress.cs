@@ -1,0 +1,17 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using Cassandra.Mapping.Attributes;
+
+namespace zero.core.data.native.lookups
+{
+    [Table("NativeAddress")]
+    public class IoNativeBundledAddress
+    {
+        [Column(nameof(Address)), PartitionKey]
+        public string Address { get; set; }
+
+        [Column(nameof(Bundle)), ClusteringKey]
+        public string Bundle { get; set; }
+    }
+}

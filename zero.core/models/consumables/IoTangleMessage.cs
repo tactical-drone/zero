@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.consumables.sources;
+using zero.core.data.cassandra;
+using zero.core.data.native.cassandra;
 using zero.core.misc;
 using zero.core.models.generic;
 using zero.core.network.ip;
@@ -14,6 +16,7 @@ using zero.core.patterns.bushes;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
@@ -118,9 +121,7 @@ namespace zero.core.models.consumables
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - BufferOffset + DatumProvisionLength;
-
         
-
         /// <summary>
         /// Used to control how long we wait for the producer before we report it
         /// </summary>
@@ -180,6 +181,27 @@ namespace zero.core.models.consumables
                 if (ProducerHandle.Synced)
                 {
                     newInteropTransactions.Add(interopTx);
+
+                    if (interopTx is IoNativeTransactionModel)
+                    {
+#pragma warning disable 4014
+                        IoNativeCassandra.Default().ContinueWith(session =>
+#pragma warning restore 4014
+                        {
+                            session.Result.Put((IoNativeTransactionModel)interopTx);
+                        });
+                    }
+                    else
+                    {
+#pragma warning disable 4014
+                        IoCassandra.Default().ContinueWith(session =>
+#pragma warning restore 4014
+                        {
+                            session.Result.Put((IoTransactionModel)interopTx);                            
+                        });
+                    }
+
+
                     if(interopTx.Pow >= 0)
                         _logger.Info($"({Id}) {interopTx.Address}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
                 }
@@ -214,7 +236,7 @@ namespace zero.core.models.consumables
             if (!ProducerHandle.Synced)
             {
                 var offset = 0;
-                bool syncronizing = true;
+                bool synchronizing = true;
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 while (BytesLeftToProcess >= DatumSize)
                 {
@@ -224,20 +246,19 @@ namespace zero.core.models.consumables
                     {
                         if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
                         {
-                            syncronizing = false;
+                            synchronizing = false;
                             break;
                         }                                                    
                     }
 
-                    if (!syncronizing)
+                    if (!synchronizing)
                     {
                         //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
                         ProcessState = State.Syncing;                        
 
-                        //if(BytesLeftToProcess > 0)
                         BufferOffset++;
                         offset++;
-                        syncronizing = true;
+                        synchronizing = true;
                     }
                     else
                     {

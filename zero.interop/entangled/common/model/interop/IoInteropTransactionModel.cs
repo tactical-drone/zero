@@ -1,15 +1,17 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
-using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.trinary;
 
 // ReSharper disable InconsistentNaming
 
-namespace zero.interop.entangled.common.model
+namespace zero.interop.entangled.common.model.interop
 {
+
+    //[Table("Bundle")]
     [StructLayout(LayoutKind.Sequential)]
     public struct IoTransactionModel : IIoInteropTransactionModel
     {
@@ -22,20 +24,20 @@ namespace zero.interop.entangled.common.model
         public sbyte[] address;        
 
         [IgnoreDataMember]
-        public Int64 value;
+        public long value;
                 
         [IgnoreDataMember]
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
         public sbyte[] obsolete_tag;
         
         [IgnoreDataMember]
-        public Int64 timestamp;
+        public long timestamp;
         
         [IgnoreDataMember]
-        public Int64 current_index;
+        public long current_index;
         
         [IgnoreDataMember]
-        public Int64 last_index;
+        public long last_index;
 
         [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
@@ -54,13 +56,13 @@ namespace zero.interop.entangled.common.model
         public sbyte[] tag;
         
         [IgnoreDataMember]
-        public Int64 attachment_timestamp;
+        public long attachment_timestamp;
         
         [IgnoreDataMember]
-        public Int64 attachment_timestamp_lower;
+        public long attachment_timestamp_lower;
 
         [IgnoreDataMember]
-        public Int64 attachment_timestamp_upper;
+        public long attachment_timestamp_upper;
 
         [IgnoreDataMember]        
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
@@ -72,7 +74,7 @@ namespace zero.interop.entangled.common.model
 
         //Metadata
         [IgnoreDataMember]
-        public UInt64 snapshot_index;
+        public long snapshot_index;
 
         [IgnoreDataMember]
         [MarshalAs(UnmanagedType.I1)]
@@ -106,7 +108,7 @@ namespace zero.interop.entangled.common.model
             }
         }
 
-        public Int64 Value
+        public long Value
         {
             get => value;
             set { }
@@ -123,17 +125,17 @@ namespace zero.interop.entangled.common.model
             }
             set { }
         }
-        public Int64 Timestamp
+        public long Timestamp
         {
             get => timestamp;
             set { }
         }
-        public Int64 CurrentIndex
+        public long CurrentIndex
         {
             get => current_index;
             set { }
         }
-        public Int64 LastIndex
+        public long LastIndex
         {
             get => last_index;
             set { }
@@ -178,17 +180,17 @@ namespace zero.interop.entangled.common.model
             }
             set { }
         }
-        public Int64 AttachmentTimestamp
+        public long AttachmentTimestamp
         {
             get => attachment_timestamp;
             set { }
         }
-        public Int64 AttachmentTimestampLower
+        public long AttachmentTimestampLower
         {
             get => attachment_timestamp_lower;
             set { }
         }
-        public Int64 AttachmentTimestampUpper
+        public long AttachmentTimestampUpper
         {
             get => attachment_timestamp_upper;
             set { }
@@ -213,7 +215,7 @@ namespace zero.interop.entangled.common.model
             }
             set { }
         }
-        public UInt64 SnapshotIndex
+        public long SnapshotIndex
         {
             get => snapshot_index;
             set { }

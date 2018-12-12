@@ -1,32 +1,35 @@
 ﻿using System;
 using System.Runtime.Serialization;
+using Cassandra.Mapping.Attributes;
+// ReSharper disable InconsistentNaming
 
-namespace zero.interop.entangled.common.model.abstraction
-{
+
+namespace zero.interop.entangled.common.model.interop
+{    
     public interface IIoInteropTransactionModel
     {
-        [DataMember]
+        [DataMember]        
         string Message { get; set; }
 
         [DataMember]
         string Address { get; set; }
 
         [DataMember]
-        Int64 Value { get; set; }
+        long Value { get; set; }
 
         [DataMember]
         string ObsoleteTag { get; set; }
 
         [DataMember]
-        Int64 Timestamp { get; set; }
+        long Timestamp { get; set; }
 
-        [DataMember]
-        Int64 CurrentIndex { get; set; }
+        [DataMember]        
+        long CurrentIndex { get; set; }
 
-        [DataMember]
-        Int64 LastIndex { get; set; }
+        [DataMember]        
+        long LastIndex { get; set; }
 
-        [DataMember]
+        [DataMember]        
         string Bundle { get; set; }
 
         [DataMember]
@@ -39,13 +42,13 @@ namespace zero.interop.entangled.common.model.abstraction
         string Tag { get; set; }
 
         [DataMember]
-        Int64 AttachmentTimestamp { get; set; }
+        long AttachmentTimestamp { get; set; }
 
         [DataMember]
-        Int64 AttachmentTimestampLower { get; set; }
+        long AttachmentTimestampLower { get; set; }
 
         [DataMember]
-        Int64 AttachmentTimestampUpper { get; set; }
+        long AttachmentTimestampUpper { get; set; }
 
         [DataMember]
         string Nonce { get; set; }
@@ -54,7 +57,7 @@ namespace zero.interop.entangled.common.model.abstraction
         string Hash { get; set; }
 
         [DataMember]
-        UInt64 SnapshotIndex { get; set; }
+        long SnapshotIndex { get; set; }
 
         [DataMember]
         bool Solid { get; set; }
@@ -66,6 +69,6 @@ namespace zero.interop.entangled.common.model.abstraction
         int FakePow { get; set; }
 
         [DataMember]
-        string Color { get; }
+        string Color { get; }   
     }
 }

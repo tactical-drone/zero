@@ -16,6 +16,7 @@ using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.protocol;
 using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.api
 {

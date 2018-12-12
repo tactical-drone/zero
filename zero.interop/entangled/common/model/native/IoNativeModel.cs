@@ -2,6 +2,7 @@
 using System.Text;
 using Tangle.Net.Entity;
 using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 

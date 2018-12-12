@@ -8,7 +8,7 @@ namespace zero.interop.entangled.common.model.native
 {
     public class IoMockTransaction: Transaction
     {
-        public ulong SnapshotIndex = 0;
+        public long SnapshotIndex = 0;
         public bool Solid = false;
 
         public new static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
