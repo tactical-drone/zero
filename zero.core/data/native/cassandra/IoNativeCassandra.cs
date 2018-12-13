@@ -89,7 +89,7 @@ namespace zero.core.data.native.cassandra
 
         public new bool IsConnected => base.IsConnected;
 
-        public async Task<RowSet> Put(IoNativeTransactionModel transaction, BatchStatement batch = null)
+        public async Task<RowSet> Put(IoNativeTransactionModel transaction, object batch = null)
         {
             bool executeBatch = batch == null;
 
@@ -114,10 +114,10 @@ namespace zero.core.data.native.cassandra
             if(batch == null)
                 batch = new BatchStatement();
             
-            batch.Add(_transactions.Insert(transaction));
-            batch.Add(_hashes.Insert(hashedBundle));
-            batch.Add(_addresses.Insert(bundledAddress));
-            batch.Add(_tags.Insert(taggedTransaction));
+            ((BatchStatement)batch).Add(_transactions.Insert(transaction));
+            ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
+            ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
+            ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
 
             if (executeBatch)
             {
@@ -142,9 +142,9 @@ namespace zero.core.data.native.cassandra
             return _default;
         }
 
-        public new async Task<RowSet> ExecuteAsync(BatchStatement batch)
+        public new async Task<RowSet> ExecuteAsync(object batch)
         {
-            return await base.ExecuteAsync(batch);
+            return await base.ExecuteAsync((BatchStatement)batch);
         }
     }
 }

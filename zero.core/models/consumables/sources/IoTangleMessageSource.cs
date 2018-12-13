@@ -27,7 +27,9 @@ namespace zero.core.consumables.sources
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-
+        /// <summary>
+        /// The logger
+        /// </summary>
         private readonly Logger _logger;
 
         /// <summary>

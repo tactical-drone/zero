@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
@@ -10,10 +7,7 @@ using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.lookups;
-using zero.core.network.ip;
-using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.common.model.native;
 using Logger = NLog.Logger;
 
 namespace zero.core.data.cassandra
@@ -103,7 +97,7 @@ namespace zero.core.data.cassandra
 
         public new bool IsConnected => base.IsConnected;
 
-        public async Task<RowSet> Put(IoInteropTransactionModel interopTransaction, BatchStatement batch = null)
+        public async Task<RowSet> Put(IoInteropTransactionModel interopTransaction, object batch = null)
         {
             var executeBatch = batch == null;
 
@@ -122,13 +116,13 @@ namespace zero.core.data.cassandra
             if(executeBatch)
                 batch = new BatchStatement();
             
-            batch.Add(_transactions.Insert(interopTransaction.Mapping));
-            batch.Add(_hashes.Insert(hashedBundle));
-            batch.Add(_addresses.Insert(bundledAddress));
+            ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.Mapping));
+            ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
+            ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
 
             if (executeBatch)
             {
-                await ExecuteAsync(batch);
+                await ExecuteAsync((BatchStatement)batch);
             }
 
             return null;            
@@ -139,9 +133,9 @@ namespace zero.core.data.cassandra
             throw new NotImplementedException();
         }
 
-        public new async Task<RowSet> ExecuteAsync(BatchStatement batch)
+        public new async Task<RowSet> ExecuteAsync(object batch)
         {
-            return await base.ExecuteAsync(batch);
+            return await base.ExecuteAsync((BatchStatement)batch);
         }
 
         private static volatile IoCassandra _default;
