@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using Cassandra;
-using Cassandra.Data.Linq;
-using Cassandra.Mapping;
 using NLog;
 using zero.core.network.ip;
 using Logger = NLog.Logger;
@@ -64,9 +60,9 @@ namespace zero.core.data.cassandra
 
         public async Task<RowSet> ExecuteAsync(BatchStatement batch)
         {
-            var retval = _session.ExecuteAsync(batch);
+            var executeAsyncTask = _session.ExecuteAsync(batch);
 #pragma warning disable 4014
-            retval.ContinueWith(r =>
+            executeAsyncTask.ContinueWith(r =>
 #pragma warning restore 4014
             {
                 switch (r.Status)
@@ -77,7 +73,7 @@ namespace zero.core.data.cassandra
                         break;
                 }
             });
-            return await retval;
+            return await executeAsyncTask;
         }
     }
 }

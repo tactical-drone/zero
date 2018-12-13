@@ -108,7 +108,8 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Returns the source to relay jobs too
         /// </summary>
-        public abstract IoForward<TFJob> GetRelaySource<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
+        public abstract IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
+            Func<object, IoConsumable<TFJob>> mallocMessage = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
 
         /// <summary>
         /// Print counters

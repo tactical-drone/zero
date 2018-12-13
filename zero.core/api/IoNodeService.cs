@@ -8,14 +8,12 @@ using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NLog.Targets;
-using Tangle.Net.Entity;
 using zero.core.api.interfaces;
 using zero.core.api.models;
 using zero.core.core;
 using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.protocol;
-using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.api
@@ -110,20 +108,20 @@ namespace zero.core.api
             long freeBufferSpace = 0;
 
             Stopwatch stopwatch = new Stopwatch();
-#pragma warning disable 4014
+#pragma warning disable 4014 //TODO figure out what is going on with async
             _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
                 .ForEach(async n =>
 #pragma warning restore 4014
                 {
-                    var hub = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>();
+                    var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNodeService));
 
-                    if (hub != null)
+                    if (relaySource != null)
                     {
                         stopwatch.Start();
                         count = 0;
-                        while (Interlocked.Read(ref hub.JobMetaHeap.ReferenceCount) > 0)
+                        while (Interlocked.Read(ref relaySource.JobMetaHeap.ReferenceCount) > 0)
                         {
-                            await hub.ConsumeAsync(message =>
+                            await relaySource.ConsumeAsync(message =>
                             {
                                 if (message == null)
                                     return;
@@ -148,8 +146,8 @@ namespace zero.core.api
                             }, sleepOnProducerLag: false);
                         }
                         stopwatch.Stop();
-                        outstanding = hub.JobMetaHeap.ReferenceCount;
-                        freeBufferSpace = hub.JobMetaHeap.FreeCapacity();
+                        outstanding = relaySource.JobMetaHeap.ReferenceCount;
+                        freeBufferSpace = relaySource.JobMetaHeap.FreeCapacity();
                     }
                     else
                         _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");

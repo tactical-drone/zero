@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Tangle.Net.Entity;
-using zero.interop.entangled.common.model;
-using zero.interop.entangled.common.model.abstraction;
+﻿using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.utils

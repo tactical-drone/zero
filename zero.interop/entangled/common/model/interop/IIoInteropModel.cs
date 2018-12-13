@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using zero.interop.entangled.common.model.interop;
+﻿using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.abstraction
 {

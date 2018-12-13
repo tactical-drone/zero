@@ -1,9 +1,7 @@
-﻿using System.Runtime.Serialization;
-using Tangle.Net.Cryptography;
+﻿using Tangle.Net.Cryptography;
 using Tangle.Net.Cryptography.Curl;
 using Tangle.Net.Entity;
 using Tangle.Net.Utils;
-using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.native
 {

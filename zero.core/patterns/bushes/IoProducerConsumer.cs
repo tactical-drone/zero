@@ -462,7 +462,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="cancellationToken">The kill signal</param>
         /// <param name="spawnProducer">Sometimes we don't want to start the producer, for example when we are forwarding to another producer consumer queue</param>
-        public async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
+        public virtual async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             using (cancellationToken.Register(() => Spinners.Cancel()))
             {

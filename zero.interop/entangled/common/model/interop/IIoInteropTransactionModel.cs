@@ -1,6 +1,5 @@
-﻿using System;
-using System.Runtime.Serialization;
-using Cassandra.Mapping.Attributes;
+﻿using System.Runtime.Serialization;
+
 // ReSharper disable InconsistentNaming
 
 

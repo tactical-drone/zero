@@ -3,12 +3,10 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
-using Cassandra.Mapping;
 using NLog;
 using zero.core.data.cassandra;
 using zero.core.data.native.contracts;
 using zero.core.data.native.lookups;
-using zero.core.network.ip;
 using zero.interop.entangled.common.model.native;
 using Logger = NLog.Logger;
 
@@ -142,7 +140,7 @@ namespace zero.core.data.native.cassandra
             return _default;
         }
 
-        public new async Task<RowSet> ExecuteAsync(object batch)
+        public async Task<RowSet> ExecuteAsync(object batch)
         {
             return await base.ExecuteAsync((BatchStatement)batch);
         }

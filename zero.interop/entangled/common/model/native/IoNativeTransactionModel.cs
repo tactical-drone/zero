@@ -1,6 +1,4 @@
-﻿using System;
-using Cassandra.Mapping.Attributes;
-using zero.interop.entangled.common.model.abstraction;
+﻿using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.native

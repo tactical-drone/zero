@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
-using System.Text;
+﻿using System.Runtime.InteropServices;
 using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
 

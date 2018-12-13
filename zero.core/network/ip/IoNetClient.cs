@@ -57,7 +57,8 @@ namespace zero.core.network.ip
         /// </summary>
         protected readonly IoNodeAddress Address;
 
-        public override IoForward<TFJob> GetRelaySource<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
+        public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
+            Func<object, IoConsumable<TFJob>> mallocMessage = null)
         {
             if (IoForward == null)
             {

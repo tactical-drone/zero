@@ -15,7 +15,7 @@ namespace zero.core.data.cassandra
     public class IoCassandra: IoCassandraBase, IIoData
     {
         /// <summary>
-        /// 
+        /// Constructor
         /// </summary>
         public IoCassandra()
         {

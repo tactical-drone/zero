@@ -6,19 +6,17 @@ using System.Text;
 using System.Threading.Tasks;
 using Cassandra;
 using NLog;
+using zero.core.api;
 using zero.core.conf;
 using zero.core.consumables.sources;
-using zero.core.data.cassandra;
-using zero.core.data.native.cassandra;
+using zero.core.core;
 using zero.core.misc;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model;
-using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
 using Logger = NLog.Logger;
@@ -55,21 +53,36 @@ namespace zero.core.models.consumables
             //Configure a description of this consumer
             WorkDescription = source.ToString();
 
-            //Configure forwarding of jobs            //TODO
-            if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(IoTangleMessageSource)))
+            //forward to nodeservices
+            if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _transactionSource = new IoTangleMessageSource(ProducerHandle);
-                if (!ProducerHandle.ObjectStorage.TryAdd(nameof(IoTangleMessageSource), _transactionSource))
+                _nodeServicesProxy = new IoTangleMessageSource(ProducerHandle);
+                if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
-                    _transactionSource = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(IoTangleMessageSource)];
+                    _nodeServicesProxy = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(_nodeServicesProxy)];
                 }
             }
 
-            SecondaryProducer = source.GetRelaySource(_transactionSource, userData => new IoTangleTransaction(_transactionSource));
+            NodeServicesRelay = source.GetRelaySource(nameof(IoNodeService), _nodeServicesProxy, userData => new IoTangleTransaction(_nodeServicesProxy));
+
+            //forward to neighbors
+            if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
+            {
+                _neighborProxy = new IoTangleMessageSource(ProducerHandle);
+                if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
+                {
+                    _nodeServicesProxy = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(_neighborProxy)];
+                }
+            }
+
+            NeighborRelay = source.GetRelaySource(nameof(IoNeighbor<IoTangleTransaction>), _neighborProxy, userData => new IoTangleTransaction(_neighborProxy));
 
             //tweak this producer
-            SecondaryProducer.parm_consumer_wait_for_producer_timeout = 0;
-            SecondaryProducer.parm_producer_skipped_delay = 0;
+            NodeServicesRelay.parm_consumer_wait_for_producer_timeout = 0;
+            NodeServicesRelay.parm_producer_skipped_delay = 0;
+
+            NeighborRelay.parm_consumer_wait_for_producer_timeout = 5000; //TODO config
+            NeighborRelay.parm_producer_skipped_delay = 0;
         }
 
         public sealed override string ProductionDescription => base.ProductionDescription;
@@ -132,12 +145,22 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleMessageSource _transactionSource;
+        private static IoTangleMessageSource _nodeServicesProxy;
+
+        /// <summary>
+        /// The decoded tangle transaction
+        /// </summary>
+        private static IoTangleMessageSource _neighborProxy;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction> SecondaryProducer;
+        public IoForward<IoTangleTransaction> NodeServicesRelay;
+
+        /// <summary>
+        /// The transaction broadcaster
+        /// </summary>
+        public IoForward<IoTangleTransaction> NeighborRelay;
 
         /// <summary>
         /// Crc checker
@@ -184,26 +207,7 @@ namespace zero.core.models.consumables
                 if (ProducerHandle.Synced)
                 {
                     newInteropTransactions.Add(interopTx);
-
-                    //if (interopTx is IoNativeTransactionModel)
-                    //{
-                    //    await IoNativeCassandra.Default().ContinueWith(session =>
-                    //    {
-                    //        if (session.Result.IsConnected)
-                    //            session.Result.Put((IoNativeTransactionModel)interopTx, batch);
-                    //    });
-                    //}
-                    //else
-                    //{
-
-                    //    await IoCassandra.Default().ContinueWith(session =>
-                    //    {
-                    //        if (session.Result.IsConnected)
-                    //            session.Result.Put((IoInteropTransactionModel)interopTx, batch);
-                    //    });
-                    //}
-
-
+                    
                     if (interopTx.Pow >= 0)
                         _logger.Info($"({Id}) {interopTx.Address}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
                 }
@@ -211,30 +215,47 @@ namespace zero.core.models.consumables
                 BufferOffset += DatumSize;
             }
 
-#pragma warning disable 4014
-//            IoNativeCassandra.Default().ContinueWith(session =>
-//#pragma warning restore 4014
-//            {
-//                if (session.Result.IsConnected)
-//                    session.Result.ExecuteAsync(batch);
-//            });
+            //Relay batch
+            await ForwardToNeighbor(newInteropTransactions);
+            await ForwardToNodeServices(newInteropTransactions);            
 
-            //cog the source
-            await _transactionSource.ProduceAsync(source =>
+            ProcessState = State.Consumed;
+        }
+
+        private async Task ForwardToNodeServices(List<IIoInteropTransactionModel> newInteropTransactions)
+        {
+//cog the source
+            await _nodeServicesProxy.ProduceAsync(source =>
             {
-                if (ProducerHandle.GetRelaySource<IoTangleTransaction>().PrimaryProducer.ProducerBarrier.CurrentCount != 0)
+                if (NodeServicesRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
+                    ((IoTangleMessageSource) source).TxQueue.Enqueue(newInteropTransactions);
+
+                return Task.FromResult(true);
+            });
+
+            //forward transactions
+            if (!await NodeServicesRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            {
+                _logger.Warn($"Failed to relay to `{NodeServicesRelay.PrimaryProducer.Description}'");
+            }
+        }
+
+        private async Task ForwardToNeighbor(List<IIoInteropTransactionModel> newInteropTransactions)
+        {
+            //cog the source
+            await _neighborProxy.ProduceAsync(source =>
+            {
+                if (NeighborRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
                     ((IoTangleMessageSource)source).TxQueue.Enqueue(newInteropTransactions);
 
                 return Task.FromResult(true);
             });
 
             //forward transactions
-            if (!await SecondaryProducer.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
             {
-                _logger.Warn($"Failed to broadcast `{SecondaryProducer.PrimaryProducer.Description}'");
+                _logger.Warn($"Failed to relay to `{NeighborRelay.PrimaryProducer.Description}'");
             }
-
-            ProcessState = State.Consumed;
         }
 
         /// <summary>

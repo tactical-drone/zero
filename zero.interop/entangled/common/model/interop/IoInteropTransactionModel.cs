@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
 using Cassandra.Mapping.Attributes;
-using zero.interop.entangled.common.trinary;
 
 // ReSharper disable InconsistentNaming
 

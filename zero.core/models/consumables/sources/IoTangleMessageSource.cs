@@ -7,9 +7,7 @@ using Tangle.Net.Entity;
 using zero.core.models.consumables;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.common.model.native;
 
 namespace zero.core.consumables.sources
 {
@@ -20,7 +18,7 @@ namespace zero.core.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer
     {
-        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(5)
+        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(5)//TODO
         {
             //Saves forwarding producer, to leech some values from it
             _upstreamSource = upstreamSource;
@@ -72,11 +70,13 @@ namespace zero.core.consumables.sources
         /// returns the forward producer
         /// </summary>
         /// <typeparam name="TFJob"></typeparam>
+        /// <param name="id"></param>
         /// <param name="producer"></param>
         /// <param name="mallocMessage"></param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public override IoForward<TFJob> GetRelaySource<TFJob>(IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> mallocMessage = null)
+        public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
+            Func<object, IoConsumable<TFJob>> mallocMessage = null)
         {
             throw new NotImplementedException();
         }
