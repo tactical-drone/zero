@@ -74,6 +74,8 @@ namespace zero.core.network.ip
         /// </summary>
         [IgnoreDataMember]
         public string IpAndPort => $"{Ip}:{Port}";
+        
+        public string ResolvedIpAndPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
 
         /// <summary>
         /// Returns the address in the format url:port

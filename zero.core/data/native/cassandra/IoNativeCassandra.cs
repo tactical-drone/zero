@@ -5,6 +5,7 @@ using Cassandra;
 using Cassandra.Data.Linq;
 using Cassandra.Mapping;
 using NLog;
+using zero.core.data.cassandra;
 using zero.core.data.native.contracts;
 using zero.core.data.native.lookups;
 using zero.core.network.ip;
@@ -13,60 +14,27 @@ using Logger = NLog.Logger;
 
 namespace zero.core.data.native.cassandra
 {
-    public class IoNativeCassandra:IIoNativeData
+    public class IoNativeCassandra: IoCassandraBase, IIoNativeData
     {
         /// <summary>
         /// 
         /// </summary>
         public IoNativeCassandra()
         {
-            _logger = LogManager.GetCurrentClassLogger();            
+            _logger = LogManager.GetCurrentClassLogger();
+            Keyspace = "one";
         }
 
-        private readonly Logger _logger;
-        private Cluster _cluster;
-        private ISession _session;
-        private IMapper _mapper;
-        private IoNodeAddress _clusterAddress;
+        private readonly Logger _logger;        
 
         private Table<IoNativeTransactionModel> _transactions;
         private Table<IoNativeHashedBundle> _hashes;
         private Table<IoNativeBundledAddress> _addresses;
-
-        private async Task<bool> Connect(string url)
-        {
-            if (_cluster != null)
-            {
-                _logger.Error($"Cluster already connected at {_clusterAddress.IpEndPoint}");
-                return false;
-            }
-            
-            _clusterAddress = IoNodeAddress.Create(url);
-            try
-            {
-                _logger.Trace("Building cassandra connection...");
-                _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"Unable to connect to cassandra cluster at `{_clusterAddress.IpEndPoint}':");
-                return false;
-            }
-
-            _logger.Trace("Connecting to Cassandra...");
-            _session = await _cluster.ConnectAsync();
-            _logger.Info("Connected to Cassandra!");
-
-            _mapper = new Mapper(_session);
-
-            EnsureSchema();
-
-            return true;
-        }
-
-        private void EnsureSchema()
+       
+        protected override bool EnsureSchema()
         {   
-            _logger.Trace("Ensuring schema...");
+            _logger.Debug("Ensuring db schema...");
+            bool wasConfigured = true;
 
             //ensure keyspace
             var replicationConfig = new Dictionary<string, string>
@@ -74,19 +42,41 @@ namespace zero.core.data.native.cassandra
                 {"class", "SimpleStrategy"}, {"replication_factor", "1"}
             };
 
-            _session.CreateKeyspaceIfNotExists("one", replicationConfig, false);
-            _session.ChangeKeyspace("one");
+            _session.CreateKeyspaceIfNotExists(Keyspace, replicationConfig, false);
+            _session.ChangeKeyspace(Keyspace);
+
+            var existingTables = _cluster.Metadata.GetKeyspace(Keyspace).GetTablesNames();
 
             //ensure tables
             _transactions = new Table<IoNativeTransactionModel>(_session);
-            _transactions.CreateIfNotExists();
+            if (!existingTables.Contains("bundle"))
+            {
+                _transactions.CreateIfNotExists();
+                _logger.Debug($"Adding table `{_transactions.Name}'");
+                wasConfigured = false;
+            }
+                
             _hashes = new Table<IoNativeHashedBundle>(_session);
-            _hashes.CreateIfNotExists();
+            if (!existingTables.Contains("transaction"))
+            {
+                _hashes.CreateIfNotExists();
+                _logger.Debug($"Adding table `{_hashes.Name}'");
+                wasConfigured = false;
+            }
+            
             _addresses = new Table<IoNativeBundledAddress>(_session);
-            _addresses.CreateIfNotExists();
+            if (!existingTables.Contains("address"))
+            {
+                _addresses.CreateIfNotExists();
+                _logger.Debug($"Adding table `{_addresses.Name}'");
+                wasConfigured = false;
+            }
 
             _logger.Trace("Ensured schema!");
+            return wasConfigured;
         }
+
+        public new bool IsConnected => base.IsConnected;
 
         public async Task<RowSet> Put(IoNativeTransactionModel transaction)
         {
@@ -109,7 +99,9 @@ namespace zero.core.data.native.cassandra
             batch.Add(_addresses.Insert(bundledAddress));
 
             var retval = _session.ExecuteAsync(batch);
+#pragma warning disable 4014
             retval.ContinueWith(r =>
+#pragma warning restore 4014
             {
                 switch (r.Status)
                 {
@@ -139,7 +131,7 @@ namespace zero.core.data.native.cassandra
             if (_default != null) return _default;
 
             _default = new IoNativeCassandra();
-            await _default.Connect("tcp://10.0.75.1:9042");
+            await _default.Connect("tcp://11.0.75.1:9042");
             return _default;
         }
     }

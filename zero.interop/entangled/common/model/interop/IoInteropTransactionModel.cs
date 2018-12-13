@@ -1,9 +1,9 @@
 ﻿using System;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
+using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
 
 // ReSharper disable InconsistentNaming
@@ -11,81 +11,19 @@ using zero.interop.entangled.common.trinary;
 namespace zero.interop.entangled.common.model.interop
 {
 
-    //[Table("Bundle")]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct IoTransactionModel : IIoInteropTransactionModel
+    [System.ComponentModel.DataAnnotations.Schema.Table("bundle")]    
+    public class IoInteropTransactionModel : IIoInteropTransactionModel
     {
         [IgnoreDataMember]
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_6561)]        
-        public sbyte[] signature_or_message;
+        [Ignore]
+        public IoMarshalledTransaction Mapping { get; set; }
 
-        [IgnoreDataMember]
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        public sbyte[] address;        
-
-        [IgnoreDataMember]
-        public long value;
-                
-        [IgnoreDataMember]
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
-        public sbyte[] obsolete_tag;
-        
-        [IgnoreDataMember]
-        public long timestamp;
-        
-        [IgnoreDataMember]
-        public long current_index;
-        
-        [IgnoreDataMember]
-        public long last_index;
-
-        [IgnoreDataMember]        
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        public sbyte[] bundle;
-        
-        [IgnoreDataMember]        
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        public sbyte[] trunk;
-        
-        [IgnoreDataMember]        
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        public sbyte[] branch;
-        
-        [IgnoreDataMember]        
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
-        public sbyte[] tag;
-        
-        [IgnoreDataMember]
-        public long attachment_timestamp;
-        
-        [IgnoreDataMember]
-        public long attachment_timestamp_lower;
-
-        [IgnoreDataMember]
-        public long attachment_timestamp_upper;
-
-        [IgnoreDataMember]        
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
-        public sbyte[] nonce;
-
-        [IgnoreDataMember]
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        public sbyte[] hash;
-
-        //Metadata
-        [IgnoreDataMember]
-        public long snapshot_index;
-
-        [IgnoreDataMember]
-        [MarshalAs(UnmanagedType.I1)]
-        public bool solid;
-      
         public string Address
         {
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_ADDRESS];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, address, 0, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.address, 0, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
@@ -99,7 +37,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_SIGNATURE];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
@@ -110,7 +48,7 @@ namespace zero.interop.entangled.common.model.interop
 
         public long Value
         {
-            get => value;
+            get => Mapping.value;
             set { }
         }
     
@@ -120,24 +58,24 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_OBSOLETE_TAG];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, obsolete_tag, 0, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRITS_OBSOLETE_TAG);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.obsolete_tag, 0, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRITS_OBSOLETE_TAG);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
         }
         public long Timestamp
         {
-            get => timestamp;
+            get => Mapping.timestamp;
             set { }
         }
         public long CurrentIndex
         {
-            get => current_index;
+            get => Mapping.current_index;
             set { }
         }
         public long LastIndex
         {
-            get => last_index;
+            get => Mapping.last_index;
             set { }
         }
         public string Bundle
@@ -145,7 +83,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_BUNDLE];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, bundle, 0, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.bundle, 0, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -155,7 +93,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_TRUNK];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, trunk, 0, IoTransaction.NUM_TRITS_TRUNK, IoTransaction.NUM_TRITS_TRUNK);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.trunk, 0, IoTransaction.NUM_TRITS_TRUNK, IoTransaction.NUM_TRITS_TRUNK);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -165,7 +103,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_BRANCH];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, branch, 0, IoTransaction.NUM_TRITS_BRANCH, IoTransaction.NUM_TRITS_BRANCH);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.branch, 0, IoTransaction.NUM_TRITS_BRANCH, IoTransaction.NUM_TRITS_BRANCH);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -175,24 +113,24 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_TAG];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, tag, 0, IoTransaction.NUM_TRITS_TAG, IoTransaction.NUM_TRITS_TAG);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.tag, 0, IoTransaction.NUM_TRITS_TAG, IoTransaction.NUM_TRITS_TAG);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
         }
         public long AttachmentTimestamp
         {
-            get => attachment_timestamp;
+            get => Mapping.attachment_timestamp;
             set { }
         }
         public long AttachmentTimestampLower
         {
-            get => attachment_timestamp_lower;
+            get => Mapping.attachment_timestamp_lower;
             set { }
         }
         public long AttachmentTimestampUpper
         {
-            get => attachment_timestamp_upper;
+            get => Mapping.attachment_timestamp_upper;
             set { }
         }
         public string Nonce
@@ -200,7 +138,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_NONCE];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, nonce, 0, IoTransaction.NUM_TRITS_NONCE, IoTransaction.NUM_TRITS_NONCE);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.nonce, 0, IoTransaction.NUM_TRITS_NONCE, IoTransaction.NUM_TRITS_NONCE);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -210,19 +148,19 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, hash, 0, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.hash, 0, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
         }
         public long SnapshotIndex
         {
-            get => snapshot_index;
+            get => Mapping.snapshot_index;
             set { }
         }
         public bool Solid
         {
-            get => solid;
+            get => Mapping.solid;
             set { }
         }
 

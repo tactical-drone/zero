@@ -188,7 +188,8 @@ namespace zero.core.models.consumables
                         IoNativeCassandra.Default().ContinueWith(session =>
 #pragma warning restore 4014
                         {
-                            session.Result.Put((IoNativeTransactionModel)interopTx);
+                            if (session.Result.IsConnected)
+                                session.Result.Put((IoNativeTransactionModel)interopTx);
                         });
                     }
                     else
@@ -197,7 +198,8 @@ namespace zero.core.models.consumables
                         IoCassandra.Default().ContinueWith(session =>
 #pragma warning restore 4014
                         {
-                            session.Result.Put((IoTransactionModel)interopTx);                            
+                            if(session.Result.IsConnected)
+                                session.Result.Put((IoInteropTransactionModel)interopTx);                            
                         });
                     }
 

@@ -9,6 +9,7 @@ namespace zero.core.data.native.contracts
 {
     public interface IIoNativeData
     {
+        bool IsConnected { get; }
         Task<RowSet> Put(IoNativeTransactionModel transaction);
         Task<IoNativeTransactionModel> Get(string key);
     }

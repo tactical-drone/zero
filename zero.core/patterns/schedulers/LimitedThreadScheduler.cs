@@ -29,7 +29,8 @@ namespace zero.core.patterns.schedulers
             _logger.Info($"Scheduler has {maxThreads} threads and {maxIoThreads} io threads!");
         }
 
-        private readonly ConcurrentDictionary<Task, Task> _tasks = new ConcurrentDictionary<Task, Task>();
+        //private readonly ConcurrentDictionary<Task, Task> _tasks = new ConcurrentDictionary<Task, Task>();
+        private readonly ConcurrentQueue<Task> _tasks = new ConcurrentQueue<Task>();
 
         private readonly int _maxDegree;
         private int _curDegree;
@@ -45,7 +46,7 @@ namespace zero.core.patterns.schedulers
         /// </returns>
         protected override IEnumerable<Task> GetScheduledTasks()
         {
-            return _tasks.Values.AsEnumerable();
+            return _tasks.AsEnumerable();
         }
 
         /// <summary>
@@ -59,13 +60,10 @@ namespace zero.core.patterns.schedulers
 
             try
             {
-                if (!_tasks.TryAdd(task, task))
-                    throw new Exception("Unexpected race condition!");
-                else
-                {
-                    _logger.Trace($"Scheduler Q size = {_tasks.Count}, {_curDegree}/{_maxDegree}");
-                }
+                _tasks.Enqueue(task);
 
+                //_logger.Trace($"Scheduler Q size = {_tasks.Count}, {_curDegree}/{_maxDegree}");
+                
                 if (_curDegree < _maxDegree)
                 {                    
                     _curDegree++;
@@ -73,14 +71,14 @@ namespace zero.core.patterns.schedulers
                     {
                         while (true)
                         {
-                            if (_tasks.Count == 0 || !_tasks.TryRemove(_tasks.Last().Key, out var nextTask))
+                            
+                            if (!_tasks.TryDequeue(out var nextTask))
                                 break;
 
                             if (!TryExecuteTask(nextTask))
                             {
                                 _logger.Warn($"Unable to execute task! ManagedThreadId = `{Thread.CurrentThread.ManagedThreadId}'");
-                                if (!_tasks.TryAdd(nextTask, nextTask))
-                                    throw new Exception("Unexpected race condition!");
+                                _tasks.Enqueue(nextTask);
                             }
                         }
 
@@ -110,13 +108,13 @@ namespace zero.core.patterns.schedulers
         {
             if (_currentThreadIsProcessing) return false;
 
-            if (taskWasPreviouslyQueued)
-                if (!_tasks.Remove(task, out _))
-                    _logger.Warn("Task was not queued or removed even though it should have been there!");
+            //if (taskWasPreviouslyQueued)
+            //    if (!_tasks.Remove(task, out _))
+            //        _logger.Warn("Task was not queued or removed even though it should have been there!");
 
             if (!TryExecuteTask(task))
             {
-                _tasks.TryAdd(task, task);
+                _tasks.Enqueue(task);
                 return false;
             }
 

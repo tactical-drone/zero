@@ -5,12 +5,15 @@ using Cassandra.Mapping.Attributes;
 
 namespace zero.core.data.lookups
 {
+    [Table("Address")]
     public class IoBundledAddress
     {
         [Column(nameof(Address)), PartitionKey]
-        public sbyte[] Address { get; set; }
+        [Frozen]
+        public byte[] Address { get; set; }
 
         [Column(nameof(Bundle)), ClusteringKey]
-        public sbyte[] Bundle { get; set; }
+        [Frozen]
+        public byte[] Bundle { get; set; }
     }
 }

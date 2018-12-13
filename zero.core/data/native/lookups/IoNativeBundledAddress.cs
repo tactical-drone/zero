@@ -5,7 +5,7 @@ using Cassandra.Mapping.Attributes;
 
 namespace zero.core.data.native.lookups
 {
-    [Table("NativeAddress")]
+    [Table("address")]
     public class IoNativeBundledAddress
     {
         [Column(nameof(Address)), PartitionKey]

@@ -18,60 +18,27 @@ using Logger = NLog.Logger;
 
 namespace zero.core.data.cassandra
 {
-    public class IoCassandra:IIoData
+    public class IoCassandra: IoCassandraBase, IIoData
     {
         /// <summary>
         /// 
         /// </summary>
         public IoCassandra()
         {
-            _logger = LogManager.GetCurrentClassLogger();            
+            _logger = LogManager.GetCurrentClassLogger();
+            Keyspace = "zero";
         }
 
         private readonly Logger _logger;
-        private Cluster _cluster;
-        private ISession _session;
-        private IMapper _mapper;
-        private IoNodeAddress _clusterAddress;
-
-        private Table<IoTransactionModel> _transactions;
+        
+        private Table<IoMarshalledTransaction> _transactions;
         private Table<IoHashedBundle> _hashes;
-        private Table<IoBundledAddress> _addresses;
+        private Table<IoBundledAddress> _addresses;    
 
-        private async Task<bool> Connect(string url)
-        {
-            if (_cluster != null)
-            {
-                _logger.Error($"Cluster already connected at {_clusterAddress.IpEndPoint}");
-                return false;
-            }
-            
-            _clusterAddress = IoNodeAddress.Create(url);
-            try
-            {
-                _logger.Trace("Building cassandra connection...");
-                _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"Unable to connect to cassandra cluster at `{_clusterAddress.IpEndPoint}':");
-                return false;
-            }
-
-            _logger.Trace("Connecting to Cassandra...");
-            _session = await _cluster.ConnectAsync();
-            _logger.Info("Connected to Cassandra!");
-
-            _mapper = new Mapper(_session);
-
-            EnsureSchema();
-
-            return true;
-        }
-
-        private void EnsureSchema()
+        protected override bool EnsureSchema()
         {   
-            _logger.Trace("Ensuring schema...");
+            _logger.Debug("Ensuring db schema...");
+            bool wasConfigured = true;
 
             //ensure keyspace
             var replicationConfig = new Dictionary<string, string>
@@ -79,51 +46,77 @@ namespace zero.core.data.cassandra
                 {"class", "SimpleStrategy"}, {"replication_factor", "1"}
             };
 
-            _session.CreateKeyspaceIfNotExists("zero", replicationConfig, false);
-            _session.ChangeKeyspace("zero");
-
-            //ensure tables
-
+            _session.CreateKeyspaceIfNotExists(Keyspace, replicationConfig, false);
+            _session.ChangeKeyspace(Keyspace);
+            
+            //ensure tables            
             try
             {
-                _transactions = new Table<IoTransactionModel>(_session);            
-                _transactions.CreateIfNotExists();
+                MappingConfiguration.Global.Define(new Map<IoMarshalledTransaction>().TableName("bundle")
+                    .PartitionKey(b=>b.bundle,b=>b.current_index));
+
+                var existingTables = _cluster.Metadata.GetKeyspace(Keyspace).GetTablesNames();
+
+                _transactions = new Table<IoMarshalledTransaction>(_session);
+                if (!existingTables.Contains("bundle"))
+                {
+                    _transactions.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_transactions.Name}'");
+                    wasConfigured = false;
+                }
+                                                                    
                 _hashes = new Table<IoHashedBundle>(_session);
-                _hashes.CreateIfNotExists();
+                if (!existingTables.Contains("transaction"))
+                {
+                    _hashes.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_hashes.Name}'");
+                    wasConfigured = false;
+                }
+                    
                 _addresses = new Table<IoBundledAddress>(_session);
-                _addresses.CreateIfNotExists();
+                if (!existingTables.Contains("address"))
+                {
+                    _addresses.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_addresses.Name}'");
+                    wasConfigured = false;
+                }                    
             }
             catch (Exception e)
             {
                 _logger.Error(e,"Unable to ensure schema:");
-                return;                
+                return true;                
             }
 
             _logger.Trace("Ensured schema!");
+            return wasConfigured;
         }
 
-        public async Task<RowSet> Put(IoTransactionModel transaction)
+        public new bool IsConnected => base.IsConnected;
+
+        public async Task<RowSet> Put(IoInteropTransactionModel interopTransaction)
         {
             var hashedBundle = new IoHashedBundle
             {
-                Hash = transaction.hash,
-                Bundle = transaction.bundle               
+                Hash = interopTransaction.Mapping.hash,
+                Bundle = interopTransaction.Mapping.bundle               
             };
 
             var bundledAddress = new IoBundledAddress
             {
-                Address = transaction.address,
-                Bundle = transaction.bundle                
+                Address = interopTransaction.Mapping.address,
+                Bundle = interopTransaction.Mapping.bundle                
             };
 
             var batch = new BatchStatement();
             
-            batch.Add(_transactions.Insert(transaction));
+            batch.Add(_transactions.Insert(interopTransaction.Mapping));
             batch.Add(_hashes.Insert(hashedBundle));
             batch.Add(_addresses.Insert(bundledAddress));
 
             var retval = _session.ExecuteAsync(batch);
+#pragma warning disable 4014
             retval.ContinueWith(r =>
+#pragma warning restore 4014
             {
                 switch (r.Status)
                 {
@@ -142,7 +135,7 @@ namespace zero.core.data.cassandra
             return await retval;
         }
 
-        public Task<IoTransactionModel> Get(string key)
+        public Task<IoInteropTransactionModel> Get(string key)
         {
             throw new NotImplementedException();
         }

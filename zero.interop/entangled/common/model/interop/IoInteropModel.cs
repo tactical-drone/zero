@@ -32,21 +32,22 @@ namespace zero.interop.entangled.common.model.interop
         {            
             fixed (sbyte* flexTrits = &flexTritBuffer[buffOffset])
             {
-                var txStruct = new IoTransactionModel
-                {
-                    Pow = 0
-                };                
+                IoTransaction.transaction_deserialize_from_trits(out var memMap, flexTrits);
 
-                IoTransaction.transaction_deserialize_from_trits(out txStruct, flexTrits);
+                var interopTransaction = new IoInteropTransactionModel
+                {
+                    Mapping = memMap,
+                    Pow = 0,
+                };
 
                 //Check pow
                 var hashTrytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
                 IoEntangled.Default.Trinary.GetFlexTrytes(hashTrytes, hashTrytes.Length, flexTritBuffer, buffOffset + Codec.TransactionSize, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH - 9);                
 
                 var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());                
-                var computedHash = txStruct.Hash;
+                var computedHash = interopTransaction.Hash;
 
-                IIoInteropTransactionModel byref = txStruct;
+                IIoInteropTransactionModel byref = interopTransaction;
                 IoPow.Compute(ref byref, computedHash, proposedHash);                
 
                 return byref;

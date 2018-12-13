@@ -6,12 +6,15 @@ using Cassandra.Mapping.Attributes;
 
 namespace zero.core.data.lookups
 {
+    [Table("Transaction")]
     public class IoHashedBundle
     {
         [Column(nameof(Hash)), PartitionKey]
-        public sbyte[] Hash { get; set; }
+        [Frozen]
+        public byte[] Hash { get; set; }
 
         [Column(nameof(Bundle)), ClusteringKey]
-        public sbyte [] Bundle { get; set; }
+        [Frozen]
+        public byte [] Bundle { get; set; }
     }
 }

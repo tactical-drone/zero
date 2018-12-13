@@ -3,6 +3,7 @@ using Tangle.Net.Cryptography;
 using Tangle.Net.Cryptography.Curl;
 using Tangle.Net.Entity;
 using Tangle.Net.Utils;
+using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.native
 {
@@ -11,7 +12,7 @@ namespace zero.interop.entangled.common.model.native
         public long SnapshotIndex = 0;
         public bool Solid = false;
 
-        public new static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
+        public static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
         {
             if (hash == null)
             {
@@ -22,7 +23,7 @@ namespace zero.interop.entangled.common.model.native
 
                 hash = new Hash(Converter.TritsToTrytes(hashTrits));
             }
-
+            
             var valueTrits = trytes.GetChunk(2268, 27).ToTrits();
             var attachmentTimestamp = trytes.GetChunk(2619, 9).ToTrits();
             var attachmentTimestampLower = trytes.GetChunk(2628, 9).ToTrits();
@@ -46,7 +47,7 @@ namespace zero.interop.entangled.common.model.native
                 AttachmentTimestamp = Converter.ConvertTritsToBigInt(attachmentTimestamp, 0, attachmentTimestamp.Length).LongValue,
                 AttachmentTimestampLowerBound = Converter.ConvertTritsToBigInt(attachmentTimestampLower, 0, attachmentTimestampLower.Length).LongValue,
                 AttachmentTimestampUpperBound = Converter.ConvertTritsToBigInt(attachmentTimestampUpper, 0, attachmentTimestampUpper.Length).LongValue,                
-            };
+            };            
             return tx;
         }
     }

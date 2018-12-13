@@ -21,7 +21,7 @@ namespace zero.interop.entangled.common.model.native
             var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString(tryteBuffer.Select(c => (byte)c).ToArray())));
 
             var interopTransaction = new IoNativeTransactionModel
-            {                               
+            {                                               
                 Message = tx.Fragment.Value,
                 Address = tx.Address.Value,
                 Value = tx.Value,

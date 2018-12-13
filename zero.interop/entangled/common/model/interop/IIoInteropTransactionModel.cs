@@ -8,6 +8,9 @@ namespace zero.interop.entangled.common.model.interop
 {    
     public interface IIoInteropTransactionModel
     {
+        [IgnoreDataMember]
+        IoMarshalledTransaction Mapping { get; set; }
+        
         [DataMember]        
         string Message { get; set; }
 

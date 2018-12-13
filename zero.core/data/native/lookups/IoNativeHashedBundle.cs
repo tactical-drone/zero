@@ -6,7 +6,7 @@ using Cassandra.Mapping.Attributes;
 
 namespace zero.core.data.native.lookups
 {
-    [Table("NativeTransaction")]
+    [Table("transaction")]
     public class IoNativeHashedBundle
     {
         [Column(nameof(Hash)), PartitionKey]
