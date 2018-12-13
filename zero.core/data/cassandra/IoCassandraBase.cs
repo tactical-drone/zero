@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Cassandra;
+using Cassandra.Data.Linq;
 using Cassandra.Mapping;
 using NLog;
 using zero.core.network.ip;
@@ -14,16 +15,16 @@ namespace zero.core.data.cassandra
     {
         protected IoCassandraBase()
         {
-            _logger = LogManager.GetCurrentClassLogger();           
+            _logger = LogManager.GetCurrentClassLogger();
         }
 
         private readonly Logger _logger;
 
         protected string Keyspace;
         protected Cluster _cluster;
-        protected ISession _session;        
+        protected ISession _session;
         protected IoNodeAddress _clusterAddress;
-
+        
         public bool IsConnected = false;
 
         protected async Task<bool> Connect(string url)
@@ -34,9 +35,9 @@ namespace zero.core.data.cassandra
                 return false;
             }
 
-            _clusterAddress = IoNodeAddress.Create(url);            
+            _clusterAddress = IoNodeAddress.Create(url);
             _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();
-            
+
             _logger.Debug("Connecting to Cassandra...");
 
             try
@@ -45,20 +46,38 @@ namespace zero.core.data.cassandra
             }
             catch (Exception e)
             {
-                _logger.Error(e,$"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
+                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
                 return false;
             }
 
-            IsConnected = true;
-            
-            _logger.Debug($"Connected to Cassandra cluster = `{_cluster.Metadata.ClusterName}'");            
+            IsConnected = true;            
+
+            _logger.Debug($"Connected to Cassandra cluster = `{_cluster.Metadata.ClusterName}'");
 
             if (!EnsureSchema())
                 _logger.Info("Configured db schema");
-                
+
             return true;
         }
 
         protected abstract bool EnsureSchema();
+
+        public async Task<RowSet> ExecuteAsync(BatchStatement batch)
+        {
+            var retval = _session.ExecuteAsync(batch);
+#pragma warning disable 4014
+            retval.ContinueWith(r =>
+#pragma warning restore 4014
+            {
+                switch (r.Status)
+                {
+                    case TaskStatus.Canceled:
+                    case TaskStatus.Faulted:
+                        _logger.Error(r.Exception, "Put data returned with errors:");
+                        break;
+                }
+            });
+            return await retval;
+        }
     }
 }

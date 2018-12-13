@@ -33,7 +33,8 @@ namespace zero.core.data.cassandra
         
         private Table<IoMarshalledTransaction> _transactions;
         private Table<IoHashedBundle> _hashes;
-        private Table<IoBundledAddress> _addresses;    
+        private Table<IoBundledAddress> _addresses;
+        private Table<IoTaggedTransaction> _tags;
 
         protected override bool EnsureSchema()
         {   
@@ -79,7 +80,16 @@ namespace zero.core.data.cassandra
                     _addresses.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_addresses.Name}'");
                     wasConfigured = false;
-                }                    
+                }
+
+                _tags = new Table<IoTaggedTransaction>(_session);
+                if (!existingTables.Contains("tag"))
+                {
+                    _tags.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_tags.Name}'");
+                    wasConfigured = false;
+                }
+
             }
             catch (Exception e)
             {
@@ -93,8 +103,10 @@ namespace zero.core.data.cassandra
 
         public new bool IsConnected => base.IsConnected;
 
-        public async Task<RowSet> Put(IoInteropTransactionModel interopTransaction)
+        public async Task<RowSet> Put(IoInteropTransactionModel interopTransaction, BatchStatement batch = null)
         {
+            var executeBatch = batch == null;
+
             var hashedBundle = new IoHashedBundle
             {
                 Hash = interopTransaction.Mapping.hash,
@@ -107,40 +119,32 @@ namespace zero.core.data.cassandra
                 Bundle = interopTransaction.Mapping.bundle                
             };
 
-            var batch = new BatchStatement();
+            if(executeBatch)
+                batch = new BatchStatement();
             
             batch.Add(_transactions.Insert(interopTransaction.Mapping));
             batch.Add(_hashes.Insert(hashedBundle));
             batch.Add(_addresses.Insert(bundledAddress));
 
-            var retval = _session.ExecuteAsync(batch);
-#pragma warning disable 4014
-            retval.ContinueWith(r =>
-#pragma warning restore 4014
+            if (executeBatch)
             {
-                switch (r.Status)
-                {
-                    case TaskStatus.Canceled:
-                    case TaskStatus.Faulted:
-                        _logger.Error(r.Exception, "Put data returned with errors:");
-                        break;
-                    case TaskStatus.RanToCompletion:
-                        break;
+                await ExecuteAsync(batch);
+            }
 
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-            });
-
-            return await retval;
+            return null;            
         }
 
         public Task<IoInteropTransactionModel> Get(string key)
         {
             throw new NotImplementedException();
         }
-        
-        private static IoCassandra _default;
+
+        public new async Task<RowSet> ExecuteAsync(BatchStatement batch)
+        {
+            return await base.ExecuteAsync(batch);
+        }
+
+        private static volatile IoCassandra _default;
         public static async Task<IIoData> Default()
         {
             if (_default != null) return _default;

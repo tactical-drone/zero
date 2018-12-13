@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
+using Cassandra;
 using NLog;
 using zero.core.conf;
 using zero.core.consumables.sources;
@@ -20,6 +21,7 @@ using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
+using Logger = NLog.Logger;
 
 namespace zero.core.models.consumables
 {
@@ -115,13 +117,13 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The tryte hash byte buffer
         /// </summary>
-        public sbyte[] TryteHashByteBuffer = new sbyte[(int) Math.Ceiling((decimal) (Codec.TransactionHashSize * Codec.TritsPerByte / Codec.Radix) + 1)]; //TODO where does this +1 come from? Why is it here?
+        public sbyte[] TryteHashByteBuffer = new sbyte[(int)Math.Ceiling((decimal)(Codec.TransactionHashSize * Codec.TritsPerByte / Codec.Radix) + 1)]; //TODO where does this +1 come from? Why is it here?
 
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - BufferOffset + DatumProvisionLength;
-        
+
         /// <summary>
         /// Used to control how long we wait for the producer before we report it
         /// </summary>
@@ -169,47 +171,53 @@ namespace zero.core.models.consumables
             if (!ProducerHandle.Synced && !Sync())
             {
                 ProcessState = State.Consumed;
-                return;                
+                return;
             }
 
+            BatchStatement batch = new BatchStatement();
             for (int i = 0; i < DatumCount; i++)
             {
                 s.Restart();
-                
+
                 IIoInteropTransactionModel interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
 
                 if (ProducerHandle.Synced)
                 {
                     newInteropTransactions.Add(interopTx);
 
-                    if (interopTx is IoNativeTransactionModel)
-                    {
-#pragma warning disable 4014
-                        IoNativeCassandra.Default().ContinueWith(session =>
-#pragma warning restore 4014
-                        {
-                            if (session.Result.IsConnected)
-                                session.Result.Put((IoNativeTransactionModel)interopTx);
-                        });
-                    }
-                    else
-                    {
-#pragma warning disable 4014
-                        IoCassandra.Default().ContinueWith(session =>
-#pragma warning restore 4014
-                        {
-                            if(session.Result.IsConnected)
-                                session.Result.Put((IoInteropTransactionModel)interopTx);                            
-                        });
-                    }
+                    //if (interopTx is IoNativeTransactionModel)
+                    //{
+                    //    await IoNativeCassandra.Default().ContinueWith(session =>
+                    //    {
+                    //        if (session.Result.IsConnected)
+                    //            session.Result.Put((IoNativeTransactionModel)interopTx, batch);
+                    //    });
+                    //}
+                    //else
+                    //{
+
+                    //    await IoCassandra.Default().ContinueWith(session =>
+                    //    {
+                    //        if (session.Result.IsConnected)
+                    //            session.Result.Put((IoInteropTransactionModel)interopTx, batch);
+                    //    });
+                    //}
 
 
-                    if(interopTx.Pow >= 0)
+                    if (interopTx.Pow >= 0)
                         _logger.Info($"({Id}) {interopTx.Address}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
                 }
-                                                    
+
                 BufferOffset += DatumSize;
             }
+
+#pragma warning disable 4014
+//            IoNativeCassandra.Default().ContinueWith(session =>
+//#pragma warning restore 4014
+//            {
+//                if (session.Result.IsConnected)
+//                    session.Result.ExecuteAsync(batch);
+//            });
 
             //cog the source
             await _transactionSource.ProduceAsync(source =>
@@ -250,13 +258,13 @@ namespace zero.core.models.consumables
                         {
                             synchronizing = false;
                             break;
-                        }                                                    
+                        }
                     }
 
                     if (!synchronizing)
                     {
                         //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
-                        ProcessState = State.Syncing;                        
+                        ProcessState = State.Syncing;
 
                         BufferOffset++;
                         offset++;
@@ -268,12 +276,12 @@ namespace zero.core.models.consumables
                         ProducerHandle.Synced = true;
                         break;
                     }
-                }                
+                }
             }
 
-            DatumCount = BytesLeftToProcess / DatumSize;            
             DatumCount = BytesLeftToProcess / DatumSize;
-            DatumFragmentLength = BytesLeftToProcess % DatumSize;            
+            DatumCount = BytesLeftToProcess / DatumSize;
+            DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
             return ProducerHandle.Synced;
         }
@@ -314,7 +322,7 @@ namespace zero.core.models.consumables
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    _producerStopwatch.Restart();                    
+                    _producerStopwatch.Restart();
                     if (!await ProducerHandle.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, ProducerHandle.Spinners.Token))
                     {
                         if (!ProducerHandle.Spinners.IsCancellationRequested)

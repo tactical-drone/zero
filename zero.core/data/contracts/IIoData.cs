@@ -13,7 +13,8 @@ namespace zero.core.data.contracts
     public interface IIoData
     {
         bool IsConnected { get; }
-        Task<RowSet> Put(IoInteropTransactionModel interopTransaction);
+        Task<RowSet> Put(IoInteropTransactionModel interopTransaction, BatchStatement batch = null);
         Task<IoInteropTransactionModel> Get(string key);
+        Task<RowSet> ExecuteAsync(BatchStatement batch);
     }
 }

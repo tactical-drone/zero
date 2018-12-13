@@ -26,10 +26,11 @@ namespace zero.core.data.native.cassandra
         }
 
         private readonly Logger _logger;        
-
+        
         private Table<IoNativeTransactionModel> _transactions;
         private Table<IoNativeHashedBundle> _hashes;
         private Table<IoNativeBundledAddress> _addresses;
+        private Table<IoNativeTaggedTransaction> _tags;
        
         protected override bool EnsureSchema()
         {   
@@ -72,14 +73,26 @@ namespace zero.core.data.native.cassandra
                 wasConfigured = false;
             }
 
-            _logger.Trace("Ensured schema!");
+            _tags = new Table<IoNativeTaggedTransaction>(_session);
+            if (!existingTables.Contains("tag"))
+            {
+                _tags.CreateIfNotExists();
+                _logger.Debug($"Adding table `{_tags.Name}'");
+                wasConfigured = false;
+            }
+
+            if(!wasConfigured)
+                _logger.Trace("Ensured schema!");
+
             return wasConfigured;
         }
 
         public new bool IsConnected => base.IsConnected;
 
-        public async Task<RowSet> Put(IoNativeTransactionModel transaction)
+        public async Task<RowSet> Put(IoNativeTransactionModel transaction, BatchStatement batch = null)
         {
+            bool executeBatch = batch == null;
+
             var hashedBundle = new IoNativeHashedBundle
             {
                 Hash = transaction.Hash,
@@ -92,32 +105,26 @@ namespace zero.core.data.native.cassandra
                 Bundle = transaction.Bundle
             };
 
-            var batch = new BatchStatement();
+            var taggedTransaction = new IoNativeTaggedTransaction
+            {
+                Tag = transaction.Tag,
+                Hash = transaction.Hash
+            };
+
+            if(batch == null)
+                batch = new BatchStatement();
             
             batch.Add(_transactions.Insert(transaction));
             batch.Add(_hashes.Insert(hashedBundle));
             batch.Add(_addresses.Insert(bundledAddress));
+            batch.Add(_tags.Insert(taggedTransaction));
 
-            var retval = _session.ExecuteAsync(batch);
-#pragma warning disable 4014
-            retval.ContinueWith(r =>
-#pragma warning restore 4014
+            if (executeBatch)
             {
-                switch (r.Status)
-                {
-                    case TaskStatus.Canceled:
-                    case TaskStatus.Faulted:
-                        _logger.Error(r.Exception,"Put data returned with errors:");
-                        break;
-                    case TaskStatus.RanToCompletion:
-                        break;
+                await ExecuteAsync(batch);
+            }
 
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-            });
-
-            return await retval;
+            return null;
         }
 
         public Task<IoNativeTransactionModel> Get(string key)
@@ -125,14 +132,19 @@ namespace zero.core.data.native.cassandra
             throw new NotImplementedException();
         }
 
-        private static IoNativeCassandra _default;
+        private static volatile IoNativeCassandra _default;
         public static async Task<IIoNativeData> Default()
         {
             if (_default != null) return _default;
 
             _default = new IoNativeCassandra();
-            await _default.Connect("tcp://11.0.75.1:9042");
+            await _default.Connect("tcp://10.0.75.1:9042");
             return _default;
+        }
+
+        public new async Task<RowSet> ExecuteAsync(BatchStatement batch)
+        {
+            return await base.ExecuteAsync(batch);
         }
     }
 }
