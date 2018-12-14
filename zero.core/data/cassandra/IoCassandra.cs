@@ -7,6 +7,7 @@ using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.lookups;
+using zero.core.data.native.lookups;
 using zero.interop.entangled.common.model.interop;
 using Logger = NLog.Logger;
 
@@ -113,12 +114,20 @@ namespace zero.core.data.cassandra
                 Bundle = interopTransaction.Mapping.bundle                
             };
 
-            if(executeBatch)
+            var taggedTransaction = new IoTaggedTransaction
+            {
+                Tag = interopTransaction.Mapping.tag,
+                Hash = interopTransaction.Mapping.hash
+            };
+
+
+            if (executeBatch)
                 batch = new BatchStatement();
             
             ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.Mapping));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
+            ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
 
             if (executeBatch)
             {
