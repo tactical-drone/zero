@@ -133,7 +133,7 @@ namespace zero.core.network.ip
                             return Task.FromResult(false);
                         }
 
-                        _logger.Info($"Connected to `{Address}");
+                        _logger.Info($"Connected to `{Address}'");
                         break;
                     default:
                         _logger.Error($"Connecting to `{Address}' returned with unknown state `{r.Status}'");

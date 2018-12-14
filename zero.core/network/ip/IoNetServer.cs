@@ -96,12 +96,12 @@ namespace zero.core.network.ip
 
                 if (ioNetClient.IsOperational)
                 {
-                    _logger.Info($"Connection established to `{ioNetClient}'");
+                    _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
                     return true;
                 }
                 else // On connect failure
                 {
-                    _logger.Warn($"Unable to connect to `{ioNetClient}'");
+                    _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
                     ioNetClient.Close();
                     return false;
                 }
