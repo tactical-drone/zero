@@ -111,6 +111,12 @@ namespace zero.core.data.native.cassandra
         {
             bool executeBatch = batch == null;
 
+            if (string.IsNullOrEmpty(transaction.Tag))
+                transaction.Tag = "9";
+
+            if (string.IsNullOrEmpty(transaction.SignatureOrMessage))
+                transaction.SignatureOrMessage = "9";
+
             var hashedBundle = new IoNativeHashedBundle
             {
                 Hash = transaction.Hash,

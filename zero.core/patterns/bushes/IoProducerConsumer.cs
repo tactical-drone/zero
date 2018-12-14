@@ -318,7 +318,7 @@ namespace zero.core.patterns.bushes
                     if (nextJob != null && !wasQueued)
                     {
                         //TODO Double check this hack
-                        if (nextJob.ProcessState != IoProducable<TJob>.State.Accept)
+                        if (nextJob.ProcessState != IoProducable<TJob>.State.Finished)
                             nextJob.ProcessState = IoProducable<TJob>.State.Reject;
                         JobMetaHeap.Return(nextJob);
                     }
@@ -440,7 +440,7 @@ namespace zero.core.patterns.bushes
                         }
 
                         //TODO remove this spam when everything checks out?
-                        //currJob.ProducerHandle.PrintCounters();
+                        currJob.ProducerHandle.PrintCounters();
                     }
                 }
                 else
@@ -500,8 +500,8 @@ namespace zero.core.patterns.bushes
                     }
                 }, TaskCreationOptions.LongRunning);
 
-                consumerTask.Start();
-                producerTask.Start();
+                //consumerTask.Start();
+                //producerTask.Start();
                 
                 //Wait for tear down                
                 await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>

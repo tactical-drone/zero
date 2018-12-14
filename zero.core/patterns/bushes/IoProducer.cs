@@ -44,7 +44,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The io forward producer
         /// </summary>
-        protected IIoForward IoForward = null;
+        protected ConcurrentDictionary<string, IIoForward> IoForward = new ConcurrentDictionary<string, IIoForward>();
         
         /// <summary>
         /// Keys this instance.

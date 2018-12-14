@@ -99,62 +99,73 @@ namespace zero.core.api
         [HttpGet]
         public IoApiReturn TransactionStreamQuery([FromRoute]int id, [FromQuery] string tagQuery)
         {
-            if (!_nodes.ContainsKey(id))
-                return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
-            var transactions = new List<IIoInteropTransactionModel>();
+            try
+            {
+                if (!_nodes.ContainsKey(id))
+                    return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
+                var transactions = new List<IIoInteropTransactionModel>();
 
-            int count = 0;
-            long outstanding = 0;
-            long freeBufferSpace = 0;
+                int count = 0;
+                long outstanding = 0;
+                long freeBufferSpace = 0;
 
-            Stopwatch stopwatch = new Stopwatch();
+                Stopwatch stopwatch = new Stopwatch();
 #pragma warning disable 4014 //TODO figure out what is going on with async
-            _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
-                .ForEach(async n =>
+                _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
+                    .ForEach(async n =>
 #pragma warning restore 4014
-                {
-                    var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNodeService));
-
-                    if (relaySource != null)
                     {
-                        stopwatch.Start();
-                        count = 0;
-                        while (Interlocked.Read(ref relaySource.JobMetaHeap.ReferenceCount) > 0)
+                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNodeService));
+
+                        if (relaySource != null)
                         {
-                            await relaySource.ConsumeAsync(message =>
+                            stopwatch.Start();
+                            count = 0;
+                            while (Interlocked.Read(ref relaySource.JobMetaHeap.ReferenceCount) > 0)
                             {
-                                if (message == null)
-                                    return;
-
-                                var msg = ((IoTangleTransaction)message);
-
-                                if (count > 50)
-                                    return;
-
-                                if(msg.Transactions == null)
-                                    return;
-                                
-                                foreach (var t in msg.Transactions)
+                                await relaySource.ConsumeAsync(message =>
                                 {
-                                    if (tagQuery == null)
-                                        transactions.Add(t);
-                                    else if (t.Tag.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
-                                        transactions.Add(t);
-                                    if (++count > 50)
-                                        break;
-                                }
-                            }, sleepOnProducerLag: false);
-                        }
-                        stopwatch.Stop();
-                        outstanding = relaySource.JobMetaHeap.ReferenceCount;
-                        freeBufferSpace = relaySource.JobMetaHeap.FreeCapacity();
-                    }
-                    else
-                        _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");
-                });
+                                    if (message == null)
+                                        return;
 
-            //TODO remove diagnostic output
-            return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
+                                    var msg = ((IoTangleTransaction)message);
+
+                                    if (count > 50)
+                                        return;
+
+                                    if(msg.Transactions == null)
+                                        return;
+                                
+                                    foreach (var t in msg.Transactions)
+                                    {
+                                        if (tagQuery == null)
+                                            transactions.Add(t);
+                                        else if (!string.IsNullOrEmpty(t.Tag) && t.Tag.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                                            transactions.Add(t);
+                                        else if(string.IsNullOrEmpty(t.Tag) && string.IsNullOrEmpty(tagQuery))
+                                        {
+                                            transactions.Add(t);
+                                        }
+                                        if (++count > 50)
+                                            break;
+                                    }
+                                }, sleepOnProducerLag: false);
+                            }
+                            stopwatch.Stop();
+                            outstanding = relaySource.JobMetaHeap.ReferenceCount;
+                            freeBufferSpace = relaySource.JobMetaHeap.FreeCapacity();
+                        }
+                        else
+                            _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");
+                    });
+                return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,$"{nameof(TransactionStreamQuery)} failed:");
+                return IoApiReturn.Result( false, e.Message);
+            }
+            //TODO remove diagnostic output            
         }
 
         [Route("/api/node/stopListener/{id}")]

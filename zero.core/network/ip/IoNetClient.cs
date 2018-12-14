@@ -60,7 +60,7 @@ namespace zero.core.network.ip
         public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> mallocMessage = null)
         {
-            if (IoForward == null)
+            if (!IoForward.ContainsKey(id))
             {
                 if (producer == null || mallocMessage == null)
                 {
@@ -70,11 +70,11 @@ namespace zero.core.network.ip
 
                 lock (this)
                 {
-                    IoForward = new IoForward<TFJob>(Description, producer, mallocMessage);
+                    IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, mallocMessage));
                 }                
             }
                
-            return (IoForward<TFJob>) IoForward;
+            return (IoForward<TFJob>) IoForward[id];
         }
 
         /// <summary>

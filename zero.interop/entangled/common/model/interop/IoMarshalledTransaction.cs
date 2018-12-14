@@ -100,7 +100,7 @@ namespace zero.interop.entangled.common.model.interop
                     }
                 }
 
-                return null;
+                return new[] {(sbyte)9};
             }
             set { }
         }

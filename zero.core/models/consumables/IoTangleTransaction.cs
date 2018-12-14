@@ -25,7 +25,7 @@ namespace zero.core.models.consumables
             ProducerHandle = source;
             _logger = LogManager.GetCurrentClassLogger();
             WorkDescription = "forward";
-            JobDescription = $"tangle transaction from `{source.Description}'";
+            JobDescription = $"tangle transaction from, `{source.Description}'";
         }
 
         private readonly Logger _logger;

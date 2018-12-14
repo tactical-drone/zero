@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
+using Cassandra;
 using Cassandra.Mapping.Attributes;
 
 // ReSharper disable InconsistentNaming
@@ -29,14 +30,14 @@ namespace zero.interop.entangled.common.model.interop
 
             }
         }
-
+        
         public string SignatureOrMessage
         {
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_SIGNATURE];
                 IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
-                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()).Trim('9');
             }
             set
             {
@@ -57,7 +58,7 @@ namespace zero.interop.entangled.common.model.interop
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_OBSOLETE_TAG];
                 IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.obsolete_tag, 0, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRITS_OBSOLETE_TAG);
-                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()).Trim('9');
             }
             set { }
         }
@@ -112,7 +113,7 @@ namespace zero.interop.entangled.common.model.interop
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_TAG];
                 IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.tag, 0, IoTransaction.NUM_TRITS_TAG, IoTransaction.NUM_TRITS_TAG);
-                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()).Trim('9');
             }
             set { }
         }
@@ -175,6 +176,6 @@ namespace zero.interop.entangled.common.model.interop
             }
         }
 
-        public string Uri { get; set; }
+        public string Uri { get; set; }        
     }   
 }

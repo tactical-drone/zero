@@ -76,7 +76,7 @@ export class app {
 
     //binds
     url: string = 'tcp://192.168.1.2:15600';
-    tagQuery: string = '9999';
+    tagQuery: string = '';
     curNeighborId: number = 15600;
 
     vericalRows = [

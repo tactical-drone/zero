@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Cassandra;
@@ -56,7 +57,7 @@ namespace zero.core.models.consumables
             //forward to nodeservices
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _nodeServicesProxy = new IoTangleMessageSource(ProducerHandle);
+                _nodeServicesProxy = new IoTangleMessageSource($"{nameof(_nodeServicesProxy)}",ProducerHandle);
                 if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
                     _nodeServicesProxy = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(_nodeServicesProxy)];
@@ -68,10 +69,10 @@ namespace zero.core.models.consumables
             //forward to neighbors
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
-                _neighborProxy = new IoTangleMessageSource(ProducerHandle);
+                _neighborProxy = new IoTangleMessageSource($"{nameof(_nodeServicesProxy)}", ProducerHandle);
                 if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
-                    _nodeServicesProxy = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(_neighborProxy)];
+                    _neighborProxy = (IoTangleMessageSource)ProducerHandle.ObjectStorage[nameof(_neighborProxy)];
                 }
             }
 
@@ -217,7 +218,7 @@ namespace zero.core.models.consumables
             }
 
             //Relay batch
-            await ForwardToNeighbor(newInteropTransactions);
+            await ForwardToNeighbor(newInteropTransactions.ToList());
             await ForwardToNodeServices(newInteropTransactions);            
 
             ProcessState = State.Consumed;
@@ -225,7 +226,7 @@ namespace zero.core.models.consumables
 
         private async Task ForwardToNodeServices(List<IIoInteropTransactionModel> newInteropTransactions)
         {
-//cog the source
+            //cog the source
             await _nodeServicesProxy.ProduceAsync(source =>
             {
                 if (NodeServicesRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)

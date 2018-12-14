@@ -74,8 +74,8 @@ namespace zero.core.core
             var processing = base.SpawnProcessingAsync(cancellationToken, spawnProducer);
             var persisting = PersistTransactions();
 
-            processing.Start();
-            persisting.Start();
+            //processing.Start();
+            //persisting.Start();
             
             await Task.WhenAll(processing, persisting);
         }

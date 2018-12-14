@@ -18,11 +18,12 @@ namespace zero.core.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer
     {
-        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamRelay):base(5)//TODO
+        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage> upstreamRelay):base(5)//TODO
         {
             //Saves forwarding producer, to leech some values from it
             _upstreamRelay = upstreamRelay;
             _logger = LogManager.GetCurrentClassLogger();
+            Id = id;
         }
 
         /// <summary>
@@ -38,7 +39,10 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public volatile ConcurrentQueue<List<IIoInteropTransactionModel>>  TxQueue = new ConcurrentQueue<List<IIoInteropTransactionModel>>();
+        public ConcurrentQueue<List<IIoInteropTransactionModel>>  TxQueue = new ConcurrentQueue<List<IIoInteropTransactionModel>>();
+
+
+        public string Id;
 
         /// <summary>
         /// Keys this instance.
@@ -48,7 +52,7 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Broadcast tangle transaction from `{_upstreamRelay.Description}'";
+        public override string Description => $"Broadcast tangle transaction from `{_upstreamRelay.Description}' to `{Id}'";
 
         public override string SourceUri => _upstreamRelay.SourceUri;
 

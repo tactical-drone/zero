@@ -22,7 +22,7 @@ namespace zero.interop.entangled.common.model.native
 
             var interopTransaction = new IoNativeTransactionModel
             {                                               
-                SignatureOrMessage = tx.Fragment.Value,
+                SignatureOrMessage = tx.Fragment.Value.Trim('9'),
                 Address = tx.Address.Value,
                 Value = tx.Value,
                 ObsoleteTag = tx.ObsoleteTag.Value,
@@ -32,14 +32,15 @@ namespace zero.interop.entangled.common.model.native
                 Bundle = tx.BundleHash.Value,
                 Trunk = tx.TrunkTransaction.Value,
                 Branch = tx.BranchTransaction.Value,                                                
-                Tag = tx.Tag.Value,
+                Tag = tx.Tag.Value.Trim('9'),
                 AttachmentTimestamp = tx.AttachmentTimestamp,
                 AttachmentTimestampLower = tx.AttachmentTimestampLowerBound,
                 AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound,                
                 Nonce = tx.Nonce.Value,
                 Hash = tx.Hash.Value,
                 SnapshotIndex = tx.SnapshotIndex,
-                Solid = tx.Solid                                
+                Solid = tx.Solid,
+                Size = tryteBuffer.Length
             };
 
             //check pow
