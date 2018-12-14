@@ -39,6 +39,8 @@ namespace zero.core.core
         /// </summary>
         private readonly Logger _logger;
 
+        private bool _closed = false;
+
         /// <summary>
         /// Called when this neighbor is closed
         /// </summary>
@@ -49,6 +51,9 @@ namespace zero.core.core
         /// </summary>
         public void Close()
         {
+            if(_closed) return;
+            _closed = true;
+
             _logger.Info($"Closing neighbor `{PrimaryProducerDescription}'");
 
             Spinners.Cancel();
