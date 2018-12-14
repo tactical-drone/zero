@@ -15,21 +15,27 @@ namespace zero.core.data.lookups
         public string Uri { get; set; }
 
         [ClusteringKey(1)]
+        public int Size;
+
+        [ClusteringKey(2)]
+        public long Value;
+
+        [ClusteringKey(3)]
         public long attachment_timestamp;
 
-        [ClusteringKey(2)] [Frozen]
-        public byte[] Tag;
+        [ClusteringKey(4)] [Frozen]
+        public sbyte[] Tag;
         
-        [ClusteringKey(3)]
+        [ClusteringKey(5)]
         public long timestamp;        
 
-        [ClusteringKey(4)]
+        [ClusteringKey(6)]
         public long attachment_timestamp_lower;
 
-        [ClusteringKey(5)]
+        [ClusteringKey(7)]
         public long attachment_timestamp_upper;
                 
-        [ClusteringKey(6)] [Frozen]
+        [ClusteringKey(8)] [Frozen]
         public byte[] Address;        
     }
 }

@@ -7,7 +7,7 @@ namespace zero.core.data.lookups
     {
         [Column(nameof(Tag)), PartitionKey]
         [Frozen]
-        public byte[] Tag { get; set; }
+        public sbyte[] Tag { get; set; }
 
         [Column(nameof(Hash))]        
         public byte[] Hash { get; set; }

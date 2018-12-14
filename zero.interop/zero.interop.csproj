@@ -19,4 +19,8 @@
     <ProjectReference Include="..\submodules\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Update="Microsoft.NETCore.App" Version="2.1.6" />
+  </ItemGroup>
+
 </Project>

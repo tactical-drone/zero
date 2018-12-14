@@ -1,4 +1,7 @@
-﻿using Cassandra.Mapping.Attributes;
+﻿using System.IO;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
+using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.native
@@ -75,5 +78,7 @@ namespace zero.interop.entangled.common.model.native
 
         [Ignore]
         public string Uri { get; set; }
+
+        public int Size => Marshal.SizeOf(this);
     }
 }

@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
+using zero.interop.entangled.mock;
 
 namespace zero.interop.entangled.common.model.interop
 {
@@ -45,7 +46,7 @@ namespace zero.interop.entangled.common.model.interop
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
         [ClusteringKey(3)]
-        public byte[] tag;
+        public sbyte[] tag;
 
         [ClusteringKey(6)]
         public long attachment_timestamp;
@@ -84,6 +85,30 @@ namespace zero.interop.entangled.common.model.interop
                 return null;
             }
             set { }
-        }        
+        }
+
+        [Frozen]
+        public sbyte[] Tag
+        {
+            get
+            {
+                for (var i = tag.Length - 1; i != 0; i--)
+                {
+                    if (tag[i] != 0)
+                    {
+                        return i == tag.Length - 1 ? tag : tag.AsSpan().Slice(0, i).ToArray();
+                    }
+                }
+
+                return null;
+            }
+            set { }
+        }
+
+        public int Size
+        {
+            get => Codec.TransactionSize - (tag.Length - Tag.Length) - (signature_or_message.Length - Body.Length);
+            set { }
+        }
     }
 }

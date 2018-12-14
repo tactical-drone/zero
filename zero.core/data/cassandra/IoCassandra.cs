@@ -8,7 +8,9 @@ using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.lookups;
+using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.mock;
 using Logger = NLog.Logger;
 
 namespace zero.core.data.cassandra
@@ -61,19 +63,20 @@ namespace zero.core.data.cassandra
                     .Column(c => c.bundle)
                     .Column(c => c.trunk)
                     .Column(c => c.branch)
-                    .Column(c => c.tag)
+                    .Column(c => c.Tag, map => map.AsFrozen())
                     .Column(c => c.attachment_timestamp)
                     .Column(c => c.attachment_timestamp_lower)
                     .Column(c => c.attachment_timestamp_upper)
                     .Column(c => c.nonce)
-                    .Column(c => c.hash)                    
+                    .Column(c => c.hash)
+                    .Column(c=>c.Size)
 
                     .PartitionKey(b => b.bundle)
 
                     .ClusteringKey(c =>c.last_index, SortOrder.Descending)
                     .ClusteringKey(c=>c.current_index, SortOrder.Ascending)
                     .ClusteringKey(c=>c.value,SortOrder.Descending)
-                    .ClusteringKey(c=>c.tag,SortOrder.Ascending)
+                    .ClusteringKey(c=>c.Tag,SortOrder.Ascending)
                     .ClusteringKey(c=>c.hash,SortOrder.Ascending)
                     .ClusteringKey(c=>c.address, SortOrder.Ascending)
                     .ClusteringKey(c=>c.attachment_timestamp, SortOrder.Descending)
@@ -165,7 +168,7 @@ namespace zero.core.data.cassandra
 
             var taggedTransaction = new IoTaggedTransaction
             {
-                Tag = interopTransaction.Mapping.tag,
+                Tag = interopTransaction.Mapping.Tag,
                 Hash = interopTransaction.Mapping.hash
             };
 
@@ -183,29 +186,34 @@ namespace zero.core.data.cassandra
                 Verifier = interopTransaction.Mapping.hash
             };
 
-            var draggedTransaction = new IoDraggedTransaction
-            {
-                Hash = interopTransaction.Mapping.hash,
-                Uri = interopTransaction.Uri,
-                attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
-                Tag = interopTransaction.Mapping.tag,
-                timestamp = interopTransaction.Mapping.timestamp,
-                attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
-                attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
-                Address = interopTransaction.Mapping.address,                
-            };
-
-
             if (executeBatch)
                 batch = new BatchStatement();
-            
+
+            if (interopTransaction.Value != 0)
+            {
+                var draggedTransaction = new IoDraggedTransaction
+                {
+                    Hash = interopTransaction.Mapping.hash,
+                    Uri = interopTransaction.Uri,
+                    Size =  interopTransaction.Mapping.Size,
+                    Value = interopTransaction.Value,
+                    attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
+                    Tag = interopTransaction.Mapping.Tag,
+                    timestamp = interopTransaction.Mapping.timestamp,
+                    attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
+                    attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
+                    Address = interopTransaction.Mapping.address,                    
+                };
+                ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
+            }            
+                        
             ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.Mapping));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
             ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
-            ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
+            
 
             if (executeBatch)
             {

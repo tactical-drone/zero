@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
@@ -142,29 +143,34 @@ namespace zero.core.data.native.cassandra
                 Verifier = transaction.Hash
             };
 
-            var draggedTransaction = new IoNativeDraggedTransaction
-            {
-                Hash = transaction.Hash,
-                Uri = transaction.Uri,
-                attachment_timestamp = transaction.AttachmentTimestamp,
-                Tag = transaction.Tag,
-                timestamp = transaction.Timestamp,
-                attachment_timestamp_lower = transaction.AttachmentTimestampLower,
-                attachment_timestamp_upper = transaction.AttachmentTimestampUpper,
-                Address = transaction.Address,
-            };
-
             if (batch == null)
                 batch = new BatchStatement();
+
+            if (transaction.Value != 0)
+            {
+                var draggedTransaction = new IoNativeDraggedTransaction
+                {
+                    Hash = transaction.Hash,
+                    Uri = transaction.Uri,
+                    Size = transaction.Size,
+                    attachment_timestamp = transaction.AttachmentTimestamp,
+                    Tag = transaction.Tag,
+                    timestamp = transaction.Timestamp,
+                    attachment_timestamp_lower = transaction.AttachmentTimestampLower,
+                    attachment_timestamp_upper = transaction.AttachmentTimestampUpper,
+                    Address = transaction.Address,
+                };
+                ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
+            }
             
+                        
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
             ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
-            ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
-
+            
             if (executeBatch)
             {
                 await ExecuteAsync(batch);
