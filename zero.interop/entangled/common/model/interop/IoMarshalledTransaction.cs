@@ -105,7 +105,7 @@ namespace zero.interop.entangled.common.model.interop
             set { }
         }
 
-        public int Size
+        public long Size
         {
             get => Codec.TransactionSize - (tag.Length - Tag.Length) - (signature_or_message.Length - Body.Length);
             set { }

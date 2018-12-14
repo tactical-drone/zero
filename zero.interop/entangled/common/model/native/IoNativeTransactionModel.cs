@@ -80,6 +80,6 @@ namespace zero.interop.entangled.common.model.native
         [Ignore]
         public string Uri { get; set; }
 
-        public int Size { get; set; }    
+        public long Size { get; set; }
     }
 }
