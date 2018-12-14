@@ -201,7 +201,7 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Trace(e, $"Unable to read from socket `tcp://{RemoteIpAndPort}':");
+                _logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}':");
                 return 0;
             }
         }
@@ -213,7 +213,7 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool Connected()
         {
-            return Socket.IsBound && Socket.Connected;//TODO this might not be enough
+            return (Socket?.IsBound??false) && (Socket?.Connected??false);
         }
     }
 }

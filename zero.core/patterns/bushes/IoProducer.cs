@@ -58,6 +58,11 @@ namespace zero.core.patterns.bushes
         public abstract string Description { get; }
 
         /// <summary>
+        /// Description used as a key
+        /// </summary>
+        public abstract string SourceUri { get; }
+
+        /// <summary>
         /// Counters for <see cref="IoProducable{TProducer}.State"/>
         /// </summary>
         public long[] Counters { get; set; } = new long[Enum.GetNames(typeof(IoProducable<>.State)).Length];

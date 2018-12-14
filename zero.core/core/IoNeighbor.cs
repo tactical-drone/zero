@@ -26,8 +26,8 @@ namespace zero.core.core
         /// </summary>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
-        public IoNeighbor(IoNetClient<TJob> ioNetClient, Func<object, IoConsumable<TJob>> mallocMessage)
-            : base($"neighbor {ioNetClient.AddressString}", ioNetClient, mallocMessage)
+        public IoNeighbor(string kind, IoNetClient<TJob> ioNetClient, Func<object, IoConsumable<TJob>> mallocMessage)
+            : base($"{kind} `{ioNetClient.Description}'", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -71,13 +71,13 @@ namespace zero.core.core
 
             processing.Start();
             persisting.Start();
-
+            
             await Task.WhenAll(processing, persisting);
         }
 
         private async Task PersistTransactions()
         {
-            var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNeighbor<IoTangleTransaction>));
+            var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNeighbor<IoTangleTransaction>));                       
             
             _logger.Debug($"Starting persistence for `{PrimaryProducerDescription}'");
             while (!Spinners.IsCancellationRequested)
@@ -118,6 +118,8 @@ namespace zero.core.core
                     }                    
                 });
 
+                if (!relaySource.PrimaryProducer.IsOperational)
+                    break;
             }
 
             _logger.Debug($"Shutting down persistence for `{PrimaryProducerDescription}'");

@@ -11,7 +11,7 @@ namespace zero.interop.entangled.common.model.interop
         IoMarshalledTransaction Mapping { get; set; }
         
         [DataMember]        
-        string Message { get; set; }
+        string SignatureOrMessage { get; set; }
 
         [DataMember]
         string Address { get; set; }
@@ -72,5 +72,8 @@ namespace zero.interop.entangled.common.model.interop
 
         [DataMember]
         string Color { get; }   
+
+        [DataMember]
+        string Uri { get; set; }
     }
 }

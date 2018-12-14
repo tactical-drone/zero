@@ -7,7 +7,6 @@ using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.lookups;
-using zero.core.data.native.lookups;
 using zero.interop.entangled.common.model.interop;
 using Logger = NLog.Logger;
 
@@ -30,6 +29,8 @@ namespace zero.core.data.cassandra
         private Table<IoHashedBundle> _hashes;
         private Table<IoBundledAddress> _addresses;
         private Table<IoTaggedTransaction> _tags;
+        private Table<IoVerifiedTransaction> _verifiers;
+        private Table<IoDraggedTransaction> _dragnet;
 
         protected override bool EnsureSchema()
         {   
@@ -85,6 +86,22 @@ namespace zero.core.data.cassandra
                     wasConfigured = false;
                 }
 
+                _verifiers = new Table<IoVerifiedTransaction>(_session);
+                if (!existingTables.Contains("verifier"))
+                {
+                    _verifiers.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_verifiers.Name}'");
+                    wasConfigured = false;
+                }
+
+                _dragnet = new Table<IoDraggedTransaction>(_session);
+                if (!existingTables.Contains("dragnet"))
+                {
+                    _dragnet.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_dragnet.Name}'");
+                    wasConfigured = false;
+                }
+
             }
             catch (Exception e)
             {
@@ -120,6 +137,32 @@ namespace zero.core.data.cassandra
                 Hash = interopTransaction.Mapping.hash
             };
 
+            var verifiedBranchTransaction = new IoVerifiedTransaction
+            {
+                Hash = interopTransaction.Mapping.branch,
+                Pow = interopTransaction.Pow,
+                Verifier = interopTransaction.Mapping.hash
+            };
+
+            var verifiedTrunkTransaction = new IoVerifiedTransaction
+            {
+                Hash = interopTransaction.Mapping.trunk,
+                Pow = interopTransaction.Pow,
+                Verifier = interopTransaction.Mapping.hash
+            };
+
+            var draggedTransaction = new IoDraggedTransaction
+            {
+                Hash = interopTransaction.Mapping.hash,
+                Uri = interopTransaction.Uri,
+                attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
+                Tag = interopTransaction.Mapping.tag,
+                timestamp = interopTransaction.Mapping.timestamp,
+                attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
+                attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
+                Address = interopTransaction.Mapping.address,                
+            };
+
 
             if (executeBatch)
                 batch = new BatchStatement();
@@ -128,13 +171,16 @@ namespace zero.core.data.cassandra
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
             ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
+            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
+            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
+            ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
 
             if (executeBatch)
             {
                 await ExecuteAsync((BatchStatement)batch);
             }
 
-            return null;            
+            return null;
         }
 
         public Task<IoInteropTransactionModel> Get(string key)
@@ -142,7 +188,7 @@ namespace zero.core.data.cassandra
             throw new NotImplementedException();
         }
 
-        public new async Task<RowSet> ExecuteAsync(object batch)
+        public async Task<RowSet> ExecuteAsync(object batch)
         {
             return await base.ExecuteAsync((BatchStatement)batch);
         }

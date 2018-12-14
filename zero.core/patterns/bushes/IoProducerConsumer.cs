@@ -218,7 +218,7 @@ namespace zero.core.patterns.bushes
                             {
                                 nextJob.ProcessState = IoProducable<TJob>.State.Accept;
 
-                                if(sleepOnConsumerLag && nextJob.ProducerHandle.Synced)
+                                if (sleepOnConsumerLag && nextJob.ProducerHandle.Synced)
                                     await Task.Delay(parm_producer_skipped_delay, cancellationToken);
 
                                 PrimaryProducer.ProducerBarrier.Release(1);
@@ -242,7 +242,7 @@ namespace zero.core.patterns.bushes
                                 PrimaryProducer.ConsumerBarrier.Release(1);
                             }
                             catch
-                            { 
+                            {
                                 // ignored
                             }
 
@@ -263,7 +263,7 @@ namespace zero.core.patterns.bushes
                         }
                         else //produce job returned with errors
                         {
-                            if (nextJob.ProcessState == IoProducable<TJob>.State.Cancelled || 
+                            if (nextJob.ProcessState == IoProducable<TJob>.State.Cancelled ||
                                 nextJob.ProcessState == IoProducable<TJob>.State.ProduceCancelled)
                             {
                                 Spinners.Cancel();
@@ -273,14 +273,16 @@ namespace zero.core.patterns.bushes
 
                             //TODO double check what we are supposed to do here?
                             //TODO what about the previous fragment?
-                            var sleepTimeMs = nextJob.ProducerHandle.Counters[(int)IoProducable<TJob>.State.Reject] +
+                            var sleepTimeMs = nextJob.ProducerHandle.Counters[(int) IoProducable<TJob>.State.Reject] +
                                               1 / (nextJob.ProducerHandle.Counters
-                                                       [(int)IoProducable<TJob>.State.Accept] + parm_error_timeout);
+                                                       [(int) IoProducable<TJob>.State.Accept] + parm_error_timeout);
 
                             if (sleepOnConsumerLag)
                             {
-                                _logger.Debug($"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int)IoProducable<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int)IoProducable<TJob>.State.Accept]}");
-                                _logger.Debug($"`{PrimaryProducerDescription}' producing job `{nextJob.ProductionDescription}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
+                                _logger.Debug(
+                                    $"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int) IoProducable<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int) IoProducable<TJob>.State.Accept]}");
+                                _logger.Debug(
+                                    $"`{PrimaryProducerDescription}' producing job `{nextJob.ProductionDescription}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
 
                                 try
                                 {
@@ -297,9 +299,14 @@ namespace zero.core.patterns.bushes
                     else
                     {
                         //TODO will this ever happen?
-                        _logger.Warn($"Producing for `{PrimaryProducerDescription}` failed. Cannot allocate job resources");
+                        _logger.Warn(
+                            $"Producing for `{PrimaryProducerDescription}` failed. Cannot allocate job resources");
                         await Task.Delay(parm_error_timeout, Spinners.Token);
                     }
+                }
+                catch (TaskCanceledException e)
+                {
+                    _logger.Trace(e, $"Producing `{PrimaryProducerDescription}' was cancelled:");
                 }
                 catch (Exception e)
                 {
@@ -343,7 +350,7 @@ namespace zero.core.patterns.bushes
                     return Task.CompletedTask;
 
                 //Waiting for a job to be produced. Did production fail?
-                if (!await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
+                if (PrimaryProducer.ConsumerBarrier != null && !await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
                 {
                     //Was shutdown requested?
                     if (Spinners.IsCancellationRequested)
@@ -438,7 +445,7 @@ namespace zero.core.patterns.bushes
                 }
                 else
                 {
-                    _logger.Warn($"`{PrimaryProducerDescription}' producer signaled that a job is ready but nothing found in the jobQueue. Strange BUG!");
+                    _logger.Warn($"`{PrimaryProducerDescription}' produced nothing");
                     PrimaryProducer.ProducerBarrier.Release(1);
                 }
             }

@@ -45,13 +45,13 @@ namespace zero.core.data.cassandra
                 _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
                 return false;
             }
-
-            IsConnected = true;            
-
+            
             _logger.Debug($"Connected to Cassandra cluster = `{_cluster.Metadata.ClusterName}'");
 
             if (!EnsureSchema())
                 _logger.Info("Configured db schema");
+
+            IsConnected = true;
 
             return true;
         }

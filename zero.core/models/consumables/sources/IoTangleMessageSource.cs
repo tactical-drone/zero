@@ -18,10 +18,10 @@ namespace zero.core.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer
     {
-        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamSource):base(5)//TODO
+        public IoTangleMessageSource(IoProducer<IoTangleMessage> upstreamRelay):base(5)//TODO
         {
             //Saves forwarding producer, to leech some values from it
-            _upstreamSource = upstreamSource;
+            _upstreamRelay = upstreamRelay;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -33,7 +33,7 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// The producer that we are forwarding from
         /// </summary>
-        private readonly IoProducer<IoTangleMessage> _upstreamSource;
+        private readonly IoProducer<IoTangleMessage> _upstreamRelay;
 
         /// <summary>
         /// Used to load the next value to be produced
@@ -43,12 +43,14 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override int Key => _upstreamSource.Key;
+        public override int Key => _upstreamRelay.Key;
 
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Broadcast tangle transaction from `{_upstreamSource.Description}'";
+        public override string Description => $"Broadcast tangle transaction from `{_upstreamRelay.Description}'";
+
+        public override string SourceUri => _upstreamRelay.SourceUri;
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -56,7 +58,7 @@ namespace zero.core.consumables.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => _upstreamSource.IsOperational;
+        public override bool IsOperational => _upstreamRelay.IsOperational;
 
         /// <summary>
         /// Gets a value indicating whether this <see cref="T:zero.core.patterns.bushes.IoProducer`1" /> is synced.

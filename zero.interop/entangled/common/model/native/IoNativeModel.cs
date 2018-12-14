@@ -22,7 +22,7 @@ namespace zero.interop.entangled.common.model.native
 
             var interopTransaction = new IoNativeTransactionModel
             {                                               
-                Message = tx.Fragment.Value,
+                SignatureOrMessage = tx.Fragment.Value,
                 Address = tx.Address.Value,
                 Value = tx.Value,
                 ObsoleteTag = tx.ObsoleteTag.Value,
@@ -39,7 +39,7 @@ namespace zero.interop.entangled.common.model.native
                 Nonce = tx.Nonce.Value,
                 Hash = tx.Hash.Value,
                 SnapshotIndex = tx.SnapshotIndex,
-                Solid = tx.Solid                
+                Solid = tx.Solid                                
             };
 
             //check pow

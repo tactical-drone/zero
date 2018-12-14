@@ -88,7 +88,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => AddressString;
+        public override string Description => $"Source producer: `{IoSocket?.RemoteIpAndPort??Address.ResolvedIpAndPort}'";
+
+        /// <summary>
+        /// A description of this client. Currently the remote address
+        /// </summary>
+        public override string SourceUri => $"{IoSocket.Address.ProtocolStr}{IoSocket.RemoteIpAndPort}";
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
@@ -275,6 +280,6 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => Address.ToString();
+        public string AddressString => Address.ResolvedIpAndPort;
     }
 }

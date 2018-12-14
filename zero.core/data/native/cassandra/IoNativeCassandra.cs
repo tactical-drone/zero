@@ -5,6 +5,7 @@ using Cassandra;
 using Cassandra.Data.Linq;
 using NLog;
 using zero.core.data.cassandra;
+using zero.core.data.lookups;
 using zero.core.data.native.contracts;
 using zero.core.data.native.lookups;
 using zero.interop.entangled.common.model.native;
@@ -29,7 +30,9 @@ namespace zero.core.data.native.cassandra
         private Table<IoNativeHashedBundle> _hashes;
         private Table<IoNativeBundledAddress> _addresses;
         private Table<IoNativeTaggedTransaction> _tags;
-       
+        private Table<IoNativeVerifiedTransaction> _verifiers;
+        private Table<IoNativeDraggedTransaction> _dragnet;
+
         protected override bool EnsureSchema()
         {   
             _logger.Debug("Ensuring db schema...");
@@ -79,7 +82,23 @@ namespace zero.core.data.native.cassandra
                 wasConfigured = false;
             }
 
-            if(!wasConfigured)
+            _verifiers = new Table<IoNativeVerifiedTransaction>(_session);
+            if (!existingTables.Contains("verifier"))
+            {
+                _verifiers.CreateIfNotExists();
+                _logger.Debug($"Adding table `{_verifiers.Name}'");
+                wasConfigured = false;
+            }
+
+            _dragnet = new Table<IoNativeDraggedTransaction>(_session);
+            if (!existingTables.Contains("dragnet"))
+            {
+                _dragnet.CreateIfNotExists();
+                _logger.Debug($"Adding table `{_dragnet.Name}'");
+                wasConfigured = false;
+            }
+
+            if (!wasConfigured)
                 _logger.Trace("Ensured schema!");
 
             return wasConfigured;
@@ -109,13 +128,42 @@ namespace zero.core.data.native.cassandra
                 Hash = transaction.Hash
             };
 
-            if(batch == null)
+            var verifiedBranchTransaction = new IoNativeVerifiedTransaction
+            {
+                Hash = transaction.Branch,
+                Pow = transaction.Pow,
+                Verifier = transaction.Hash
+            };
+
+            var verifiedTrunkTransaction = new IoNativeVerifiedTransaction
+            {
+                Hash = transaction.Trunk,
+                Pow = transaction.Pow,
+                Verifier = transaction.Hash
+            };
+
+            var draggedTransaction = new IoNativeDraggedTransaction
+            {
+                Hash = transaction.Hash,
+                Uri = transaction.Uri,
+                attachment_timestamp = transaction.AttachmentTimestamp,
+                Tag = transaction.Tag,
+                timestamp = transaction.Timestamp,
+                attachment_timestamp_lower = transaction.AttachmentTimestampLower,
+                attachment_timestamp_upper = transaction.AttachmentTimestampUpper,
+                Address = transaction.Address,
+            };
+
+            if (batch == null)
                 batch = new BatchStatement();
             
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
             ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
+            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
+            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
+            ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
 
             if (executeBatch)
             {

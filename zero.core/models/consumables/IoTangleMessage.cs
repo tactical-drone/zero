@@ -51,7 +51,7 @@ namespace zero.core.models.consumables
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
-            WorkDescription = source.ToString();
+            WorkDescription = $"Deserialize messages from `{source.Description}'";
 
             //forward to nodeservices
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
@@ -204,6 +204,7 @@ namespace zero.core.models.consumables
 
                 IIoInteropTransactionModel interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
 
+                interopTx.Uri = ProducerHandle.SourceUri;
                 if (ProducerHandle.Synced)
                 {
                     newInteropTransactions.Add(interopTx);

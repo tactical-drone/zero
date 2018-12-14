@@ -30,7 +30,7 @@ namespace zero.interop.entangled.common.model.interop
             }
         }
 
-        public string Message
+        public string SignatureOrMessage
         {
             get
             {
@@ -174,5 +174,7 @@ namespace zero.interop.entangled.common.model.interop
                 return Pow < 0 ? "color: orange" : "color:green";
             }
         }
+
+        public string Uri { get; set; }
     }   
 }
