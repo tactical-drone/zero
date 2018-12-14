@@ -149,7 +149,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_stats_mod_count = 10;
+        public long parm_stats_mod_count = 1000;
 
         /// <summary>
         /// Used to rate limit this queue, in ms. Set to -1 for max rate
@@ -440,7 +440,7 @@ namespace zero.core.patterns.bushes
                         }
 
                         //TODO remove this spam when everything checks out?
-                        currJob.ProducerHandle.PrintCounters();
+                        //currJob.ProducerHandle.PrintCounters();
                     }
                 }
                 else
