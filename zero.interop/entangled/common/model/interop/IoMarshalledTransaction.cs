@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
 
@@ -9,7 +10,8 @@ namespace zero.interop.entangled.common.model.interop
     public struct IoMarshalledTransaction
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_6561)]        
-        public byte[] signature_or_message;
+        [Ignore]
+        public sbyte[] signature_or_message;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]        
         [ClusteringKey(5)]
@@ -66,6 +68,22 @@ namespace zero.interop.entangled.common.model.interop
         [MarshalAs(UnmanagedType.I1)]
         [Ignore]
         public bool solid;
+        
+        public sbyte[] Body
+        {
+            get
+            {
+                for (var i = signature_or_message.Length - 1; i != 0; i--)
+                {                    
+                    if (signature_or_message[i] != 0)
+                    {
+                        return i == signature_or_message.Length - 1 ? signature_or_message : signature_or_message.AsSpan().Slice(0, i).ToArray();
+                    }                    
+                }
 
+                return null;
+            }
+            set { }
+        }        
     }
 }

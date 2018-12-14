@@ -350,7 +350,7 @@ namespace zero.core.patterns.bushes
                     return Task.CompletedTask;
 
                 //Waiting for a job to be produced. Did production fail?
-                if (PrimaryProducer.ConsumerBarrier != null && !await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
+                if (!await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
                 {
                     //Was shutdown requested?
                     if (Spinners.IsCancellationRequested)
@@ -452,6 +452,9 @@ namespace zero.core.patterns.bushes
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
             catch (TimeoutException) { }
+            catch (ArgumentNullException e) {
+                _logger.Trace(e, $"Consumer `{PrimaryProducerDescription}' dequeue returned with errors:");
+            }
             catch (Exception e)
             {
                 _logger.Error(e, $"Consumer `{PrimaryProducerDescription}' dequeue returned with errors:");

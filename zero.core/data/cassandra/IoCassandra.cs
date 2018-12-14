@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
@@ -48,13 +49,44 @@ namespace zero.core.data.cassandra
             
             //ensure tables            
             try
-            {
-                MappingConfiguration.Global.Define(new Map<IoMarshalledTransaction>().TableName("bundle")
-                    .PartitionKey(b=>b.bundle,b=>b.current_index));
+            {                                
+                var config = new Map<IoMarshalledTransaction>().TableName("bundle")                    
+                    .ExplicitColumns()                    
+                    .Column(c => c.Body, map => map.WithName(nameof(IoMarshalledTransaction.signature_or_message)))
+                    .Column(c => c.address)
+                    .Column(c => c.value)
+                    .Column(c => c.timestamp)
+                    .Column(c => c.current_index)
+                    .Column(c => c.last_index)
+                    .Column(c => c.bundle)
+                    .Column(c => c.trunk)
+                    .Column(c => c.branch)
+                    .Column(c => c.tag)
+                    .Column(c => c.attachment_timestamp)
+                    .Column(c => c.attachment_timestamp_lower)
+                    .Column(c => c.attachment_timestamp_upper)
+                    .Column(c => c.nonce)
+                    .Column(c => c.hash)                    
+
+                    .PartitionKey(b => b.bundle)
+
+                    .ClusteringKey(c =>c.last_index, SortOrder.Descending)
+                    .ClusteringKey(c=>c.current_index, SortOrder.Ascending)
+                    .ClusteringKey(c=>c.value,SortOrder.Descending)
+                    .ClusteringKey(c=>c.tag,SortOrder.Ascending)
+                    .ClusteringKey(c=>c.hash,SortOrder.Ascending)
+                    .ClusteringKey(c=>c.address, SortOrder.Ascending)
+                    .ClusteringKey(c=>c.attachment_timestamp, SortOrder.Descending)
+                    .ClusteringKey(c=>c.attachment_timestamp_lower, SortOrder.Ascending)
+                    .ClusteringKey(c=>c.attachment_timestamp_upper, SortOrder.Descending)
+                    .ClusteringKey(c=>c.timestamp, SortOrder.Descending);
+
+                var mapConfig = new MappingConfiguration();
+                mapConfig.Define(config);
 
                 var existingTables = _cluster.Metadata.GetKeyspace(Keyspace).GetTablesNames();
 
-                _transactions = new Table<IoMarshalledTransaction>(_session);
+                _transactions = new Table<IoMarshalledTransaction>(_session, mapConfig);
                 if (!existingTables.Contains("bundle"))
                 {
                     _transactions.CreateIfNotExists();

@@ -202,7 +202,7 @@ namespace zero.core.models.consumables
             {
                 s.Restart();
 
-                IIoInteropTransactionModel interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
+                var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
 
                 interopTx.Uri = ProducerHandle.SourceUri;
                 if (ProducerHandle.Synced)
