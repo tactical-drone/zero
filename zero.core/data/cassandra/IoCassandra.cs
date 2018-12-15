@@ -8,6 +8,7 @@ using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.lookups;
+using zero.core.data.market;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
@@ -201,7 +202,11 @@ namespace zero.core.data.cassandra
                     timestamp = interopTransaction.Mapping.timestamp,
                     attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
                     attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
-                    Address = interopTransaction.Mapping.address,                    
+                    Quality = IoMarketDataClient.Quality,
+                    BtcValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize,
+                    EthValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize,
+                    EurValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize,
+                    UsdValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize
                 };
                 ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
             }            

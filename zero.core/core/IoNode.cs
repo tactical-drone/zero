@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.data.market;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.schedulers;
@@ -28,6 +29,7 @@ namespace zero.core.core
             _mallocNeighbor = mallocNeighbor;
             _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
             _logger = LogManager.GetCurrentClassLogger();
+            var q = IoMarketDataClient.Quality;//prime market data
         }
 
         /// <summary>

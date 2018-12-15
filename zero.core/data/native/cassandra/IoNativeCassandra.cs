@@ -7,6 +7,7 @@ using Cassandra.Data.Linq;
 using NLog;
 using zero.core.data.cassandra;
 using zero.core.data.lookups;
+using zero.core.data.market;
 using zero.core.data.native.contracts;
 using zero.core.data.native.lookups;
 using zero.interop.entangled.common.model.native;
@@ -159,12 +160,17 @@ namespace zero.core.data.native.cassandra
                     Hash = transaction.Hash,
                     Uri = transaction.Uri,
                     Size = transaction.Size,
+                    Value = transaction.Value,
                     attachment_timestamp = transaction.AttachmentTimestamp,
                     Tag = transaction.Tag,
                     timestamp = transaction.Timestamp,
                     attachment_timestamp_lower = transaction.AttachmentTimestampLower,
                     attachment_timestamp_upper = transaction.AttachmentTimestampUpper,
-                    Address = transaction.Address,
+                    Quality = IoMarketDataClient.Quality,
+                    BtcValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize,
+                    EthValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize,
+                    EurValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize,
+                    UsdValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize
                 };
                 ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
             }

@@ -379,10 +379,11 @@ namespace zero.core.patterns.bushes
                         //Consume the job
                         if (await currJob.ConsumeAsync() >= IoProducable<TJob>.State.Error)
                         {
-                            _logger.Warn($"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
+                            _logger.Warn(
+                                $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
                         }
 
-                        
+
                         if (currJob.ProcessState == IoProducable<TJob>.State.ConsumeInlined)
                         {
                             //forward any jobs
@@ -393,6 +394,11 @@ namespace zero.core.patterns.bushes
 
                         //Notify observer
                         _observer?.OnNext(currJob);
+                    }
+                    catch (ArgumentNullException e)
+                    {
+                        _logger.Trace(e.InnerException ?? e,
+                            $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' returned with errors:");
                     }
                     catch (Exception e)
                     {

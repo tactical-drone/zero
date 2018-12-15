@@ -20,6 +20,15 @@ namespace zero.core.data.lookups
         [ClusteringKey(1)]
         public long Value;
 
+        [ClusteringKey(5)]
+        public decimal BtcValue;
+        [ClusteringKey(6)]
+        public decimal EthValue;
+        [ClusteringKey(7)]
+        public decimal EurValue;
+        [ClusteringKey(8)]
+        public decimal UsdValue;
+
         [ClusteringKey(2)]
         public long attachment_timestamp;
 
@@ -29,13 +38,12 @@ namespace zero.core.data.lookups
         [ClusteringKey(4)]
         public long timestamp;        
 
-        [ClusteringKey(5)]
+        [ClusteringKey(9)]
         public long attachment_timestamp_lower;
 
-        [ClusteringKey(6)]
+        [ClusteringKey(10)]
         public long attachment_timestamp_upper;
-                
-        [ClusteringKey(7)] 
-        public string Address;        
+
+        public short Quality;
     }
 }
