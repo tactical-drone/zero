@@ -31,7 +31,7 @@ namespace zero.core.data.market
         private static readonly Logger Logger;
         private static readonly HttpClient HttpClient = new HttpClient();
         private static DateTime _lastFetchTime = DateTime.Now;
-        public static decimal BundleSize = 1000000;
+        public static double BundleSize = 1000000.0;
 
         public static IoCryptoCompareMarketData CurrentData = new IoCryptoCompareMarketData();
         public static volatile short Quality = short.MaxValue;

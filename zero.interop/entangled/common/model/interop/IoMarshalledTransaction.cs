@@ -63,11 +63,11 @@ namespace zero.interop.entangled.common.model.interop
         {
             get
             {
-                for (var i = signature_or_message.Length - 1; i != 0; i--)
+                for (var i = signature_or_message.Length - 1; i >= 0; i--)
                 {                    
                     if (signature_or_message[i] != 0)
                     {
-                        return i == signature_or_message.Length - 1 ? signature_or_message : signature_or_message.AsSpan().Slice(0, i).ToArray();
+                        return i == signature_or_message.Length - 1 ? signature_or_message : signature_or_message.AsSpan().Slice(0, signature_or_message.Length - i).ToArray();
                     }                    
                 }
 
@@ -79,23 +79,23 @@ namespace zero.interop.entangled.common.model.interop
         public sbyte[] Tag
         {
             get
-            {
-                for (var i = tag.Length - 1; i != 0; i--)
+            {                
+                for (var i = tag.Length - 1; i >= 0; i--)
                 {
                     if (tag[i] != 0)
-                    {
-                        return i == tag.Length - 1 ? tag : tag.AsSpan().Slice(0, i).ToArray();
+                    {                            
+                        return i == tag.Length - 1 ? tag : tag.AsSpan().Slice(0, tag.Length - i).ToArray();
                     }
                 }
 
-                return new[] {(sbyte)9};
+                return new sbyte[] { };
             }
             set { }
         }
 
         public short Size
         {
-            get => (short)(Codec.TransactionSize - (tag.Length - Tag.Length) - (signature_or_message.Length - Body.Length));
+            get => (short) (Codec.TransactionSize - (tag.Length - Tag.Length) - (signature_or_message.Length - Body?.Length??0));
             set { }
         }
     }

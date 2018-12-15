@@ -218,7 +218,7 @@ namespace zero.core.models.consumables
             }
 
             //Relay batch
-            await ForwardToNeighbor(newInteropTransactions.ToList());
+            await ForwardToNeighbor(newInteropTransactions);
             await ForwardToNodeServices(newInteropTransactions);            
 
             ProcessState = State.Consumed;
@@ -254,7 +254,7 @@ namespace zero.core.models.consumables
             });
 
             //forward transactions
-            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: true))
             {
                 _logger.Warn($"Failed to relay to `{NeighborRelay.PrimaryProducer.Description}'");
             }

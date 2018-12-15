@@ -51,7 +51,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        protected Socket Socket;
+        protected volatile Socket Socket;
 
         /// <summary>
         /// The original node address this socket is supposed to work with

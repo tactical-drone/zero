@@ -190,25 +190,33 @@ namespace zero.core.data.cassandra
                 batch = new BatchStatement();
 
             if (interopTransaction.Value != 0)
-            {
-                var draggedTransaction = new IoDraggedTransaction
+            {                
+                try
                 {
-                    Hash = interopTransaction.Mapping.hash,
-                    Uri = interopTransaction.Uri,
-                    Size =  interopTransaction.Mapping.Size,
-                    Value = interopTransaction.Value,
-                    attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
-                    Tag = interopTransaction.Mapping.Tag,
-                    timestamp = interopTransaction.Mapping.timestamp,
-                    attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
-                    attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
-                    Quality = IoMarketDataClient.Quality,
-                    BtcValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize,
-                    EthValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize,
-                    EurValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize,
-                    UsdValue = interopTransaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize
-                };
-                ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
+                    var draggedTransaction = new IoDraggedTransaction
+                    {
+                        Hash = interopTransaction.Mapping.hash,
+                        Uri = interopTransaction.Uri,
+                        Size =  interopTransaction.Mapping.Size,
+                        Value = interopTransaction.Value,
+                        attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
+                        Tag = interopTransaction.Mapping.Tag,
+                        timestamp = interopTransaction.Mapping.timestamp,
+                        attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
+                        attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
+                        Quality = IoMarketDataClient.Quality,
+                        BtcValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
+                        EthValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
+                        EurValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize)),
+                        UsdValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize))
+                    };
+                    
+                    ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Unable to drag transaction:");
+                }                
             }            
                         
             ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.Mapping));
@@ -218,7 +226,6 @@ namespace zero.core.data.cassandra
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
             
-
             if (executeBatch)
             {
                 await ExecuteAsync((BatchStatement)batch);

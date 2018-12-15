@@ -18,13 +18,13 @@ namespace zero.core.data.lookups
         public long Value;
 
         [ClusteringKey(1)]
-        public decimal BtcValue;
+        public float BtcValue;
         [ClusteringKey(2)]
-        public decimal EthValue;
+        public float EthValue;
         [ClusteringKey(3)]
-        public decimal EurValue;
+        public float EurValue;
         [ClusteringKey(4)]
-        public decimal UsdValue;
+        public float UsdValue;
 
         [ClusteringKey(5)]
         public short Quality;

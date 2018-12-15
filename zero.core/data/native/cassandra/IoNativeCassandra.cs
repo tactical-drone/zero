@@ -150,7 +150,7 @@ namespace zero.core.data.native.cassandra
                 Verifier = transaction.Hash
             };
 
-            if (batch == null)
+            if (executeBatch)
                 batch = new BatchStatement();
 
             if (transaction.Value != 0)
@@ -167,10 +167,10 @@ namespace zero.core.data.native.cassandra
                     attachment_timestamp_lower = transaction.AttachmentTimestampLower,
                     attachment_timestamp_upper = transaction.AttachmentTimestampUpper,
                     Quality = IoMarketDataClient.Quality,
-                    BtcValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize,
-                    EthValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize,
-                    EurValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize,
-                    UsdValue = transaction.Value * IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize
+                    BtcValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
+                    EthValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
+                    EurValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize)),
+                    UsdValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize))
                 };
                 ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction));
             }
