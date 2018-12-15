@@ -179,7 +179,7 @@ namespace zero.core.data.native.cassandra
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
-            ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
+            if (transaction.Tag.Length > 0 ) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
             

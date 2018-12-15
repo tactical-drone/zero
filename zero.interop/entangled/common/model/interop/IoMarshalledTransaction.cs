@@ -88,14 +88,14 @@ namespace zero.interop.entangled.common.model.interop
                     }
                 }
 
-                return new sbyte[] { };
+                return new sbyte[]{};
             }
             set { }
         }
 
         public short Size
         {
-            get => (short) (Codec.TransactionSize - (tag.Length - Tag.Length) - (signature_or_message.Length - Body?.Length??0));
+            get => (short) (Codec.TransactionSize - (tag.Length - Tag?.Length??0) - (signature_or_message.Length - Body?.Length??0));
             set { }
         }
     }

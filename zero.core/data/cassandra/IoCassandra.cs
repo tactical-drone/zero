@@ -200,7 +200,7 @@ namespace zero.core.data.cassandra
                         Size =  interopTransaction.Mapping.Size,
                         Value = interopTransaction.Value,
                         attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
-                        Tag = interopTransaction.Mapping.Tag,
+                        Tag = taggedTransaction.Tag, //optimized: since interopTransaction.Mapping.Tag is calculated every time
                         timestamp = interopTransaction.Mapping.timestamp,
                         attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
                         attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
@@ -222,7 +222,7 @@ namespace zero.core.data.cassandra
             ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.Mapping));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
-            ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
+            if(taggedTransaction.Tag.Length > 0) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
             ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
             
