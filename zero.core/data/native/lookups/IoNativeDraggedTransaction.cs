@@ -13,29 +13,29 @@ namespace zero.core.data.lookups
 
         [PartitionKey(1)]
         public string Uri { get; set; }
-
+        
         [ClusteringKey(0)]
-        public short Size;
-
-        [ClusteringKey(1)]
         public long Value;
 
-        [ClusteringKey(5)]
+        [ClusteringKey(1)]
         public decimal BtcValue;
-        [ClusteringKey(6)]
+        [ClusteringKey(2)]
         public decimal EthValue;
-        [ClusteringKey(7)]
+        [ClusteringKey(3)]
         public decimal EurValue;
-        [ClusteringKey(8)]
+        [ClusteringKey(4)]
         public decimal UsdValue;
 
-        [ClusteringKey(2)]
+        [ClusteringKey(5)]
+        public short Quality;
+
+        [ClusteringKey(6)]
         public long attachment_timestamp;
 
-        [ClusteringKey(3)]
+        [ClusteringKey(7)]
         public string Tag;
         
-        [ClusteringKey(4)]
+        [ClusteringKey(8)]
         public long timestamp;        
 
         [ClusteringKey(9)]
@@ -44,6 +44,7 @@ namespace zero.core.data.lookups
         [ClusteringKey(10)]
         public long attachment_timestamp_upper;
 
-        public short Quality;
+        [ClusteringKey(11)]
+        public short Size;        
     }
 }
