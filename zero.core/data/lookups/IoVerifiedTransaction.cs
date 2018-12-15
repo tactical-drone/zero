@@ -12,10 +12,10 @@ namespace zero.core.data.lookups
         [Frozen]
         public byte[] Hash { get; set; }
 
-        [ClusteringKey(0)]
+        [ClusteringKey]
         public int Pow { get; set; }
 
-        [Column(nameof(Verifier)), ClusteringKey(1)]
+        [Column(nameof(Verifier)), PartitionKey(1)]
         [Frozen]
         public byte[] Verifier { get; set; }        
     }

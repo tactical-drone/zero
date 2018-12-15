@@ -11,7 +11,7 @@ namespace zero.core.data.native.lookups
         [Column(nameof(Tag)), PartitionKey]        
         public string Tag { get; set; }
 
-        [Column(nameof(Hash))]
+        [Column(nameof(Hash)), PartitionKey(1)]
         public string Hash { get; set; }
     }
 }

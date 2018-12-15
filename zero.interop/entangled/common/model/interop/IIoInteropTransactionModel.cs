@@ -74,6 +74,9 @@ namespace zero.interop.entangled.common.model.interop
         string Color { get; }   
 
         [DataMember]
-        string Uri { get; set; }        
+        string Uri { get; set; }
+        
+        [DataMember]
+        string Body { get; set; }
     }
 }

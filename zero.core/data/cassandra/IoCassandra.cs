@@ -71,10 +71,9 @@ namespace zero.core.data.cassandra
                     .Column(c => c.hash)
                     .Column(c=>c.Size)
 
-                    .PartitionKey(b => b.bundle)
+                    .PartitionKey(b => b.bundle, b=>b.current_index)
 
-                    .ClusteringKey(c =>c.last_index, SortOrder.Descending)
-                    .ClusteringKey(c=>c.current_index, SortOrder.Ascending)
+                    .ClusteringKey(c =>c.last_index, SortOrder.Descending)                    
                     .ClusteringKey(c=>c.value,SortOrder.Descending)
                     .ClusteringKey(c=>c.Tag,SortOrder.Ascending)
                     .ClusteringKey(c=>c.hash,SortOrder.Ascending)

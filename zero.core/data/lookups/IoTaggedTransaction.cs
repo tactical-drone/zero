@@ -9,7 +9,7 @@ namespace zero.core.data.lookups
         [Frozen]
         public sbyte[] Tag { get; set; }
 
-        [Column(nameof(Hash))]        
+        [Column(nameof(Hash)), PartitionKey(1)]        
         public byte[] Hash { get; set; }
     }
 }

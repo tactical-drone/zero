@@ -14,7 +14,7 @@ namespace zero.core.data.lookups
         [ClusteringKey(0)]
         public int Pow { get; set; }
 
-        [Column(nameof(Verifier)), ClusteringKey(1)]        
+        [Column(nameof(Verifier)), PartitionKey(1)]        
         public string Verifier { get; set; }        
     }
 }

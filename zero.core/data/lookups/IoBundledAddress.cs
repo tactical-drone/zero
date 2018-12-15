@@ -9,7 +9,7 @@ namespace zero.core.data.lookups
         [Frozen]
         public byte[] Address { get; set; }
 
-        [Column(nameof(Bundle)), ClusteringKey]
+        [Column(nameof(Bundle)), PartitionKey(1)]
         [Frozen]
         public byte[] Bundle { get; set; }
     }

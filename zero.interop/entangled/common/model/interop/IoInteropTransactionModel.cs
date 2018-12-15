@@ -37,7 +37,7 @@ namespace zero.interop.entangled.common.model.interop
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_SIGNATURE];
                 IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
-                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()).Trim('9');
+                return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
             {
@@ -176,6 +176,11 @@ namespace zero.interop.entangled.common.model.interop
             }
         }
 
-        public string Uri { get; set; }        
+        public string Uri { get; set; }
+        public string Body
+        {
+            get => SignatureOrMessage.Trim('9');
+            set { }
+        }
     }   
 }

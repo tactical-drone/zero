@@ -40,7 +40,7 @@ namespace zero.interop.entangled.common.model.native
                 Hash = tx.Hash.Value,
                 SnapshotIndex = tx.SnapshotIndex,
                 Solid = tx.Solid,
-                Size = tryteBuffer.Length
+                Size = (short)tryteBuffer.Length
             };
 
             //check pow

@@ -8,7 +8,7 @@ namespace zero.core.data.native.lookups
         [Column(nameof(Address)), PartitionKey]
         public string Address { get; set; }
 
-        [Column(nameof(Bundle)), ClusteringKey]
+        [Column(nameof(Bundle)), PartitionKey(1)]
         public string Bundle { get; set; }
     }
 }

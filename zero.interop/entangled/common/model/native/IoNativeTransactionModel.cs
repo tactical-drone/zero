@@ -13,13 +13,13 @@ namespace zero.interop.entangled.common.model.native
         [Ignore]
         public IoMarshalledTransaction Mapping { get; set; }
 
-        [ClusteringKey(5)]
+        [ClusteringKey(4)]
         public string Address { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.signature_or_message))]        
         public string SignatureOrMessage { get; set; }
 
-        [ClusteringKey(2)]
+        [ClusteringKey(1)]
         public long Value { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.obsolete_tag))]
@@ -28,30 +28,30 @@ namespace zero.interop.entangled.common.model.native
         [ClusteringKey(9)]
         public long Timestamp { get; set; }
 
-        [Column(nameof(IoMarshalledTransaction.current_index)), ClusteringKey(1)]
+        [Column(nameof(IoMarshalledTransaction.current_index)), PartitionKey(1)]
         public long CurrentIndex { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.last_index)), ClusteringKey(0)]
         public long LastIndex { get; set; }
 
-        [Column(nameof(Bundle)), PartitionKey]
+        [Column(nameof(Bundle)), PartitionKey(0)]
         public string Bundle { get; set; }
 
         public string Trunk { get; set; }
         public string Branch { get; set; }
 
-        [ClusteringKey(3)]
+        [ClusteringKey(2)]
         public string Tag { get; set; }
 
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp)),ClusteringKey(6)]
+        [Column(nameof(IoMarshalledTransaction.attachment_timestamp)),ClusteringKey(5)]
         public long AttachmentTimestamp { get; set; }
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_lower)), ClusteringKey(7)]
+        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_lower)), ClusteringKey(6)]
         public long AttachmentTimestampLower { get; set; }
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_upper)), ClusteringKey(8)]
+        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_upper)), ClusteringKey(7)]
         public long AttachmentTimestampUpper { get; set; }
         public string Nonce { get; set; }
 
-        [ClusteringKey(4)]
+        [ClusteringKey(3)]
         public string Hash { get; set; }
         
         [Ignore]
@@ -80,6 +80,13 @@ namespace zero.interop.entangled.common.model.native
         [Ignore]
         public string Uri { get; set; }
 
-        public long Size { get; set; }
+        [Ignore] //TODO config
+        public string Body
+        {
+            get => SignatureOrMessage.Trim('9');
+            set { }
+        }
+        
+        public short Size { get; set; }
     }
 }
