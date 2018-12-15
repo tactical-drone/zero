@@ -71,13 +71,13 @@ namespace zero.core.data.cassandra
                     .Column(c => c.hash)
                     .Column(c=>c.Size)
 
-                    .PartitionKey(b => b.bundle, b=>b.current_index)
+                    .PartitionKey(b => b.bundle, b=>b.address)
 
-                    .ClusteringKey(c =>c.last_index, SortOrder.Descending)                    
+                    .ClusteringKey(c => c.last_index, SortOrder.Descending)
+                    .ClusteringKey(c =>c.current_index, SortOrder.Ascending)                    
                     .ClusteringKey(c=>c.value,SortOrder.Descending)
                     .ClusteringKey(c=>c.Tag,SortOrder.Ascending)
-                    .ClusteringKey(c=>c.hash,SortOrder.Ascending)
-                    .ClusteringKey(c=>c.address, SortOrder.Ascending)
+                    .ClusteringKey(c=>c.hash,SortOrder.Ascending)                    
                     .ClusteringKey(c=>c.attachment_timestamp, SortOrder.Descending)
                     .ClusteringKey(c=>c.attachment_timestamp_lower, SortOrder.Ascending)
                     .ClusteringKey(c=>c.attachment_timestamp_upper, SortOrder.Descending)

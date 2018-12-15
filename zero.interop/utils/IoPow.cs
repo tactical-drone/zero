@@ -25,7 +25,7 @@ namespace zero.interop.utils
                 if (transaction.Pow == -IoTransaction.NUM_TRYTES_HASH)
                 {
                     transaction.Pow = 0;
-                    transaction.FakePow = -(transaction.FakePow + IoTransaction.NUM_TRYTES_HASH);
+                    transaction.FakePow = (sbyte)-(transaction.FakePow + IoTransaction.NUM_TRYTES_HASH);
                     if (transaction.FakePow == IoTransaction.NUM_TRYTES_HASH)
                         transaction.FakePow = 0;
                 }

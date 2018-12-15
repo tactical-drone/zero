@@ -163,8 +163,8 @@ namespace zero.interop.entangled.common.model.interop
             set { }
         }
 
-        public int Pow { get; set; }
-        public int FakePow { get; set; }
+        public sbyte Pow { get; set; }
+        public sbyte FakePow { get; set; }
 
         public string Color
         {

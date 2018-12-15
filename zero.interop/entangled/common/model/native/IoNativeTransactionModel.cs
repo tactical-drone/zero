@@ -13,13 +13,13 @@ namespace zero.interop.entangled.common.model.native
         [Ignore]
         public IoMarshalledTransaction Mapping { get; set; }
 
-        [ClusteringKey(4)]
+        [PartitionKey(1)]
         public string Address { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.signature_or_message))]        
         public string SignatureOrMessage { get; set; }
 
-        [ClusteringKey(1)]
+        [ClusteringKey(2)]
         public long Value { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.obsolete_tag))]
@@ -28,7 +28,7 @@ namespace zero.interop.entangled.common.model.native
         [ClusteringKey(9)]
         public long Timestamp { get; set; }
 
-        [Column(nameof(IoMarshalledTransaction.current_index)), PartitionKey(1)]
+        [Column(nameof(IoMarshalledTransaction.current_index)), ClusteringKey(1)]
         public long CurrentIndex { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.last_index)), ClusteringKey(0)]
@@ -40,7 +40,7 @@ namespace zero.interop.entangled.common.model.native
         public string Trunk { get; set; }
         public string Branch { get; set; }
 
-        [ClusteringKey(2)]
+        [ClusteringKey(3)]
         public string Tag { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.attachment_timestamp)),ClusteringKey(5)]
@@ -51,7 +51,7 @@ namespace zero.interop.entangled.common.model.native
         public long AttachmentTimestampUpper { get; set; }
         public string Nonce { get; set; }
 
-        [ClusteringKey(3)]
+        [ClusteringKey(4)]
         public string Hash { get; set; }
         
         [Ignore]
@@ -61,10 +61,10 @@ namespace zero.interop.entangled.common.model.native
         public bool Solid { get; set; }
 
         [Ignore]
-        public int Pow { get; set; }
+        public sbyte Pow { get; set; }
 
         [Ignore]
-        public int FakePow { get; set; }
+        public sbyte FakePow { get; set; }
 
         [Ignore]
         public string Color

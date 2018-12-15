@@ -15,7 +15,7 @@ namespace zero.core.data.lookups
         public string Uri { get; set; }
 
         [ClusteringKey(0)]
-        public long Size;
+        public short Size;
 
         [ClusteringKey(1)]
         public long Value;

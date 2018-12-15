@@ -12,7 +12,7 @@ namespace zero.core.data.lookups
         public string Hash { get; set; }
 
         [ClusteringKey(0)]
-        public int Pow { get; set; }
+        public sbyte Pow { get; set; }
 
         [Column(nameof(Verifier)), PartitionKey(1)]        
         public string Verifier { get; set; }        

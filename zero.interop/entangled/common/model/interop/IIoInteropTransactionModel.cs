@@ -65,10 +65,10 @@ namespace zero.interop.entangled.common.model.interop
         bool Solid { get; set; }
 
         [DataMember]
-        int Pow { get; set; }
+        sbyte Pow { get; set; }
 
         [DataMember]
-        int FakePow { get; set; }
+        sbyte FakePow { get; set; }
 
         [DataMember]
         string Color { get; }   
