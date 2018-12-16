@@ -23,25 +23,40 @@ namespace zero.interop.entangled.common.model.native
             var interopTransaction = new IoNativeTransactionModel
             {                                               
                 SignatureOrMessage = tx.Fragment.Value.Trim('9'),
-                Address = tx.Address.Value,
+                Address = tx.Address.Value.Trim('9'),
                 Value = tx.Value,
-                ObsoleteTag = tx.ObsoleteTag.Value,
+                ObsoleteTag = tx.ObsoleteTag.Value.Trim('9'),
                 Timestamp = tx.Timestamp,
                 CurrentIndex = tx.CurrentIndex,
                 LastIndex = tx.LastIndex,
                 Bundle = tx.BundleHash.Value,
-                Trunk = tx.TrunkTransaction.Value,
-                Branch = tx.BranchTransaction.Value,                                                
+                Trunk = tx.TrunkTransaction.Value.Trim('9'),
+                Branch = tx.BranchTransaction.Value.Trim('9'),                                                
                 Tag = tx.Tag.Value.Trim('9'),
                 AttachmentTimestamp = tx.AttachmentTimestamp,
                 AttachmentTimestampLower = tx.AttachmentTimestampLowerBound,
                 AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound,                
-                Nonce = tx.Nonce.Value,
-                Hash = tx.Hash.Value,
+                Nonce = tx.Nonce.Value.Trim('9'),
+                Hash = tx.Hash.Value.Trim('9'),
                 SnapshotIndex = tx.SnapshotIndex,
-                Solid = tx.Solid,
-                Size = (short)tryteBuffer.Length
+                Solid = tx.Solid                
             };
+            interopTransaction.Size = (short) (interopTransaction.SignatureOrMessage.Length
+                                               + interopTransaction.Address.Length
+                                               + sizeof(long)
+                                               + interopTransaction.ObsoleteTag.Length
+                                               + sizeof(long)
+                                               + sizeof(long)
+                                               + sizeof(long)
+                                               + interopTransaction.Bundle.Length
+                                               + interopTransaction.Trunk.Length
+                                               + interopTransaction.Branch.Length
+                                               + interopTransaction.Tag.Length
+                                               + sizeof(long)
+                                               + sizeof(long)
+                                               + sizeof(long)
+                                               + interopTransaction.Nonce.Length
+                                               + interopTransaction.Hash.Length);
 
             //check pow
             IoEntangled.Default.Trinary.GetTrytes(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
