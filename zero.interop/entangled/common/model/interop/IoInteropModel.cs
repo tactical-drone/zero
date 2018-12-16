@@ -35,7 +35,8 @@ namespace zero.interop.entangled.common.model.interop
 
                 var interopTransaction = new IoInteropTransactionModel
                 {
-                    Mapping = memMap,
+                    RawMapping = memMap, //TODO remove this later
+                    TrimmedMap = IoMarshalledTransaction.Trim(ref memMap),
                     Pow = 0,
                 };
 

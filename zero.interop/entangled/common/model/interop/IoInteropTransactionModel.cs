@@ -15,14 +15,18 @@ namespace zero.interop.entangled.common.model.interop
     {
         [IgnoreDataMember]
         [Ignore]
-        public IoMarshalledTransaction Mapping { get; set; }
+        public IoMarshalledTransaction TrimmedMap { get; set; }
+
+        [IgnoreDataMember]
+        [Ignore]
+        public IoMarshalledTransaction RawMapping { get; set; }
 
         public string Address
         {
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_ADDRESS];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.address, 0, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.address, 0, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
@@ -36,7 +40,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_SIGNATURE];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.signature_or_message, 0, IoTransaction.NUM_TRITS_SIGNATURE, IoTransaction.NUM_TRITS_SIGNATURE);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set
@@ -47,7 +51,7 @@ namespace zero.interop.entangled.common.model.interop
 
         public long Value
         {
-            get => Mapping.value;
+            get => TrimmedMap.value;
             set { }
         }
     
@@ -57,24 +61,24 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_OBSOLETE_TAG];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.obsolete_tag, 0, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRITS_OBSOLETE_TAG);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.obsolete_tag, 0, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRITS_OBSOLETE_TAG);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()).Trim('9');
             }
             set { }
         }
         public long Timestamp
         {
-            get => Mapping.timestamp;
+            get => TrimmedMap.timestamp;
             set { }
         }
         public long CurrentIndex
         {
-            get => Mapping.current_index;
+            get => TrimmedMap.current_index;
             set { }
         }
         public long LastIndex
         {
-            get => Mapping.last_index;
+            get => TrimmedMap.last_index;
             set { }
         }
         public string Bundle
@@ -82,7 +86,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_BUNDLE];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.bundle, 0, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.bundle, 0, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -92,7 +96,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_TRUNK];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.trunk, 0, IoTransaction.NUM_TRITS_TRUNK, IoTransaction.NUM_TRITS_TRUNK);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.trunk, 0, IoTransaction.NUM_TRITS_TRUNK, IoTransaction.NUM_TRITS_TRUNK);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -102,7 +106,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_BRANCH];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.branch, 0, IoTransaction.NUM_TRITS_BRANCH, IoTransaction.NUM_TRITS_BRANCH);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.branch, 0, IoTransaction.NUM_TRITS_BRANCH, IoTransaction.NUM_TRITS_BRANCH);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -112,24 +116,24 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_TAG];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.tag, 0, IoTransaction.NUM_TRITS_TAG, IoTransaction.NUM_TRITS_TAG);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.tag, 0, IoTransaction.NUM_TRITS_TAG, IoTransaction.NUM_TRITS_TAG);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()).Trim('9');
             }
             set { }
         }
         public long AttachmentTimestamp
         {
-            get => Mapping.attachment_timestamp;
+            get => TrimmedMap.attachment_timestamp;
             set { }
         }
         public long AttachmentTimestampLower
         {
-            get => Mapping.attachment_timestamp_lower;
+            get => TrimmedMap.attachment_timestamp_lower;
             set { }
         }
         public long AttachmentTimestampUpper
         {
-            get => Mapping.attachment_timestamp_upper;
+            get => TrimmedMap.attachment_timestamp_upper;
             set { }
         }
         public string Nonce
@@ -137,7 +141,7 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_NONCE];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.nonce, 0, IoTransaction.NUM_TRITS_NONCE, IoTransaction.NUM_TRITS_NONCE);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.nonce, 0, IoTransaction.NUM_TRITS_NONCE, IoTransaction.NUM_TRITS_NONCE);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
@@ -147,19 +151,19 @@ namespace zero.interop.entangled.common.model.interop
             get
             {
                 var trytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
-                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)Mapping.hash, 0, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH);
+                IoEntangled.Default.Trinary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)RawMapping.hash, 0, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH);
                 return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
             }
             set { }
         }
         public long SnapshotIndex
         {
-            get => Mapping.snapshot_index;
+            get => TrimmedMap.snapshot_index;
             set { }
         }
         public bool Solid
         {
-            get => Mapping.solid;
+            get => TrimmedMap.solid;
             set { }
         }
 

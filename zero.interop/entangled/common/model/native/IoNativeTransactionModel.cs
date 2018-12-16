@@ -11,7 +11,10 @@ namespace zero.interop.entangled.common.model.native
     public class IoNativeTransactionModel : IIoInteropTransactionModel
     {
         [Ignore]
-        public IoMarshalledTransaction Mapping { get; set; }
+        public IoMarshalledTransaction TrimmedMap { get; set; }
+
+        [Ignore]
+        public IoMarshalledTransaction RawMapping { get; set; }
 
         [PartitionKey(1)]
         public string Address { get; set; }

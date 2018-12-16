@@ -55,16 +55,16 @@ namespace zero.core.data.cassandra
             {                                
                 var config = new Map<IoMarshalledTransaction>().TableName("bundle")                    
                     .ExplicitColumns()                    
-                    .Column(c => c.Body, map => map.WithName(nameof(IoMarshalledTransaction.signature_or_message)))
-                    .Column(c => c.address)
+                    .Column(c => c.signature_or_message)
+                    .Column(c => c.address, map => map.AsFrozen())
                     .Column(c => c.value)
                     .Column(c => c.timestamp)
                     .Column(c => c.current_index)
                     .Column(c => c.last_index)
-                    .Column(c => c.bundle)
+                    .Column(c => c.bundle, map => map.AsFrozen())
                     .Column(c => c.trunk)
                     .Column(c => c.branch)
-                    .Column(c => c.Tag, map => map.AsFrozen())
+                    .Column(c => c.tag, map => map.AsFrozen())
                     .Column(c => c.attachment_timestamp)
                     .Column(c => c.attachment_timestamp_lower)
                     .Column(c => c.attachment_timestamp_upper)
@@ -77,7 +77,7 @@ namespace zero.core.data.cassandra
                     .ClusteringKey(c => c.last_index, SortOrder.Descending)
                     .ClusteringKey(c =>c.current_index, SortOrder.Ascending)                    
                     .ClusteringKey(c=>c.value,SortOrder.Descending)
-                    .ClusteringKey(c=>c.Tag,SortOrder.Ascending)
+                    .ClusteringKey(c=>c.tag,SortOrder.Ascending)
                     .ClusteringKey(c=>c.hash,SortOrder.Ascending)                    
                     .ClusteringKey(c=>c.attachment_timestamp, SortOrder.Descending)
                     .ClusteringKey(c=>c.attachment_timestamp_lower, SortOrder.Ascending)
@@ -156,34 +156,34 @@ namespace zero.core.data.cassandra
 
             var hashedBundle = new IoHashedBundle
             {
-                Hash = interopTransaction.Mapping.hash,
-                Bundle = interopTransaction.Mapping.bundle               
+                Hash = interopTransaction.TrimmedMap.hash,
+                Bundle = interopTransaction.TrimmedMap.bundle               
             };
 
             var bundledAddress = new IoBundledAddress
             {
-                Address = interopTransaction.Mapping.address,
-                Bundle = interopTransaction.Mapping.bundle                
+                Address = interopTransaction.TrimmedMap.address,
+                Bundle = interopTransaction.TrimmedMap.bundle                
             };
 
             var taggedTransaction = new IoTaggedTransaction
             {
-                Tag = interopTransaction.Mapping.Tag,
-                Hash = interopTransaction.Mapping.hash
+                Tag = interopTransaction.TrimmedMap.tag,
+                Hash = interopTransaction.TrimmedMap.hash
             };
 
             var verifiedBranchTransaction = new IoVerifiedTransaction
             {
-                Hash = interopTransaction.Mapping.branch,
+                Hash = interopTransaction.TrimmedMap.branch,
                 Pow = interopTransaction.Pow,
-                Verifier = interopTransaction.Mapping.hash
+                Verifier = interopTransaction.TrimmedMap.hash
             };
 
             var verifiedTrunkTransaction = new IoVerifiedTransaction
             {
-                Hash = interopTransaction.Mapping.trunk,
+                Hash = interopTransaction.TrimmedMap.trunk,
                 Pow = interopTransaction.Pow,
-                Verifier = interopTransaction.Mapping.hash
+                Verifier = interopTransaction.TrimmedMap.hash
             };
 
             if (executeBatch)
@@ -195,15 +195,15 @@ namespace zero.core.data.cassandra
                 {
                     var draggedTransaction = new IoDraggedTransaction
                     {
-                        Hash = interopTransaction.Mapping.hash,
+                        Hash = interopTransaction.TrimmedMap.hash,
                         Uri = interopTransaction.Uri,
-                        Size =  interopTransaction.Mapping.Size,
+                        Size =  interopTransaction.TrimmedMap.Size,
                         Value = interopTransaction.Value,
-                        attachment_timestamp = interopTransaction.Mapping.attachment_timestamp,
+                        attachment_timestamp = interopTransaction.TrimmedMap.attachment_timestamp,
                         Tag = taggedTransaction.Tag, //optimized: since interopTransaction.Mapping.Tag is calculated every time
-                        timestamp = interopTransaction.Mapping.timestamp,
-                        attachment_timestamp_lower = interopTransaction.Mapping.attachment_timestamp_lower,
-                        attachment_timestamp_upper = interopTransaction.Mapping.attachment_timestamp_upper,
+                        timestamp = interopTransaction.TrimmedMap.timestamp,
+                        attachment_timestamp_lower = interopTransaction.TrimmedMap.attachment_timestamp_lower,
+                        attachment_timestamp_upper = interopTransaction.TrimmedMap.attachment_timestamp_upper,
                         Quality = IoMarketDataClient.Quality,
                         BtcValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
                         EthValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
@@ -219,7 +219,7 @@ namespace zero.core.data.cassandra
                 }                
             }            
                         
-            ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.Mapping));
+            ((BatchStatement)batch).Add(_transactions.Insert(interopTransaction.TrimmedMap));
             ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
             ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
             if(taggedTransaction.Tag.Length > 0) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));

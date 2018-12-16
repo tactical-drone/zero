@@ -10,16 +10,39 @@ namespace zero.interop.entangled.common.model.interop
     [StructLayout(LayoutKind.Sequential)]
     public struct IoMarshalledTransaction
     {
+        public static IoMarshalledTransaction Trim(ref IoMarshalledTransaction transaction)
+        {
+            return new IoMarshalledTransaction
+            {
+                signature_or_message = IoMarshalledTransaction.Trim(transaction.signature_or_message),
+                address = IoMarshalledTransaction.Trim(transaction.address, new sbyte[] { }),
+                value = transaction.value,
+                obsolete_tag = IoMarshalledTransaction.Trim(transaction.obsolete_tag),
+                timestamp = transaction.timestamp,
+                current_index = transaction.current_index,
+                last_index = transaction.last_index,
+                bundle = transaction.bundle,
+                trunk = transaction.trunk,
+                branch = transaction.branch,
+                tag = IoMarshalledTransaction.Trim(transaction.tag, new sbyte[] { }),
+                attachment_timestamp = transaction.attachment_timestamp,
+                attachment_timestamp_lower = transaction.attachment_timestamp_lower,
+                attachment_timestamp_upper = transaction.attachment_timestamp_upper,
+                nonce = transaction.nonce,
+                hash = transaction.hash
+            };
+        }
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_6561)]                
         public sbyte[] signature_or_message;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]                
-        public byte[] address;
+        public sbyte[] address;
         
         public long value;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]
-        public byte[] obsolete_tag;
+        public sbyte[] obsolete_tag;
         
         public long timestamp;
                 
@@ -58,44 +81,25 @@ namespace zero.interop.entangled.common.model.interop
 
         [MarshalAs(UnmanagedType.I1)]        
         public bool solid;
-        
-        public sbyte[] Body
+
+        public static sbyte[] Trim(sbyte[] buffer, sbyte[] emptySet = null)
         {
-            get
+            
+            for (var i = buffer.Length ; i--> 0;)
             {
-                for (var i = signature_or_message.Length - 1; i >= 0; i--)
-                {                    
-                    if (signature_or_message[i] != 0)
-                    {
-                        return i == signature_or_message.Length - 1 ? signature_or_message : signature_or_message.AsSpan().Slice(0, signature_or_message.Length - i).ToArray();
-                    }                    
+                if (buffer[i] != 0)
+                {                   
+                    return i == buffer.Length - 1 ? buffer : buffer.AsSpan().Slice(0, buffer.Length - i - 1).ToArray();
                 }
-
-                return null;
             }
-            set { }
-        }
-        
-        public sbyte[] Tag
-        {
-            get
-            {                
-                for (var i = tag.Length - 1; i >= 0; i--)
-                {
-                    if (tag[i] != 0)
-                    {                            
-                        return i == tag.Length - 1 ? tag : tag.AsSpan().Slice(0, tag.Length - i).ToArray();
-                    }
-                }
 
-                return new sbyte[]{};
-            }
-            set { }
+            return emptySet;
         }
+
 
         public short Size
         {
-            get => (short) (Codec.TransactionSize - (tag.Length - Tag?.Length??0) - (signature_or_message.Length - Body?.Length??0));
+            get => (short) (Codec.TransactionSize - (IoFlexTrit.FLEX_TRIT_SIZE_81 - tag.Length) - (IoFlexTrit.FLEX_TRIT_SIZE_6561 - signature_or_message?.Length?? IoFlexTrit.FLEX_TRIT_SIZE_6561) );
             set { }
         }
     }
