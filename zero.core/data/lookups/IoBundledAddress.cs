@@ -7,7 +7,7 @@ namespace zero.core.data.lookups
     {
         [Column(nameof(Address)), PartitionKey]
         [Frozen]
-        public sbyte[] Address { get; set; }
+        public byte[] Address { get; set; }
 
         [Column(nameof(Bundle)), PartitionKey(1)]
         [Frozen]

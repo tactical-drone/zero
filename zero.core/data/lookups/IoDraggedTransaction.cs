@@ -33,7 +33,7 @@ namespace zero.core.data.lookups
         public long attachment_timestamp;
 
         [ClusteringKey(7)] [Frozen]
-        public sbyte[] Tag;
+        public byte[] Tag;
         
         [ClusteringKey(8)]
         public long timestamp;        

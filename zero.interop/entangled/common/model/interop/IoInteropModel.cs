@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Text;
 using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 
@@ -30,13 +31,31 @@ namespace zero.interop.entangled.common.model.interop
         public unsafe IIoInteropTransactionModel GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
         {            
             fixed (sbyte* flexTrits = &flexTritBuffer[buffOffset])
-            {
+            {                
                 IoTransaction.transaction_deserialize_from_trits(out var memMap, flexTrits);
 
                 var interopTransaction = new IoInteropTransactionModel
                 {
                     RawMapping = memMap, //TODO remove this later
-                    TrimmedMap = IoMarshalledTransaction.Trim(ref memMap),
+                    TrimmedMap = new IoMarshalledTransaction
+                    {
+                        signature_or_message = IoMarshalledTransaction.Trim(memMap.signature_or_message),
+                        address = IoMarshalledTransaction.Trim(memMap.address, new byte[] { }),
+                        value = memMap.value,
+                        obsolete_tag = IoMarshalledTransaction.Trim(memMap.obsolete_tag),
+                        timestamp = memMap.timestamp,
+                        current_index = memMap.current_index,
+                        last_index = memMap.last_index,
+                        bundle = memMap.bundle,
+                        trunk = IoMarshalledTransaction.Trim(memMap.trunk),
+                        branch = IoMarshalledTransaction.Trim(memMap.branch),
+                        tag = IoMarshalledTransaction.Trim(memMap.tag, new byte[] { }),
+                        attachment_timestamp = memMap.attachment_timestamp,
+                        attachment_timestamp_lower = memMap.attachment_timestamp_lower,
+                        attachment_timestamp_upper = memMap.attachment_timestamp_upper,
+                        nonce = IoMarshalledTransaction.Trim(memMap.nonce),
+                        hash = IoMarshalledTransaction.Trim(memMap.hash)                        
+                    },
                     Pow = 0,
                 };
 
