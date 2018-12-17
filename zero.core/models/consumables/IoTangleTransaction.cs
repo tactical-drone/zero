@@ -14,13 +14,13 @@ namespace zero.core.models.consumables
     /// </summary>
     /// <seealso cref="IoTangleTransaction" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransaction : IoConsumable<IoTangleTransaction>, IIoProducer
+    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>>, IIoProducer
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction"/> class.
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction> source)
+        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source)
         {
             ProducerHandle = source;
             _logger = LogManager.GetCurrentClassLogger();
@@ -33,7 +33,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IIoInteropTransactionModel> Transactions;
+        public List<IIoInteropTransactionModel<TBlob>> Transactions;
 
         /// <summary>
         /// Callback the generates the next job
@@ -42,7 +42,7 @@ namespace zero.core.models.consumables
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync(IoProducable<IoTangleTransaction> fragment)
+        public override async Task<State> ProduceAsync(IoProducable<IoTangleTransaction<TBlob>> fragment)
         {
             ProcessState = State.Producing;
             await ProducerHandle.ProduceAsync(async producer =>
@@ -65,7 +65,7 @@ namespace zero.core.models.consumables
                     return false;
                 }
                 
-                ((IoTangleMessageSource)ProducerHandle).TxQueue.TryDequeue(out Transactions);
+                ((IoTangleMessageSource<TBlob>)ProducerHandle).TxQueue.TryDequeue(out Transactions);
                 
                 ProcessState = Transactions == null ? State.ProduceSkipped : State.Produced;                
 

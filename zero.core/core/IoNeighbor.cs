@@ -1,17 +1,15 @@
 ﻿using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.data.cassandra;
-using zero.core.data.native.cassandra;
+using zero.core.data.contracts;
+using zero.core.data.providers.cassandra;
 using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.common.model.native;
+using zero.interop.entangled;
 using Logger = NLog.Logger;
 
 namespace zero.core.core
@@ -26,6 +24,7 @@ namespace zero.core.core
         /// <summary>
         /// Construct
         /// </summary>
+        /// <param name="kind">A description of the neighbor</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
         public IoNeighbor(string kind, IoNetClient<TJob> ioNetClient, Func<object, IoConsumable<TJob>> mallocMessage)
@@ -74,25 +73,26 @@ namespace zero.core.core
         public override async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             var processing = base.SpawnProcessingAsync(cancellationToken, spawnProducer);
-            var persisting = PersistTransactions();
+            Task persisting = null;
 
-            //processing.Start();
-            //persisting.Start();
-            
+            persisting = IoEntangled<object>.Optimized ? PersistTransactions<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactions<string>(await IoCassandra<string>.Default());            
+
             await Task.WhenAll(processing, persisting);
         }
 
-        private async Task PersistTransactions()
+
+
+        private async Task PersistTransactions<TBlob>(IIoDataSource<TBlob> dataSource)
         {
-            var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNeighbor<IoTangleTransaction>));                       
+            var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));                       
             
             _logger.Debug($"Starting persistence for `{PrimaryProducerDescription}'");
             while (!Spinners.IsCancellationRequested)
             {
-                if (relaySource == null) //TODO this is hacky 
+                if (relaySource == null)
                 {
-                    _logger.Warn("Waiting for transaction stream...");
-                    relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNeighbor<IoTangleTransaction>));
+                    _logger.Warn("Waiting for transaction stream to spin up...");
+                    relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));
                     await Task.Delay(2000);//TODO config
                     continue;
                 }
@@ -102,27 +102,11 @@ namespace zero.core.core
                     if (batch == null)
                         return;
 
-                    var txBatch = (IoTangleTransaction)batch;
-
-                    foreach (var transaction in txBatch.Transactions)
+                    foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
                     {
-                        if (transaction is IoNativeTransactionModel)
-                        {
-                            await IoNativeCassandra.Default().ContinueWith(session =>
-                            {
-                                if (session.Result.IsConnected)
-                                    session.Result.Put((IoNativeTransactionModel)transaction);
-                            });
-                        }
-                        else
-                        {
-                            await IoCassandra.Default().ContinueWith(session =>
-                            {
-                                if (session.Result.IsConnected)
-                                    session.Result.Put((IoInteropTransactionModel)transaction);
-                            });
-                        }                        
-                    }                    
+                        var rows = await dataSource.Put(transaction);                        
+                    }
+                        
                 });
 
                 if (!relaySource.PrimaryProducer.IsOperational)

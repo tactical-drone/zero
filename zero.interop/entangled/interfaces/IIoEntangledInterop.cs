@@ -3,9 +3,9 @@ using zero.interop.entangled.common.trinary.interop;
 
 namespace zero.interop.entangled.interfaces
 {
-    public interface IIoEntangledInterop 
+    public interface IIoEntangledInterop<TBlob>
     {
-        IIoTrinary Trinary { get; }
-        IIoInteropModel Model { get; }
+        IIoTrinary Ternary { get; }
+        IIoInteropModel<TBlob> Model { get; }
     }
 }

@@ -8,33 +8,22 @@ using zero.interop.entangled.common.model.interop;
 namespace zero.interop.entangled.common.model.native
 {
     [Table("bundle")]
-    public class IoNativeTransactionModel : IIoInteropTransactionModel
-    {
-        [Ignore]
-        public IoMarshalledTransaction TrimmedMap { get; set; }
-
-        [Ignore]
-        public IoMarshalledTransaction RawMapping { get; set; }
-        
+    public class IoNativeTransactionModel : IIoInteropTransactionModel<string>
+    {                
         public string Address { get; set; }
-
-        [Column(nameof(IoMarshalledTransaction.signature_or_message))]        
+        
         public string SignatureOrMessage { get; set; }
         
         public long Value { get; set; }
-
-        [Column(nameof(IoMarshalledTransaction.obsolete_tag))]
+        
         public string ObsoleteTag { get; set; }
         
         public long Timestamp { get; set; }
-
-        [Column(nameof(IoMarshalledTransaction.current_index))]
+        
         public long CurrentIndex { get; set; }
-
-        [Column(nameof(IoMarshalledTransaction.last_index))]
+        
         public long LastIndex { get; set; }
-
-        [Column(nameof(Bundle))]
+        
         public string Bundle { get; set; }
 
         public string Trunk { get; set; }
@@ -79,12 +68,13 @@ namespace zero.interop.entangled.common.model.native
         public string Uri { get; set; }
 
         [Ignore] //TODO config
-        public string Body
+        public string Body { get; set; }        
+
+        public string AsTrytes(string field, int size)
         {
-            get => SignatureOrMessage.Trim('9');
-            set { }
+            return field;
         }
-        
+
         public short Size { get; set; }
     }
 }

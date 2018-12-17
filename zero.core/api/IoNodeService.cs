@@ -14,6 +14,7 @@ using zero.core.core;
 using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.protocol;
+using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.api
@@ -27,10 +28,10 @@ namespace zero.core.api
     [ApiController]
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("/api/node")]
-    public class IoNodeService : Controller, IIoNodeService
+    public class IoNodeService<TBlob> : Controller, IIoNodeService
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoNodeService"/> class.
+        /// Initializes a new instance of the <see cref="IoNodeService{TBlob}"/> class.
         /// </summary>
         public IoNodeService()
         {
@@ -53,7 +54,7 @@ namespace zero.core.api
         /// <summary>
         /// The nodes managed by this service
         /// </summary>
-        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage>> _nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage>>();
+        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>> _nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>>();
         /// <summary>
         /// Posts the specified address.
         /// </summary>
@@ -65,7 +66,7 @@ namespace zero.core.api
             if (!address.IsValid)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!_nodes.TryAdd(address.Port, new IoNode<IoTangleMessage>(address, ioNetClient => new TanglePeer(ioNetClient))))
+            if (!_nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient))))
             {
                 var errStr = $"Cannot create node `${address.UrlAndPort}', a node with that id already exists";
                 _logger.Warn(errStr);
@@ -103,7 +104,7 @@ namespace zero.core.api
             {
                 if (!_nodes.ContainsKey(id))
                     return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
-                var transactions = new List<IIoInteropTransactionModel>();
+                var transactions = new List<IIoInteropTransactionModel<TBlob>>();
 
                 int count = 0;
                 long outstanding = 0;
@@ -115,7 +116,7 @@ namespace zero.core.api
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNodeService));
+                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNodeService<TBlob>));
 
                         if (relaySource != null)
                         {
@@ -128,7 +129,7 @@ namespace zero.core.api
                                     if (message == null)
                                         return;
 
-                                    var msg = ((IoTangleTransaction)message);
+                                    var msg = ((IoTangleTransaction<TBlob>)message);
 
                                     if (count > 50)
                                         return;
@@ -138,11 +139,13 @@ namespace zero.core.api
                                 
                                     foreach (var t in msg.Transactions)
                                     {
+                                        var tagStr = t.AsTrytes(t.Tag,IoTransaction.NUM_TRYTES_TAG);
+
                                         if (tagQuery == null)
                                             transactions.Add(t);
-                                        else if (!string.IsNullOrEmpty(t.Tag) && t.Tag.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                                        else if (!string.IsNullOrEmpty(tagStr) && tagStr.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
                                             transactions.Add(t);
-                                        else if(string.IsNullOrEmpty(t.Tag) && string.IsNullOrEmpty(tagQuery))
+                                        else if(string.IsNullOrEmpty(tagStr) && string.IsNullOrEmpty(tagQuery))
                                         {
                                             transactions.Add(t);
                                         }

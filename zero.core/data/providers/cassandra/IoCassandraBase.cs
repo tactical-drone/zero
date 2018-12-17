@@ -7,7 +7,7 @@ using Logger = NLog.Logger;
 
 namespace zero.core.data.cassandra
 {
-    public abstract class IoCassandraBase
+    public abstract class IoCassandraBase<TBlob> : IoCassandraKeyBase<TBlob>
     {
         protected IoCassandraBase()
         {
@@ -21,7 +21,7 @@ namespace zero.core.data.cassandra
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;
         
-        public bool IsConnected = false;
+        public bool IsConnected { get; protected set; }
 
         protected async Task<bool> Connect(string url)
         {

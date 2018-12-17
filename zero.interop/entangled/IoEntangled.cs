@@ -9,7 +9,7 @@ using zero.interop.entangled.interfaces;
 
 namespace zero.interop.entangled
 {
-    public class IoEntangled : IIoEntangledInterop
+    public class IoEntangled<TBlob> : IIoEntangledInterop<TBlob>
     {
         static IoEntangled()
         {
@@ -17,9 +17,11 @@ namespace zero.interop.entangled
         }
 
         private static Logger _logger;
-        private static IIoEntangledInterop _default;
+        private static IIoEntangledInterop<TBlob> _default;
 
-        public static IIoEntangledInterop Default
+        public static bool Optimized => Environment.OSVersion.Platform == PlatformID.Unix;
+
+        public static IIoEntangledInterop<TBlob> Default
         {
             get
             {
@@ -27,23 +29,23 @@ namespace zero.interop.entangled
                     return _default;
 
                 //Detect entangled interop
-                if (Environment.OSVersion.Platform == PlatformID.Unix)
+                if (Optimized)
                 {
                     var rootFolder = AppContext.BaseDirectory;
                     if (File.Exists(Path.Combine(rootFolder, "libinterop.so")))
                     {
-                        _default = new IoEntangledInterop();
+                        _default = (IIoEntangledInterop<TBlob>) new IoEntangledInterop();
                         _logger.Info("Using entangled interop!");
                     }
                     else
                     {
                         _logger.Warn($"`{Path.Combine(rootFolder, "libinterop.so")}' not found, falling back to native decoders");
-                        _default = new IoEntangled();
+                        _default = new IoEntangled<TBlob>();
                     }
                 }
                 else //fallback to Tangle.Net
                 {                    
-                    _default = new IoEntangled();
+                    _default = new IoEntangled<TBlob>();
                     _logger.Warn("Interop with entangled is not supported in windows, falling back to native decoders");
                 }
 
@@ -51,7 +53,7 @@ namespace zero.interop.entangled
             }            
         } 
 
-        public IIoTrinary Trinary { get; } = new IoNativeTrinary();
-        public IIoInteropModel Model { get; } = new IoNativeModel();
+        public IIoTrinary Ternary { get; } = new IoNativeTrinary();
+        public IIoInteropModel<TBlob> Model { get; } = (IIoInteropModel<TBlob>) new IoNativeModel();
     }
 }

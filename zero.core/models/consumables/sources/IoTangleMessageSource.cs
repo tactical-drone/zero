@@ -16,9 +16,9 @@ namespace zero.core.consumables.sources
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer
+    public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer
     {
-        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage> upstreamRelay):base(5)//TODO
+        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstreamRelay):base(5)//TODO
         {
             //Saves forwarding producer, to leech some values from it
             _upstreamRelay = upstreamRelay;
@@ -34,12 +34,12 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// The producer that we are forwarding from
         /// </summary>
-        private readonly IoProducer<IoTangleMessage> _upstreamRelay;
+        private readonly IoProducer<IoTangleMessage<TBlob>> _upstreamRelay;
 
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public ConcurrentQueue<List<IIoInteropTransactionModel>>  TxQueue = new ConcurrentQueue<List<IIoInteropTransactionModel>>();
+        public ConcurrentQueue<List<IIoInteropTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoInteropTransactionModel<TBlob>>>();
 
 
         public string Id;

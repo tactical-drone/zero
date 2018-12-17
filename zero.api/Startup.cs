@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using zero.core.api;
 using zero.core.api.interfaces;
+using zero.interop.entangled;
 
 namespace zero.api
 {
@@ -57,7 +58,10 @@ namespace zero.api
                 //});
 
             //Add node services            
-            services.AddSingleton<IIoNodeService>(new IoNodeService());
+            if(IoEntangled<object>.Optimized)
+                services.AddSingleton<IIoNodeService>(new IoNodeService<byte[]>());
+            else
+                services.AddSingleton<IIoNodeService>(new IoNodeService<string>());
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

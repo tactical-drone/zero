@@ -4,47 +4,41 @@
 
 
 namespace zero.interop.entangled.common.model.interop
-{    
-    public interface IIoInteropTransactionModel
-    {
+{
+    public interface IIoInteropTransactionModel<TBlob>
+    {        
         [IgnoreDataMember]
-        IoMarshalledTransaction TrimmedMap { get; set; }
-
-        [IgnoreDataMember]
-        IoMarshalledTransaction RawMapping { get; set; }
-
-        [IgnoreDataMember]        
-        string SignatureOrMessage { get; set; }
+        TBlob SignatureOrMessage { get; set; }
 
         [DataMember]
-        string Address { get; set; }
+        TBlob Address { get; set; }
 
         [DataMember]
         long Value { get; set; }
 
         [DataMember]
-        string ObsoleteTag { get; set; }
+        TBlob ObsoleteTag { get; set; }
 
         [DataMember]
         long Timestamp { get; set; }
 
-        [DataMember]        
+        [DataMember]
         long CurrentIndex { get; set; }
 
-        [DataMember]        
+        [DataMember]
         long LastIndex { get; set; }
 
-        [DataMember]        
-        string Bundle { get; set; }
+        [DataMember]
+        TBlob Bundle { get; set; }
 
         [DataMember]
-        string Trunk { get; set; }
+        TBlob Trunk { get; set; }
 
         [DataMember]
-        string Branch { get; set; }
+        TBlob Branch { get; set; }
 
         [DataMember]
-        string Tag { get; set; }
+        TBlob Tag { get; set; }
 
         [DataMember]
         long AttachmentTimestamp { get; set; }
@@ -56,10 +50,10 @@ namespace zero.interop.entangled.common.model.interop
         long AttachmentTimestampUpper { get; set; }
 
         [DataMember]
-        string Nonce { get; set; }
+        TBlob Nonce { get; set; }
 
         [DataMember]
-        string Hash { get; set; }
+        TBlob Hash { get; set; }
 
         [DataMember]
         long SnapshotIndex { get; set; }
@@ -74,12 +68,17 @@ namespace zero.interop.entangled.common.model.interop
         sbyte FakePow { get; set; }
 
         [DataMember]
-        string Color { get; }   
+        string Color { get; }
 
         [DataMember]
         string Uri { get; set; }
-        
+
         [DataMember]
-        string Body { get; set; }
+        TBlob Body { get; set; }
+
+        [DataMember]
+        short Size { get; set; }
+        
+        string AsTrytes(TBlob field, int size);
     }
 }

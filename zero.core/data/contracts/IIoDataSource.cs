@@ -4,11 +4,11 @@ using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.data.contracts
 {
-    public interface IIoData
+    public interface IIoDataSource<TBlob>
     {
         bool IsConnected { get; }
-        Task<RowSet> Put(IoInteropTransactionModel interopTransaction, object batch = null);
-        Task<IoInteropTransactionModel> Get(string key);
+        Task<RowSet> Put(IIoInteropTransactionModel<TBlob> transaction, object batch = null);
+        Task<IoInteropTransactionModel> Get(TBlob key);
         Task<RowSet> ExecuteAsync(object batch);
     }
 }

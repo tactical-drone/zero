@@ -5,7 +5,7 @@ namespace zero.interop.utils
 {
     public static class IoPow
     {
-        public static void Compute(ref IIoInteropTransactionModel transaction, string computedHash, string proposedHash)
+        public static void Compute<TBlob>(ref IIoInteropTransactionModel<TBlob> transaction, string computedHash, string proposedHash)
         {
             transaction.Pow = 0;
             transaction.FakePow = 0;

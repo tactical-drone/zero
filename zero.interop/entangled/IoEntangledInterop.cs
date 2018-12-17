@@ -6,9 +6,9 @@ using zero.interop.entangled.interfaces;
 
 namespace zero.interop.entangled
 {
-    public class IoEntangledInterop : IIoEntangledInterop
+    public class IoEntangledInterop : IIoEntangledInterop<byte[]>
     {                
-        public IIoTrinary Trinary { get; } = new IoInteropTrinary();
-        public IIoInteropModel Model { get; } = new IoInteropModel();
+        public IIoTrinary Ternary { get; } = new IoInteropTrinary();
+        public IIoInteropModel<byte[]> Model { get; } = new IoInteropModel();
     }
 }

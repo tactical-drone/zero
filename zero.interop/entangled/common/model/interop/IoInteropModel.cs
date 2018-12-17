@@ -7,7 +7,7 @@ using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.interop
 {
-    public class IoInteropModel : IIoInteropModel
+    public class IoInteropModel : IIoInteropModel<byte[]>
     {
         //static IoInteropModel()
         //{
@@ -28,46 +28,42 @@ namespace zero.interop.entangled.common.model.interop
         //    Console.WriteLine("./libinterop.so:" + IoLib.dlopen("./libinterop.so", IoLib.RtldNow | IoLib.RtldGlobal));
         //}
 
-        public unsafe IIoInteropTransactionModel GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
+        public unsafe IIoInteropTransactionModel<byte[]> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
         {            
             fixed (sbyte* flexTrits = &flexTritBuffer[buffOffset])
             {                
                 IoTransaction.transaction_deserialize_from_trits(out var memMap, flexTrits);
 
                 var interopTransaction = new IoInteropTransactionModel
-                {
-                    RawMapping = memMap, //TODO remove this later
-                    TrimmedMap = new IoMarshalledTransaction
-                    {
-                        signature_or_message = IoMarshalledTransaction.Trim(memMap.signature_or_message),
-                        address = IoMarshalledTransaction.Trim(memMap.address, new byte[] { }),
-                        value = memMap.value,
-                        obsolete_tag = IoMarshalledTransaction.Trim(memMap.obsolete_tag),
-                        timestamp = memMap.timestamp,
-                        current_index = memMap.current_index,
-                        last_index = memMap.last_index,
-                        bundle = memMap.bundle,
-                        trunk = IoMarshalledTransaction.Trim(memMap.trunk),
-                        branch = IoMarshalledTransaction.Trim(memMap.branch),
-                        tag = IoMarshalledTransaction.Trim(memMap.tag, new byte[] { }),
-                        attachment_timestamp = memMap.attachment_timestamp,
-                        attachment_timestamp_lower = memMap.attachment_timestamp_lower,
-                        attachment_timestamp_upper = memMap.attachment_timestamp_upper,
-                        nonce = IoMarshalledTransaction.Trim(memMap.nonce),
-                        hash = IoMarshalledTransaction.Trim(memMap.hash)                        
-                    },
+                {                    
+                    SignatureOrMessage = IoMarshalledTransaction.Trim(memMap.signature_or_message),
+                    Address = IoMarshalledTransaction.Trim(memMap.address, new byte[] { }),
+                    Value = memMap.value,
+                    ObsoleteTag = IoMarshalledTransaction.Trim(memMap.obsolete_tag),
+                    Timestamp = memMap.timestamp,
+                    CurrentIndex = memMap.current_index,
+                    LastIndex = memMap.last_index,
+                    Bundle = memMap.bundle,
+                    Trunk = IoMarshalledTransaction.Trim(memMap.trunk),
+                    Branch = IoMarshalledTransaction.Trim(memMap.branch),
+                    Tag = IoMarshalledTransaction.Trim(memMap.tag, new byte[] { }),
+                    AttachmentTimestamp = memMap.attachment_timestamp,
+                    AttachmentTimestampLower = memMap.attachment_timestamp_lower,
+                    AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
+                    Nonce = IoMarshalledTransaction.Trim(memMap.nonce),
+                    Hash = IoMarshalledTransaction.Trim(memMap.hash),
                     Pow = 0,
                 };
 
                 //Check pow
                 var hashTrytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
-                IoEntangled.Default.Trinary.GetFlexTrytes(hashTrytes, hashTrytes.Length, flexTritBuffer, buffOffset + Codec.TransactionSize, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH - 9);                
+                IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(hashTrytes, hashTrytes.Length, flexTritBuffer, buffOffset + Codec.TransactionSize, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH - 9);                
 
                 var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());                
                 var computedHash = interopTransaction.Hash;
 
-                IIoInteropTransactionModel byref = interopTransaction;
-                IoPow.Compute(ref byref, computedHash, proposedHash);                
+                IIoInteropTransactionModel<byte[]> byref = interopTransaction;
+                IoPow.Compute(ref byref, byref.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH) , proposedHash);                
 
                 return byref;
             }
