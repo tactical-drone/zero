@@ -46,6 +46,8 @@ namespace zero.interop.entangled.common.model.interop
         public short Size { get; set; }
         public string AsTrytes(byte[] field, int size)
         {
+            if (field == null)
+                return null;
             var trytes = new sbyte[IoTransaction.NUM_TRYTES_ADDRESS];
             IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)field, 0, size, size);
             return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray());
