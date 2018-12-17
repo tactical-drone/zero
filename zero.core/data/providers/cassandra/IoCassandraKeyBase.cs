@@ -75,7 +75,7 @@ namespace zero.core.data.cassandra
                 var draggedTransaction = new MappingConfiguration();
                 draggedTransaction.Define(
                     new Map<IoDraggedTransaction<TBlob>>().TableName("dragnet")
-                        .ExplicitColumns()
+                        .ExplicitColumns()                        
                         .Column(c => c.Address)
                         .Column(c => c.Bundle)
                         .Column(c => c.AttachmentTimestamp)

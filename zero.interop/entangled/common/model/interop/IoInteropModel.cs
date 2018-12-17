@@ -51,7 +51,7 @@ namespace zero.interop.entangled.common.model.interop
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
                     Nonce = IoMarshalledTransaction.Trim(memMap.nonce),
-                    Hash = IoMarshalledTransaction.Trim(memMap.hash),
+                    Hash = IoMarshalledTransaction.Trim(memMap.hash),                    
                     Pow = 0,
                 };
 
@@ -63,7 +63,7 @@ namespace zero.interop.entangled.common.model.interop
                 var computedHash = interopTransaction.Hash;
 
                 IIoInteropTransactionModel<byte[]> byref = interopTransaction;
-                IoPow.Compute(ref byref, byref.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH) , proposedHash);                
+                IoPow.Compute(ref byref, byref.AsTrytes(computedHash, IoTransaction.NUM_TRITS_HASH) , proposedHash);                
 
                 return byref;
             }

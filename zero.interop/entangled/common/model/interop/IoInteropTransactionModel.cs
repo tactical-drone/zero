@@ -42,8 +42,7 @@ namespace zero.interop.entangled.common.model.interop
                 return Pow < 0 ? "color: orange" : "color:green";
             }
         }
-        public string Uri { get; set; }
-        public byte[] Body { get; set; }
+        public string Uri { get; set; }        
         public short Size { get; set; }
         public string AsTrytes(byte[] field, int size)
         {

@@ -6,8 +6,8 @@
 namespace zero.interop.entangled.common.model.interop
 {
     public interface IIoInteropTransactionModel<TBlob>
-    {        
-        [IgnoreDataMember]
+    {
+        [DataMember]
         TBlob SignatureOrMessage { get; set; }
 
         [DataMember]
@@ -71,10 +71,7 @@ namespace zero.interop.entangled.common.model.interop
         string Color { get; }
 
         [DataMember]
-        string Uri { get; set; }
-
-        [DataMember]
-        TBlob Body { get; set; }
+        string Uri { get; set; }        
 
         [DataMember]
         short Size { get; set; }

@@ -65,10 +65,7 @@ namespace zero.interop.entangled.common.model.native
         }
 
         [Ignore]
-        public string Uri { get; set; }
-
-        [Ignore] //TODO config
-        public string Body { get; set; }        
+        public string Uri { get; set; }        
 
         public string AsTrytes(string field, int size)
         {

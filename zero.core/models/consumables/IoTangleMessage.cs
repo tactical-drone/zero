@@ -211,7 +211,7 @@ namespace zero.core.models.consumables
                     newInteropTransactions.Add(interopTx);
                     
                     if (interopTx.Value != 0)
-                        _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRYTES_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
+                        _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
                 }
 
                 BufferOffset += DatumSize;
