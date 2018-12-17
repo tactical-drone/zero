@@ -1,4 +1,5 @@
-﻿using Cassandra.Mapping.Attributes;
+﻿using Cassandra.Mapping;
+using Cassandra.Mapping.Attributes;
 
 namespace zero.core.data.native.lookups
 {
@@ -6,42 +7,33 @@ namespace zero.core.data.native.lookups
     public class IoNativeDraggedTransaction
     {
         [PartitionKey]
-        public string Hash { get; set; }
+        public string Bundle { get; set; }
 
         [PartitionKey(1)]
-        public string Uri { get; set; }
-        
-        [ClusteringKey(0)]
-        public long Value;
+        public long LastIndex { get; set; }
 
-        [ClusteringKey(1)]
-        public float BtcValue;
-        [ClusteringKey(2)]
-        public float EthValue;
-        [ClusteringKey(3)]
-        public float EurValue;
-        [ClusteringKey(4)]
-        public float UsdValue;
-
-        [ClusteringKey(5)]
-        public short Quality;
-
-        [ClusteringKey(6)]
+        [ClusteringKey(0, SortOrder.Descending)]
         public long attachment_timestamp;
 
+        [ClusteringKey(1, SortOrder.Descending)]
+        public long timestamp;
+                                
+        [ClusteringKey(2, SortOrder.Descending)]
+        public long Value;
+
+        [ClusteringKey(4)]
+        public short Quality;
+
+        [ClusteringKey(5)]
+        public float BtcValue;
+        [ClusteringKey(6)]
+        public float EthValue;
         [ClusteringKey(7)]
-        public string Tag;
-        
+        public float EurValue;
         [ClusteringKey(8)]
-        public long timestamp;        
-
+        public float UsdValue;
+        
         [ClusteringKey(9)]
-        public long attachment_timestamp_lower;
-
-        [ClusteringKey(10)]
-        public long attachment_timestamp_upper;
-
-        [ClusteringKey(11)]
-        public short Size;        
+        public string Uri { get; set; }
     }
 }

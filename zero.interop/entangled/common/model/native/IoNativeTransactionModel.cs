@@ -15,46 +15,41 @@ namespace zero.interop.entangled.common.model.native
 
         [Ignore]
         public IoMarshalledTransaction RawMapping { get; set; }
-
-        [PartitionKey(1)]
+        
         public string Address { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.signature_or_message))]        
         public string SignatureOrMessage { get; set; }
-
-        [ClusteringKey(2)]
+        
         public long Value { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.obsolete_tag))]
         public string ObsoleteTag { get; set; }
-
-        [ClusteringKey(9)]
+        
         public long Timestamp { get; set; }
 
-        [Column(nameof(IoMarshalledTransaction.current_index)), ClusteringKey(1)]
+        [Column(nameof(IoMarshalledTransaction.current_index))]
         public long CurrentIndex { get; set; }
 
-        [Column(nameof(IoMarshalledTransaction.last_index)), ClusteringKey(0)]
+        [Column(nameof(IoMarshalledTransaction.last_index))]
         public long LastIndex { get; set; }
 
-        [Column(nameof(Bundle)), PartitionKey(0)]
+        [Column(nameof(Bundle))]
         public string Bundle { get; set; }
 
         public string Trunk { get; set; }
         public string Branch { get; set; }
-
-        [ClusteringKey(3)]
+        
         public string Tag { get; set; }
 
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp)),ClusteringKey(5)]
+        [Column(nameof(IoMarshalledTransaction.attachment_timestamp))]
         public long AttachmentTimestamp { get; set; }
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_lower)), ClusteringKey(6)]
+        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_lower))]
         public long AttachmentTimestampLower { get; set; }
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_upper)), ClusteringKey(7)]
+        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_upper))]
         public long AttachmentTimestampUpper { get; set; }
         public string Nonce { get; set; }
-
-        [ClusteringKey(4)]
+        
         public string Hash { get; set; }
         
         [Ignore]

@@ -7,44 +7,31 @@ namespace zero.core.data.lookups
 {
     [Table("dragnet")]
     public class IoDraggedTransaction
-    {
-        [PartitionKey] [Frozen]
-        public byte[] Hash { get; set; }
+    {                
+        [PartitionKey]
+        public byte[] Address { get; set; }
 
         [PartitionKey(1)]
-        public string Uri { get; set; }
-        
-        [ClusteringKey(0)]
-        public long Value;
+        public byte[] CounterParty { get; set; }
 
-        [ClusteringKey(1)]
-        public float BtcValue;
-        [ClusteringKey(2)]
-        public float EthValue;
-        [ClusteringKey(3)]
-        public float EurValue;
-        [ClusteringKey(4)]
-        public float UsdValue;
+        [ClusteringKey]
+        public long timestamp;
 
-        [ClusteringKey(5)]
-        public short Quality;
-
-        [ClusteringKey(6)]
+        [ClusteringKey]
         public long attachment_timestamp;
 
-        [ClusteringKey(7)] [Frozen]
-        public byte[] Tag;
-        
-        [ClusteringKey(8)]
-        public long timestamp;        
+        [ClusteringKey]
+        public long Value;
+                                        
+        [ClusteringKey(7)]
+        public short Quality;
 
-        [ClusteringKey(9)]
-        public long attachment_timestamp_lower;
+        [ClusteringKey(1)]
+        public string Uri { get; set; }
 
-        [ClusteringKey(10)]
-        public long attachment_timestamp_upper;
-
-        [ClusteringKey(11)]
-        public short Size;        
+        public float BtcValue;
+        public float EthValue;
+        public float EurValue;
+        public float UsdValue;
     }
 }

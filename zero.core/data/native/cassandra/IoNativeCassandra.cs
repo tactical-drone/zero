@@ -110,13 +110,7 @@ namespace zero.core.data.native.cassandra
 
         public async Task<RowSet> Put(IoNativeTransactionModel transaction, object batch = null)
         {
-            bool executeBatch = batch == null;
-
-            if (string.IsNullOrEmpty(transaction.Tag))
-                transaction.Tag = "9";
-
-            if (string.IsNullOrEmpty(transaction.SignatureOrMessage))
-                transaction.SignatureOrMessage = "9";
+            bool executeBatch = batch == null;                        
 
             var hashedBundle = new IoNativeHashedBundle
             {
@@ -157,15 +151,11 @@ namespace zero.core.data.native.cassandra
             {
                 var draggedTransaction = new IoNativeDraggedTransaction
                 {
-                    Hash = transaction.Hash,
-                    Uri = transaction.Uri,
-                    Size = transaction.Size,
+                    Bundle = transaction.Hash,
+                    Uri = transaction.Uri,                    
                     Value = transaction.Value,
-                    attachment_timestamp = transaction.AttachmentTimestamp,
-                    Tag = transaction.Tag,
-                    timestamp = transaction.Timestamp,
-                    attachment_timestamp_lower = transaction.AttachmentTimestampLower,
-                    attachment_timestamp_upper = transaction.AttachmentTimestampUpper,
+                    attachment_timestamp = transaction.AttachmentTimestamp,                    
+                    timestamp = transaction.Timestamp,                    
                     Quality = IoMarketDataClient.Quality,
                     BtcValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
                     EthValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),

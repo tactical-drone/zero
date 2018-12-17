@@ -53,43 +53,9 @@ namespace zero.core.data.cassandra
             //ensure tables            
             try
             {                                
-                var config = new Map<IoMarshalledTransaction>().TableName("bundle")                    
-                    .ExplicitColumns()                    
-                    .Column(c => c.signature_or_message)
-                    .Column(c => c.address, map => map.AsFrozen())
-                    .Column(c => c.value)
-                    .Column(c => c.timestamp)
-                    .Column(c => c.current_index)
-                    .Column(c => c.last_index)
-                    .Column(c => c.bundle, map => map.AsFrozen())
-                    .Column(c => c.trunk)
-                    .Column(c => c.branch)
-                    .Column(c => c.tag, map => map.AsFrozen())
-                    .Column(c => c.attachment_timestamp)
-                    .Column(c => c.attachment_timestamp_lower)
-                    .Column(c => c.attachment_timestamp_upper)
-                    .Column(c => c.nonce)
-                    .Column(c => c.hash)
-                    .Column(c=>c.Size)
-
-                    .PartitionKey(b => b.bundle, b=>b.address)
-
-                    .ClusteringKey(c => c.last_index, SortOrder.Descending)
-                    .ClusteringKey(c =>c.current_index, SortOrder.Ascending)                    
-                    .ClusteringKey(c=>c.value,SortOrder.Descending)
-                    .ClusteringKey(c=>c.tag,SortOrder.Ascending)
-                    .ClusteringKey(c=>c.hash,SortOrder.Ascending)                    
-                    .ClusteringKey(c=>c.attachment_timestamp, SortOrder.Descending)
-                    .ClusteringKey(c=>c.attachment_timestamp_lower, SortOrder.Ascending)
-                    .ClusteringKey(c=>c.attachment_timestamp_upper, SortOrder.Descending)
-                    .ClusteringKey(c=>c.timestamp, SortOrder.Descending);
-
-                var mapConfig = new MappingConfiguration();
-                mapConfig.Define(config);
-
                 var existingTables = _cluster.Metadata.GetKeyspace(Keyspace).GetTablesNames();
 
-                _transactions = new Table<IoMarshalledTransaction>(_session, mapConfig);
+                _transactions = new Table<IoMarshalledTransaction>(_session, new IoCassandraSchemaBase().Bundle);
                 if (!existingTables.Contains("bundle"))
                 {
                     _transactions.CreateIfNotExists();
@@ -195,15 +161,11 @@ namespace zero.core.data.cassandra
                 {
                     var draggedTransaction = new IoDraggedTransaction
                     {
-                        Hash = interopTransaction.TrimmedMap.hash,
-                        Uri = interopTransaction.Uri,
-                        Size =  interopTransaction.TrimmedMap.Size,
+                        Address = interopTransaction.TrimmedMap.address,                        
+                        Uri = interopTransaction.Uri,                        
                         Value = interopTransaction.Value,
-                        attachment_timestamp = interopTransaction.TrimmedMap.attachment_timestamp,
-                        Tag = taggedTransaction.Tag, //optimized: since interopTransaction.Mapping.Tag is calculated every time
-                        timestamp = interopTransaction.TrimmedMap.timestamp,
-                        attachment_timestamp_lower = interopTransaction.TrimmedMap.attachment_timestamp_lower,
-                        attachment_timestamp_upper = interopTransaction.TrimmedMap.attachment_timestamp_upper,
+                        attachment_timestamp = interopTransaction.TrimmedMap.attachment_timestamp,                        
+                        timestamp = interopTransaction.TrimmedMap.timestamp,                                                
                         Quality = IoMarketDataClient.Quality,
                         BtcValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
                         EthValue = (float)(interopTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
