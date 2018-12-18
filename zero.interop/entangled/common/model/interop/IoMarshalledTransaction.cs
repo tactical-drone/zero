@@ -10,30 +10,7 @@ namespace zero.interop.entangled.common.model.interop
 
     [StructLayout(LayoutKind.Sequential)]
     public struct IoMarshalledTransaction
-    {       
-        public static IoMarshalledTransaction Trim(ref IoMarshalledTransaction transaction)
-        {
-            return new IoMarshalledTransaction
-            {
-                signature_or_message = IoMarshalledTransaction.Trim(transaction.signature_or_message),
-                address = IoMarshalledTransaction.Trim(transaction.address, new byte[] {0}),
-                value = transaction.value,
-                obsolete_tag = IoMarshalledTransaction.Trim(transaction.obsolete_tag, new byte[] {0}),
-                timestamp = transaction.timestamp,
-                current_index = transaction.current_index,
-                last_index = transaction.last_index,
-                bundle = transaction.bundle,
-                trunk = IoMarshalledTransaction.Trim(transaction.trunk),
-                branch = IoMarshalledTransaction.Trim(transaction.branch),
-                tag = IoMarshalledTransaction.Trim(transaction.tag, new byte[] { }),
-                attachment_timestamp = transaction.attachment_timestamp,
-                attachment_timestamp_lower = transaction.attachment_timestamp_lower,
-                attachment_timestamp_upper = transaction.attachment_timestamp_upper,
-                nonce = IoMarshalledTransaction.Trim(transaction.nonce),
-                hash = IoMarshalledTransaction.Trim(transaction.hash, new byte[] {0})
-            };
-        }
-
+    {               
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_6561)]                
         public byte[] signature_or_message;
 
@@ -72,8 +49,7 @@ namespace zero.interop.entangled.common.model.interop
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_81)]        
         public byte[] nonce;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]
-        
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = IoFlexTrit.FLEX_TRIT_SIZE_243)]        
         public byte[] hash;
         //Metadata
         //[PartitionKey(1)]
@@ -96,7 +72,6 @@ namespace zero.interop.entangled.common.model.interop
                     return trimmed;
                 }
             }
-
             return emptySet;
         }
 

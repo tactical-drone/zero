@@ -37,22 +37,21 @@ namespace zero.interop.entangled.common.model.interop
                 var interopTransaction = new IoInteropTransactionModel
                 {                    
                     SignatureOrMessage = IoMarshalledTransaction.Trim(memMap.signature_or_message),
-                    Address = IoMarshalledTransaction.Trim(memMap.address, new byte[] { }),
+                    Address = IoMarshalledTransaction.Trim(memMap.address, new byte[] {}),
                     Value = memMap.value,
-                    ObsoleteTag = IoMarshalledTransaction.Trim(memMap.obsolete_tag),
+                    ObsoleteTag = IoMarshalledTransaction.Trim(memMap.obsolete_tag, new byte[] { 0 }),
                     Timestamp = memMap.timestamp,
                     CurrentIndex = memMap.current_index,
                     LastIndex = memMap.last_index,
                     Bundle = memMap.bundle,
                     Trunk = IoMarshalledTransaction.Trim(memMap.trunk),
                     Branch = IoMarshalledTransaction.Trim(memMap.branch),
-                    Tag = IoMarshalledTransaction.Trim(memMap.tag, new byte[] { }),
+                    Tag = IoMarshalledTransaction.Trim(memMap.tag, new byte[] {}),
                     AttachmentTimestamp = memMap.attachment_timestamp,
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
                     Nonce = IoMarshalledTransaction.Trim(memMap.nonce),
-                    Hash = IoMarshalledTransaction.Trim(memMap.hash),                    
-                    Pow = 0,
+                    Hash = IoMarshalledTransaction.Trim(memMap.hash, new byte[] {}),                    
                 };
 
                 //Check pow

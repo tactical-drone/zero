@@ -13,6 +13,7 @@ using zero.core.api.models;
 using zero.core.core;
 using zero.core.models.consumables;
 using zero.core.network.ip;
+using zero.core.patterns.bushes;
 using zero.core.protocol;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
@@ -129,28 +130,38 @@ namespace zero.core.api
                                     if (message == null)
                                         return;
 
+
                                     var msg = ((IoTangleTransaction<TBlob>)message);
 
                                     if (count > 50)
                                         return;
 
-                                    if(msg.Transactions == null)
+                                    if (msg.Transactions == null)
                                         return;
-                                
-                                    foreach (var t in msg.Transactions)
+                                    try
                                     {
-                                        var tagStr = t.AsTrytes(t.Tag,IoTransaction.NUM_TRYTES_TAG, IoTransaction.NUM_TRITS_TAG);
-
-                                        if (tagQuery == null)
-                                            transactions.Add(t);
-                                        else if (!string.IsNullOrEmpty(tagStr) && tagStr.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
-                                            transactions.Add(t);
-                                        else if(string.IsNullOrEmpty(tagStr) && string.IsNullOrEmpty(tagQuery))
+                                        foreach (var t in msg.Transactions)
                                         {
-                                            transactions.Add(t);
+                                            var tagStr = t.AsTrytes(t.Tag, IoTransaction.NUM_TRYTES_TAG, IoTransaction.NUM_TRITS_TAG);
+
+                                            if (tagQuery == null)
+                                                transactions.Add(t);
+                                            else if (!string.IsNullOrEmpty(tagStr) && tagStr.IndexOf(tagQuery, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                                                transactions.Add(t);
+                                            else if (string.IsNullOrEmpty(tagStr) && string.IsNullOrEmpty(tagQuery))
+                                            {
+                                                transactions.Add(t);
+                                            }
+                                            if (++count > 50)
+                                                break;
                                         }
-                                        if (++count > 50)
-                                            break;
+
+                                        msg.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consumed;
+                                    }
+                                    finally
+                                    {
+                                        if (msg.ProcessState == IoProducable<IoTangleTransaction<TBlob>>.State.Consuming)
+                                            msg.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                                     }
                                 }, sleepOnProducerLag: false);
                             }
@@ -165,8 +176,8 @@ namespace zero.core.api
             }
             catch (Exception e)
             {
-                _logger.Error(e,$"{nameof(TransactionStreamQuery)} failed:");
-                return IoApiReturn.Result( false, e.Message);
+                _logger.Error(e, $"{nameof(TransactionStreamQuery)} failed:");
+                return IoApiReturn.Result(false, e.Message);
             }
             //TODO remove diagnostic output            
         }

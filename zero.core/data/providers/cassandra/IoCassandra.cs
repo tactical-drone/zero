@@ -115,12 +115,12 @@ namespace zero.core.data.providers.cassandra
 
         public async Task<RowSet> Put(IIoInteropTransactionModel<TBlob> transaction, object batch = null)
         {
-            if (!IsConnected)
+            if (!IsConnected)            
                 return null;
-
+            
             var executeBatch = batch == null;
 
-            var hashedBundle = new IoBundledHash<TBlob>
+            var bundledHash = new IoBundledHash<TBlob>
             {
                 Hash = transaction.Hash,
                 Bundle = transaction.Bundle,
@@ -186,28 +186,32 @@ namespace zero.core.data.providers.cassandra
                 {
                     _logger.Warn(e, "Unable to drag transaction:");
                 }                
-            }            
+            }
+
+            // ReSharper disable MergeCastWithTypeCheck
+            // ReSharper disable PossibleNullReferenceException
+            if ((transaction.Hash is string ? (transaction.Hash as string).Length : (transaction.Hash as byte[]).Length) > 0)
+            {
+                ((BatchStatement)batch).Add(_hashes.Insert(bundledHash));
+                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
+                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
+            }
                         
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
-            ((BatchStatement)batch).Add(_hashes.Insert(hashedBundle));
-            if ((bundledAddress.Address is string ? (bundledAddress.Address as string).Length : (bundledAddress.Address as byte[]).Length) > 0) ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
-            // ReSharper disable once MergeCastWithTypeCheck
-            // ReSharper disable once PossibleNullReferenceException
-            if((taggedTransaction.Tag is string? (taggedTransaction.Tag as string).Length : (taggedTransaction.Tag as byte[]).Length) > 0) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
-            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
-            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
             
+            if ((transaction.Address is string ? (transaction.Address as string).Length : (transaction.Address as byte[]).Length) > 0) ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));            
+            if((transaction.Tag is string? (transaction.Tag as string).Length : (transaction.Tag as byte[]).Length) > 0) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
+                        
             if (executeBatch)
             {
-
                 try
                 {
                     await ExecuteAsync((BatchStatement)batch);
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, "An error has occurred inserting row:");
-                    base.IsConnected = false;
+                    _logger.Trace(e, "An error has occurred inserting row:");
+                    IsConnected = false;
                 }
             }
 

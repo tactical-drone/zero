@@ -99,14 +99,24 @@ namespace zero.core.core
 
                 await relaySource.ConsumeAsync(async batch =>
                 {
-                    if (batch == null)
-                        return;
-
-                    foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
+                    try
                     {
-                        var rows = await dataSource.Put(transaction);                        
+                        if (batch == null)
+                            return;
+
+                        foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
+                        {
+                            var rows = await dataSource.Put(transaction);
+                            if (rows == null)
+                                batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                        }
+                        batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consumed;
                     }
-                        
+                    finally
+                    {
+                        if (batch != null && batch.ProcessState == IoProducable<IoTangleTransaction<TBlob>>.State.Consuming)
+                            batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                    }                    
                 });
 
                 if (!relaySource.PrimaryProducer.IsOperational)

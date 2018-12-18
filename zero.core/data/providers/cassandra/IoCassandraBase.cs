@@ -20,16 +20,31 @@ namespace zero.core.data.cassandra
         protected Cluster _cluster;
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;
-        
-        public bool IsConnected { get; protected set; }
+
+        private bool _isConnected;
+        public bool IsConnected
+        {
+            get => _isConnected;
+            protected set
+            {
+                //Quick retry
+                if (value == false && _isConnected)
+                    _cluster = null;
+
+                _isConnected = value;
+            }
+        }
+        private string _dbUrl = string.Empty;
 
         protected async Task<bool> Connect(string url)
         {
             if (_cluster != null)
             {
-                _logger.Error($"Cluster already connected at {_clusterAddress.IpEndPoint}");
-                return false;
+                _logger.Warn($"Cluster was connected at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
+                await Task.Delay(30000);//TODO config
             }
+
+            _dbUrl = url;
 
             _clusterAddress = IoNodeAddress.Create(url);
             _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();
@@ -42,6 +57,7 @@ namespace zero.core.data.cassandra
             }
             catch (Exception e)
             {
+                _cluster = null;                
                 _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
                 return false;
             }
