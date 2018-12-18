@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.data.cassandra;
 using zero.core.data.contracts;
 using zero.core.data.providers.cassandra;
 using zero.core.models.consumables;

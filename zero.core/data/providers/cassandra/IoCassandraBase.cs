@@ -21,8 +21,9 @@ namespace zero.core.data.cassandra
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;
 
-        private bool _connecting = false;
+        protected volatile bool _connecting = false;
         private bool _isConnected;
+
         public bool IsConnected
         {
             get => _isConnected;
@@ -39,7 +40,12 @@ namespace zero.core.data.cassandra
 
         protected async Task<bool> Connect(string url)
         {
-            if (_cluster != null || _connecting)
+            if (_connecting)
+                return false;
+
+            _connecting = true;
+
+            if (_cluster != null)
             {
                 if(!_connecting)
                     _logger.Warn($"Cluster was connected at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
@@ -48,8 +54,7 @@ namespace zero.core.data.cassandra
 
                 await Task.Delay(30000);//TODO config
             }
-
-            _connecting = true;
+            
             _dbUrl = url;
 
             _clusterAddress = IoNodeAddress.Create(url);
