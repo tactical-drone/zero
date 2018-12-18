@@ -185,43 +185,75 @@ namespace zero.core.models.consumables
         /// <summary>
         /// Processes a iri datum
         /// </summary>
-        private async Task ProcessProtocolMessage()
+        private async Task ProcessProtocolMessage() //TODO error cases
         {
             var newInteropTransactions = new List<IIoInteropTransactionModel<TBlob>>();
             var s = new Stopwatch();
             s.Start();
 
             //Attempt to establish sync when we are not in sync
-            if (!ProducerHandle.Synced && !Sync())
+            try
             {
-                ProcessState = State.Consumed;
-                return;
-            }
-
-            BatchStatement batch = new BatchStatement();
-            for (int i = 0; i < DatumCount; i++)
-            {
-                s.Restart();
-
-                var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
-
-                interopTx.Uri = ProducerHandle.SourceUri;
-                if (ProducerHandle.Synced)
+                if (!ProducerHandle.Synced && !Sync())
                 {
-                    newInteropTransactions.Add(interopTx);
-                    
-                    if (interopTx.Value != 0)
-                        _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
+                    ProcessState = State.Consumed;
+                    return;
+                }                
+
+                var crcCheckNextMessage = false;
+                BatchStatement batch = new BatchStatement();
+                for (int i = 0; i < DatumCount; i++)
+                {                    
+                    try
+                    {
+                        s.Restart();
+
+                        if (crcCheckNextMessage)
+                        {
+                            crcCheckNextMessage = false;
+                            Sync();
+                            if (BytesLeftToProcess < DatumSize)
+                            {
+                                ProcessState = State.Consumed;
+                                return;
+                            }
+                        }
+                            
+                        var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
+
+                        interopTx.Uri = ProducerHandle.SourceUri;
+                        if (ProducerHandle.Synced)
+                        {                        
+                            if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
+                            {
+                                BufferOffset += DatumSize;
+                                crcCheckNextMessage = true;
+                                continue;                            
+                            }
+
+                            newInteropTransactions.Add(interopTx);
+
+                            if (interopTx.Value != 0 && interopTx.Address != null)
+                                _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
+                        }
+                    }
+                    finally
+                    {
+                        BufferOffset += DatumSize;
+                    }                    
                 }
 
-                BufferOffset += DatumSize;
+                //Relay batch
+                await ForwardToNeighbor(newInteropTransactions);
+                await ForwardToNodeServices(newInteropTransactions);            
+
+                ProcessState = State.Consumed;
             }
-
-            //Relay batch
-            await ForwardToNeighbor(newInteropTransactions);
-            await ForwardToNodeServices(newInteropTransactions);            
-
-            ProcessState = State.Consumed;
+            finally
+            {
+                if (ProcessState == State.Consuming)
+                    ProcessState = State.ConsumeErr;
+            }
         }
 
         private async Task ForwardToNodeServices(List<IIoInteropTransactionModel<TBlob>> newInteropTransactions)

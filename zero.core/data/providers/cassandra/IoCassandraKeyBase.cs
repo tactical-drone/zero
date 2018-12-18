@@ -125,9 +125,10 @@ namespace zero.core.data.cassandra
                     new Map<IoTaggedTransaction<TBlob>>().TableName("tag")
                         .ExplicitColumns()
                         .Column(c => c.Tag)
+                        .Column(c => c.ObsoleteTag)
                         .Column(c => c.Hash)
                         .Column(c => c.Timestamp)
-                        .PartitionKey(c => c.Tag, c => c.Timestamp)
+                        .PartitionKey(c => c.Tag, c => c.ObsoleteTag, c => c.Timestamp)
                         .ClusteringKey(c => c.Hash, SortOrder.Ascending));
                 return taggedTransaction;
             }

@@ -18,7 +18,7 @@ namespace zero.interop.entangled.common.model.interop
                 signature_or_message = IoMarshalledTransaction.Trim(transaction.signature_or_message),
                 address = IoMarshalledTransaction.Trim(transaction.address, new byte[] { }),
                 value = transaction.value,
-                obsolete_tag = IoMarshalledTransaction.Trim(transaction.obsolete_tag),
+                obsolete_tag = IoMarshalledTransaction.Trim(transaction.obsolete_tag, new byte[] { }),
                 timestamp = transaction.timestamp,
                 current_index = transaction.current_index,
                 last_index = transaction.last_index,
@@ -30,7 +30,7 @@ namespace zero.interop.entangled.common.model.interop
                 attachment_timestamp_lower = transaction.attachment_timestamp_lower,
                 attachment_timestamp_upper = transaction.attachment_timestamp_upper,
                 nonce = IoMarshalledTransaction.Trim(transaction.nonce),
-                hash = IoMarshalledTransaction.Trim(transaction.hash)
+                hash = IoMarshalledTransaction.Trim(transaction.hash, new byte[] { })
             };
         }
 

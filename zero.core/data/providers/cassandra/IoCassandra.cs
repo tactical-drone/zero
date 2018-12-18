@@ -137,6 +137,7 @@ namespace zero.core.data.providers.cassandra
             var taggedTransaction = new IoTaggedTransaction<TBlob>
             {
                 Tag = transaction.Tag,
+                ObsoleteTag = transaction.ObsoleteTag,
                 Hash = transaction.Hash,
                 Timestamp = transaction.Timestamp
             };
