@@ -21,6 +21,7 @@ namespace zero.core.data.cassandra
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;
 
+        private bool _connecting = false;
         private bool _isConnected;
         public bool IsConnected
         {
@@ -38,12 +39,17 @@ namespace zero.core.data.cassandra
 
         protected async Task<bool> Connect(string url)
         {
-            if (_cluster != null)
+            if (_cluster != null || _connecting)
             {
-                _logger.Warn($"Cluster was connected at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
+                if(!_connecting)
+                    _logger.Warn($"Cluster was connected at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
+                else
+                    _logger.Warn($"Cluster at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
+
                 await Task.Delay(30000);//TODO config
             }
 
+            _connecting = true;
             _dbUrl = url;
 
             _clusterAddress = IoNodeAddress.Create(url);
@@ -59,6 +65,7 @@ namespace zero.core.data.cassandra
             {
                 _cluster = null;                
                 _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
+                
                 return false;
             }
             
@@ -68,6 +75,7 @@ namespace zero.core.data.cassandra
                 _logger.Info("Configured db schema");
 
             IsConnected = true;
+            _connecting = false;
 
             return true;
         }
