@@ -71,7 +71,7 @@ namespace zero.core.data.cassandra
                 _cluster = null;                
                 _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
                 
-                return false;
+                return _connecting = false;
             }
             
             _logger.Debug($"Connected to Cassandra cluster = `{_cluster.Metadata.ClusterName}'");
