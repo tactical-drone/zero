@@ -215,8 +215,11 @@ namespace zero.core.data.providers.cassandra
 
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
             ((BatchStatement)batch).Add(_hashes.Insert(bundledHash));
-            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
-            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
+
+            if ((transaction.Branch is string ? (transaction.Branch as string).Length : (transaction.Branch as byte[]).Length) > 0)
+                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
+            if ((transaction.Trunk is string ? (transaction.Trunk as string).Length : (transaction.Trunk as byte[]).Length) > 0)
+                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
 
             // ReSharper disable once PossibleNullReferenceException
             if ((transaction.Address is string ? (transaction.Address as string).Length : (transaction.Address as byte[]).Length) > 0)
