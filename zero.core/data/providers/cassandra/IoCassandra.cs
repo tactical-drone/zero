@@ -128,7 +128,7 @@ namespace zero.core.data.providers.cassandra
             if (transaction.Hash == null || (transaction.Hash is string
                     ? (transaction.Hash as string).Length
                     // ReSharper disable once PossibleNullReferenceException
-                    : (transaction.Hash as byte[]).Length) > 0)
+                    : (transaction.Hash as byte[]).Length) == 0)
             {
                 _logger.Warn("Null hash not expected, BUG in POW calculations");
                 return null;
