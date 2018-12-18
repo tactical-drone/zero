@@ -51,17 +51,17 @@ namespace zero.interop.entangled.common.model.interop
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
                     Nonce = IoMarshalledTransaction.Trim(memMap.nonce),
-                    Hash = IoMarshalledTransaction.Trim(memMap.hash),                    
+                    Hash = IoMarshalledTransaction.Trim(memMap.hash),
                 };
 
                 //Check pow
                 var hashTrytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
                 IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(hashTrytes, hashTrytes.Length, flexTritBuffer, buffOffset + Codec.TransactionSize, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH - 9);                
 
-                var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());                
+                var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());
                 var computedHash = interopTransaction.Hash;
                 
-                IoPow.Compute(interopTransaction, interopTransaction.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH, IoTransaction.NUM_TRITS_HASH) , proposedHash);                                                
+                IoPow.Compute(interopTransaction, interopTransaction.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH, IoTransaction.NUM_TRITS_HASH) , proposedHash);
                 return interopTransaction;
             }
         }

@@ -10,6 +10,7 @@ using zero.core.data.lookups;
 using zero.core.data.luts;
 using zero.core.data.market;
 using zero.interop.entangled;
+using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using Logger = NLog.Logger;
 
@@ -130,7 +131,15 @@ namespace zero.core.data.providers.cassandra
                     // ReSharper disable once PossibleNullReferenceException
                     : (transaction.Hash as byte[]).Length) == 0)
             {
-                _logger.Warn("Null hash not expected, BUG in POW calculations");
+                try
+                {
+                    _logger.Trace($"Invalid transaction");
+                    _logger.Trace($"Transaction = pow = `{transaction.Pow}'");
+                    _logger.Trace($"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
+                    _logger.Trace($"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
+                }
+                catch {}
+
                 return null;
             }
                                         
@@ -225,6 +234,17 @@ namespace zero.core.data.providers.cassandra
                 catch (Exception e)
                 {
                     _logger.Trace(e, "An error has occurred inserting row:");
+
+                    try
+                    {
+                        _logger.Trace($"Transaction = pow = `{transaction.Pow}'");
+                        _logger.Trace(
+                            $"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
+                        _logger.Trace(
+                            $"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
+                    }
+                    catch{}                                        
+                    
                     IsConnected = false;
                 }
             }
