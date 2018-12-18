@@ -2,7 +2,7 @@
 
 namespace zero.interop.entangled.common.model.abstraction
 {
-    public interface IIoInteropModel<TBlob>
+    public interface IIoInteropModel<TBlob> 
     {
         IIoInteropTransactionModel<TBlob> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null);
     }

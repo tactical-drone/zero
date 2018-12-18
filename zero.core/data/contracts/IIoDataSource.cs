@@ -4,7 +4,7 @@ using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.data.contracts
 {
-    public interface IIoDataSource<TBlob>
+    public interface IIoDataSource<TBlob> 
     {
         bool IsConnected { get; }
         Task<RowSet> Put(IIoInteropTransactionModel<TBlob> transaction, object batch = null);

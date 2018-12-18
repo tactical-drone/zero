@@ -29,7 +29,7 @@ namespace zero.core.api
     [ApiController]
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("/api/node")]
-    public class IoNodeService<TBlob> : Controller, IIoNodeService
+    public class IoNodeService<TBlob> : Controller, IIoNodeService 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoNodeService{TBlob}"/> class.

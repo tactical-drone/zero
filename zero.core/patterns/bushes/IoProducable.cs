@@ -57,6 +57,7 @@ namespace zero.core.patterns.bushes
             Error,
             ProduceErr,
             ConsumeErr,
+            ConsumeInvalid,
             ConsumeCancelled,
             ProduceCancelled,
             ConsumeTo,

@@ -9,7 +9,7 @@ using zero.interop.entangled.interfaces;
 
 namespace zero.interop.entangled
 {
-    public class IoEntangled<TBlob> : IIoEntangledInterop<TBlob>
+    public class IoEntangled<TBlob> : IIoEntangledInterop<TBlob> 
     {
         static IoEntangled()
         {

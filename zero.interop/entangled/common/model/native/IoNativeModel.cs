@@ -67,9 +67,8 @@ namespace zero.interop.entangled.common.model.native
 
             var proposedHash = new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c => (byte)c).ToArray())).Value;
             var computedHash = interopTransaction.Hash;
-
-            IIoInteropTransactionModel<string> byref = interopTransaction;
-            IoPow.Compute(ref byref, computedHash, proposedHash);
+            
+            IoPow.Compute(interopTransaction, computedHash, proposedHash);
 
             return interopTransaction;            
         }

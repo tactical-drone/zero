@@ -43,7 +43,8 @@ namespace zero.interop.entangled.common.model.interop
             }
         }
         public string Uri { get; set; }        
-        public short Size { get; set; }
+        public short Size { get; set; }        
+
         public string AsTrytes(byte[] field, int tryteLen, int tritLen)
         {
             if (field == null)

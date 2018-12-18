@@ -82,7 +82,7 @@ namespace zero.core.core
 
 
 
-        private async Task PersistTransactions<TBlob>(IIoDataSource<TBlob> dataSource)
+        private async Task PersistTransactions<TBlob>(IIoDataSource<TBlob> dataSource) 
         {
             var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));                       
             
@@ -106,9 +106,12 @@ namespace zero.core.core
 
                         foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
                         {
+                            if (batch.ProcessState == IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeInvalid)
+                                batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consuming;
+
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
-                                batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                                batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeInvalid;
                         }
                         batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consumed;
                     }

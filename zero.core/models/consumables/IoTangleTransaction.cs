@@ -14,7 +14,7 @@ namespace zero.core.models.consumables
     /// </summary>
     /// <seealso cref="IoTangleTransaction" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>>, IIoProducer
+    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>>, IIoProducer 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction"/> class.

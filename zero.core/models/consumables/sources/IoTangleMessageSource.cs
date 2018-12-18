@@ -16,7 +16,7 @@ namespace zero.core.consumables.sources
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer
+    public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
     {
         public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstreamRelay):base(5)//TODO
         {

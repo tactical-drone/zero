@@ -5,7 +5,7 @@ using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.data.cassandra
 {
-    public class IoCassandraKeyBase<TBlob>
+    public class IoCassandraKeyBase<TBlob> 
     {
         private MappingConfiguration _bundle;
         public MappingConfiguration BundleMap

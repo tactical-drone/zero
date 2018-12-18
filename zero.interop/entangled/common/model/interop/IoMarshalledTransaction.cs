@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
@@ -59,20 +60,25 @@ namespace zero.interop.entangled.common.model.interop
         [MarshalAs(UnmanagedType.I1)]        
         public bool solid;
 
-
-        public static byte[] Trim(byte[] buffer, byte[] emptySet = null)
+        public static byte[] Trim(byte[] buffer, byte nullSet = 9)
         {            
             for (var i = buffer.Length; i-- > 0;)
             {
                 if (buffer[i] != 0)
                 {
                     var trimmed = i == buffer.Length - 1 ? buffer : buffer.AsSpan().Slice(0, i + 1).ToArray(); //TODO ?
-                    if (trimmed.Length == 0 && emptySet != null)
-                        return emptySet;
-                    return trimmed;
+
+                    if (trimmed.Length != 0) return trimmed;
+                    if (nullSet == 9)
+                        return null;
+
+                    return nullSet > 0 ? new[] { nullSet } : new byte[]{};
                 }
             }
-            return emptySet;
+
+            if (nullSet == 9)
+                return null;
+            return nullSet > 0 ? new[] { nullSet } : new byte[] { };
         }
 
         public short Size

@@ -10,7 +10,7 @@ namespace zero.core.protocol
     /// <summary>
     /// The iota protocol
     /// </summary>
-    public class TanglePeer<TBlob> : IoNeighbor<IoTangleMessage<TBlob>>
+    public class TanglePeer<TBlob> : IoNeighbor<IoTangleMessage<TBlob>> 
     {
         /// <summary>
         /// Constructs a IOTA tangle neighbor handler

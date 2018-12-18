@@ -37,21 +37,21 @@ namespace zero.interop.entangled.common.model.interop
                 var interopTransaction = new IoInteropTransactionModel
                 {                    
                     SignatureOrMessage = IoMarshalledTransaction.Trim(memMap.signature_or_message),
-                    Address = IoMarshalledTransaction.Trim(memMap.address, new byte[] {}),
+                    Address = IoMarshalledTransaction.Trim(memMap.address, 0),
                     Value = memMap.value,
-                    ObsoleteTag = IoMarshalledTransaction.Trim(memMap.obsolete_tag, new byte[] { 0 }),
+                    ObsoleteTag = IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
                     Timestamp = memMap.timestamp,
                     CurrentIndex = memMap.current_index,
                     LastIndex = memMap.last_index,
                     Bundle = memMap.bundle,
                     Trunk = IoMarshalledTransaction.Trim(memMap.trunk),
                     Branch = IoMarshalledTransaction.Trim(memMap.branch),
-                    Tag = IoMarshalledTransaction.Trim(memMap.tag, new byte[] {}),
+                    Tag = IoMarshalledTransaction.Trim(memMap.tag, 0),
                     AttachmentTimestamp = memMap.attachment_timestamp,
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
                     Nonce = IoMarshalledTransaction.Trim(memMap.nonce),
-                    Hash = IoMarshalledTransaction.Trim(memMap.hash, new byte[] {}),                    
+                    Hash = IoMarshalledTransaction.Trim(memMap.hash),                    
                 };
 
                 //Check pow
@@ -60,11 +60,9 @@ namespace zero.interop.entangled.common.model.interop
 
                 var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());                
                 var computedHash = interopTransaction.Hash;
-
-                IIoInteropTransactionModel<byte[]> byref = interopTransaction;
-                IoPow.Compute(ref byref, byref.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH, IoTransaction.NUM_TRITS_HASH) , proposedHash);                
-
-                return byref;
+                
+                IoPow.Compute(interopTransaction, interopTransaction.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH, IoTransaction.NUM_TRITS_HASH) , proposedHash);                                                
+                return interopTransaction;
             }
         }
     }

@@ -15,7 +15,7 @@ using Logger = NLog.Logger;
 
 namespace zero.core.data.providers.cassandra
 {
-    public class IoCassandra<TBlob>: IoCassandraBase<TBlob>, IIoDataSource<TBlob>
+    public class IoCassandra<TBlob>: IoCassandraBase<TBlob>, IIoDataSource<TBlob> 
     {
         /// <summary>
         /// Constructor
@@ -120,6 +120,19 @@ namespace zero.core.data.providers.cassandra
                 await Connect(_dbUrl);
                 return null;
             }
+
+            //check for pow
+            if (transaction.Pow == 0)
+                return null;
+
+            if (transaction.Hash == null || (transaction.Hash is string
+                    ? (transaction.Hash as string).Length
+                    // ReSharper disable once PossibleNullReferenceException
+                    : (transaction.Hash as byte[]).Length) > 0)
+            {
+                _logger.Warn("Null hash not expected, BUG in POW calculations");
+                return null;
+            }
                                         
             var executeBatch = batch == null;
 
@@ -191,18 +204,16 @@ namespace zero.core.data.providers.cassandra
                 }                
             }
 
-            // ReSharper disable MergeCastWithTypeCheck
-            // ReSharper disable PossibleNullReferenceException
-            if ((transaction.Hash is string ? (transaction.Hash as string).Length : (transaction.Hash as byte[]).Length) > 0)
-            {
-                ((BatchStatement)batch).Add(_hashes.Insert(bundledHash));
-                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
-                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
-            }
-                        
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
-            
-            if ((transaction.Address is string ? (transaction.Address as string).Length : (transaction.Address as byte[]).Length) > 0) ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));            
+            ((BatchStatement)batch).Add(_hashes.Insert(bundledHash));
+            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
+            ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
+
+            // ReSharper disable once PossibleNullReferenceException
+            if ((transaction.Address is string ? (transaction.Address as string).Length : (transaction.Address as byte[]).Length) > 0)
+                ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));            
+
+            // ReSharper disable once PossibleNullReferenceException
             if((transaction.Tag is string? (transaction.Tag as string).Length : (transaction.Tag as byte[]).Length) > 0) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
                         
             if (executeBatch)

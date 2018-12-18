@@ -28,7 +28,7 @@ namespace zero.core.models.consumables
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
-    public class IoTangleMessage<TBlob> : IoMessage<IoTangleMessage<TBlob>>
+    public class IoTangleMessage<TBlob> : IoMessage<IoTangleMessage<TBlob>> 
     {
         /// <summary>
         /// Constructs buffers that hold tangle message information
