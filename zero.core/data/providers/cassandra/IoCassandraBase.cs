@@ -34,7 +34,7 @@ namespace zero.core.data.cassandra
                 _isConnected = value;
             }
         }
-        private string _dbUrl = string.Empty;
+        protected string _dbUrl = string.Empty;
 
         protected async Task<bool> Connect(string url)
         {

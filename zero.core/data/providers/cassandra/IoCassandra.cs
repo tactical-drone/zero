@@ -115,9 +115,12 @@ namespace zero.core.data.providers.cassandra
 
         public async Task<RowSet> Put(IIoInteropTransactionModel<TBlob> transaction, object batch = null)
         {
-            if (!IsConnected)            
+            if (!IsConnected)
+            {
+                await Connect(_dbUrl);
                 return null;
-            
+            }
+                                        
             var executeBatch = batch == null;
 
             var bundledHash = new IoBundledHash<TBlob>
