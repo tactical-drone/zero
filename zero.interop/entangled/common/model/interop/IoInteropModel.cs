@@ -63,7 +63,7 @@ namespace zero.interop.entangled.common.model.interop
                 var computedHash = interopTransaction.Hash;
 
                 IIoInteropTransactionModel<byte[]> byref = interopTransaction;
-                IoPow.Compute(ref byref, byref.AsTrytes(computedHash, IoTransaction.NUM_TRITS_HASH) , proposedHash);                
+                IoPow.Compute(ref byref, byref.AsTrytes(computedHash, IoTransaction.NUM_TRYTES_HASH, IoTransaction.NUM_TRITS_HASH) , proposedHash);                
 
                 return byref;
             }

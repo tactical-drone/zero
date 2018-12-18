@@ -44,12 +44,12 @@ namespace zero.interop.entangled.common.model.interop
         }
         public string Uri { get; set; }        
         public short Size { get; set; }
-        public string AsTrytes(byte[] field, int size)
+        public string AsTrytes(byte[] field, int tryteLen, int tritLen)
         {
             if (field == null)
                 return string.Empty;
-            var trytes = new sbyte[size];
-            IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)field, 0, size, size);
+            var trytes = new sbyte[tryteLen];
+            IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)field, 0, tritLen, tritLen);
             return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()); //TODO fix cast
         }
     }   

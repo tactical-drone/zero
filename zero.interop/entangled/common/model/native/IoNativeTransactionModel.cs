@@ -67,7 +67,7 @@ namespace zero.interop.entangled.common.model.native
         [Ignore]
         public string Uri { get; set; }        
 
-        public string AsTrytes(string field, int size)
+        public string AsTrytes(string field, int tryteLen, int tritLen)
         {
             return field;
         }

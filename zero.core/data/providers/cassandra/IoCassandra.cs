@@ -133,7 +133,7 @@ namespace zero.core.data.providers.cassandra
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp
             };
-
+            
             var taggedTransaction = new IoTaggedTransaction<TBlob>
             {
                 Tag = transaction.Tag,

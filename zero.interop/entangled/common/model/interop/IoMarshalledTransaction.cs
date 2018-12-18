@@ -16,9 +16,9 @@ namespace zero.interop.entangled.common.model.interop
             return new IoMarshalledTransaction
             {
                 signature_or_message = IoMarshalledTransaction.Trim(transaction.signature_or_message),
-                address = IoMarshalledTransaction.Trim(transaction.address, new byte[] { }),
+                address = IoMarshalledTransaction.Trim(transaction.address, new byte[] {0}),
                 value = transaction.value,
-                obsolete_tag = IoMarshalledTransaction.Trim(transaction.obsolete_tag, new byte[] { }),
+                obsolete_tag = IoMarshalledTransaction.Trim(transaction.obsolete_tag, new byte[] {0}),
                 timestamp = transaction.timestamp,
                 current_index = transaction.current_index,
                 last_index = transaction.last_index,
@@ -30,7 +30,7 @@ namespace zero.interop.entangled.common.model.interop
                 attachment_timestamp_lower = transaction.attachment_timestamp_lower,
                 attachment_timestamp_upper = transaction.attachment_timestamp_upper,
                 nonce = IoMarshalledTransaction.Trim(transaction.nonce),
-                hash = IoMarshalledTransaction.Trim(transaction.hash, new byte[] { })
+                hash = IoMarshalledTransaction.Trim(transaction.hash, new byte[] {0})
             };
         }
 
@@ -90,7 +90,10 @@ namespace zero.interop.entangled.common.model.interop
             {
                 if (buffer[i] != 0)
                 {
-                    return i == buffer.Length - 1 ? buffer : buffer.AsSpan().Slice(0, i + 1).ToArray(); //TODO ?
+                    var trimmed = i == buffer.Length - 1 ? buffer : buffer.AsSpan().Slice(0, i + 1).ToArray(); //TODO ?
+                    if (trimmed.Length == 0 && emptySet != null)
+                        return emptySet;
+                    return trimmed;
                 }
             }
 

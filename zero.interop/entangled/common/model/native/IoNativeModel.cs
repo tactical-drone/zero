@@ -20,12 +20,16 @@ namespace zero.interop.entangled.common.model.native
             
             var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString(tryteBuffer.Select(c => (byte)c).ToArray())));
 
+            var obsoleteTag = tx.ObsoleteTag.Value.Trim('9');
+            if (string.IsNullOrEmpty(obsoleteTag))            
+                obsoleteTag = "9";
+            
             var interopTransaction = new IoNativeTransactionModel
-            {                                               
+            {
                 SignatureOrMessage = tx.Fragment.Value.Trim('9'),
                 Address = tx.Address.Value.Trim('9'),
                 Value = tx.Value,
-                ObsoleteTag = tx.ObsoleteTag.Value.Trim('9'),
+                ObsoleteTag = obsoleteTag,
                 Timestamp = tx.Timestamp,
                 CurrentIndex = tx.CurrentIndex,
                 LastIndex = tx.LastIndex,
