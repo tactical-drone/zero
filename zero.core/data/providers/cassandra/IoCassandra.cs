@@ -118,7 +118,7 @@ namespace zero.core.data.providers.cassandra
         {
             if (!IsConnected)
             {
-                await Connect(_dbUrl);
+                Connect(_dbUrl);
                 return null;
             }
 

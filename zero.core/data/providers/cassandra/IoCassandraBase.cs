@@ -17,12 +17,14 @@ namespace zero.core.data.cassandra
         private readonly Logger _logger;
 
         protected string Keyspace;
-        protected Cluster _cluster;
+        protected volatile Cluster _cluster;
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;
 
-        protected volatile bool _connecting = false;
-        private bool _isConnected;
+        protected string _dbUrl = string.Empty;        
+        protected volatile bool _isConnecting = false;
+        private volatile bool _isConnected = false;
+        private DateTime _lastConnectionAttempt = DateTime.Now - TimeSpan.FromSeconds(30);
 
         public bool IsConnected
         {
@@ -35,30 +37,18 @@ namespace zero.core.data.cassandra
 
                 _isConnected = value;
             }
-        }
-        protected string _dbUrl = string.Empty;
+        }        
 
         protected async Task<bool> Connect(string url)
         {
-            if (_connecting)
+            if (_isConnecting || !_isConnected && (DateTime.Now - _lastConnectionAttempt) < TimeSpan.FromSeconds(10))
                 return false;
-
-            _connecting = true;
-
-            if (_cluster != null)
-            {
-                if(!_connecting)
-                    _logger.Warn($"Cluster was connected at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
-                else
-                    _logger.Warn($"Cluster at `{_clusterAddress.IpEndPoint}', attempting to reconnect");
-
-                await Task.Delay(30000);//TODO config
-            }
+            _lastConnectionAttempt = DateTime.Now;            
+            _isConnecting = true;
             
             _dbUrl = url;
-
             _clusterAddress = IoNodeAddress.Create(url);
-            _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();
+            _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();            
 
             _logger.Debug("Connecting to Cassandra...");
 
@@ -71,7 +61,7 @@ namespace zero.core.data.cassandra
                 _cluster = null;                
                 _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
                 
-                return _connecting = false;
+                return _isConnecting = false;
             }
             
             _logger.Debug($"Connected to Cassandra cluster = `{_cluster.Metadata.ClusterName}'");
@@ -80,7 +70,7 @@ namespace zero.core.data.cassandra
                 _logger.Info("Configured db schema");
 
             IsConnected = true;
-            _connecting = false;
+            _isConnecting = false;
 
             return true;
         }
