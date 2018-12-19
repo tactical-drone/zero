@@ -190,13 +190,22 @@ namespace zero.core.data.providers.cassandra
             {                
                 try
                 {
-                                        
-                    var quality = IoMarketDataClient.Quality + (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)).TotalMinutes;
 
-                    if (quality > short.MaxValue)
+
+                    double quality;
+                    try
+                    {
+                        quality = IoMarketDataClient.Quality + (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)).TotalMinutes;
+
+                        if (quality > short.MaxValue)
+                            quality = short.MaxValue;
+                        if (quality < short.MinValue)
+                            quality = short.MinValue;
+                    }
+                    catch 
+                    {
                         quality = short.MaxValue;
-                    if (quality < short.MinValue)
-                        quality = short.MinValue;
+                    }
 
                     var draggedTransaction = new IoDraggedTransaction<TBlob>
                     {
