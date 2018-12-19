@@ -190,6 +190,14 @@ namespace zero.core.data.providers.cassandra
             {                
                 try
                 {
+                                        
+                    var quality = IoMarketDataClient.Quality + (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)).TotalMinutes;
+
+                    if (quality > short.MaxValue)
+                        quality = short.MaxValue;
+                    if (quality < short.MinValue)
+                        quality = short.MinValue;
+
                     var draggedTransaction = new IoDraggedTransaction<TBlob>
                     {
                         Address = transaction.Address,
@@ -197,7 +205,7 @@ namespace zero.core.data.providers.cassandra
                         AttachmentTimestamp = transaction.AttachmentTimestamp,
                         Timestamp = transaction.Timestamp,
                         Value = transaction.Value,
-                        Quality = (short)(IoMarketDataClient.Quality + (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)).TotalMinutes),
+                        Quality = (short)quality,
                         Uri = transaction.Uri,                                                
                         BtcValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
                         EthValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
