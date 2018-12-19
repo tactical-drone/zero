@@ -197,7 +197,7 @@ namespace zero.core.data.providers.cassandra
                         AttachmentTimestamp = transaction.AttachmentTimestamp,
                         Timestamp = transaction.Timestamp,
                         Value = transaction.Value,
-                        Quality = IoMarketDataClient.Quality,
+                        Quality = (short)(IoMarketDataClient.Quality + (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)).TotalMinutes),
                         Uri = transaction.Uri,                                                
                         BtcValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
                         EthValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
