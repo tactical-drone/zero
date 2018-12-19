@@ -9,6 +9,7 @@ using zero.core.data.contracts;
 using zero.core.data.lookups;
 using zero.core.data.luts;
 using zero.core.data.market;
+using zero.core.protocol;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
@@ -123,7 +124,7 @@ namespace zero.core.data.providers.cassandra
             }
 
             //check for pow
-            if (transaction.Pow == 0)
+            if (-TanglePeer<object>.Difficulty > transaction.Pow  && TanglePeer<object>.Difficulty < transaction.Pow)
                 return null;
 
             if (transaction.Hash == null || (transaction.Hash is string
@@ -135,8 +136,8 @@ namespace zero.core.data.providers.cassandra
                 {
                     _logger.Trace($"Invalid transaction");
                     _logger.Trace($"Transaction = pow = `{transaction.Pow}'");
-                    _logger.Trace($"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
-                    _logger.Trace($"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
+                    _logger.Trace($"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRYTES_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
+                    _logger.Trace($"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
                 }
                 catch {}
 
@@ -190,8 +191,6 @@ namespace zero.core.data.providers.cassandra
             {                
                 try
                 {
-
-
                     double quality;
                     try
                     {
@@ -232,8 +231,6 @@ namespace zero.core.data.providers.cassandra
 
             ((BatchStatement)batch).Add(_transactions.Insert(transaction));
             ((BatchStatement)batch).Add(_hashes.Insert(bundledHash));
-
-
             
             if (transaction.Branch != null && ((transaction.Branch is string ? (transaction.Branch as string).Length : (transaction.Branch as byte[]).Length) > 0))
                 ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
@@ -262,9 +259,9 @@ namespace zero.core.data.providers.cassandra
                     {
                         _logger.Trace($"Transaction = pow = `{transaction.Pow}'");
                         _logger.Trace(
-                            $"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRITS_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
+                            $"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRYTES_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
                         _logger.Trace(
-                            $"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRITS_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
+                            $"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
                     }
                     catch{}                                        
                     

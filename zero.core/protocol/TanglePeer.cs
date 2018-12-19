@@ -27,6 +27,11 @@ namespace zero.core.protocol
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;                                
+        private readonly Logger _logger;
+
+        /// <summary>
+        /// Minimum difficulty
+        /// </summary>
+        public const int Difficulty = 4;
     }
 }
