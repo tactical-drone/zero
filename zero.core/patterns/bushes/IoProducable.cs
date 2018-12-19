@@ -247,7 +247,7 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
-                if(value > 0 && CurrentState.State == value)
+                if(value > 0 && CurrentState?.State == value)
                     return;
 
                 //Update timestamps
