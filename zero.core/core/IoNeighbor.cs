@@ -104,10 +104,7 @@ namespace zero.core.core
                             return;
 
                         foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
-                        {
-                            if (batch.ProcessState == IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeInvalid)
-                                batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consuming;
-
+                        {                            
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
                                 batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeInvalid;
