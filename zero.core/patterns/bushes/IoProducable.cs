@@ -115,7 +115,7 @@ namespace zero.core.patterns.bushes
         public void UpdateStateTransitionHistory(State value)
         {
             //Update the previous state's exit time
-            if (CurrentState != null)
+            if (CurrentState != null && ProducerHandle != null)
             {
                 CurrentState.ExitTime = DateTime.Now;
 
