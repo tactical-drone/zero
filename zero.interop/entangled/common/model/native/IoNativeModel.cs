@@ -27,21 +27,21 @@ namespace zero.interop.entangled.common.model.native
             var interopTransaction = new IoNativeTransactionModel
             {
                 SignatureOrMessage = tx.Fragment.Value.Trim('9'),
-                Address = tx.Address.Value.Trim('9'),
+                Address = tx.Address.Value,
                 Value = tx.Value,
                 ObsoleteTag = obsoleteTag,
                 Timestamp = tx.Timestamp,
                 CurrentIndex = tx.CurrentIndex,
                 LastIndex = tx.LastIndex,
                 Bundle = tx.BundleHash.Value,
-                Trunk = tx.TrunkTransaction.Value.Trim('9'),
-                Branch = tx.BranchTransaction.Value.Trim('9'),                                                
+                Trunk = tx.TrunkTransaction.Value,
+                Branch = tx.BranchTransaction.Value,                                                
                 Tag = tx.Tag.Value.Trim('9'),
                 AttachmentTimestamp = tx.AttachmentTimestamp,
                 AttachmentTimestampLower = tx.AttachmentTimestampLowerBound,
                 AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound,                
                 Nonce = tx.Nonce.Value.Trim('9'),
-                Hash = tx.Hash.Value.Trim('9'),
+                Hash = tx.Hash.Value,
                 SnapshotIndex = tx.SnapshotIndex,
                 Solid = tx.Solid                
             };
@@ -65,10 +65,9 @@ namespace zero.interop.entangled.common.model.native
             //check pow
             IoEntangled<string>.Default.Ternary.GetTrytes(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
 
-            var proposedHash = new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c => (byte)c).ToArray())).Value;
-            var computedHash = interopTransaction.Hash;
+            var proposedHash = new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c => (byte)c).ToArray())).Value;            
             
-            IoPow.Compute(interopTransaction, computedHash, proposedHash);
+            IoPow.Compute(interopTransaction, interopTransaction.Hash, proposedHash);
 
             return interopTransaction;            
         }

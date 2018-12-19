@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Linq;
-using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
-using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 

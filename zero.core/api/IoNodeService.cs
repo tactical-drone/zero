@@ -142,7 +142,7 @@ namespace zero.core.api
                                     {
                                         foreach (var t in msg.Transactions)
                                         {
-                                            var tagStr = t.AsTrytes(t.Tag, IoTransaction.NUM_TRYTES_TAG, IoTransaction.NUM_TRITS_TAG);
+                                            var tagStr = t.AsTrytes(t.Tag);
 
                                             if (tagQuery == null)
                                                 transactions.Add(t);

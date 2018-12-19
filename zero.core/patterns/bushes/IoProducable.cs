@@ -85,12 +85,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The heap containing our state transition items
         /// </summary>
-        private readonly IoHeap<IoWorkStateTransition<TJob>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TJob>>(Enum.GetNames(typeof(State)).Length);
+        private readonly IoHeap<IoWorkStateTransition<TJob>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TJob>>(Enum.GetNames(typeof(State)).Length * 2);//TODO what should this size be?
 
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
         /// </summary>      
-        public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];
+        public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length * 2];//TODO what should this size be?
 
         /// <summary>
         /// The current state

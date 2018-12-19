@@ -68,11 +68,11 @@ namespace zero.core.core
         private readonly LimitedThreadScheduler _limitedNeighborThreadScheduler;
                
         /// <summary>
-        /// The UDP listen port number
+        /// Threads per neighbor
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_max_neighbor_pc_threads = 1;
+        protected int parm_max_neighbor_pc_threads = 3;
 
         /// <summary>
         /// Starts the node's listener

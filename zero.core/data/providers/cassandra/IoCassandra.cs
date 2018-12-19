@@ -130,11 +130,7 @@ namespace zero.core.data.providers.cassandra
                 Connect(_dbUrl);
                 return null;
             }
-
-            //check for pow
-            if (-TanglePeer<object>.Difficulty > transaction.Pow  && TanglePeer<object>.Difficulty < transaction.Pow)
-                return null;
-
+            
             if (transaction.Hash == null || (transaction.Hash is string
                     ? (transaction.Hash as string).Length
                     // ReSharper disable once PossibleNullReferenceException
@@ -143,9 +139,11 @@ namespace zero.core.data.providers.cassandra
                 try
                 {
                     _logger.Trace($"Invalid transaction");
-                    _logger.Trace($"Transaction = pow = `{transaction.Pow}'");
-                    _logger.Trace($"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRYTES_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
-                    _logger.Trace($"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
+                    _logger.Trace($"value = `{transaction.Value}'");
+                    _logger.Trace($"pow = `{transaction.Pow}'");
+                    _logger.Trace($"time = `{transaction.Timestamp}'");
+                    _logger.Trace($"bundle = `{transaction.AsTrytes(transaction.Bundle)}'");
+                    _logger.Trace($"address = `{transaction.AsTrytes(transaction.Address)}'");
                 }
                 catch {}
 
@@ -265,11 +263,11 @@ namespace zero.core.data.providers.cassandra
 
                     try
                     {
-                        _logger.Trace($"Transaction = pow = `{transaction.Pow}'");
-                        _logger.Trace(
-                            $"`{transaction.AsTrytes(transaction.Bundle, IoTransaction.NUM_TRYTES_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
-                        _logger.Trace(
-                            $"address = '{transaction.AsTrytes(transaction.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
+                        _logger.Trace($"value = `{transaction.Value}'");
+                        _logger.Trace($"pow = `{transaction.Pow}'");
+                        _logger.Trace($"time = `{transaction.Timestamp}'");
+                        _logger.Trace($"bundle = `{transaction.AsTrytes(transaction.Bundle)}'");
+                        _logger.Trace($"address = `{transaction.AsTrytes(transaction.Address)}'");
                     }
                     catch{}                                        
                     

@@ -4,6 +4,8 @@ using System.Runtime.Serialization;
 using System.Text;
 using Cassandra;
 using Cassandra.Mapping.Attributes;
+using zero.interop.entangled.common.trinary;
+using zero.interop.entangled.mock;
 
 // ReSharper disable InconsistentNaming
 
@@ -45,12 +47,16 @@ namespace zero.interop.entangled.common.model.interop
         public string Uri { get; set; }        
         public short Size { get; set; }        
 
-        public string AsTrytes(byte[] field, int tryteLen, int tritLen)
-        {
+        public string AsTrytes(byte[] field)
+        {            
             if (field == null)
                 return string.Empty;
-            var trytes = new sbyte[tryteLen];
-            IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)field, 0, tritLen, tritLen);
+
+            var tritsToConvert = IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
+            var trytesToConvert = (tritsToConvert + tritsToConvert % Codec.TritsPerTryte) / Codec.TritsPerTryte;
+
+            var trytes = new sbyte[trytesToConvert];
+            IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)field, 0, tritsToConvert, tritsToConvert);
             return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()); //TODO fix cast
         }
     }   

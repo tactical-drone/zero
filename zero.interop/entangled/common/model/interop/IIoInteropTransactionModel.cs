@@ -77,6 +77,6 @@ namespace zero.interop.entangled.common.model.interop
         [DataMember]
         short Size { get; set; }        
         
-        string AsTrytes(TBlob field, int tryteLen, int tritLen);
+        string AsTrytes(TBlob field);
     }
 }

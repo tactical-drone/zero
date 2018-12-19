@@ -18,7 +18,7 @@ namespace zero.core.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
     {
-        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstreamRelay):base(5)//TODO
+        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstreamRelay):base(10)//TODO
         {
             //Saves forwarding producer, to leech some values from it
             _upstreamRelay = upstreamRelay;
