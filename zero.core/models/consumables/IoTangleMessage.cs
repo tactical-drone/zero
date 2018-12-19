@@ -199,53 +199,48 @@ namespace zero.core.models.consumables
                     ProcessState = State.Consumed;
                     return;
                 }                
-
-                var crcCheckNextMessage = false;
-                BatchStatement batch = new BatchStatement();
-                for (int i = 0; i < DatumCount; i++)
+                
+                var batch = new BatchStatement();
+                for (var i = 0; i < DatumCount; i++)
                 {                    
                     try
                     {
                         s.Restart();
 
-                        if (crcCheckNextMessage)
-                        {
-                            crcCheckNextMessage = false;
-                            Sync();
-                            if (BytesLeftToProcess < DatumSize)
-                            {
-                                ProcessState = State.Consumed;
-                                return;
-                            }
-                        }
-                            
+                        if (!ProducerHandle.Synced && !Sync())
+                            return;
+                                                    
                         var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
 
                         interopTx.Uri = ProducerHandle.SourceUri;
-                        if (ProducerHandle.Synced)
-                        {                        
-                            if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
-                            {
-                                BufferOffset += DatumSize;
-                                crcCheckNextMessage = true;
-                                continue;                            
-                            } 
+                                                                        
+                        if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
+                        {                            
+                            _logger.Trace($"({Id}) Invalid transaction value {interopTx.Value}");
+                            _logger.Trace($"({Id}) Transaction = pow = `{interopTx.Pow}'");
+                            _logger.Trace($"({Id}) `{interopTx.AsTrytes(interopTx.Bundle, IoTransaction.NUM_TRYTES_BUNDLE, IoTransaction.NUM_TRITS_BUNDLE)}'");
+                            _logger.Trace($"({Id}) address = '{interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}'");
 
-                            newInteropTransactions.Add(interopTx);
+                            BufferOffset += DatumSize;
+                            ProducerHandle.Synced = false;
+                            continue;                            
+                        } 
 
-                            if (interopTx.Value != 0 && interopTx.Address != null)
-                                _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");
-                        }
+                        newInteropTransactions.Add(interopTx);
+
+                        if (interopTx.Value != 0 && interopTx.Address != null)
+                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRYTES_ADDRESS, IoTransaction.NUM_TRITS_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                        
                     }
                     finally
                     {
-                        BufferOffset += DatumSize;
+                        if (ProducerHandle.Synced)
+                            BufferOffset += DatumSize;
                     }                    
                 }
 
                 //Relay batch
                 await ForwardToNeighbor(newInteropTransactions);
-                await ForwardToNodeServices(newInteropTransactions);            
+                await ForwardToNodeServices(newInteropTransactions);
 
                 ProcessState = State.Consumed;
             }
@@ -301,7 +296,7 @@ namespace zero.core.models.consumables
             if (!ProducerHandle.Synced)
             {
                 var offset = 0;
-                bool synchronizing = true;
+                bool synced = false;
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 while (BytesLeftToProcess >= DatumSize)
                 {
@@ -311,30 +306,31 @@ namespace zero.core.models.consumables
                     {
                         if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
                         {
-                            synchronizing = false;
+                            synced = true;
                             break;
                         }
                     }
 
-                    if (!synchronizing)
+                    if (synced)
                     {
                         //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
                         ProcessState = State.Syncing;
 
                         BufferOffset++;
                         offset++;
-                        synchronizing = true;
+                        synced = false;
                     }
                     else
                     {
                         _logger.Warn($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}'");
                         ProducerHandle.Synced = true;
                         break;
-                    }
+                    }                    
                 }
             }
 
-            DatumCount = BytesLeftToProcess / DatumSize;
+            ProcessState = State.Consuming;
+
             DatumCount = BytesLeftToProcess / DatumSize;
             DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
