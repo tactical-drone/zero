@@ -37,7 +37,7 @@ namespace zero.core.data.providers.cassandra
         private Table<IoVerifiedTransaction<TBlob>> _verifiers;
         private Table<IoDraggedTransaction<TBlob>> _dragnet;
 
-        protected override bool EnsureSchema()
+        protected override async Task<bool> EnsureSchema()
         {   
             _logger.Debug("Ensuring db schema...");
             bool wasConfigured = true;
@@ -53,8 +53,16 @@ namespace zero.core.data.providers.cassandra
             
             //ensure tables            
             try
-            {                                
-                var existingTables = _cluster.Metadata.GetKeyspace(Keyspace).GetTablesNames();
+            {
+                KeyspaceMetadata keyspace = _cluster.Metadata.GetKeyspace(Keyspace);
+
+                while (keyspace == null) 
+                {
+                    keyspace = _cluster.Metadata.GetKeyspace(Keyspace);
+                    await Task.Delay(1000);//TODO config
+                }
+
+                var existingTables = keyspace.GetTablesNames();
 
                 _transactions = new Table<IIoInteropTransactionModel<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundleMap);
                 if (!existingTables.Contains("bundle"))
