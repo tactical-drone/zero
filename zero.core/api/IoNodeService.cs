@@ -156,12 +156,12 @@ namespace zero.core.api
                                                 break;
                                         }
 
-                                        msg.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consumed;
+                                        msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.ProcessState == IoProducable<IoTangleTransaction<TBlob>>.State.Consuming)
-                                            msg.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                                        if (msg.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
+                                            msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                                     }
                                 }, sleepOnProducerLag: false);
                             }

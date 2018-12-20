@@ -210,13 +210,13 @@ namespace zero.core.patterns.bushes
                     if ((nextJob = JobMetaHeap.Take()) != null)
                     {
                         //Fetch a job from TProducer. Did we get one?
-                        if (await nextJob.ProduceAsync(_previousJobFragment) < IoProducable<TJob>.State.Error)
+                        if (await nextJob.ProduceAsync(_previousJobFragment) < IoProduceble<TJob>.State.Error)
                         {
                             //TODO Double check this hack
                             //Basically to handle this weird double connection business on the TCP iri side
-                            if (nextJob.ProcessState == IoProducable<TJob>.State.ProduceSkipped)
+                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProduceSkipped)
                             {
-                                nextJob.ProcessState = IoProducable<TJob>.State.Accept;
+                                nextJob.ProcessState = IoProduceble<TJob>.State.Accept;
 
                                 if (sleepOnConsumerLag && nextJob.ProducerHandle.Synced)
                                     await Task.Delay(parm_producer_skipped_delay, cancellationToken);
@@ -232,7 +232,7 @@ namespace zero.core.patterns.bushes
                                 currJobFragment = nextJob;
 
                             //Enqueue the job for the consumer
-                            nextJob.ProcessState = IoProducable<TJob>.State.Queued;
+                            nextJob.ProcessState = IoProduceble<TJob>.State.Queued;
                             _queue.Enqueue(nextJob);
                             wasQueued = true;
 
@@ -252,7 +252,7 @@ namespace zero.core.patterns.bushes
                                 lock (_previousJobFragment)
                                 {
                                     //If this job is not under the consumer's control, we need to return it to the heap 
-                                    if (_previousJobFragment.ProcessState > IoProducable<TJob>.State.Consumed)
+                                    if (_previousJobFragment.ProcessState > IoProduceble<TJob>.State.Consumed)
                                         JobMetaHeap.Return(_previousJobFragment);
                                     else //Signal control back to the consumer that it now has control over this job
                                         _previousJobFragment.StillHasUnprocessedFragments = false;
@@ -263,8 +263,8 @@ namespace zero.core.patterns.bushes
                         }
                         else //produce job returned with errors
                         {
-                            if (nextJob.ProcessState == IoProducable<TJob>.State.Cancelled ||
-                                nextJob.ProcessState == IoProducable<TJob>.State.ProduceCancelled)
+                            if (nextJob.ProcessState == IoProduceble<TJob>.State.Cancelled ||
+                                nextJob.ProcessState == IoProduceble<TJob>.State.ProduceCancelled)
                             {
                                 Spinners.Cancel();
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
@@ -273,14 +273,14 @@ namespace zero.core.patterns.bushes
 
                             //TODO double check what we are supposed to do here?
                             //TODO what about the previous fragment?
-                            var sleepTimeMs = nextJob.ProducerHandle.Counters[(int) IoProducable<TJob>.State.Reject] +
+                            var sleepTimeMs = nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Reject] +
                                               1 / (nextJob.ProducerHandle.Counters
-                                                       [(int) IoProducable<TJob>.State.Accept] + parm_error_timeout);
+                                                       [(int) IoProduceble<TJob>.State.Accept] + parm_error_timeout);
 
                             if (sleepOnConsumerLag)
                             {
                                 _logger.Debug(
-                                    $"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int) IoProducable<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int) IoProducable<TJob>.State.Accept]}");
+                                    $"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Accept]}");
                                 _logger.Debug(
                                     $"`{PrimaryProducerDescription}' producing job `{nextJob.ProductionDescription}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
 
@@ -318,8 +318,8 @@ namespace zero.core.patterns.bushes
                     if (nextJob != null && !wasQueued)
                     {
                         //TODO Double check this hack
-                        if (nextJob.ProcessState != IoProducable<TJob>.State.Finished)
-                            nextJob.ProcessState = IoProducable<TJob>.State.Reject;
+                        if (nextJob.ProcessState != IoProduceble<TJob>.State.Finished)
+                            nextJob.ProcessState = IoProduceble<TJob>.State.Reject;
                         JobMetaHeap.Return(nextJob);
                     }
                 }
@@ -373,23 +373,22 @@ namespace zero.core.patterns.bushes
                 //A job was produced. Dequeue it and process
                 if (_queue.TryDequeue(out var currJob))
                 {
-                    currJob.ProcessState = IoProducable<TJob>.State.Consuming;
+                    currJob.ProcessState = IoProduceble<TJob>.State.Consuming;
                     try
                     {
                         //Consume the job
-                        if (await currJob.ConsumeAsync() >= IoProducable<TJob>.State.Error)
+                        if (await currJob.ConsumeAsync() >= IoProduceble<TJob>.State.Error)
                         {
-                            _logger.Warn(
+                            _logger.Trace(
                                 $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
                         }
 
 
-                        if (currJob.ProcessState == IoProducable<TJob>.State.ConsumeInlined)
+                        if (currJob.ProcessState == IoProduceble<TJob>.State.ConsumeInlined)
                         {
                             //forward any jobs
-                            currJob.ProcessState = IoProducable<TJob>.State.Consuming;
+                            currJob.ProcessState = IoProduceble<TJob>.State.Consuming;
                             inlineCallback?.Invoke(currJob);
-                            currJob.ProcessState = IoProducable<TJob>.State.Consumed;
                         }
 
                         //Notify observer
@@ -418,16 +417,16 @@ namespace zero.core.patterns.bushes
                         }
 
                         //Consume success?
-                        if (currJob.ProcessState == IoProducable<TJob>.State.Consumed)
+                        if (currJob.ProcessState == IoProduceble<TJob>.State.Consumed)
                         {
-                            currJob.ProcessState = IoProducable<TJob>.State.Accept;
+                            currJob.ProcessState = IoProduceble<TJob>.State.Accept;
 
                             if (!currJob.StillHasUnprocessedFragments)
                                 JobMetaHeap.Return(currJob);
                         }
                         else //Consume failed?
                         {
-                            currJob.ProcessState = IoProducable<TJob>.State.Reject;
+                            currJob.ProcessState = IoProduceble<TJob>.State.Reject;
                             if (!currJob.StillHasUnprocessedFragments)
                             {
                                 JobMetaHeap.Return(currJob);

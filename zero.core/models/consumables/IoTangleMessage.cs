@@ -371,7 +371,7 @@ namespace zero.core.models.consumables
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<State> ProduceAsync(IoProducable<IoTangleMessage<TBlob>> fragment)
+        public override async Task<State> ProduceAsync(IoProduceble<IoTangleMessage<TBlob>> fragment)
         {
             ProcessState = State.Producing;
             var previousJobFragment = (IoMessage<IoTangleMessage<TBlob>>)fragment;

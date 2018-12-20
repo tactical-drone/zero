@@ -7,7 +7,7 @@ namespace zero.core.patterns.bushes
     /// Jobs that need to be consumed by the workers
     /// </summary>
     /// <typeparam name="TJob">The type of the job</typeparam>
-    public abstract class IoConsumable<TJob> : IoProducable<TJob>
+    public abstract class IoConsumable<TJob> : IoProduceble<TJob>
         where TJob : IIoWorker
         
     {

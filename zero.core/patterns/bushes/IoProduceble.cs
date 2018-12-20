@@ -13,14 +13,14 @@ namespace zero.core.patterns.bushes
     /// Produces work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
-    public abstract class IoProducable<TJob> : IoConfigurable, IIoWorker
+    public abstract class IoProduceble<TJob> : IoConfigurable, IIoWorker
         where TJob : IIoWorker
         
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProducable()
+        protected IoProduceble()
         {            
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -82,7 +82,7 @@ namespace zero.core.patterns.bushes
         public virtual IoProducer<TJob> ProducerHandle { get; protected set; }
 
         /// <summary>
-        /// The state transition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
+        /// The state transition history, sourced from <see  cref="IoProducerConsumer{TJob}"/>
         /// </summary>      
         public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length * 2];//TODO what should this size be?
 
@@ -100,7 +100,7 @@ namespace zero.core.patterns.bushes
         /// Callback the generates the next job
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
-        public abstract Task<State> ProduceAsync(IoProducable<TJob> fragment);
+        public abstract Task<State> ProduceAsync(IoProduceble<TJob> fragment);
 
         /// <summary>
         /// Update state history
@@ -114,15 +114,14 @@ namespace zero.core.patterns.bushes
                 CurrentState.ExitTime = DateTime.Now;
 
                 Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
-                Interlocked.Add(ref ProducerHandle.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
+                Interlocked.Add(ref ProducerHandle.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));                
             }
 
             //Allocate memory for a new current state
             var prevState = CurrentState;
-            CurrentState = new IoWorkStateTransition<TJob>();
-            
+            CurrentState = new IoWorkStateTransition<TJob> {Previous = prevState};
+
             //Configure the current state
-            CurrentState.Previous = prevState;
 
             if (prevState != null)
                 prevState.Next = CurrentState;
@@ -221,7 +220,7 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
-                if(value > 0 && CurrentState?.State == value)
+                if(CurrentState?.State == value)
                     return;
 
                 //Update timestamps

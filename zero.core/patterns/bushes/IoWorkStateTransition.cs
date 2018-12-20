@@ -26,7 +26,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The represented state
         /// </summary>
-        public volatile IoProducable<TJob>.State State;
+        public volatile IoProduceble<TJob>.State State;
 
         /// <summary>
         /// Timestamped when this state was entered
@@ -61,14 +61,14 @@ namespace zero.core.patterns.bushes
         {
             ExitTime = EnterTime = DateTime.Now;
             Previous = Next = null;
-            State = IoProducable<TJob>.State.Undefined;
+            State = IoProduceble<TJob>.State.Undefined;
             return this;
         }
 
         /// <summary>
         /// Calculates the max state string length used for log formatting purposes
         /// </summary>
-        public static readonly int StateStrPadding = Enum.GetNames(typeof(IoProducable<>.State)).ToList().Select(s => s.Length).Max();
+        public static readonly int StateStrPadding = Enum.GetNames(typeof(IoProduceble<>.State)).ToList().Select(s => s.Length).Max();
 
         /// <summary>
         /// Pads the current state string and returns it
@@ -82,6 +82,6 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The default state string padded
         /// </summary>
-        public string DefaultPadded => IoProducable<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
+        public string DefaultPadded => IoProduceble<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
     }
 }

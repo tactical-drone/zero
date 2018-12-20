@@ -42,7 +42,7 @@ namespace zero.core.models.consumables
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync(IoProducable<IoTangleTransaction<TBlob>> fragment)
+        public override async Task<State> ProduceAsync(IoProduceble<IoTangleTransaction<TBlob>> fragment)
         {
             ProcessState = State.Producing;
             await ProducerHandle.ProduceAsync(async producer =>

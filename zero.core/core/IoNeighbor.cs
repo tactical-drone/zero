@@ -107,14 +107,14 @@ namespace zero.core.core
                         {                            
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
-                                batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeInvalid;
+                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeInvalid;
                         }
-                        batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.Consumed;
+                        batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState == IoProducable<IoTangleTransaction<TBlob>>.State.Consuming)
-                            batch.ProcessState = IoProducable<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                        if (batch != null && batch.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
+                            batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                     }                    
                 });
 
