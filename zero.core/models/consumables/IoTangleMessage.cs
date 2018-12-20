@@ -215,30 +215,36 @@ namespace zero.core.models.consumables
                         var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
 
                         interopTx.Uri = ProducerHandle.SourceUri;
-                                                                        
-                        if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
-                        {
-                            try
-                            {
-                                _logger.Trace($"({Id}) value = `{interopTx.Value}'");
-                                _logger.Trace($"({Id}) pow = `{interopTx.Pow}'");
-                                _logger.Trace($"({Id}) time = `{interopTx.Timestamp}'");
-                                _logger.Trace($"({Id}) bundle = `{interopTx.AsTrytes(interopTx.Bundle)}'");
-                                _logger.Trace($"({Id}) address = `{interopTx.AsTrytes(interopTx.Address)}'");
-                            }
-                            catch {}
-                            
-                            BufferOffset += DatumSize;
 
-                            if(--syncFailThreshold == 0)
-                                ProducerHandle.Synced = false;
-                            continue;                            
-                        }
-                        syncFailThreshold = 3;
                         //check for pow
-                        if (interopTx.Pow < TanglePeer<object>.Difficulty && interopTx.Pow > -TanglePeer<object>.Difficulty)
-                            continue;
+                        if (interopTx.Pow < TanglePeer<object>.Difficulty &&
+                            interopTx.Pow > -TanglePeer<object>.Difficulty)
+                        {
+                            ProcessState = State.ConsumerAttacked;
 
+                            if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761
+                                || interopTx.Timestamp < 0 || interopTx.Timestamp > new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds()) //TODO config
+                            {                                
+                                try
+                                {
+                                    _logger.Trace($"({Id}) value = `{interopTx.Value}'");
+                                    _logger.Trace($"({Id}) pow = `{interopTx.Pow}'");
+                                    _logger.Trace($"({Id}) time = `{interopTx.Timestamp}'");
+                                    _logger.Trace($"({Id}) bundle = `{interopTx.AsTrytes(interopTx.Bundle)}'");
+                                    _logger.Trace($"({Id}) address = `{interopTx.AsTrytes(interopTx.Address)}'");
+                                }
+                                catch { }
+
+                                BufferOffset += DatumSize;
+
+                                if (--syncFailThreshold == 0)
+                                    ProducerHandle.Synced = false;                                
+                            }
+                            continue;
+                        }
+                        
+                        syncFailThreshold = 3;
+                        
                         newInteropTransactions.Add(interopTx);
 
                         if (interopTx.Value != 0 && interopTx.Address != null)
