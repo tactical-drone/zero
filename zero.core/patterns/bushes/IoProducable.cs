@@ -21,8 +21,7 @@ namespace zero.core.patterns.bushes
         /// Constructor
         /// </summary>
         protected IoProducable()
-        {
-            _stateTransitionHeap.Make = (jobData) => new IoWorkStateTransition<TJob>();
+        {            
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -83,11 +82,6 @@ namespace zero.core.patterns.bushes
         public virtual IoProducer<TJob> ProducerHandle { get; protected set; }
 
         /// <summary>
-        /// The heap containing our state transition items
-        /// </summary>
-        private readonly IoHeap<IoWorkStateTransition<TJob>> _stateTransitionHeap = new IoHeapIo<IoWorkStateTransition<TJob>>(Enum.GetNames(typeof(State)).Length * 2);//TODO what should this size be?
-
-        /// <summary>
         /// The state transition history, sourced from <see  cref="IoProducerConsumer{TConsumer,TProducer}"/>
         /// </summary>      
         public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length * 2];//TODO what should this size be?
@@ -115,7 +109,7 @@ namespace zero.core.patterns.bushes
         public void UpdateStateTransitionHistory(State value)
         {
             //Update the previous state's exit time
-            if (CurrentState != null && ProducerHandle != null)
+            if (CurrentState != null)
             {
                 CurrentState.ExitTime = DateTime.Now;
 
@@ -125,20 +119,8 @@ namespace zero.core.patterns.bushes
 
             //Allocate memory for a new current state
             var prevState = CurrentState;
-            CurrentState = _stateTransitionHeap.Take();
-
-            //TODO 
-            if (CurrentState == null)
-            {
-                if (prevState != null)
-                {
-                    prevState.State = State.Oom;
-                    CurrentState = prevState;
-                }
-
-                return;
-            }
-
+            CurrentState = new IoWorkStateTransition<TJob>();
+            
             //Configure the current state
             CurrentState.Previous = prevState;
 
@@ -172,15 +154,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>This instance</returns>
         public virtual IIoHeapItem Constructor()
-        {
-            //clear the states from the previous run
-            var cur = StateTransitionHistory[0];
-            while (cur != null)
-            {
-                _stateTransitionHeap.Return(cur);
-                cur = cur.Next;
-            }
-
+        {            
             CurrentState = null;
 
             ProcessState = State.Undefined;
@@ -256,7 +230,7 @@ namespace zero.core.patterns.bushes
                 //generate a unique id
                 if (value == State.Undefined)
                 {
-                    Id = Interlocked.Read(ref ProducerHandle.Counters[(int)State.Undefined]); //TODO why do we need this again?
+                    Id = Interlocked.Read(ref ProducerHandle.Counters[(int)State.Undefined]);
                 }
 
                 if (value == State.Accept || value == State.Reject)
