@@ -22,7 +22,7 @@ namespace zero.interop.utils
                 transaction.FakePow = transaction.Pow;
                 for (var i = proposedHash.Length - 1; i > 0 && proposedHash[i--] == '9'; transaction.FakePow++) { }
 
-                if (transaction.Pow == -IoTransaction.NUM_TRYTES_HASH)
+                if (transaction.Pow == -IoTransaction.NUM_TRYTES_HASH || transaction.Pow == IoTransaction.NUM_TRYTES_HASH)
                 {
                     transaction.Pow = 0;
                     transaction.FakePow = (sbyte)-(transaction.FakePow + IoTransaction.NUM_TRYTES_HASH);

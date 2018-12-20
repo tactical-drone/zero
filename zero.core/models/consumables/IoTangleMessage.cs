@@ -202,7 +202,9 @@ namespace zero.core.models.consumables
                 }                
                 
                 var batch = new BatchStatement();
-                var syncFailThreshold = 3;
+                var syncFailureThreshold = 3;
+                var curSyncFailureCount = syncFailureThreshold;
+                
                 for (var i = 0; i < DatumCount; i++)
                 {                    
                     try
@@ -237,13 +239,17 @@ namespace zero.core.models.consumables
 
                                 BufferOffset += DatumSize;
 
-                                if (--syncFailThreshold == 0)
-                                    ProducerHandle.Synced = false;                                
+                                if (--curSyncFailureCount == 0)
+                                {
+                                    ProducerHandle.Synced = false;
+                                    curSyncFailureCount = syncFailureThreshold;
+                                }
+                                    
                             }
                             continue;
                         }
                         
-                        syncFailThreshold = 3;
+                        curSyncFailureCount = syncFailureThreshold;
                         
                         newInteropTransactions.Add(interopTx);
 
