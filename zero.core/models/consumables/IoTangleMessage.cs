@@ -202,6 +202,7 @@ namespace zero.core.models.consumables
                 }                
                 
                 var batch = new BatchStatement();
+                var syncFailThreshold = 3;
                 for (var i = 0; i < DatumCount; i++)
                 {                    
                     try
@@ -228,10 +229,12 @@ namespace zero.core.models.consumables
                             catch {}
                             
                             BufferOffset += DatumSize;
-                            ProducerHandle.Synced = false;
+
+                            if(--syncFailThreshold == 0)
+                                ProducerHandle.Synced = false;
                             continue;                            
                         }
-
+                        syncFailThreshold = 3;
                         //check for pow
                         if (interopTx.Pow < TanglePeer<object>.Difficulty && interopTx.Pow > -TanglePeer<object>.Difficulty)
                             continue;
