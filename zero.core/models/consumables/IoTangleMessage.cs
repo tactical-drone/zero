@@ -338,6 +338,7 @@ namespace zero.core.models.consumables
                     {                        
                         _logger.Warn($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}'");
                         ProducerHandle.Synced = true;
+                        ProcessState = State.Consuming;
                         break;
                     }                    
                 }
