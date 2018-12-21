@@ -1,0 +1,84 @@
+From 3caea1737929641eecd6d145820be9f29ed63b8b Mon Sep 17 00:00:00 2001
+From: Tertiary Adjunct <threeof5@unimatrix.one>
+Date: Fri, 21 Dec 2018 23:34:01 +0200
+Subject: [PATCH] protocol: sync tuning logs: fixed address length output
+
+---
+ zero.core/models/consumables/IoTangleMessage.cs             | 4 ++--
+ .../common/model/interop/IIoInteropTransactionModel.cs      | 2 +-
+ .../common/model/interop/IoInteropTransactionModel.cs       | 6 ++++--
+ .../common/model/native/IoNativeTransactionModel.cs         | 2 +-
+ 4 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/zero.core/models/consumables/IoTangleMessage.cs b/zero.core/models/consumables/IoTangleMessage.cs
+index 438a19b..1e6fe5d 100644
+--- a/zero.core/models/consumables/IoTangleMessage.cs
++++ b/zero.core/models/consumables/IoTangleMessage.cs
+@@ -202,7 +202,7 @@ namespace zero.core.models.consumables
+                 var localSync = true;
+ 
+                 var batch = new BatchStatement();
+-                var syncFailureThreshold = 2;
++                var syncFailureThreshold = 4;
+                 var curSyncFailureCount = syncFailureThreshold;
+                 
+                 for (var i = 0; i < DatumCount; i++)
+@@ -254,7 +254,7 @@ namespace zero.core.models.consumables
+ 
+                         if (interopTx.Address != null)//&& interopTx.Value != 0 )
+                         {
+-                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                            
++                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                            
+                         }                            
+                     }
+                     finally
+diff --git a/zero.interop/entangled/common/model/interop/IIoInteropTransactionModel.cs b/zero.interop/entangled/common/model/interop/IIoInteropTransactionModel.cs
+index 1c2eddd..1d80bbc 100644
+--- a/zero.interop/entangled/common/model/interop/IIoInteropTransactionModel.cs
++++ b/zero.interop/entangled/common/model/interop/IIoInteropTransactionModel.cs
+@@ -77,6 +77,6 @@ namespace zero.interop.entangled.common.model.interop
+         [DataMember]
+         short Size { get; set; }        
+         
+-        string AsTrytes(TBlob field);
++        string AsTrytes(TBlob field, int fixedLenTritsToConvert = 0);
+     }
+ }
+diff --git a/zero.interop/entangled/common/model/interop/IoInteropTransactionModel.cs b/zero.interop/entangled/common/model/interop/IoInteropTransactionModel.cs
+index f21c24b..bb136b8 100644
+--- a/zero.interop/entangled/common/model/interop/IoInteropTransactionModel.cs
++++ b/zero.interop/entangled/common/model/interop/IoInteropTransactionModel.cs
+@@ -47,13 +47,15 @@ namespace zero.interop.entangled.common.model.interop
+         public string Uri { get; set; }        
+         public short Size { get; set; }        
+ 
+-        public string AsTrytes(byte[] field)
++        public string AsTrytes(byte[] field, int fixedLenTritsToConvert = 0)
+         {            
+             if (field == null || field.Length == 0)
+                 return string.Empty;
+ 
+-            var tritsToConvert = IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
++            var tritsToConvert =  IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
+             tritsToConvert +=-tritsToConvert % Codec.TritsPerTryte;
++            tritsToConvert = fixedLenTritsToConvert == 0 ? tritsToConvert : fixedLenTritsToConvert;
++
+             var trytesToConvert = tritsToConvert / Codec.TritsPerTryte;
+ 
+             var trytes = new sbyte[trytesToConvert];
+diff --git a/zero.interop/entangled/common/model/native/IoNativeTransactionModel.cs b/zero.interop/entangled/common/model/native/IoNativeTransactionModel.cs
+index 9ee406a..7b0cb2e 100644
+--- a/zero.interop/entangled/common/model/native/IoNativeTransactionModel.cs
++++ b/zero.interop/entangled/common/model/native/IoNativeTransactionModel.cs
+@@ -67,7 +67,7 @@ namespace zero.interop.entangled.common.model.native
+         [Ignore]
+         public string Uri { get; set; }        
+ 
+-        public string AsTrytes(string field)
++        public string AsTrytes(string field, int fixedLenTritsToConvert = 0)
+         {
+             return field;
+         }
+-- 
+2.18.0.windows.1
+

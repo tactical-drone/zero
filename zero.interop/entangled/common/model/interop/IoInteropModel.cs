@@ -57,7 +57,7 @@ namespace zero.interop.entangled.common.model.interop
                 //Check pow
                 IoPow.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
 
-                //interopTransaction.Hash = IoMarshalledTransaction.Trim(memMap.hash);
+                interopTransaction.Hash = IoMarshalledTransaction.Trim(memMap.hash);
 
                 return interopTransaction;
             }
