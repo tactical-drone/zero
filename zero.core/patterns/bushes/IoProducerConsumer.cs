@@ -10,6 +10,7 @@ using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.schedulers;
+using zero.core.protocol;
 
 namespace zero.core.patterns.bushes
 {
@@ -128,7 +129,7 @@ namespace zero.core.patterns.bushes
         /// Maintains a handle to a job if fragmentation was detected so that the
         /// producer can marshal fragments into the next production
         /// </summary>
-        private volatile IoConsumable<TJob> _previousJobFragment;
+        private volatile ConcurrentDictionary<long, IoConsumable<TJob>>  _previousJobFragment = new ConcurrentDictionary<long, IoConsumable<TJob>>();
 
         /// <summary>
         /// Maximum amount of producers that can be buffered before we stop production of new jobs
@@ -149,7 +150,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_stats_mod_count = 1000;
+        public long parm_stats_mod_count = 100;
 
         /// <summary>
         /// Used to rate limit this queue, in ms. Set to -1 for max rate
@@ -210,11 +211,14 @@ namespace zero.core.patterns.bushes
                     if ((nextJob = JobMetaHeap.Take()) != null)
                     {
                         //Fetch a job from TProducer. Did we get one?
-                        if (await nextJob.ProduceAsync(_previousJobFragment) < IoProduceble<TJob>.State.Error)
+                        _previousJobFragment.TryRemove(nextJob.Id - 1,  out var prevJobFragment);
+                        if (prevJobFragment != null && !prevJobFragment.StillHasUnprocessedFragments)
+                            prevJobFragment = null;
+                        if (await nextJob.ProduceAsync(prevJobFragment) < IoProduceble<TJob>.State.Error)
                         {
                             //TODO Double check this hack
                             //Basically to handle this weird double connection business on the TCP iri side
-                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProduceSkipped)
+                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProSkipped)
                             {
                                 nextJob.ProcessState = IoProduceble<TJob>.State.Accept;
 
@@ -225,11 +229,9 @@ namespace zero.core.patterns.bushes
                                 return true;
                             }
 
-                            IoConsumable<TJob> currJobFragment = null;
-
                             //Does production yield fragmented datums?
                             if (nextJob.StillHasUnprocessedFragments)
-                                currJobFragment = nextJob;
+                                _previousJobFragment.TryAdd(nextJob.Id, nextJob);                                
 
                             //Enqueue the job for the consumer
                             nextJob.ProcessState = IoProduceble<TJob>.State.Queued;
@@ -247,24 +249,22 @@ namespace zero.core.patterns.bushes
                             }
 
                             //Prepare this production's remaining datum fragments for the next production
-                            if (_previousJobFragment != null)
+                            if (prevJobFragment != null)
                             {
-                                lock (_previousJobFragment)
+                                lock (prevJobFragment)
                                 {
                                     //If this job is not under the consumer's control, we need to return it to the heap 
-                                    if (_previousJobFragment.ProcessState > IoProduceble<TJob>.State.Consumed)
-                                        JobMetaHeap.Return(_previousJobFragment);
+                                    if (prevJobFragment.ProcessState > IoProduceble<TJob>.State.Consumed)
+                                        JobMetaHeap.Return(prevJobFragment);
                                     else //Signal control back to the consumer that it now has control over this job
-                                        _previousJobFragment.StillHasUnprocessedFragments = false;
+                                        prevJobFragment.StillHasUnprocessedFragments = false;
                                 }
-                            }
-
-                            _previousJobFragment = currJobFragment;
+                            }                            
                         }
                         else //produce job returned with errors
                         {
                             if (nextJob.ProcessState == IoProduceble<TJob>.State.Cancelled ||
-                                nextJob.ProcessState == IoProduceble<TJob>.State.ProduceCancelled)
+                                nextJob.ProcessState == IoProduceble<TJob>.State.ProCancel)
                             {
                                 Spinners.Cancel();
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
@@ -379,12 +379,10 @@ namespace zero.core.patterns.bushes
                         //Consume the job
                         if (await currJob.ConsumeAsync() >= IoProduceble<TJob>.State.Error)
                         {
-                            _logger.Trace(
-                                $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
+                            _logger.Trace($"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
                         }
 
-
-                        if (currJob.ProcessState == IoProduceble<TJob>.State.ConsumeInlined)
+                        if (currJob.ProcessState == IoProduceble<TJob>.State.ConInlined)
                         {
                             //forward any jobs
                             currJob.ProcessState = IoProduceble<TJob>.State.Consuming;
@@ -405,7 +403,28 @@ namespace zero.core.patterns.bushes
                             $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' returned with errors:");
                     }
                     finally
-                    {
+                    {                        
+                        //Consume success?
+                        if (currJob.ProcessState == IoProduceble<TJob>.State.Consumed)
+                        {
+                            currJob.ProcessState = IoProduceble<TJob>.State.Accept;
+
+                            if (!currJob.StillHasUnprocessedFragments)
+                                JobMetaHeap.Return(currJob);                            
+                        }
+                        else //Consume failed?
+                        {                            
+                            if (!currJob.StillHasUnprocessedFragments)
+                            {
+                                JobMetaHeap.Return(currJob);
+                            }
+                            else if( currJob.ProcessState != IoProduceble<TJob>.State.Syncing)
+                            {
+                                currJob.MoveUnprocessedToFragment();
+                            }
+                            currJob.ProcessState = IoProduceble<TJob>.State.Reject;
+                        }
+
                         //Signal the producer that it can continue to get more work
                         try
                         {
@@ -416,36 +435,16 @@ namespace zero.core.patterns.bushes
                             // ignored
                         }
 
-                        //Consume success?
-                        if (currJob.ProcessState == IoProduceble<TJob>.State.Consumed)
-                        {
-                            currJob.ProcessState = IoProduceble<TJob>.State.Accept;
-
-                            if (!currJob.StillHasUnprocessedFragments)
-                                JobMetaHeap.Return(currJob);
-                        }
-                        else //Consume failed?
-                        {
-                            currJob.ProcessState = IoProduceble<TJob>.State.Reject;
-                            if (!currJob.StillHasUnprocessedFragments)
-                            {
-                                JobMetaHeap.Return(currJob);
-                            }
-                            else
-                            {
-                                currJob.MoveUnprocessedToFragment();
-                            }
-                        }
-
                         if ((currJob.Id % parm_stats_mod_count) == 0)
                         {
                             _logger.Trace(
                                 $"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");
-                            //job.PrintStateHistory();                                            
+                            
+                            currJob.ProducerHandle.PrintCounters();
                         }
 
                         //TODO remove this spam when everything checks out?
-                        //currJob.ProducerHandle.PrintCounters();
+                        
                     }
                 }
                 else

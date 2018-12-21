@@ -62,15 +62,7 @@ namespace zero.core.consumables.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => _upstreamRelay.IsOperational;
-
-        /// <summary>
-        /// Gets a value indicating whether this <see cref="T:zero.core.patterns.bushes.IoProducer`1" /> is synced.
-        /// </summary>
-        /// <value>
-        /// <c>true</c> if synced; otherwise, <c>false</c>.
-        /// </value>
-        public override bool Synced { get; set; } = true;
+        public override bool IsOperational => _upstreamRelay.IsOperational;        
 
         /// <summary>
         /// returns the forward producer

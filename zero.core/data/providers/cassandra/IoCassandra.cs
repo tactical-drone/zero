@@ -200,7 +200,7 @@ namespace zero.core.data.providers.cassandra
                     double quality;
                     try
                     {
-                        quality = IoMarketDataClient.Quality + (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)).TotalMinutes;
+                        quality = IoMarketDataClient.Quality + (DateTime.Now - (transaction.Timestamp.ToString().Length > 11? DateTimeOffset.FromUnixTimeMilliseconds(transaction.Timestamp): DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp))).TotalMinutes;
 
                         if (quality > short.MaxValue)
                             quality = short.MaxValue;

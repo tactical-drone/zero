@@ -63,14 +63,15 @@ namespace zero.core.network.ip
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_read_ahead = 10;
+        protected int parm_read_ahead = 1;
 
         /// <summary>
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="readAhead">TCP read ahead</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction)
+        public virtual Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
@@ -131,10 +132,10 @@ namespace zero.core.network.ip
         /// <param name="address"></param>
         /// <param name="spinner"></param>
         /// <returns></returns>
-        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, CancellationToken spinner)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, CancellationToken spinner, int bufferReadAheadSize)
         {
             if (address.Protocol() == ProtocolType.Tcp)
-                return new IoTcpServer<TJob>(address, spinner);
+                return new IoTcpServer<TJob>(address, spinner, bufferReadAheadSize);
 
             if (address.Protocol() == ProtocolType.Udp)
                 return new IoUdpServer<TJob>(address, spinner);

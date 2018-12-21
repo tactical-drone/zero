@@ -34,7 +34,7 @@ namespace zero.interop.entangled.common.model.interop
         public long SnapshotIndex { get; set; }
         public bool Solid { get; set; }
         public sbyte Pow { get; set; }
-        public sbyte FakePow { get; set; }
+        public sbyte ReqPow { get; set; }
         public string Color
         {
             get
@@ -49,13 +49,15 @@ namespace zero.interop.entangled.common.model.interop
 
         public string AsTrytes(byte[] field)
         {            
-            if (field == null)
+            if (field == null || field.Length == 0)
                 return string.Empty;
 
             var tritsToConvert = IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
-            var trytesToConvert = (tritsToConvert + tritsToConvert % Codec.TritsPerTryte) / Codec.TritsPerTryte;
+            tritsToConvert +=-tritsToConvert % Codec.TritsPerTryte;
+            var trytesToConvert = tritsToConvert / Codec.TritsPerTryte;
 
             var trytes = new sbyte[trytesToConvert];
+            Console.Write($"[{trytes.Length},{tritsToConvert}]");
             IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(trytes, trytes.Length, (sbyte[])(Array)field, 0, tritsToConvert, tritsToConvert);
             return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()); //TODO fix cast
         }

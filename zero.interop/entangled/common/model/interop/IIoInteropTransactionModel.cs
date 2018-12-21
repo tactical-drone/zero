@@ -66,7 +66,7 @@ namespace zero.interop.entangled.common.model.interop
         sbyte Pow { get; set; }
 
         [DataMember]
-        sbyte FakePow { get; set; }
+        sbyte ReqPow { get; set; }
 
         [DataMember]
         string Color { get; }

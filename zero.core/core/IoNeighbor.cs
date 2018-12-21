@@ -107,7 +107,7 @@ namespace zero.core.core
                         {                            
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
-                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeInvalid;
+                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConInvalid;
                         }
                         batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
                     }

@@ -23,13 +23,14 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor)
+        public IoNode(IoNodeAddress address, Func<IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
         {
             _address = address;
             _mallocNeighbor = mallocNeighbor;
+            parm_tcp_readahead = tcpReadAhead;
             _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
             _logger = LogManager.GetCurrentClassLogger();
-            var q = IoMarketDataClient.Quality;//prime market data
+            var q = IoMarketDataClient.Quality;//prime market data            
         }
 
         /// <summary>
@@ -75,6 +76,13 @@ namespace zero.core.core
         protected int parm_max_neighbor_pc_threads = 3;
 
         /// <summary>
+        /// TCP read ahead
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_tcp_readahead = 3;
+
+        /// <summary>
         /// Starts the node's listener
         /// </summary>
         async Task SpawnListenerAsync()
@@ -82,7 +90,7 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token);
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
 
             await _netServer.StartListenerAsync(remoteClient =>
             {
@@ -117,7 +125,7 @@ namespace zero.core.core
                 {
                     _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
                 }
-            });
+            }, parm_tcp_readahead);
         }        
 
         /// <summary>

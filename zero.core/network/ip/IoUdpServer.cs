@@ -35,12 +35,13 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="readAheadBufferSize"></param>
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction)
+        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAheadBufferSize)
         {
-            if (!await base.StartListenerAsync(connectionReceivedAction))
+            if (!await base.StartListenerAsync(connectionReceivedAction, readAheadBufferSize))
                 return false;
 
             IoListenSocket = new IoUdpSocket(Spinners.Token);

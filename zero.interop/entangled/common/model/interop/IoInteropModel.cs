@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Text;
 using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.trinary;
@@ -54,14 +55,9 @@ namespace zero.interop.entangled.common.model.interop
                 };
 
                 //Check pow
-                var hashTrytes = new sbyte[IoTransaction.NUM_TRYTES_HASH];
-                IoEntangled<byte[]>.Default.Ternary.GetFlexTrytes(hashTrytes, hashTrytes.Length, flexTritBuffer, buffOffset + Codec.TransactionSize, IoTransaction.NUM_TRITS_HASH, IoTransaction.NUM_TRITS_HASH - 9);                
+                IoPow.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
 
-                var proposedHash = Encoding.ASCII.GetString(hashTrytes.Select(c => (byte) c).ToArray());                
-                
-                IoPow.Compute(interopTransaction, interopTransaction.AsTrytes(memMap.hash) , proposedHash);
-
-                interopTransaction.Hash = IoMarshalledTransaction.Trim(memMap.hash);
+                //interopTransaction.Hash = IoMarshalledTransaction.Trim(memMap.hash);
 
                 return interopTransaction;
             }

@@ -51,7 +51,7 @@ namespace zero.interop.entangled.common.model.native
         public sbyte Pow { get; set; }
 
         [Ignore]
-        public sbyte FakePow { get; set; }
+        public sbyte ReqPow { get; set; }
 
         [Ignore]
         public string Color

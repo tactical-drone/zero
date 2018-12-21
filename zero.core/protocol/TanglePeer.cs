@@ -3,6 +3,7 @@ using zero.core.core;
 using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.schedulers;
+using zero.interop.utils;
 
 namespace zero.core.protocol
 {
@@ -21,7 +22,7 @@ namespace zero.core.protocol
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 4);
+            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 4);            
         }
 
         /// <summary>
@@ -32,6 +33,12 @@ namespace zero.core.protocol
         /// <summary>
         /// Minimum difficulty
         /// </summary>
-        public const int Difficulty = 4;
+        public const int MWM = IoPow.MWM;
+
+
+        /// <summary>
+        /// Tcp read ahead
+        /// </summary>
+        public const int TcpReadAhead = 10;
     }
 }

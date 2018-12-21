@@ -20,9 +20,10 @@ namespace zero.core.network.ip
         /// <param name="listeningAddress">The listening address</param>
         /// <param name="cancellationToken">Cancellation hooks</param>
         /// <inheritdoc />
-        public IoTcpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(listeningAddress, cancellationToken)
+        public IoTcpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken, int readAheadBuffer) : base(listeningAddress, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            parm_read_ahead = readAheadBuffer;
         }
 
         /// <summary>
@@ -34,10 +35,11 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="readAhead">Tcp readahead</param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction)
+        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
         {
-            if (!await base.StartListenerAsync(connectionReceivedAction))
+            if (!await base.StartListenerAsync(connectionReceivedAction, readAhead))
                 return false;
 
             IoListenSocket = new IoTcpSocket(Spinners.Token);

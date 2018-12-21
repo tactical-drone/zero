@@ -26,15 +26,15 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpClient"/> class.
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
-        /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoTcpClient(IoSocket remote, int readAhead) : base((IoNetSocket)remote, readAhead) { }
+        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket)remote, readAheadBufferSize) { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient"/> class.
         /// </summary>
         /// <param name="address">The address associated with this network client</param>
-        /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoTcpClient(IoNodeAddress address, int readAhead) : base(address, readAhead) { }
+        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        public IoTcpClient(IoNodeAddress address, int readAheadBufferSize) : base(address, readAheadBufferSize) { }
 
         /// <summary>
         /// Connects to a remote listener

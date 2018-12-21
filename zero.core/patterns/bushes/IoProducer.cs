@@ -18,10 +18,11 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProducer(int readAhead = 2)
+        protected IoProducer(int readAheadBufferSize = 2)
         {
+            ReadAheadBufferSize = readAheadBufferSize;
             ConsumerBarrier = new SemaphoreSlim(0);
-            ProducerBarrier = new SemaphoreSlim(readAhead);
+            ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();
         }
@@ -95,13 +96,15 @@ namespace zero.core.patterns.bushes
         /// </value>
         public abstract bool IsOperational { get; }
 
+        public long ReadAheadBufferSize { get; set; }
+
         /// <summary>
         /// Gets a value indicating whether this <see cref="IoProducer{TJob}"/> is synced.
         /// </summary>
         /// <value>
         ///   <c>true</c> if synced; otherwise, <c>false</c>.
         /// </value>
-        public abstract bool Synced { get; set; }
+        public volatile bool Synced;
 
         /// <summary>
         /// <see cref="PrintCounters"/> only prints events that took longer that this value in microseconds
@@ -138,10 +141,9 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > 0)
+                if (i > (int)IoProduceble<TJob>.State.Undefined && i < (int)IoProduceble<TJob>.State.Finished)
                 {
-                    heading.Append(
-                        $"{((IoProduceble<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                    heading.Append($"{((IoProduceble<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }

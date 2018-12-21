@@ -46,10 +46,10 @@ namespace zero.core.models.consumables
 
             //Set some tangle specific protocol constants
             DatumSize = Codec.MessageSize + ((ProducerHandle is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
-            DatumProvisionLength = DatumSize - 1;
-
+            
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
+            DatumProvisionLength = BufferSize;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
@@ -182,7 +182,7 @@ namespace zero.core.models.consumables
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting
-
+        
         /// <summary>
         /// Processes a iri datum
         /// </summary>
@@ -191,18 +191,18 @@ namespace zero.core.models.consumables
             var newInteropTransactions = new List<IIoInteropTransactionModel<TBlob>>();
             var s = new Stopwatch();
             s.Start();
-
-            //Attempt to establish sync when we are not in sync
+            
             try
             {
                 if (!ProducerHandle.Synced && !Sync())
                 {
-                    ProcessState = State.Consumed;
                     return;
-                }                
-                
+                }
+
+                var localSync = true;
+
                 var batch = new BatchStatement();
-                var syncFailureThreshold = 3;
+                var syncFailureThreshold = 2;
                 var curSyncFailureCount = syncFailureThreshold;
                 
                 for (var i = 0; i < DatumCount; i++)
@@ -211,57 +211,56 @@ namespace zero.core.models.consumables
                     {
                         s.Restart();
 
-                        if (!ProducerHandle.Synced && !Sync())
-                            return;
-                                                    
-                        var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
+                        //if (!localSync && !Sync())
+                        //    return;
 
+                        var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
                         interopTx.Uri = ProducerHandle.SourceUri;
 
                         //check for pow
-                        if (interopTx.Pow < TanglePeer<object>.Difficulty &&
-                            interopTx.Pow > -TanglePeer<object>.Difficulty)
-                        {
-                            ProcessState = State.ConsumerAttacked;
+                        if (interopTx.Pow < TanglePeer<object>.MWM && interopTx.Pow > -TanglePeer<object>.MWM)
+                        {                               
+                            ProcessState = State.ConSpam;
+                            ProcessState = State.Consuming;
 
-                            if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761
-                                || interopTx.Timestamp < 0 || interopTx.Timestamp > new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds()) //TODO config
-                            {                                
+                            if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
+                            //|| interopTx.Timestamp <= 0 || interopTx.Timestamp > (interopTx.Timestamp.ToString().Length > 11 ? new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeMilliseconds() : new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds())) //TODO config
+                            {
                                 try
                                 {
+                                    _logger.Trace("Possible garbage tx detected:");
                                     _logger.Trace($"({Id}) value = `{interopTx.Value}'");
                                     _logger.Trace($"({Id}) pow = `{interopTx.Pow}'");
                                     _logger.Trace($"({Id}) time = `{interopTx.Timestamp}'");
+                                    _logger.Trace($"({Id}) hash = `{interopTx.AsTrytes(interopTx.Hash)}'");
                                     _logger.Trace($"({Id}) bundle = `{interopTx.AsTrytes(interopTx.Bundle)}'");
                                     _logger.Trace($"({Id}) address = `{interopTx.AsTrytes(interopTx.Address)}'");
                                 }
                                 catch { }
 
-                                BufferOffset += DatumSize;
-
                                 if (--curSyncFailureCount == 0)
                                 {
-                                    ProducerHandle.Synced = false;
-                                    curSyncFailureCount = syncFailureThreshold;
+                                    ProducerHandle.Synced = false;                                    
+                                    //BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
+                                    curSyncFailureCount = syncFailureThreshold;                                    
                                 }
-                                    
-                            }
+                            }                            
                             continue;
-                        }
+                        }                        
                         
                         curSyncFailureCount = syncFailureThreshold;
                         
                         newInteropTransactions.Add(interopTx);
 
-                        if (interopTx.Value != 0 && interopTx.Address != null)
+                        if (interopTx.Address != null)//&& interopTx.Value != 0 )
                         {
-                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                            
-                        }
-                            
+                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                            
+                        }                            
                     }
                     finally
                     {
-                        if (ProducerHandle.Synced)
+                        //if (ProducerHandle.Synced || ProcessState == State.Consuming)
+                        if (ProcessState == State.Consuming)
                             BufferOffset += DatumSize;
                     }                    
                 }
@@ -274,7 +273,7 @@ namespace zero.core.models.consumables
             }
             finally
             {
-                if (ProcessState != State.Consumed)
+                if (ProcessState != State.Consumed && ProcessState != State.Syncing)
                     ProcessState = State.ConsumeErr;
             }
         }
@@ -321,47 +320,71 @@ namespace zero.core.models.consumables
         /// <returns>True if synced achieved, false otherwise</returns>
         private bool Sync()
         {
+            
+            var offset = 0;
             if (!ProducerHandle.Synced)
-            {
-                var offset = 0;
-                bool synced = false;
+            {                
+                bool synced = true;
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
-
                 ProcessState = State.Syncing;
 
-                while (BytesLeftToProcess >= DatumSize)
+                for (var i = 0; i < DatumCount; i++)
                 {
-                    var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
-
-                    for (int j = Codec.MessageCrcSize - 1; j > 0; j--)
+                    var requiredSync = false;
+                    var bytesLeftToProcess = 0;
+                    while (bytesLeftToProcess < DatumSize)
                     {
-                        if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
+                        var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
+
+                        for (var j = Codec.MessageCrcSize; j-- > 0;)
                         {
-                            synced = true;
+                            if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
+                            {
+                                synced = false;
+                                break;
+                            }
+                        }
+                        if (!synced)
+                        {
+                            //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");                        
+                            BufferOffset++;
+                            bytesLeftToProcess++;
+                            offset++;
+                            requiredSync = true;
+                        }
+                        else
+                        {
+                            _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}'");
+                            ProducerHandle.Synced = true;
                             break;
                         }
                     }
 
                     if (synced)
                     {
-                        //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");                        
-                        BufferOffset++;
-                        offset++;
-                        synced = false;
-                    }
-                    else
-                    {                        
-                        _logger.Warn($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}'");
-                        ProducerHandle.Synced = true;
-                        ProcessState = State.Consuming;
+                        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                        if (requiredSync)
+                        {                            
+                            var remainingBytesWithoutFragment = BytesLeftToProcess - DatumFragmentLength;
+                            if (remainingBytesWithoutFragment > 0)
+                                DatumCount = (remainingBytesWithoutFragment) / DatumSize;
+                            _logger.Warn($"remaining = {remainingBytesWithoutFragment}, datums = {DatumCount}");
+                        }                        
                         break;
-                    }                    
-                }
-            }
+                    }                        
+                }                
+            } 
             
-            DatumCount = BytesLeftToProcess / DatumSize;
-            DatumFragmentLength = BytesLeftToProcess % DatumSize;
+            if (!ProducerHandle.Synced)
+            {
+                _logger.Warn($"({Id}) Unable to sync stream `{ProducerHandle.Description}', scanned = `{offset}'");
+            }
+            else if(ProducerHandle.Synced)
+            {
+                ProcessState = State.Consuming;
+            }
 
+            
             return ProducerHandle.Synced;
         }
 
@@ -416,13 +439,13 @@ namespace zero.core.models.consumables
                             //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
                         }
                         else
-                            ProcessState = State.ProduceCancelled;
+                            ProcessState = State.ProCancel;
                         return true;
                     }
 
                     if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
-                        ProcessState = State.ProduceCancelled;
+                        ProcessState = State.ProCancel;
                         return false;
                     }
 
@@ -437,7 +460,7 @@ namespace zero.core.models.consumables
                                     //Canceled
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
-                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProduceCancelled : State.ProduceErr;
+                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProCancel : State.ProduceErr;
                                         ProducerHandle.Spinners.Cancel();
                                         ProducerHandle.Close();
                                         _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
@@ -450,7 +473,7 @@ namespace zero.core.models.consumables
                                         //TODO double check this hack
                                         if (BytesRead == 0)
                                         {
-                                            ProcessState = State.ProduceSkipped;
+                                            ProcessState = State.ProSkipped;
                                             DatumFragmentLength = 0;
                                             break;
                                         }
@@ -460,7 +483,6 @@ namespace zero.core.models.consumables
                                             _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                             BufferOffset += 10;
                                             bytesRead -= 10;
-
                                             if (BytesLeftToProcess == 0)
                                             {
                                                 ProcessState = State.Produced;
@@ -479,12 +501,14 @@ namespace zero.core.models.consumables
                                                 DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
                                                 Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
                                             }
-                                            catch // we de-synced 
+                                            catch(Exception e) // we de-synced 
                                             {
+                                                _logger.Warn(e,"We desynced!:");
+
                                                 ProducerHandle.Synced = false;
                                                 DatumCount = 0;
                                                 BytesRead = 0;
-                                                ProcessState = State.ProduceSkipped;
+                                                ProcessState = State.ProSkipped;
                                                 DatumFragmentLength = 0;
                                                 break;
                                             }
@@ -547,8 +571,13 @@ namespace zero.core.models.consumables
         /// Set unprocessed data as more fragments.
         /// </summary>
         public override void MoveUnprocessedToFragment()
-        {
-            DatumFragmentLength += BytesLeftToProcess;
+        {            
+            //Set how many datums we have available to process
+            DatumCount = BytesLeftToProcess / DatumSize;
+            DatumFragmentLength = BytesLeftToProcess % DatumSize;
+
+            //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+            StillHasUnprocessedFragments = DatumFragmentLength > 0;
         }
     }
 }

@@ -49,25 +49,25 @@ namespace zero.core.models.consumables
             {
                 if (ProducerHandle.ProducerBarrier == null)
                 {
-                    ProcessState = State.ProduceCancelled;
+                    ProcessState = State.ProCancel;
                     return false;                    
                 }
 
                 if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
                 {
-                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProduceCancelled;
+                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProCancel;
                     return false;
                 }
 
                 if (ProducerHandle.Spinners.IsCancellationRequested)
                 {
-                    ProcessState = State.ProduceCancelled;
+                    ProcessState = State.ProCancel;
                     return false;
                 }
                 
                 ((IoTangleMessageSource<TBlob>)ProducerHandle).TxQueue.TryDequeue(out Transactions);
                 
-                ProcessState = Transactions == null ? State.ProduceSkipped : State.Produced;                
+                ProcessState = Transactions == null ? State.ProSkipped : State.Produced;                
 
                 return true;
             });
@@ -94,7 +94,7 @@ namespace zero.core.models.consumables
         public override Task<State> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
-            ProcessState = State.ConsumeInlined;
+            ProcessState = State.ConInlined;
             return Task.FromResult(ProcessState);
         }
     }    

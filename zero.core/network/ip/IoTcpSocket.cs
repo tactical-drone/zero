@@ -201,7 +201,7 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}':");
+                //_logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}', length = `{length}', offset = `{offset}' :");
                 return 0;
             }
         }

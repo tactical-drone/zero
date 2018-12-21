@@ -75,12 +75,11 @@ namespace zero.core.models.generic
         public override IIoHeapItem Constructor()
         {
             BytesRead = 0;
-            DatumProvisionLength = DatumSize - 1;
+            DatumProvisionLength = BufferSize;
             BufferOffset = DatumProvisionLength;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.Constructor();
-        }
-        
+        }        
     }
 }

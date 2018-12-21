@@ -28,8 +28,8 @@ namespace zero.core.network.ip
         /// Constructor for listening
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
-        /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoSocket remote, int readAhead) : base(readAhead)
+        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        public IoNetClient(IoSocket remote, int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
@@ -40,8 +40,8 @@ namespace zero.core.network.ip
         /// Constructor for connecting
         /// </summary>
         /// <param name="address">The address associated with this network client</param>
-        /// <param name="readAhead">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoNodeAddress address, int readAhead) : base(readAhead)
+        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        public IoNetClient(IoNodeAddress address, int readAheadBufferSize) : base(readAheadBufferSize)
         {
             Address = address;
             _logger = LogManager.GetCurrentClassLogger();
@@ -128,15 +128,7 @@ namespace zero.core.network.ip
         /// Handle to unregister cancellation registrations
         /// </summary>
         private CancellationTokenRegistration _cancellationRegistratison;
-
-        /// <summary>
-        /// Gets a value indicating whether this <see cref="T:zero.core.patterns.bushes.IoProducer`1" /> is synced.
-        /// </summary>
-        /// <value>
-        /// <c>true</c> if synced; otherwise, <c>false</c>.
-        /// </value>
-        public override bool Synced { get; set; }
-
+        
         /// <summary>
         /// Closes the connection
         /// </summary>
