@@ -47,13 +47,15 @@ namespace zero.interop.entangled.common.model.interop
         public string Uri { get; set; }        
         public short Size { get; set; }        
 
-        public string AsTrytes(byte[] field)
+        public string AsTrytes(byte[] field, int fixedLenTritsToConvert = 0)
         {            
             if (field == null || field.Length == 0)
                 return string.Empty;
 
-            var tritsToConvert = IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
+            var tritsToConvert =  IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
             tritsToConvert +=-tritsToConvert % Codec.TritsPerTryte;
+            tritsToConvert = fixedLenTritsToConvert == 0 ? tritsToConvert : fixedLenTritsToConvert;
+
             var trytesToConvert = tritsToConvert / Codec.TritsPerTryte;
 
             var trytes = new sbyte[trytesToConvert];

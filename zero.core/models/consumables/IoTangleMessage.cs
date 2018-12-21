@@ -202,7 +202,7 @@ namespace zero.core.models.consumables
                 var localSync = true;
 
                 var batch = new BatchStatement();
-                var syncFailureThreshold = 2;
+                var syncFailureThreshold = 4;
                 var curSyncFailureCount = syncFailureThreshold;
                 
                 for (var i = 0; i < DatumCount; i++)
@@ -254,7 +254,7 @@ namespace zero.core.models.consumables
 
                         if (interopTx.Address != null)//&& interopTx.Value != 0 )
                         {
-                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                            
+                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, v={(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, f=`{DatumFragmentLength != 0}', pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms'");                            
                         }                            
                     }
                     finally
