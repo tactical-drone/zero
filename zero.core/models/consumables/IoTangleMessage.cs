@@ -202,7 +202,7 @@ namespace zero.core.models.consumables
                 var localSync = true;
 
                 var batch = new BatchStatement();
-                var syncFailureThreshold = 4;
+                var syncFailureThreshold = 2;
                 var curSyncFailureCount = syncFailureThreshold;
                 
                 for (var i = 0; i < DatumCount; i++)
@@ -241,7 +241,7 @@ namespace zero.core.models.consumables
                                 if (--curSyncFailureCount == 0)
                                 {
                                     ProducerHandle.Synced = false;                                    
-                                    //BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
+                                    BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
                                 }
                             }                            
@@ -259,8 +259,8 @@ namespace zero.core.models.consumables
                     }
                     finally
                     {
-                        //if (ProducerHandle.Synced || ProcessState == State.Consuming)
-                        if (ProcessState == State.Consuming)
+                        if (ProducerHandle.Synced || ProcessState == State.Consuming)
+                        //if (ProcessState == State.Consuming)
                             BufferOffset += DatumSize;
                     }                    
                 }
