@@ -49,7 +49,7 @@ namespace zero.core.models.consumables
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
-            DatumProvisionLength = BufferSize;
+            DatumProvisionLength = BufferSize * 2;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
@@ -338,10 +338,17 @@ namespace zero.core.models.consumables
 
                         for (var j = Codec.MessageCrcSize; j-- > 0;)
                         {
-                            if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
+                            try
                             {
-                                synced = false;
-                                break;
+                                if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
+                                {
+                                    synced = false;
+                                    break;
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.Error($"length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
                             }
                         }
                         if (!synced)
@@ -496,10 +503,10 @@ namespace zero.core.models.consumables
                                         {
                                             try
                                             {
-                                                BufferOffset -= previousJobFragment.DatumFragmentLength;
-                                                BytesRead += previousJobFragment.DatumFragmentLength;
-                                                DatumProvisionLength -= previousJobFragment.DatumFragmentLength;
-                                                Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, previousJobFragment.DatumFragmentLength);
+                                                BufferOffset -= Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
+                                                BytesRead += Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
+                                                DatumProvisionLength -= Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
+                                                Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength));
                                             }
                                             catch(Exception e) // we de-synced 
                                             {
