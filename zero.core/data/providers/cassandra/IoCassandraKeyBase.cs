@@ -44,7 +44,7 @@ namespace zero.core.data.cassandra
                         .Column(c => c.Hash)
                         .Column(c => c.Size)
 
-                        .PartitionKey(c => c.Bundle, c=>c.Timestamp, c => c.LastIndex)
+                        .PartitionKey(c => c.Bundle, c=>c.Timestamp)
                         .ClusteringKey(c => c.CurrentIndex, SortOrder.Ascending));
 
                 return _bundle;
@@ -128,7 +128,7 @@ namespace zero.core.data.cassandra
                         .Column(c => c.ObsoleteTag)
                         .Column(c => c.Hash)
                         .Column(c => c.Timestamp)
-                        .PartitionKey(c => c.Tag, c => c.ObsoleteTag, c => c.Timestamp)
+                        .PartitionKey(c => c.Tag, c => c.Timestamp)
                         .ClusteringKey(c => c.Hash, SortOrder.Ascending));
                 return taggedTransaction;
             }
