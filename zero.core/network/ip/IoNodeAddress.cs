@@ -59,7 +59,7 @@ namespace zero.core.network.ip
         public string Ip;
 
         [IgnoreDataMember]
-        public string ProtocolStr { get; protected set; }
+        public string ProtocolDesc { get; protected set; }
 
         /// <summary>
         /// Returns true if the URL format is valid.
@@ -127,14 +127,14 @@ namespace zero.core.network.ip
         {
             if (Url.Contains("tcp://"))
             {
-                ProtocolStr = "tcp://";
+                ProtocolDesc = "tcp://";
                 return ProtocolType.Tcp;
             }
 
 
             if (Url.Contains("udp://"))
             {
-                ProtocolStr = "udp://";
+                ProtocolDesc = "udp://";
                 return ProtocolType.Udp;
             }
                 

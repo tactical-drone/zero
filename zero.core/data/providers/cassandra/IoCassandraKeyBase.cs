@@ -78,8 +78,9 @@ namespace zero.core.data.cassandra
                         .ExplicitColumns()                        
                         .Column(c => c.Address)
                         .Column(c => c.Bundle)
-                        .Column(c => c.AttachmentTimestamp)
                         .Column(c => c.Timestamp)
+                        .Column(c => c.LocalTimestamp)
+                        .Column(c => c.AttachmentTimestamp)                                                
                         .Column(c => c.Value)
                         .Column(c => c.Quality)
                         .Column(c => c.Uri)
@@ -87,13 +88,10 @@ namespace zero.core.data.cassandra
                         .Column(c => c.EthValue)
                         .Column(c => c.EurValue)
                         .Column(c => c.UsdValue)
-                        .PartitionKey(c => c.Address, c => c.Timestamp)
-                        .ClusteringKey(c => c.AttachmentTimestamp, SortOrder.Descending)
-                        .ClusteringKey(c => c.Value, SortOrder.Descending)
-                        .ClusteringKey(c => c.Quality, SortOrder.Ascending)
+                        .PartitionKey(c => c.Address, c => c.Timestamp)                        
+                        .ClusteringKey(c => c.Value, SortOrder.Descending)                        
                         .ClusteringKey(c => c.Uri, SortOrder.Ascending)
-                        .ClusteringKey(c => c.Bundle, SortOrder.Ascending))
-;
+                        .ClusteringKey(c => c.Bundle, SortOrder.Ascending));
                 return draggedTransaction;
             }
         }

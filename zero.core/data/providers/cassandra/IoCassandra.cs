@@ -218,6 +218,7 @@ namespace zero.core.data.providers.cassandra
                         Bundle = transaction.Bundle,
                         AttachmentTimestamp = transaction.AttachmentTimestamp,
                         Timestamp = transaction.Timestamp,
+                        LocalTimestamp = ((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds(),
                         Value = transaction.Value,
                         Quality = (short)quality,
                         Uri = transaction.Uri,                                                

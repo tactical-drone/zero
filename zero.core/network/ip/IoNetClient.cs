@@ -91,9 +91,9 @@ namespace zero.core.network.ip
         public override string Description => $"Source producer: `{IoSocket?.RemoteIpAndPort??Address.ResolvedIpAndPort}'";
 
         /// <summary>
-        /// A description of this client. Currently the remote address
+        /// A description of this client source. Currently the remote address
         /// </summary>
-        public override string SourceUri => $"{IoSocket.Address.ProtocolStr}{IoSocket.RemoteIpAndPort}";
+        public override string SourceUri => $"{IoSocket.Address.ProtocolDesc}{IoSocket.RemoteIpAndPort}";
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket

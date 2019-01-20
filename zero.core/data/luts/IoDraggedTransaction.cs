@@ -4,9 +4,11 @@
     {                
         public TBlob Address { get; set; }
         public TBlob Bundle { get; set; }
-
-        public long AttachmentTimestamp;
+        
         public long Timestamp;
+        public long LocalTimestamp;
+        public long AttachmentTimestamp;
+
         public long Value;
         public short Quality;
 
