@@ -2,6 +2,9 @@
 
 namespace zero.interop.entangled.common.trinary.abstraction
 {
+    /// <summary>
+    /// Interop with trinary
+    /// </summary>
     public class IoInteropTrinary : IIoTrinary
     {
         //static IoInteropTrinary()
@@ -9,8 +12,14 @@ namespace zero.interop.entangled.common.trinary.abstraction
         //    Console.WriteLine("./libtrit_byte.so:" + IoLib.dlopen("./libtrit_tryte.so", IoLib.RtldNow | IoLib.RtldGlobal));
         //}
 
-
-        public unsafe void GetTrits(sbyte[] flexTritsBuffer, int buffOffset, sbyte[] tritBuffer, int length)
+        /// <summary>
+        /// Get trits from flex trits
+        /// </summary>
+        /// <param name="flexTritsBuffer"></param>
+        /// <param name="buffOffset"></param>
+        /// <param name="tritBuffer"></param>
+        /// <param name="length"></param>
+        public unsafe void GetTritsFromFlexTrits(sbyte[] flexTritsBuffer, int buffOffset, sbyte[] tritBuffer, int length)
         {
             fixed (sbyte* bytes = &flexTritsBuffer[buffOffset])
             {
@@ -21,7 +30,14 @@ namespace zero.interop.entangled.common.trinary.abstraction
             }
         }
 
-        public unsafe void GetTrytes(sbyte[] tritBuffer, int offset, sbyte[] tryteBuffer, int numTritsToConvert)
+        /// <summary>
+        /// Converts an array of trits into an array of trytes
+        /// </summary>
+        /// <param name="tritBuffer">The trit buffer</param>
+        /// <param name="offset">The offset into the buffer to start reading from</param>
+        /// <param name="tryteBuffer">A buffer containing the result of the decoded trits</param>
+        /// <param name="numTritsToConvert">The number of trits to convert</param>
+        public unsafe void GetTrytesFromTrits(sbyte[] tritBuffer, int offset, sbyte[] tryteBuffer, int numTritsToConvert)
         {            
             fixed (sbyte* trits = &tritBuffer[offset])
             {
@@ -32,13 +48,22 @@ namespace zero.interop.entangled.common.trinary.abstraction
             }            
         }
 
-        public unsafe void GetFlexTrytes(sbyte[] tryteBuffer, int toLen, sbyte[] flexTritBuffer, int offset, int _, int numTritsToConvert)
+        /// <summary>
+        /// Get trytes from flex trit buffer
+        /// </summary>
+        /// <param name="tryteBuffer">The destination tryte buffer</param>
+        /// <param name="toLen">The tryte buffer length</param>
+        /// <param name="flexTritBuffer">The buffer containing the flex trits</param>
+        /// <param name="offset">The offset into the flex trit buffer</param>
+        /// <param name="numTritsAvailable">The number of trits available for conversion?</param>
+        /// <param name="numTritsToConvert">The number of trits to convert</param>
+        public unsafe void GetTrytesFromFlexTrits(sbyte[] tryteBuffer, int toLen, sbyte[] flexTritBuffer, int offset, int numTritsAvailable, int numTritsToConvert)
         {
             fixed (sbyte* flexTrits = &flexTritBuffer[offset])
             {
                 fixed (sbyte* trytes = tryteBuffer)
                 {
-                    IoFlexTrit.flex_trits_to_trytes(trytes, toLen, flexTrits, _, numTritsToConvert);
+                    IoFlexTrit.flex_trits_to_trytes(trytes, toLen, flexTrits, numTritsAvailable, numTritsToConvert);
                 }
             }
         }

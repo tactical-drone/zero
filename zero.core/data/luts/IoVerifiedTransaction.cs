@@ -1,5 +1,9 @@
 ﻿namespace zero.core.data.luts
 {    
+    /// <summary>
+    /// Finds a transaction's verifier
+    /// </summary>
+    /// <typeparam name="TBlob">Type of blob field</typeparam>
     public class IoVerifiedTransaction<TBlob>
     {
         public TBlob Hash { get; set; }

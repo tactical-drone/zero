@@ -524,7 +524,7 @@ namespace zero.core.patterns.bushes
         public IDisposable Subscribe(IObserver<IoConsumable<TJob>> observer)
         {
             _observer = observer;
-            return IoAnonymousDiposable.Create(() => { _observer = null; });
+            return IoAnonymousDisposable.Create(() => { _observer = null; });
         }
     }
 }

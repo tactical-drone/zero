@@ -5,6 +5,9 @@ using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model
 {
+    /// <summary>
+    /// Interop with entangled transaction
+    /// </summary>
     public static unsafe class IoTransaction
     {
         public const int NUM_TRITS_SERIALIZED_TRANSACTION = 8019;

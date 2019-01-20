@@ -1,22 +1,24 @@
 ﻿using System.Linq;
 using System.Text;
 using Tangle.Net.Entity;
-using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.native
 {
-    internal class IoNativeModel : IIoInteropModel<string>
+    /// <summary>
+    /// A native C# model decoder used for mocking <see cref="IIoModelDecoder{TBlob}"/>
+    /// </summary>
+    internal class IoNativeModelDecoder : IIoModelDecoder<string>
     {        
-        public IIoInteropTransactionModel<string> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
+        public IIoTransactionModel<string> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
         {
             var tryteBuffer = new sbyte[IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION];
             var tryteHashByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_HASH];
 
-            IoEntangled<string>.Default.Ternary.GetTrits(flexTritBuffer, buffOffset, tritBuffer, Codec.MessageSize);
-            IoEntangled<string>.Default.Ternary.GetTrytes(tritBuffer, 0, tryteBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION);
+            IoEntangled<string>.Default.Ternary.GetTritsFromFlexTrits(flexTritBuffer, buffOffset, tritBuffer, Codec.MessageSize);
+            IoEntangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, 0, tryteBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION);
             
             var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.ASCII.GetString(tryteBuffer.Select(c => (byte)c).ToArray())));
 
@@ -63,7 +65,7 @@ namespace zero.interop.entangled.common.model.native
                                                + interopTransaction.Hash.Length);
 
             //check pow
-            IoEntangled<string>.Default.Ternary.GetTrytes(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
+            IoEntangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
 
             var proposedHash = new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c => (byte)c).ToArray())).Value;            
             

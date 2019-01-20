@@ -4,12 +4,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using Tangle.Net.Entity;
-using zero.core.models.consumables;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
 
-namespace zero.core.consumables.sources
+namespace zero.core.models.consumables.sources
 {
     /// <summary>
     /// A producer that serves <see cref="Transaction"/>
@@ -39,7 +38,7 @@ namespace zero.core.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public ConcurrentQueue<List<IIoInteropTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoInteropTransactionModel<TBlob>>>();
+        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();
 
 
         public string Id;

@@ -5,7 +5,7 @@ namespace zero.core.patterns.misc
     /// <summary>
     /// Creates a disposable that calls an anonymous function on dispose
     /// </summary>
-    public static class IoAnonymousDiposable
+    public static class IoAnonymousDisposable
     {
         /// <summary>
         /// Creates a anonymous disposable.

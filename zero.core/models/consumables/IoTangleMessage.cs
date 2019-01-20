@@ -2,16 +2,15 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Cassandra;
 using NLog;
 using zero.core.api;
 using zero.core.conf;
-using zero.core.consumables.sources;
 using zero.core.core;
 using zero.core.misc;
+using zero.core.models.consumables.sources;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -102,7 +101,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The entangled libs
         /// </summary>
-        private readonly IIoEntangledInterop<TBlob> _entangled;
+        private readonly IIoEntangled<TBlob> _entangled;
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -188,7 +187,7 @@ namespace zero.core.models.consumables
         /// </summary>
         private async Task ProcessProtocolMessage() //TODO error cases
         {
-            var newInteropTransactions = new List<IIoInteropTransactionModel<TBlob>>();
+            var newInteropTransactions = new List<IIoTransactionModel<TBlob>>();
             var s = new Stopwatch();
             s.Start();
             
@@ -214,7 +213,7 @@ namespace zero.core.models.consumables
                         //if (!localSync && !Sync())
                         //    return;
 
-                        var interopTx = _entangled.Model.GetTransaction(Buffer, BufferOffset, TritBuffer);
+                        var interopTx = _entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
                         interopTx.Uri = ProducerHandle.SourceUri;
 
                         //check for pow
@@ -278,7 +277,7 @@ namespace zero.core.models.consumables
             }
         }
 
-        private async Task ForwardToNodeServices(List<IIoInteropTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNodeServices(List<IIoTransactionModel<TBlob>> newInteropTransactions)
         {
             //cog the source
             await _nodeServicesProxy.ProduceAsync(source =>
@@ -296,7 +295,7 @@ namespace zero.core.models.consumables
             }
         }
 
-        private async Task ForwardToNeighbor(List<IIoInteropTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNeighbor(List<IIoTransactionModel<TBlob>> newInteropTransactions)
         {
             //cog the source
             await _neighborProxy.ProduceAsync(source =>

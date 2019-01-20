@@ -6,6 +6,9 @@ using zero.interop.entangled.mock;
 namespace zero.interop.entangled.common.model.interop
 {
 
+    /// <summary>
+    /// Transaction model used to marshal data between C# and C++
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct IoMarshalledTransaction
     {               

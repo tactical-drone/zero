@@ -2,6 +2,9 @@
 
 namespace zero.interop.entangled.common.trinary
 {
+    /// <summary>
+    /// Interop with trit byte
+    /// </summary>
     public static class IoTritByte
     {
         public const int NumberOfTritsInAByte = 5;

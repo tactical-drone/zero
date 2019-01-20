@@ -2,6 +2,9 @@
 
 namespace zero.interop.entangled.common.trinary
 {
+    /// <summary>
+    /// Interop with trit tryte
+    /// </summary>
     public static class IoTritTryte
     {
         //size_t num_trytes_for_trits(size_t num_trits);

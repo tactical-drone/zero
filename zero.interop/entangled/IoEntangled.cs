@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using NLog;
-using zero.interop.entangled.common.model.abstraction;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.common.trinary.native;
@@ -9,7 +9,12 @@ using zero.interop.entangled.interfaces;
 
 namespace zero.interop.entangled
 {
-    public class IoEntangled<TBlob> : IIoEntangledInterop<TBlob> 
+    /// <summary>
+    /// Implements contract <see cref="IIoEntangled{TBlob}"/> depending on whether we are running in <see cref="Optimized"/> mode or not.
+    /// If we are not running optimized Tangle.net is used to mock interop functionality.
+    /// </summary>
+    /// <typeparam name="TBlob"></typeparam>
+    public class IoEntangled<TBlob> : IIoEntangled<TBlob> 
     {
         static IoEntangled()
         {
@@ -17,11 +22,11 @@ namespace zero.interop.entangled
         }
 
         private static Logger _logger;
-        private static IIoEntangledInterop<TBlob> _default;
+        private static IIoEntangled<TBlob> _default;
 
         public static bool Optimized => Environment.OSVersion.Platform == PlatformID.Unix;
 
-        public static IIoEntangledInterop<TBlob> Default
+        public static IIoEntangled<TBlob> Default
         {
             get
             {
@@ -34,7 +39,7 @@ namespace zero.interop.entangled
                     var rootFolder = AppContext.BaseDirectory;
                     if (File.Exists(Path.Combine(rootFolder, "libinterop.so")))
                     {
-                        _default = (IIoEntangledInterop<TBlob>) new IoEntangledInterop();
+                        _default = (IIoEntangled<TBlob>) new IoEntangledInterop();
                         _logger.Info("Using entangled interop!");
                     }
                     else
@@ -54,6 +59,6 @@ namespace zero.interop.entangled
         } 
 
         public IIoTrinary Ternary { get; } = new IoNativeTrinary();
-        public IIoInteropModel<TBlob> Model { get; } = (IIoInteropModel<TBlob>) new IoNativeModel();
+        public IIoModelDecoder<TBlob> ModelDecoder { get; } = (IIoModelDecoder<TBlob>) new IoNativeModelDecoder();
     }
 }

@@ -1,5 +1,9 @@
 ﻿namespace zero.core.data.lookups
 {    
+    /// <summary>
+    /// Stores where transactions are probably coming from
+    /// </summary>
+    /// <typeparam name="TBlob"></typeparam>
     public class IoDraggedTransaction<TBlob>
     {                
         public TBlob Address { get; set; }

@@ -2,6 +2,9 @@
 
 namespace zero.interop.entangled.common.trinary
 {
+    /// <summary>
+    /// Interop with flex trit
+    /// </summary>
     public static class IoFlexTrit
     {        
 #if FLEX_TRIT_ENCODING_1_TRIT_PER_BYTE

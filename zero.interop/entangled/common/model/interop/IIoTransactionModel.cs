@@ -2,11 +2,13 @@
 using System.Runtime.Serialization;
 
 // ReSharper disable InconsistentNaming
-
-
 namespace zero.interop.entangled.common.model.interop
 {
-    public interface IIoInteropTransactionModel<TBlob>    
+    /// <summary>
+    /// The transaction model contract used throughout the system
+    /// </summary>
+    /// <typeparam name="TBlob"></typeparam>
+    public interface IIoTransactionModel<TBlob>    
     {
         [DataMember]
         TBlob SignatureOrMessage { get; set; }

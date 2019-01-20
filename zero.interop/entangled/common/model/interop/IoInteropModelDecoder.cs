@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Linq;
 using System.Text;
-using zero.interop.entangled.common.model.abstraction;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.interop
 {
-    public class IoInteropModel : IIoInteropModel<byte[]>
+    /// <summary>
+    /// Implements a interop decoder using optimized c++ entangled decoders
+    /// </summary>
+    public class IoInteropModelDecoder : IIoModelDecoder<byte[]>
     {
         //static IoInteropModel()
         //{
@@ -19,7 +21,7 @@ namespace zero.interop.entangled.common.model.interop
         //   Console.WriteLine("./libdigest.so:" + IoLib.dlopen("./libdigest.so", IoLib.RtldNow | IoLib.RtldGlobal));           
 
         //   Console.WriteLine("./libtrit_long.so:" + IoLib.dlopen("./libtrit_long.so", IoLib.RtldNow | IoLib.RtldGlobal));
-           
+
         //   Console.WriteLine("./libflex_trit_5.so:" + IoLib.dlopen("./libflex_trit_5.so", IoLib.RtldNow | IoLib.RtldGlobal));
 
         //    Console.WriteLine("./libflex_trit_array.so:" + IoLib.dlopen("./libflex_trit_array.so", IoLib.RtldNow | IoLib.RtldGlobal));
@@ -29,7 +31,14 @@ namespace zero.interop.entangled.common.model.interop
         //    Console.WriteLine("./libinterop.so:" + IoLib.dlopen("./libinterop.so", IoLib.RtldNow | IoLib.RtldGlobal));
         //}
 
-        public unsafe IIoInteropTransactionModel<byte[]> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
+        /// <summary>
+        /// Deserialize ioterop model from flex trits
+        /// </summary>
+        /// <param name="flexTritBuffer">The flex trits</param>
+        /// <param name="buffOffset">Offset into the buffer</param>
+        /// <param name="tritBuffer">Some buffer space</param>
+        /// <returns>The deserialized transaction</returns>
+        public unsafe IIoTransactionModel<byte[]> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
         {            
             fixed (sbyte* flexTrits = &flexTritBuffer[buffOffset])
             {                

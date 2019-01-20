@@ -69,19 +69,27 @@ namespace zero.core.core
             Closed?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Start processors for this neighbor
+        /// </summary>
+        /// <param name="cancellationToken">The cancellation token</param>
+        /// <param name="spawnProducer">Spawns a producer thread</param>
+        /// <returns></returns>
         public override async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             var processing = base.SpawnProcessingAsync(cancellationToken, spawnProducer);
-            Task persisting = null;
-
-            persisting = IoEntangled<object>.Optimized ? PersistTransactions<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactions<string>(await IoCassandra<string>.Default());            
+            var persisting = IoEntangled<object>.Optimized ? PersistTransactionsAsync<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactionsAsync<string>(await IoCassandra<string>.Default());            
 
             await Task.WhenAll(processing, persisting);
         }
 
-
-
-        private async Task PersistTransactions<TBlob>(IIoDataSource<TBlob> dataSource) 
+        /// <summary>
+        /// Persists transactions seen from this neighbor
+        /// </summary>
+        /// <typeparam name="TBlob"></typeparam>
+        /// <param name="dataSource">An interface to the data source</param>
+        /// <returns></returns>
+        private async Task PersistTransactionsAsync<TBlob>(IIoDataSource<TBlob> dataSource) 
         {
             var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));                       
             

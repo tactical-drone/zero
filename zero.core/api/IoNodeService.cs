@@ -105,7 +105,7 @@ namespace zero.core.api
             {
                 if (!_nodes.ContainsKey(id))
                     return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
-                var transactions = new List<IIoInteropTransactionModel<TBlob>>();
+                var transactions = new List<IIoTransactionModel<TBlob>>();
 
                 int count = 0;
                 long outstanding = 0;

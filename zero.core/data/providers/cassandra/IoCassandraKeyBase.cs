@@ -5,6 +5,10 @@ using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.data.cassandra
 {
+    /// <summary>
+    /// The keystore config
+    /// </summary>
+    /// <typeparam name="TBlob">Blob type</typeparam>
     public class IoCassandraKeyBase<TBlob> 
     {
         private MappingConfiguration _bundle;
@@ -17,7 +21,7 @@ namespace zero.core.data.cassandra
 
                 _bundle = new MappingConfiguration();
                 _bundle.Define(
-                    new Map<IIoInteropTransactionModel<TBlob>>().TableName("bundle")
+                    new Map<IIoTransactionModel<TBlob>>().TableName("bundle")
                         .ExplicitColumns()
                         .Column(c => c.SignatureOrMessage)
                         .Column(c => c.Address)
@@ -95,7 +99,6 @@ namespace zero.core.data.cassandra
                 return draggedTransaction;
             }
         }
-
 
         public MappingConfiguration BundledTransaction
         {

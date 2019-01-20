@@ -4,6 +4,9 @@ using System.Text;
 
 namespace zero.core.data.market
 {
+    /// <summary>
+    /// The model for crypto compare market data
+    /// </summary>
     public class IoMarketDataModel
     {
         public float Change24Hour;

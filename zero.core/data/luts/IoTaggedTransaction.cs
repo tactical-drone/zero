@@ -1,7 +1,9 @@
-﻿using Cassandra.Mapping.Attributes;
-
-namespace zero.core.data.lookups
+﻿namespace zero.core.data.luts
 {    
+    /// <summary>
+    /// Finds transactions by tag
+    /// </summary>
+    /// <typeparam name="TBlob"></typeparam>
     public class IoTaggedTransaction<TBlob>
     {                
         public TBlob Tag { get; set; }

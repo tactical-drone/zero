@@ -1,16 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reactive.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using NLog;
-using zero.core.core;
 
 namespace zero.core.data.market
 {
+    /// <summary>
+    /// Fetches market data from crypto compare
+    /// </summary>
     public static class IoMarketDataClient
     {
         static IoMarketDataClient()

@@ -7,8 +7,10 @@ using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.native
 {
-    [Table("bundle")]
-    public class IoNativeTransactionModel : IIoInteropTransactionModel<string>
+    /// <summary>
+    /// Mocks a <see cref="IIoTransactionModel{TBlob}"/> model when not using interop decoders
+    /// </summary>
+    public class IoNativeTransactionModel : IIoTransactionModel<string>
     {                
         public string Address { get; set; }
         

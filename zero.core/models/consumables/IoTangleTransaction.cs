@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.consumables.sources;
+using zero.core.models.consumables.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
@@ -11,13 +11,12 @@ namespace zero.core.models.consumables
 {
     /// <summary>
     /// Stores meta data used when consuming jobs of this kind
-    /// </summary>
-    /// <seealso cref="IoTangleTransaction" />
+    /// </summary>    
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>>, IIoProducer 
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTangleTransaction"/> class.
+        /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
         public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source)
@@ -33,7 +32,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IIoInteropTransactionModel<TBlob>> Transactions;
+        public List<IIoTransactionModel<TBlob>> Transactions;
 
         /// <summary>
         /// Callback the generates the next job

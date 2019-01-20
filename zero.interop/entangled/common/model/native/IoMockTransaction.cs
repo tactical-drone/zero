@@ -5,12 +5,15 @@ using Tangle.Net.Utils;
 
 namespace zero.interop.entangled.common.model.native
 {
+    /// <summary>
+    /// A transaction model used for mocking interop functionality
+    /// </summary>
     public class IoMockTransaction: Transaction
     {
         public long SnapshotIndex = 0;
         public bool Solid = false;
 
-        public static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
+        public new static IoMockTransaction FromTrytes(TransactionTrytes trytes, Hash hash = null)
         {
             if (hash == null)
             {

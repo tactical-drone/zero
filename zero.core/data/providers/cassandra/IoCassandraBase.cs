@@ -7,6 +7,10 @@ using Logger = NLog.Logger;
 
 namespace zero.core.data.cassandra
 {
+    /// <summary>
+    /// Based to support different transaction models
+    /// </summary>
+    /// <typeparam name="TBlob">Blob type</typeparam>
     public abstract class IoCassandraBase<TBlob> : IoCassandraKeyBase<TBlob> 
     {
         protected IoCassandraBase()
@@ -26,6 +30,9 @@ namespace zero.core.data.cassandra
         private volatile bool _isConnected = false;
         private DateTime _lastConnectionAttempt = DateTime.Now - TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// Returns true if everything is working and connected
+        /// </summary>
         public bool IsConnected
         {
             get => _isConnected;
@@ -39,6 +46,11 @@ namespace zero.core.data.cassandra
             }
         }        
 
+        /// <summary>
+        /// Connects to a cassandra database
+        /// </summary>
+        /// <param name="url">The url of the database</param>
+        /// <returns>True if succeeded, false otherwise</returns>
         protected async Task<bool> Connect(string url)
         {
             if (_isConnecting || !_isConnected && (DateTime.Now - _lastConnectionAttempt) < TimeSpan.FromSeconds(10))
@@ -75,8 +87,18 @@ namespace zero.core.data.cassandra
             return true;
         }
 
+        /// <summary>
+        /// Makes sure that the schema is configured
+        /// </summary>
+        /// <returns>True if the schema was re-configured, false otherwise</returns>
         protected abstract Task<bool> EnsureSchema();
 
+        /// <summary>
+        /// Puts data into cassandra
+        /// </summary>
+        /// <param name="transaction">The transaction to persist</param>
+        /// <param name="batch">A batch handler</param>
+        /// <returns>The rowset with insert results</returns>
         public async Task<RowSet> ExecuteAsync(BatchStatement batch)
         {
             var executeAsyncTask = _session.ExecuteAsync(batch);
