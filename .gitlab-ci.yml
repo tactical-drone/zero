@@ -9,6 +9,7 @@ variables:
 before_script:
   - "dotnet --version"
   - "git submodule init"
+  - "git submodule update"
   - "dotnet restore"
 
 build:
