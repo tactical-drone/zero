@@ -4,10 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
-using Cassandra;
 using NLog;
-using zero.core.api;
-using zero.core.api.controllers;
 using zero.core.api.controllers.generic;
 using zero.core.conf;
 using zero.core.core;
@@ -226,13 +223,13 @@ namespace zero.core.models.consumables
                             {
                                 try
                                 {
-                                    _logger.Trace("Possible garbage tx detected:");
-                                    _logger.Trace($"({Id}) value = `{interopTx.Value}'");
-                                    _logger.Trace($"({Id}) pow = `{interopTx.Pow}'");
-                                    _logger.Trace($"({Id}) time = `{interopTx.Timestamp}'");
-                                    _logger.Trace($"({Id}) hash = `{interopTx.AsTrytes(interopTx.Hash)}'");
-                                    _logger.Trace($"({Id}) bundle = `{interopTx.AsTrytes(interopTx.Bundle)}'");
-                                    _logger.Trace($"({Id}) address = `{interopTx.AsTrytes(interopTx.Address)}'");
+                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{DatumCount}) pow = `{interopTx.Pow}', PB = `{ProducerHandle.ProducerBarrier.CurrentCount}', CB = `{ProducerHandle.ConsumerBarrier.CurrentCount}'");
+                                    //_logger.Trace($"({Id}.{DatumCount}) value = `{interopTx.Value}'");
+                                    //_logger.Trace($"({Id}.{DatumCount}) pow = `{interopTx.Pow}'");
+                                    //_logger.Trace($"({Id}.{DatumCount}) time = `{interopTx.Timestamp}'");
+                                    //_logger.Trace($"({Id}.{DatumCount}) hash = `{interopTx.AsTrytes(interopTx.Hash)}'");
+                                    //_logger.Trace($"({Id}.{DatumCount}) bundle = `{interopTx.AsTrytes(interopTx.Bundle)}'");
+                                    //_logger.Trace($"({Id}.{DatumCount}) address = `{interopTx.AsTrytes(interopTx.Address)}'");
                                 }
                                 catch { }
 
@@ -317,8 +314,7 @@ namespace zero.core.models.consumables
         /// </summary>
         /// <returns>True if synced achieved, false otherwise</returns>
         private bool Sync()
-        {
-            
+        {            
             var offset = 0;
             if (!ProducerHandle.Synced)
             {                
