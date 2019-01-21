@@ -181,7 +181,9 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">The address to connect to</param>
         /// <returns>True on success, false otherwise</returns>
+#pragma warning disable 1998
         public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
+#pragma warning restore 1998
         {
             if (Socket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");

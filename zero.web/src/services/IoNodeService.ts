@@ -8,7 +8,7 @@ export class IoNodeServices extends IoApi {
     }
 
     async createNode(url: string): Promise<IoApiReturn> {
-        return this.post('/api/node', { "url": url});
+        return this.post('/api/node', {'url': url});
     }  
 
     async getLogs(): Promise<IoApiReturn>{

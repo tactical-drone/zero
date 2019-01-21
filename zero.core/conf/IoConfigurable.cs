@@ -66,6 +66,6 @@ namespace zero.core.conf
         /// <summary>
         /// A handle to the subscription to the local config bus 
         /// </summary>
-        private IDisposable _localConfigBusSubscription;        
+        //private IDisposable _localConfigBusSubscription;        
     }
 }

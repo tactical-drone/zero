@@ -36,7 +36,9 @@ namespace zero.web
             //services.AddDefaultIdentity<IdentityUser>()
             //    .AddEntityFrameworkStores<ApplicationDbContext>();
 
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
+            services.AddMvc()
+            .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
             //.AddJsonOptions(opts =>
             //{
             //    opts.SerializerSettings.ContractResolver = new DefaultContractResolver()

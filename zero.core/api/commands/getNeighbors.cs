@@ -12,15 +12,15 @@ namespace zero.core.api.commands
 
         public class Response
         {
-            public ulong duration;
-            public List<Neighbor> neighbors;
+            //public ulong duration;
+            //public List<Neighbor> neighbors;
 
             public class Neighbor
             {
-                public string address;
-                public ulong numberOfAllTransactions;
-                public ulong numberOfInvalidTransactions;
-                public ulong numberOfNewTransactions;
+                //public string address;
+                //public ulong numberOfAllTransactions;
+                //public ulong numberOfInvalidTransactions;
+                //public ulong numberOfNewTransactions;
             }
         }
     }

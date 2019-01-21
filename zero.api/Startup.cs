@@ -8,6 +8,7 @@ using zero.core.api;
 using zero.core.api.interfaces;
 using zero.interop.entangled;
 
+
 namespace zero.api
 {
     /// <summary>
@@ -41,14 +42,17 @@ namespace zero.api
             services.AddCors(options =>
             {
                 options.AddPolicy("ApiCorsPolicy",
-                    builder => builder.SetIsOriginAllowed(s => s.Contains("https://localhost"))
+                    //builder => builder.SetIsOriginAllowed(s => s.Contains("https://localhost"))
+                    builder => builder.AllowAnyOrigin()
                         .AllowAnyMethod()
                         .AllowAnyHeader());
             });
 
             services.AddMvc()
-                .SetCompatibilityVersion(CompatibilityVersion.Version_2_1)
-                .AddApplicationPart(typeof(IIoNodeService).GetTypeInfo().Assembly);
+                .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
+                //.AddApplicationPart(typeof(IIoNodeService).GetTypeInfo().Assembly);
+
                 //.AddJsonOptions(opts =>
                 //{
                 //    opts.SerializerSettings.ContractResolver = new DefaultContractResolver()

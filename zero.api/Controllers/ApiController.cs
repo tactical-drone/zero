@@ -9,7 +9,7 @@ namespace zero.api.Controllers
 {
     [EnableCors("ApiCorsPolicy")]
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-    [Route("/api")]
+    [Route("/wallet")]
     [ApiController]
     public class ApiController : Controller
     {

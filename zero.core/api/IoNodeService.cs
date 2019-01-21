@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using NLog;
 using NLog.Targets;
 using zero.core.api.interfaces;
@@ -29,7 +30,7 @@ namespace zero.core.api
     [ApiController]
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("/api/node")]
-    public class IoNodeService<TBlob> : Controller, IIoNodeService 
+    public class IoNodeService<TBlob> : ControllerBase, IIoNodeService 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoNodeService{TBlob}"/> class.
@@ -55,19 +56,21 @@ namespace zero.core.api
         /// <summary>
         /// The nodes managed by this service
         /// </summary>
-        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>> _nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>>();
+        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>> Nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>>();
         /// <summary>
         /// Posts the specified address.
         /// </summary>
         /// <param name="address">The listening address to start a node on</param>
         /// <returns>true on success, false otherwise</returns>
         [HttpPost]
-        public IoApiReturn Post(IoNodeAddress address)
+        public IoApiReturn Post([FromBody]JObject addressJo)
         {
+            var address = addressJo.ToObject<IoNodeAddress>();
+
             if (!address.IsValid)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!_nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<object>.TcpReadAhead)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<object>.TcpReadAhead)))
             {
                 var errStr = $"Cannot create node `${address.UrlAndPort}', a node with that id already exists";
                 _logger.Warn(errStr);
@@ -77,10 +80,10 @@ namespace zero.core.api
 
             var dbgStr = $"Added listener at `{address.UrlAndPort}'";
 
-            _nodes[address.Port].Start();
+            Nodes[address.Port].Start();
 
 #pragma warning disable 4014
-            _nodes[address.Port].SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
+            Nodes[address.Port].SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
 #pragma warning restore 4014
 
             _logger.Debug(dbgStr);
@@ -103,7 +106,7 @@ namespace zero.core.api
         {
             try
             {
-                if (!_nodes.ContainsKey(id))
+                if (!Nodes.ContainsKey(id))
                     return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
                 var transactions = new List<IIoTransactionModel<TBlob>>();
 
@@ -113,7 +116,7 @@ namespace zero.core.api
 
                 Stopwatch stopwatch = new Stopwatch();
 #pragma warning disable 4014 //TODO figure out what is going on with async
-                _nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
+                Nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
@@ -186,11 +189,11 @@ namespace zero.core.api
         [HttpGet]
         public IoApiReturn StopListener([FromRoute] int id)
         {
-            if (!_nodes.ContainsKey(id))
+            if (!Nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Neighbor with listener port `{id}' does not exist");
 
-            _nodes[id].Stop();
-            _nodes.TryRemove(id, out _);
+            Nodes[id].Stop();
+            Nodes.TryRemove(id, out _);
 
             return IoApiReturn.Result(true, $"Successfully stopped neighbor `{id}'");
         }

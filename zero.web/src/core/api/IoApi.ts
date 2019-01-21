@@ -25,6 +25,7 @@ export class IoApi {
                     mode: 'cors',
                     headers: {
                         'Accept': 'application/json',
+                        'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + this.zcfg.scfg.token
                     }
                 });
@@ -122,21 +123,21 @@ export class IoApi {
     //    }
     //}
 
-    async post(baseUrl: string, parms: any): Promise<IoApiReturn>{
+    async post(baseUrl: string, params: any): Promise<IoApiReturn>{
         return await this.httpClient.fetch(this.zcfg.apiUrl + baseUrl,
                 {
                     method: 'post',
-                    body: json(parms)
+                    body: json(params)
                 })
             .then(response => {
                 //if (response.bodyUsed)
                     return response.json();
-                return new IoApiReturn(false, "No data returned", undefined);
+                //return new IoApiReturn(false, "No data returned", undefined);
             })
             .then(response => this.apiReponse = response);
     }
 
-    async get(baseUrl: string, parms: any = null) :Promise<IoApiReturn> {
+    async get(baseUrl: string, params: any = null) :Promise<IoApiReturn> {
          return await this.httpClient.fetch(this.zcfg.apiUrl + baseUrl,
                 {
                     method: 'get'
@@ -144,7 +145,7 @@ export class IoApi {
              .then(response => {
                  //if (response.bodyUsed)
                      return response.json();
-                 return new IoApiReturn(false, "No data returned", undefined);
+                 //return new IoApiReturn(false, "No data returned", undefined);
              })
             .then(response => this.apiReponse = response);
     }

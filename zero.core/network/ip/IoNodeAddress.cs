@@ -70,6 +70,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The validation error string detailing validation errors
         /// </summary>
+        [IgnoreDataMember]
         public string ValidationErrorString = null;
 
         /// <summary>
@@ -77,7 +78,8 @@ namespace zero.core.network.ip
         /// </summary>
         [IgnoreDataMember]
         public string IpAndPort => $"{Ip}:{Port}";
-        
+
+        [IgnoreDataMember]
         public string ResolvedIpAndPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
 
         /// <summary>

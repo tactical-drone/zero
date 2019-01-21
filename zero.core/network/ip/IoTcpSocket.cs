@@ -199,7 +199,7 @@ namespace zero.core.network.ip
                 return await Task.Factory.FromAsync(Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
                     Socket.EndReceive).HandleCancellation(Spinners.Token);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 //_logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}', length = `{length}', offset = `{offset}' :");
                 return 0;

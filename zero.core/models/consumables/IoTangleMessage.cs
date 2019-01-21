@@ -198,9 +198,6 @@ namespace zero.core.models.consumables
                     return;
                 }
 
-                var localSync = true;
-
-                var batch = new BatchStatement();
                 var syncFailureThreshold = 2;
                 var curSyncFailureCount = syncFailureThreshold;
                 
@@ -345,7 +342,7 @@ namespace zero.core.models.consumables
                                     break;
                                 }
                             }
-                            catch (Exception e)
+                            catch (Exception)
                             {
                                 _logger.Error($"length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
                             }

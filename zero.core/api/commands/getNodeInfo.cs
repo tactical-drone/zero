@@ -12,7 +12,9 @@ namespace zero.core.api.commands
         {
         }
 
+#pragma warning disable 1998
         public override async Task<ResponseBase> ProcessCommand(JObject jsonCommandobJObject)
+#pragma warning restore 1998
         {
             var response = new Response
             {

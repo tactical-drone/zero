@@ -1,4 +1,5 @@
-﻿using zero.core.network.ip;
+﻿using Newtonsoft.Json.Linq;
+using zero.core.network.ip;
 
 namespace zero.core.api.interfaces
 {
@@ -12,6 +13,6 @@ namespace zero.core.api.interfaces
         /// </summary>
         /// <param name="address">The address to listen at</param>
         /// <returns>true on success, false otherwise</returns>
-        IoApiReturn Post(IoNodeAddress address);
+        IoApiReturn Post(JObject address);
     }
 }

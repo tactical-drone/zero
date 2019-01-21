@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Web;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace zero.api
 {
@@ -39,8 +40,10 @@ namespace zero.api
                 {
                     logging.ClearProviders();
                     logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+                    logging.AddDebug().SetMinimumLevel(LogLevel.Trace);                    
+                    logging.AddEventSourceLogger();
                 })
-                .UseNLog()
+                .UseNLog()                
                 .UseStartup<Startup>()
                 .Build();
     }
