@@ -19,3 +19,4 @@ build:
   script:
     - "cd $build_path"
     - "dotnet build"
+
