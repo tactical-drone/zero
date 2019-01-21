@@ -17,7 +17,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="3.0.0-preview-18579-0056" />    
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="3.0.0-preview-18579-0056" />
+    <PackageReference Include="Microsoft.AspNetCore.NodeServices" Version="3.0.0-preview-18579-0056" />
   </ItemGroup>
 
   <ItemGroup>
