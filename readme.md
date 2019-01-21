@@ -15,7 +15,7 @@ Requires SDK 3.0.100-preview-009812 to be installed
   - Binaries
     - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview-009812-linux-x64-binaries
     - Extract the tarball to some folder and set it in path
-  - apt-get (ubuntu 18.04)
+  - apt-get (ubuntu 18.04) (not supported yet for sdk-3.0, use above manual binary extraction)
     - `wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb`
     - `sudo dpkg -i packages-microsoft-prod.deb`
     - `sudo add-apt-repository universe`
