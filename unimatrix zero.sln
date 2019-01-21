@@ -1,24 +1,21 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27130.2010
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28407.52
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.core", "zero.core\zero.core.csproj", "{8FE03967-BF10-4E73-BE44-9268011CC4AC}"
-	ProjectSection(ProjectDependencies) = postProject
-		{43F7FC36-2839-4EED-AD27-88D3CE3E79CF} = {43F7FC36-2839-4EED-AD27-88D3CE3E79CF}
-	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.api", "zero.api\zero.api.csproj", "{FD9C2CE5-C3AD-46CE-9B6E-D2E2A3778B85}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.sync", "zero.sync\zero.sync.csproj", "{262602D8-9CC3-4F36-90C6-EB13565281DC}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "submodules", "submodules", "{C65FF55C-3A8A-4E88-9FF6-CD16138C4C7B}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tangle.Net.Standard", "submodules\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj", "{43F7FC36-2839-4EED-AD27-88D3CE3E79CF}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.web", "zero.web\zero.web.csproj", "{3A7D7F13-9CA5-4EED-AA14-A07A46309880}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.interop", "zero.interop\zero.interop.csproj", "{5BDD2989-836E-478A-B0C1-C52BCCDC4B03}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deps", "deps", "{CB5DA72D-A82B-44FB-B819-107DF5C6BCB6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tangle.Net.Standard", "deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj", "{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,10 +35,6 @@ Global
 		{262602D8-9CC3-4F36-90C6-EB13565281DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{262602D8-9CC3-4F36-90C6-EB13565281DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{262602D8-9CC3-4F36-90C6-EB13565281DC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{43F7FC36-2839-4EED-AD27-88D3CE3E79CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{43F7FC36-2839-4EED-AD27-88D3CE3E79CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{43F7FC36-2839-4EED-AD27-88D3CE3E79CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{43F7FC36-2839-4EED-AD27-88D3CE3E79CF}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3A7D7F13-9CA5-4EED-AA14-A07A46309880}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3A7D7F13-9CA5-4EED-AA14-A07A46309880}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3A7D7F13-9CA5-4EED-AA14-A07A46309880}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -50,12 +43,16 @@ Global
 		{5BDD2989-836E-478A-B0C1-C52BCCDC4B03}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5BDD2989-836E-478A-B0C1-C52BCCDC4B03}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5BDD2989-836E-478A-B0C1-C52BCCDC4B03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{43F7FC36-2839-4EED-AD27-88D3CE3E79CF} = {C65FF55C-3A8A-4E88-9FF6-CD16138C4C7B}
+		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B} = {CB5DA72D-A82B-44FB-B819-107DF5C6BCB6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B1DC2EE1-FEE5-4E1C-A6E4-648F0A92A783}
