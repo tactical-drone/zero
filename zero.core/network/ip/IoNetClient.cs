@@ -148,6 +148,7 @@ namespace zero.core.network.ip
             ProducerBarrier?.Dispose();
             ConsumerBarrier?.Dispose();
             ReadAheadBarrier?.Dispose();
+            WriteAheadBarrier?.Dispose();
 
             _logger.Debug($"Closed connection `{AddressString}'");
         }

@@ -37,9 +37,7 @@ namespace zero.core.network.ip
         /// The logger
         /// </summary>
         private readonly Logger _logger;
-
-        readonly SemaphoreSlim _readLock = new SemaphoreSlim(1);
-        readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1);
+               
 
         /// <summary>
         /// Starts a TCP listener
@@ -160,8 +158,7 @@ namespace zero.core.network.ip
             {
                 var task = Task.Factory
                     .FromAsync<int>(Socket.BeginSend(getBytes, offset, length, SocketFlags.None, null, null),
-                        Socket.EndSend).HandleCancellation(Spinners.Token);
-                await _writeLock.WaitAsync();
+                        Socket.EndSend).HandleCancellation(Spinners.Token);                
                 await task.ContinueWith(t =>
                 {
                     switch (t.Status)
@@ -187,7 +184,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                _writeLock.Release();
+                
             }
         }
 
@@ -202,8 +199,7 @@ namespace zero.core.network.ip
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length) //TODO can we go back to array buffers?
         {
             try
-            {
-                await _readLock.WaitAsync(Spinners.Token);                
+            {                
                 return await Task.Factory.FromAsync(
                     Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
                     Socket.EndReceive).HandleCancellation(Spinners.Token);                
@@ -215,7 +211,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                _readLock.Release();
+                
             }
         }
 
