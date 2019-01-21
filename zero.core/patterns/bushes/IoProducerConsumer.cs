@@ -349,6 +349,26 @@ namespace zero.core.patterns.bushes
                 if (PrimaryProducer == null)
                     return Task.CompletedTask;
 
+                if (PrimaryProducer.ObeyReadAheadBarrier && !await PrimaryProducer.ReadAheadBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout,
+                    Spinners.Token))
+                {
+                    //Was shutdown requested?
+                    if (Spinners.IsCancellationRequested)
+                    {
+                        _logger.Debug($"Consumer `{PrimaryProducerDescription}' is shutting down");
+                        return Task.CompletedTask;
+                    }
+
+                    //Production timed out
+                    if (sleepOnProducerLag)
+                    {
+                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                    }
+
+                    //Try again
+                    return Task.CompletedTask;
+                }
+
                 //Waiting for a job to be produced. Did production fail?
                 if (!await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
                 {
@@ -428,6 +448,8 @@ namespace zero.core.patterns.bushes
                         try
                         {
                             PrimaryProducer.ProducerBarrier.Release(1);
+                            if(PrimaryProducer.ObeyReadAheadBarrier)
+                                PrimaryProducer.ReadAheadBarrier.Release(1);
                         }
                         catch
                         {
@@ -449,7 +471,9 @@ namespace zero.core.patterns.bushes
                 else
                 {
                     _logger.Warn($"`{PrimaryProducerDescription}' produced nothing");
-                    PrimaryProducer.ProducerBarrier.Release(1);
+                    PrimaryProducer.ReadAheadBarrier.Release(1);
+                    if(PrimaryProducer.ObeyReadAheadBarrier)
+                        PrimaryProducer.ProducerBarrier.Release(1);
                 }
             }
             catch (OperationCanceledException) { }

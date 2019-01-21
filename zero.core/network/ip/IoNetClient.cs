@@ -147,6 +147,7 @@ namespace zero.core.network.ip
             //Unlock any blockers
             ProducerBarrier?.Dispose();
             ConsumerBarrier?.Dispose();
+            ReadAheadBarrier?.Dispose();
 
             _logger.Debug($"Closed connection `{AddressString}'");
         }

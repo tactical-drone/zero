@@ -23,6 +23,7 @@ namespace zero.core.patterns.bushes
             ReadAheadBufferSize = readAheadBufferSize;
             ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
+            ReadAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();
         }
@@ -82,6 +83,16 @@ namespace zero.core.patterns.bushes
         /// The consumer semaphore
         /// </summary>
         public SemaphoreSlim ProducerBarrier { get; protected set; }
+
+        /// <summary>
+        /// The consumer semaphore
+        /// </summary>
+        public SemaphoreSlim ReadAheadBarrier { get; protected set; }
+
+        /// <summary>
+        /// Whether to only consume one at a time, but produce many at a time
+        /// </summary>
+        public bool ObeyReadAheadBarrier = true;
 
         /// <summary>
         /// Makes available normalized storage for all downstream usages

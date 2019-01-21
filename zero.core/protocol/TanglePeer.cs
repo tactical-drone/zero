@@ -39,6 +39,6 @@ namespace zero.core.protocol
         /// <summary>
         /// Tcp read ahead
         /// </summary>
-        public const int TcpReadAhead = 5;
+        public const int TcpReadAhead = 50;
     }
 }
