@@ -46,17 +46,19 @@ export class app {
 
     async queryTags() {
         while (true) {
-            await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
-                .then(response => {
-                    if (response != null && response.rows != null && response.rows.length > 0) {
-                        this.logs.unshift.apply(this.logs, response.rows);
-                        if (this.logs.length > 60) {
-                            for (var i = this.logs.length; i > 58; i--) {
-                                this.logs.pop();
+            if (this.curNeighborId > 0) {
+                await this.nodeServices.queryTransactionStream(this.curNeighborId, this.tagQuery)
+                    .then(response => {
+                        if (response != null && response.rows != null && response.rows.length > 0) {
+                            this.logs.unshift.apply(this.logs, response.rows);
+                            if (this.logs.length > 60) {
+                                for (var i = this.logs.length; i > 58; i--) {
+                                    this.logs.pop();
+                                }
                             }
                         }
-                    }                    
-                });
+                    });                
+            }   
             await this.nodeServices.sleep(500);
         }
     }
@@ -72,12 +74,13 @@ export class app {
 
     async stopNeighbor() {
         await this.nodeServices.stopListner(this.curNeighborId);
+        this.curNeighborId = 0;
     }
 
     //binds
     url: string = 'tcp://192.168.1.2:15600';
     tagQuery: string = '';
-    curNeighborId: number = 15600;
+    curNeighborId: number = 0;
 
     vericalRows = [
         { collapsible: false, resizable: false, scrollable: false, size: '180px', min: '180px' },

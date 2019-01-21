@@ -5,6 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using zero.core.api;
+using zero.core.api.controllers;
+using zero.core.api.controllers.bootstrap;
+using zero.core.api.controllers.generic;
+using zero.core.api.controllers.services;
 using zero.core.api.interfaces;
 using zero.interop.entangled;
 
@@ -50,22 +54,20 @@ namespace zero.api
 
             services.AddMvc()
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            //.AddApplicationPart(typeof(IIoNodeController).GetTypeInfo().Assembly);
 
-                //.AddApplicationPart(typeof(IIoNodeService).GetTypeInfo().Assembly);
-
-                //.AddJsonOptions(opts =>
-                //{
-                //    opts.SerializerSettings.ContractResolver = new DefaultContractResolver()
-                //    {
-                //        NamingStrategy = new DefaultNamingStrategy()
-                //    };
-                //});
+            //.AddJsonOptions(opts =>
+            //{
+            //    opts.SerializerSettings.ContractResolver = new DefaultContractResolver()
+            //    {
+            //        NamingStrategy = new DefaultNamingStrategy()
+            //    };
+            //});
 
             //Add node services            
-            if(IoEntangled<object>.Optimized)
-                services.AddSingleton<IIoNodeService>(new IoNodeService<byte[]>());
-            else
-                services.AddSingleton<IIoNodeService>(new IoNodeService<string>());
+            services.AddSingleton(new IoBootstrapController());
+            services.AddSingleton(new IoInteropServicesController());
+            services.AddSingleton(new IoNativeServicesController());
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

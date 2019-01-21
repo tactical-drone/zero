@@ -8,21 +8,22 @@ A borg scout ship, a harmless vessel exploring the vast expanses of the tangle.
 
 ## Requirements
 
-Requires dotnet core 2.2 SDK to be installed
+Requires SDK 3.0.100-preview-009812 to be installed
 - Windows
-  - https://www.microsoft.com/net/download/dotnet-core/2.2
+  - https://dotnet.microsoft.com/download/dotnet-core/3.0
 - Linux
   - Binaries
-    - https://www.microsoft.com/net/download/thank-you/dotnet-sdk-2.2.100-preview3-linux-x64-binaries
+    - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview-009812-linux-x64-binaries
+    - Extract the tarball to some folder and set it in path
   - apt-get (ubuntu 18.04)
     - `wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb`
     - `sudo dpkg -i packages-microsoft-prod.deb`
     - `sudo add-apt-repository universe`
     - `sudo apt-get update`
-    - `sudo apt-get install dotnet-sdk-2.2`
+    - `sudo apt-get install dotnet-sdk-3.0`
 
 - Windows
-  - https://www.microsoft.com/net/download/thank-you/dotnet-sdk-2.2.100-preview3-windows-x64-binaries
+  - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview-009812-windows-x64-installer
 
 ## Building and running
 

@@ -55,7 +55,7 @@ namespace zero.web
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-                app.UseDatabaseErrorPage();
+                //app.UseDatabaseErrorPage();
 
                 app.UseWebpackDevMiddleware(new WebpackDevMiddlewareOptions
                 {

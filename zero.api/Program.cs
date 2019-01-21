@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Net;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -35,7 +36,7 @@ namespace zero.api
                     configApp.AddEnvironmentVariables();
                     configApp.AddCommandLine(args);
                     
-                })                
+                })
                 .ConfigureLogging(logging =>
                 {
                     logging.ClearProviders();
@@ -45,6 +46,10 @@ namespace zero.api
                 })
                 .UseNLog()                
                 .UseStartup<Startup>()
+                //.UseKestrel(options =>
+                //{
+                //    options.Listen(IPAddress.Loopback, 14265);
+                //})
                 .Build();
     }
 }

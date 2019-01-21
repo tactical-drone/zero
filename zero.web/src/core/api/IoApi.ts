@@ -30,6 +30,10 @@ export class IoApi {
                     }
                 });
         });
+
+        this.get("/bootstrap/kind").then(response => {
+            this.zcfg.apiKind = response.rows;
+        });
     }
     
     kendoDataSource(baseUrl: string): kendo.data.DataSource {

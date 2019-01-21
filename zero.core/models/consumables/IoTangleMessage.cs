@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Cassandra;
 using NLog;
 using zero.core.api;
+using zero.core.api.controllers;
+using zero.core.api.controllers.generic;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
@@ -64,7 +66,7 @@ namespace zero.core.models.consumables
                 }
             }
 
-            NodeServicesRelay = source.GetRelaySource(nameof(IoNodeService<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));
+            NodeServicesRelay = source.GetRelaySource(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));
 
             //forward to neighbors
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))

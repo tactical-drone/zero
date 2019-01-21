@@ -8,5 +8,6 @@ export class IoConfiguration {
     }
 
     scfg : any; 
-    apiUrl: string = 'http://localhost:14256';
+    apiUrl: string = 'http://localhost:14265';
+    apiKind: string = '';
 }

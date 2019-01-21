@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json.Linq;
 using NLog;
 using NLog.Targets;
 using zero.core.api.interfaces;
@@ -16,26 +15,24 @@ using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.protocol;
-using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 
-namespace zero.core.api
+namespace zero.core.api.controllers.generic
 {
     /// <summary>
     /// Node services
     /// </summary>
     /// <seealso cref="Microsoft.AspNetCore.Mvc.Controller" />
-    /// <seealso cref="zero.core.api.interfaces.IIoNodeService" />
+    /// <seealso cref="IIoNodeController" />
     [EnableCors("ApiCorsPolicy")]
     [ApiController]
-    //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-    [Route("/api/node")]
-    public class IoNodeService<TBlob> : ControllerBase, IIoNodeService 
+    //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]    
+    public class IoNodeServices<TBlob> : Controller, IIoNodeController 
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoNodeService{TBlob}"/> class.
+        /// Initializes a new instance of the <see cref="IoNodeServices{TBlob}"/> class.
         /// </summary>
-        public IoNodeService()
+        public IoNodeServices()
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -62,11 +59,9 @@ namespace zero.core.api
         /// </summary>
         /// <param name="address">The listening address to start a node on</param>
         /// <returns>true on success, false otherwise</returns>
-        [HttpPost]
-        public IoApiReturn Post([FromBody]JObject addressJo)
+        [HttpPost]        
+        public IoApiReturn Post(IoNodeAddress address)
         {
-            var address = addressJo.ToObject<IoNodeAddress>();
-
             if (!address.IsValid)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
@@ -90,7 +85,7 @@ namespace zero.core.api
             return IoApiReturn.Result(true, dbgStr, address.Port);
         }
 
-        [Route("/api/node/logs")]
+        [Route("logs")]
         [HttpGet]
         public IoApiReturn Logs()
         {
@@ -100,7 +95,7 @@ namespace zero.core.api
             return retval;
         }
 
-        [Route("/api/node/stream/{id}")]
+        [Route("stream/{id}")]
         [HttpGet]
         public IoApiReturn TransactionStreamQuery([FromRoute]int id, [FromQuery] string tagQuery)
         {
@@ -120,7 +115,7 @@ namespace zero.core.api
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNodeService<TBlob>));
+                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNodeServices<TBlob>));
 
                         if (relaySource != null)
                         {
@@ -185,7 +180,7 @@ namespace zero.core.api
             //TODO remove diagnostic output            
         }
 
-        [Route("/api/node/stopListener/{id}")]
+        [Route("stopListener/{id}")]
         [HttpGet]
         public IoApiReturn StopListener([FromRoute] int id)
         {

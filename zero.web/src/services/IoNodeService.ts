@@ -8,18 +8,18 @@ export class IoNodeServices extends IoApi {
     }
 
     async createNode(url: string): Promise<IoApiReturn> {
-        return this.post('/api/node', {'url': url});
+        return this.post(this.zcfg.apiKind + '/services/node', {'url': url});
     }  
 
     async getLogs(): Promise<IoApiReturn>{
-        return this.get('/api/node/logs');
+        return this.get(this.zcfg.apiKind + '/services/node/logs');
     }
 
     async queryTransactionStream(id: number, tagQuery: string): Promise<IoApiReturn> {
-        return this.get('/api/node/stream/'+id+'?tagQuery=' + tagQuery);
+        return this.get(this.zcfg.apiKind + '/services/node/stream/'+id+'?tagQuery=' + tagQuery);
     }    
 
     async stopListner(id:number): Promise<IoApiReturn> {
-        return this.get('/api/node/stopListener/' + id);
+        return this.get(this.zcfg.apiKind + '/services/node/stopListener/' + id);
     }
 }
