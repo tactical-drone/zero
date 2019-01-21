@@ -16,17 +16,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-18579-0056" />
     <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="3.0.0-preview-18579-0056" />
     <PackageReference Include="Microsoft.AspNetCore.NodeServices" Version="3.0.0-preview-18579-0056" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.0.0-preview.18572.1" />
   </ItemGroup>
-
-  <ItemGroup>
-    <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
+  
+  <!--<ItemGroup>
     <Reference Include="Microsoft.AspNetCore.CookiePolicy">
       <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.cookiepolicy\2.1.2\lib\netstandard2.0\Microsoft.AspNetCore.CookiePolicy.dll</HintPath>
     </Reference>
@@ -36,7 +32,7 @@
     <Reference Include="Microsoft.Extensions.Identity.Stores">
       <HintPath>..\..\..\..\.nuget\packages\microsoft.extensions.identity.stores\2.1.6\lib\netstandard2.0\Microsoft.Extensions.Identity.Stores.dll</HintPath>
     </Reference>
-  </ItemGroup>
+  </ItemGroup>-->
 
   <ItemGroup>
     <Folder Include="Data\Migrations\" />
