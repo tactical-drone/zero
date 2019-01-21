@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.api.controllers.generic;
@@ -456,18 +457,10 @@ namespace zero.core.models.consumables
 
                     //Async read the message from the message stream
                     if (ProducerHandle.IsOperational)
-                    {
-                        if (ProducerHandle.ObeyWriteAheadBarrier &&
-                            !await ProducerHandle.WriteAheadBarrier.WaitAsync(-1, ProducerHandle.Spinners.Token))
-                        {
-                            return false;
-                        }
-
+                    {                                                
                         await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
                             rx =>
-                            {
-                                ProducerHandle.WriteAheadBarrier.Release();
-                                    
+                            {                                                                    
                                 switch (rx.Status)
                                 {
                                     //Canceled

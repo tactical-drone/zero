@@ -214,8 +214,28 @@ namespace zero.core.patterns.bushes
                         _previousJobFragment.TryRemove(nextJob.Id - 1,  out var prevJobFragment);
                         if (prevJobFragment != null && !prevJobFragment.StillHasUnprocessedFragments)
                             prevJobFragment = null;
+
+                        while (true)
+                        {
+                            if (nextJob.ProducerHandle.ObeyWriteAheadBarrier &&
+                                !await nextJob.ProducerHandle.WriteAheadBarrier.WaitAsync(-1, Spinners.Token))
+                            {
+                                return false;
+                            }
+
+                            var nextProducerId = Interlocked.Read(ref nextJob.ProducerHandle.NextProducerId);
+                            if (nextJob.Id == nextProducerId)
+                            {
+                                Interlocked.Increment(ref nextJob.ProducerHandle.NextProducerId);
+                                break;
+                            }
+                            _logger.Warn($"Next id = `{nextJob.Id}' is not {nextProducerId}!!");
+                            nextJob.ProducerHandle.WriteAheadBarrier.Release();
+                        }
+
                         if (await nextJob.ProduceAsync(prevJobFragment) < IoProduceble<TJob>.State.Error)
                         {
+                            
                             //TODO Double check this hack
                             //Basically to handle this weird double connection business on the TCP iri side
                             if (nextJob.ProcessState == IoProduceble<TJob>.State.ProSkipped)
@@ -241,6 +261,7 @@ namespace zero.core.patterns.bushes
                             //Signal to the consumer that there is work to do
                             try
                             {
+                                nextJob.ProducerHandle.WriteAheadBarrier.Release();
                                 PrimaryProducer.ConsumerBarrier.Release(1);
                             }
                             catch
@@ -263,6 +284,8 @@ namespace zero.core.patterns.bushes
                         }
                         else //produce job returned with errors
                         {
+                            nextJob.ProducerHandle.WriteAheadBarrier.Release();
+
                             if (nextJob.ProcessState == IoProduceble<TJob>.State.Cancelled ||
                                 nextJob.ProcessState == IoProduceble<TJob>.State.ProdCancel)
                             {

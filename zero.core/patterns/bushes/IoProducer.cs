@@ -122,6 +122,11 @@ namespace zero.core.patterns.bushes
         public long ReadAheadBufferSize { get; set; }
 
         /// <summary>
+        /// Which producer job is next in line
+        /// </summary>
+        public long NextProducerId;
+
+        /// <summary>
         /// Gets a value indicating whether this <see cref="IoProducer{TJob}"/> is synced.
         /// </summary>
         /// <value>
