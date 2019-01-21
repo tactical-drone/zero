@@ -215,8 +215,7 @@ namespace zero.core.models.consumables
                         //check for pow
                         if (interopTx.Pow < TanglePeer<object>.MWM && interopTx.Pow > -TanglePeer<object>.MWM)
                         {                               
-                            ProcessState = State.ConSpam;
-                            ProcessState = State.Consuming;
+                            ProcessState = State.NoPow;                            
 
                             if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
                             //|| interopTx.Timestamp <= 0 || interopTx.Timestamp > (interopTx.Timestamp.ToString().Length > 11 ? new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeMilliseconds() : new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds())) //TODO config

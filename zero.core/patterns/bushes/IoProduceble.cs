@@ -57,7 +57,7 @@ namespace zero.core.patterns.bushes
             ProduceErr,
             ConsumeErr,
             ConInvalid,
-            ConSpam,
+            NoPow,
             ConCancel,
             ProdCancel,
             ConsumeTo,
