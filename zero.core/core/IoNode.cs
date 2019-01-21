@@ -80,7 +80,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_readahead = 10;
+        protected int parm_tcp_readahead = 2;
 
         /// <summary>
         /// Starts the node's listener
