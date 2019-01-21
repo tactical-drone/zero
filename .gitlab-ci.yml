@@ -4,16 +4,24 @@ stages:
   - build
   
 variables:
-  project: "zero.sync"
+  project: "zero.web"
 
 before_script:
   - "dotnet --version"
-  - "dotnet restore"
+  - "dotnet restore" 
+  - "apt-get update"
+  - "apt install curl"
+  - "bash -c 'curl -sL https://deb.nodesource.com/setup_10.x | bash -'"
+  - "apt install nodejs"
+
 
 build:
   stage: build
   variables:
-    build_path: "$project"
+    build_path: "$project"  
   script:
-    - "cd $build_path"
-    - "dotnet build"
+    - "cd $project"
+    - "npm install"
+    - "cd .."
+    - "dotnet build zero.api"
+    - "dotnet build zero.web"
