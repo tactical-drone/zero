@@ -59,7 +59,7 @@ namespace zero.core.patterns.bushes
             ConInvalid,
             ConSpam,
             ConCancel,
-            ProCancel,
+            ProdCancel,
             ConsumeTo,
             ProduceTo,
             Cancelled,

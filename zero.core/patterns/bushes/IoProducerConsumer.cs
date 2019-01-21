@@ -264,7 +264,7 @@ namespace zero.core.patterns.bushes
                         else //produce job returned with errors
                         {
                             if (nextJob.ProcessState == IoProduceble<TJob>.State.Cancelled ||
-                                nextJob.ProcessState == IoProduceble<TJob>.State.ProCancel)
+                                nextJob.ProcessState == IoProduceble<TJob>.State.ProdCancel)
                             {
                                 Spinners.Cancel();
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
@@ -342,7 +342,7 @@ namespace zero.core.patterns.bushes
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="sleepOnProducerLag">if set to <c>true</c> [sleep on producer lag].</param>
         /// <returns></returns>
-        public async Task<Task> ConsumeAsync(Action<IoConsumable<TJob>> inlineCallback = null, bool sleepOnProducerLag = true)
+        public async Task<Task> ConsumeAsync(Func<IoConsumable<TJob>,Task> inlineCallback = null, bool sleepOnProducerLag = true)
         {
             try
             {
@@ -382,11 +382,10 @@ namespace zero.core.patterns.bushes
                             _logger.Trace($"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
                         }
 
-                        if (currJob.ProcessState == IoProduceble<TJob>.State.ConInlined)
+                        if (currJob.ProcessState == IoProduceble<TJob>.State.ConInlined && inlineCallback != null)
                         {
-                            //forward any jobs
-                            currJob.ProcessState = IoProduceble<TJob>.State.Consuming;
-                            inlineCallback?.Invoke(currJob);
+                            //forward any jobs                                                                             
+                            await inlineCallback(currJob);
                         }
 
                         //Notify observer

@@ -48,19 +48,19 @@ namespace zero.core.models.consumables
             {
                 if (ProducerHandle.ProducerBarrier == null)
                 {
-                    ProcessState = State.ProCancel;
+                    ProcessState = State.ProdCancel;
                     return false;                    
                 }
 
                 if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
                 {
-                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProCancel;
+                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
                 if (ProducerHandle.Spinners.IsCancellationRequested)
                 {
-                    ProcessState = State.ProCancel;
+                    ProcessState = State.ProdCancel;
                     return false;
                 }
                 

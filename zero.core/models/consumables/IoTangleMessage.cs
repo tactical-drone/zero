@@ -71,7 +71,7 @@ namespace zero.core.models.consumables
             //forward to neighbors
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
-                _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}", ProducerHandle);
+                _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_neighborProxy)}", ProducerHandle);
                 if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
                     _neighborProxy = (IoTangleMessageSource<TBlob>)ProducerHandle.ObjectStorage[nameof(_neighborProxy)];
@@ -444,13 +444,13 @@ namespace zero.core.models.consumables
                             //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
                         }
                         else
-                            ProcessState = State.ProCancel;
+                            ProcessState = State.ProdCancel;
                         return true;
                     }
 
                     if (ProducerHandle.Spinners.IsCancellationRequested)
                     {
-                        ProcessState = State.ProCancel;
+                        ProcessState = State.ProdCancel;
                         return false;
                     }
 
@@ -465,7 +465,7 @@ namespace zero.core.models.consumables
                                     //Canceled
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
-                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProCancel : State.ProduceErr;
+                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
                                         ProducerHandle.Spinners.Cancel();
                                         ProducerHandle.Close();
                                         _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");

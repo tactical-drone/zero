@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -126,16 +127,16 @@ namespace zero.core.api.controllers.generic
                                 await relaySource.ConsumeAsync(message =>
                                 {
                                     if (message == null)
-                                        return;
+                                        return Task.CompletedTask;
 
 
                                     var msg = ((IoTangleTransaction<TBlob>)message);
 
                                     if (count > 50)
-                                        return;
+                                        return Task.CompletedTask;
 
                                     if (msg.Transactions == null)
-                                        return;
+                                        return Task.CompletedTask;
                                     try
                                     {
                                         foreach (var t in msg.Transactions)
@@ -161,6 +162,8 @@ namespace zero.core.api.controllers.generic
                                         if (msg.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
                                             msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                                     }
+
+                                    return Task.CompletedTask;                                    
                                 }, sleepOnProducerLag: false);
                             }
                             stopwatch.Stop();

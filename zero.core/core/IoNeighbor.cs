@@ -121,9 +121,9 @@ namespace zero.core.core
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
+                        if (batch != null && batch.ProcessState != IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed)
                             batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
-                    }                    
+                    }
                 });
 
                 if (!relaySource.PrimaryProducer.IsOperational)
