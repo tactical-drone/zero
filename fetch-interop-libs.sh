@@ -1,5 +1,5 @@
 #!/bin/bash
-TARGET_DIR="bin/Debug/netcoreapp2.1"
+TARGET_DIR="bin/Debug/netcoreapp3.0"
 ENTANGLED_DIR="../entangled"
 
 #cp ../../entangled/bazel-bin/common/trinary/libptrits.so $TARGET_DIR/
