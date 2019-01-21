@@ -197,6 +197,8 @@ namespace zero.core.models.consumables
                     return;
                 }
 
+                var localSync = true;
+
                 var syncFailureThreshold = 2;
                 var curSyncFailureCount = syncFailureThreshold;
                 
@@ -206,8 +208,8 @@ namespace zero.core.models.consumables
                     {
                         s.Restart();
 
-                        //if (!localSync && !Sync())
-                        //    return;
+                        if (!localSync && !Sync())
+                            return;
 
                         var interopTx = _entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
                         interopTx.Uri = ProducerHandle.SourceUri;
@@ -235,7 +237,8 @@ namespace zero.core.models.consumables
 
                                 if (--curSyncFailureCount == 0)
                                 {
-                                    ProducerHandle.Synced = false;                                    
+                                    ProducerHandle.Synced = false;
+                                    localSync = false;
                                     BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
                                 }
@@ -322,9 +325,11 @@ namespace zero.core.models.consumables
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 ProcessState = State.Syncing;
 
+                var requiredSync = false;
+
                 for (var i = 0; i < DatumCount; i++)
                 {
-                    var requiredSync = false;
+                    requiredSync &= requiredSync;
                     var bytesLeftToProcess = 0;
                     while (bytesLeftToProcess < DatumSize)
                     {
@@ -362,8 +367,7 @@ namespace zero.core.models.consumables
                     }
 
                     if (synced)
-                    {
-                        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                    {                        
                         if (requiredSync)
                         {                            
                             var remainingBytesWithoutFragment = BytesLeftToProcess - DatumFragmentLength;
