@@ -22,7 +22,7 @@ namespace zero.core.protocol
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 4);            
+            //JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 2);            
         }
 
         /// <summary>
@@ -39,6 +39,6 @@ namespace zero.core.protocol
         /// <summary>
         /// Tcp read ahead
         /// </summary>
-        public const int TcpReadAhead = 10;
+        public const int TcpReadAhead = 2;
     }
 }

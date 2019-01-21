@@ -489,7 +489,7 @@ namespace zero.core.patterns.bushes
                         if (!PrimaryProducer.IsOperational)
                             break;
                     }
-                }, TaskCreationOptions.LongRunning);
+                }, Spinners.Token, TaskCreationOptions.LongRunning,  JobThreadScheduler);
 
                 //Consumer
                 var consumerTask = Task.Factory.StartNew(async () =>
@@ -501,11 +501,12 @@ namespace zero.core.patterns.bushes
                         if (!PrimaryProducer.IsOperational)
                             break;
                     }
-                }, TaskCreationOptions.LongRunning);
+                }, Spinners.Token, TaskCreationOptions.LongRunning, JobThreadScheduler);
+
 
                 //consumerTask.Start();
                 //producerTask.Start();
-                
+
                 //Wait for tear down                
                 await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
                 {
