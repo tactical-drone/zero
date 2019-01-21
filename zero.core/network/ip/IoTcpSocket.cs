@@ -38,6 +38,9 @@ namespace zero.core.network.ip
         /// </summary>
         private readonly Logger _logger;
 
+        readonly SemaphoreSlim _readLock = new SemaphoreSlim(1);
+        readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1);
+
         /// <summary>
         /// Starts a TCP listener
         /// </summary>
@@ -158,7 +161,7 @@ namespace zero.core.network.ip
                 var task = Task.Factory
                     .FromAsync<int>(Socket.BeginSend(getBytes, offset, length, SocketFlags.None, null, null),
                         Socket.EndSend).HandleCancellation(Spinners.Token);
-
+                await _writeLock.WaitAsync();
                 await task.ContinueWith(t =>
                 {
                     switch (t.Status)
@@ -182,6 +185,10 @@ namespace zero.core.network.ip
                 Close();
                 return 0;
             }
+            finally
+            {
+                _writeLock.Release();
+            }
         }
 
         /// <inheritdoc />
@@ -196,13 +203,19 @@ namespace zero.core.network.ip
         {
             try
             {
-                return await Task.Factory.FromAsync(Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
-                    Socket.EndReceive).HandleCancellation(Spinners.Token);
+                await _readLock.WaitAsync(Spinners.Token);                
+                return await Task.Factory.FromAsync(
+                    Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
+                    Socket.EndReceive).HandleCancellation(Spinners.Token);                
             }
             catch (Exception)
             {
                 //_logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}', length = `{length}', offset = `{offset}' :");
                 return 0;
+            }
+            finally
+            {
+                _readLock.Release();
             }
         }
 
