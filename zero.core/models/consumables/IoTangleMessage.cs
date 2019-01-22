@@ -273,8 +273,8 @@ namespace zero.core.models.consumables
                         Interlocked.Increment(ref _txProcessed[_txFpsIndex]);
                         if (interopTx.Address != null && interopTx.Value != 0 )
                         {
-                            var weightedTxs = _txProcessed[_txFpsIndex] /(DateTime.Now - _txProcessedTimeStamp[_txFpsIndex]).TotalSeconds * _txProcessed[_txFpsIndex]/TxFpsSmoothCount
-                                + _txProcessed[(_txFpsIndex+1)%2] / (DateTime.Now - _txProcessedTimeStamp[(_txFpsIndex + 1) % 2]).TotalSeconds * _txProcessed[(_txFpsIndex + 1) % 2] / TxFpsSmoothCount;
+                            var weightedTxs = _txProcessed[_txFpsIndex] /(DateTime.Now - _txProcessedTimeStamp[_txFpsIndex]).TotalSeconds * _txProcessed[_txFpsIndex]/(TxFpsSmoothCount*2)
+                                + _txProcessed[(_txFpsIndex+1)%2] / (DateTime.Now - _txProcessedTimeStamp[(_txFpsIndex + 1) % 2]).TotalSeconds * _txProcessed[(_txFpsIndex + 1) % 2] /(TxFpsSmoothCount * 2);
 
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms', " +
                                          $"tx/s = {weightedTxs:F1}");
