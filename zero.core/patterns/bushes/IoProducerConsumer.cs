@@ -49,6 +49,8 @@ namespace zero.core.patterns.bushes
             //Configure cancellations
             Spinners = new CancellationTokenSource();
             Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
+
+            parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
         }
 
         /// <summary>
@@ -140,7 +142,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_stats_mod_count = new Random((int) DateTime.Now.Ticks).Next(100, 1000);
+        public int parm_stats_mod_count = 1000;
 
         /// <summary>
         /// Used to rate limit this queue, in ms. Set to -1 for max rate
@@ -353,6 +355,8 @@ namespace zero.core.patterns.bushes
                 JobMetaHeap.Return((IoConsumable<TJob>) curJob.Previous);            
         }
 
+        Random _rand = new Random((int) DateTime.Now.Ticks);
+
         /// <summary>
         /// Consumes the inline instead of from a spin loop
         /// </summary>
@@ -467,10 +471,13 @@ namespace zero.core.patterns.bushes
 
                         
                         //Signal the producer that it can continue to get more work                        
-                        if ((curJob.Id % parm_stats_mod_count) == 0)
+                        if ((curJob.Id % parm_stats_mod_count == 0))
                         {
+
+                            _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
                             _logger.Trace($"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");                            
                             curJob.ProducerHandle.PrintCounters();
+                            _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
                         }
 
                         Free(curJob);
