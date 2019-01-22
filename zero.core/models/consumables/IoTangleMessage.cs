@@ -262,13 +262,12 @@ namespace zero.core.models.consumables
                                     BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
                                 }
-                            }
-                            curSyncFailureCount = syncFailureThreshold;
-                            continue;
-                        }                        
-                        
-                        
-                        
+                            }                            
+                            continue;                            
+                        }
+
+                        curSyncFailureCount = syncFailureThreshold;
+
                         newInteropTransactions.Add(interopTx);
                         Interlocked.Increment(ref _txProcessed[_txFpsIndex]);
                         if (interopTx.Address != null && interopTx.Value != 0 )
