@@ -272,8 +272,11 @@ namespace zero.core.models.consumables
                         {
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms', " +
                                          $"tx/s = {_txProcessed / (DateTime.Now - _txProcessedTimeStamp).TotalSeconds:F1}");
-                            _txProcessed = 0;
-                            _txProcessedTimeStamp = DateTime.Now;
+                            if (_txProcessed > 500)
+                            {
+                                _txProcessed = 0;
+                                _txProcessedTimeStamp = DateTime.Now;
+                            }                            
                         }                            
                     }
                     finally
