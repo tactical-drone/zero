@@ -184,8 +184,11 @@ namespace zero.core.models.consumables
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting
 
 
-        private static volatile int _txProcessed = 0;
-        private static DateTime _txProcessedTimeStamp = DateTime.Now;
+        private static volatile int[] _txProcessed = new int[2];
+        private static DateTime[] _txProcessedTimeStamp = {DateTime.Now, DateTime.Now};
+        private static volatile int _txFpsIndex = 0;
+        const int TxFpsSmoothCount = 1000;
+
         /// <summary>
         /// Processes a iri datum
         /// </summary>
@@ -267,15 +270,20 @@ namespace zero.core.models.consumables
                         
                         
                         newInteropTransactions.Add(interopTx);
-                        Interlocked.Increment(ref _txProcessed);
+                        Interlocked.Increment(ref _txProcessed[_txFpsIndex]);
                         if (interopTx.Address != null && interopTx.Value != 0 )
                         {
+                            var weightedTxs = _txProcessed[_txFpsIndex] /(DateTime.Now - _txProcessedTimeStamp[_txFpsIndex]).TotalSeconds * _txProcessed[_txFpsIndex]/TxFpsSmoothCount
+                                + _txProcessed[(_txFpsIndex+1)%2] / (DateTime.Now - _txProcessedTimeStamp[(_txFpsIndex + 1) % 2]).TotalSeconds * _txProcessed[(_txFpsIndex + 1) % 2] / TxFpsSmoothCount;
+
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms', " +
-                                         $"tx/s = {_txProcessed / (DateTime.Now - _txProcessedTimeStamp).TotalSeconds:F1}");
-                            if (_txProcessed > 500)
+                                         $"tx/s = {weightedTxs:F1}");
+                            if (_txProcessed[_txFpsIndex] > TxFpsSmoothCount)
                             {
-                                _txProcessed = 0;
-                                _txProcessedTimeStamp = DateTime.Now;
+                                _txProcessed[_txFpsIndex] = 0;
+                                _txProcessedTimeStamp[_txFpsIndex] = DateTime.Now;
+                                _txFpsIndex++;
+                                _txFpsIndex %= 2;
                             }                            
                         }                            
                     }
