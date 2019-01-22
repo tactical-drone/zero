@@ -354,9 +354,7 @@ namespace zero.core.patterns.bushes
             if(curJob.Previous != null)
                 JobMetaHeap.Return((IoConsumable<TJob>) curJob.Previous);            
         }
-
-        Random _rand = new Random((int) DateTime.Now.Ticks);
-
+       
         /// <summary>
         /// Consumes the inline instead of from a spin loop
         /// </summary>
