@@ -398,7 +398,7 @@ namespace zero.core.models.consumables
                         else
                         {
                             stopwatch.Stop();
-                            _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', fps = `{offset/stopwatch.ElapsedMilliseconds}'");
+                            _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
                             ProducerHandle.Synced = synced = true;
                             break;
                         }
