@@ -1,6 +1,4 @@
-﻿using Cassandra.Mapping.Attributes;
-
-namespace zero.core.data.lookups
+﻿namespace zero.core.data.lookups
 {        
     /// <summary>
     /// Gets the bundle from transaction hash

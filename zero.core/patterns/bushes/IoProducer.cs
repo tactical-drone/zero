@@ -23,8 +23,8 @@ namespace zero.core.patterns.bushes
             ReadAheadBufferSize = readAheadBufferSize;
             ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
-            ReadAheadBarrier = new SemaphoreSlim(1);
-            WriteAheadBarrier = new SemaphoreSlim(1);
+            ConsumeAheadBarrier = new SemaphoreSlim(1);
+            ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
             Spinners = new CancellationTokenSource();
         }
@@ -88,23 +88,23 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        public SemaphoreSlim ReadAheadBarrier { get; protected set; }
+        public SemaphoreSlim ConsumeAheadBarrier { get; protected set; }
 
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        public SemaphoreSlim WriteAheadBarrier { get; protected set; }
+        public SemaphoreSlim ProduceAheadBarrier { get; protected set; }
 
 
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
-        public bool ObeyReadAheadBarrier = true;
+        public bool BlockOnConsumeAheadBarrier = false;
 
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
-        public bool ObeyWriteAheadBarrier = true;
+        public bool BlockOnProduceAheadBarrier = false;
 
         /// <summary>
         /// Makes available normalized storage for all downstream usages
@@ -169,7 +169,7 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoProduceble<TJob>.State.Undefined && i < (int)IoProduceble<TJob>.State.Finished)
+                if (i > (int)IoProduceble<TJob>.State.Undefined ) //&& i < (int)IoProduceble<TJob>.State.Finished)
                 {
                     heading.Append($"{((IoProduceble<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");

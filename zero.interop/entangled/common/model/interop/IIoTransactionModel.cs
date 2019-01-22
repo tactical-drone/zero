@@ -1,5 +1,4 @@
-﻿using System;
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 // ReSharper disable InconsistentNaming
 namespace zero.interop.entangled.common.model.interop

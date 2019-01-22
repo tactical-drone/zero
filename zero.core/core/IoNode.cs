@@ -10,7 +10,6 @@ using zero.core.conf;
 using zero.core.data.market;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
-using zero.core.patterns.schedulers;
 
 namespace zero.core.core
 {
@@ -27,8 +26,7 @@ namespace zero.core.core
         {
             _address = address;
             _mallocNeighbor = mallocNeighbor;
-            parm_tcp_readahead = tcpReadAhead;
-            _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
+            parm_tcp_readahead = tcpReadAhead;            
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
         }
@@ -61,12 +59,7 @@ namespace zero.core.core
         /// <summary>
         /// Used to cancel downstream processes
         /// </summary>
-        private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
-
-        /// <summary>
-        /// The scheduler used to process messages from all neighbors 
-        /// </summary>
-        private readonly LimitedThreadScheduler _limitedNeighborThreadScheduler;
+        private readonly CancellationTokenSource _spinners = new CancellationTokenSource();        
                
         /// <summary>
         /// Threads per neighbor
@@ -119,7 +112,7 @@ namespace zero.core.core
                 //Start the producer consumer on the neighbor scheduler
                 try
                 {
-                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
+                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
                 }
                 catch (Exception e)
                 {

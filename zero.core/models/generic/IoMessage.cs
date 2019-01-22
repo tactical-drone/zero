@@ -61,6 +61,11 @@ namespace zero.core.models.generic
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
         /// </summary>
+        public volatile int DatumProvisionLengthMax;
+
+        /// <summary>
+        /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
+        /// </summary>
         public volatile int DatumProvisionLength;
 
         /// <summary>
@@ -75,8 +80,8 @@ namespace zero.core.models.generic
         public override IIoHeapItem Constructor()
         {
             BytesRead = 0;
-            DatumProvisionLength = BufferSize;
-            BufferOffset = DatumProvisionLength;
+            DatumProvisionLength = DatumProvisionLengthMax;
+            BufferOffset = DatumProvisionLengthMax;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.Constructor();

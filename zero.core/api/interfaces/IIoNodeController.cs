@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json.Linq;
-using zero.core.network.ip;
+﻿using zero.core.network.ip;
 
 namespace zero.core.api.interfaces
 {

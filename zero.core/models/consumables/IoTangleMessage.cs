@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.api.controllers.generic;
@@ -48,7 +47,8 @@ namespace zero.core.models.consumables
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
-            DatumProvisionLength = BufferSize * 2;
+            DatumProvisionLengthMax = BufferSize * parm_datums_per_buffer;
+            DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
@@ -136,7 +136,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
-        public int BytesLeftToProcess => BytesRead - BufferOffset + DatumProvisionLength;
+        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
 
         /// <summary>
         /// Used to control how long we wait for the producer before we report it
@@ -173,7 +173,7 @@ namespace zero.core.models.consumables
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 200;
+        public int parm_datums_per_buffer = 10;
 
         /// <summary>
         /// The time a consumer will wait for a producer to release it before aborting in ms
@@ -185,7 +185,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// Processes a iri datum
         /// </summary>
-        private async Task ProcessProtocolMessage() //TODO error cases
+        private async Task<State> ProcessProtocolMessage() //TODO error cases
         {
             var newInteropTransactions = new List<IIoTransactionModel<TBlob>>();
             var s = new Stopwatch();
@@ -195,7 +195,7 @@ namespace zero.core.models.consumables
             {
                 if (!ProducerHandle.Synced && !Sync())
                 {
-                    return;
+                    return ProcessState;
                 }
 
                 var localSync = true;
@@ -208,10 +208,15 @@ namespace zero.core.models.consumables
                     try
                     {
                         s.Restart();
-
-                        if (!localSync && !Sync())
-                            return;
-
+                        var requiredSync = !localSync && Sync();
+                        if (!ProducerHandle.Synced)
+                            return ProcessState;
+                        else if (requiredSync)
+                        {
+                            i = 0;
+                            continue;
+                        }
+                            
                         var interopTx = _entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
                         interopTx.Uri = ProducerHandle.SourceUri;
 
@@ -226,7 +231,14 @@ namespace zero.core.models.consumables
                             {
                                 try
                                 {
-                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{DatumCount}) pow = `{interopTx.Pow}', PB = `{ProducerHandle.ProducerBarrier.CurrentCount}', CB = `{ProducerHandle.ConsumerBarrier.CurrentCount}'");
+                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i}/{DatumCount}) pow = `{interopTx.Pow}', " +
+                                                  $"imported = `{((IoTangleMessage<TBlob>)Previous).DatumFragmentLength}', " +
+                                                  $"BytesRead = `{BytesRead}', " +
+                                                  $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
+                                                  $"BytesLeftToProcess = `{BytesLeftToProcess}', " +
+                                                  $"DatumFragmentLength = `{DatumFragmentLength}', " +                                                  
+                                                  $"PB = `{ProducerHandle.ProducerBarrier.CurrentCount}', " +
+                                                  $"CB = `{ProducerHandle.ConsumerBarrier.CurrentCount}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) value = `{interopTx.Value}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) pow = `{interopTx.Pow}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) time = `{interopTx.Timestamp}'");
@@ -243,11 +255,12 @@ namespace zero.core.models.consumables
                                     BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
                                 }
-                            }                            
+                            }
+                            curSyncFailureCount = syncFailureThreshold;
                             continue;
                         }                        
                         
-                        curSyncFailureCount = syncFailureThreshold;
+                        
                         
                         newInteropTransactions.Add(interopTx);
 
@@ -258,7 +271,7 @@ namespace zero.core.models.consumables
                     }
                     finally
                     {
-                        if (ProducerHandle.Synced || ProcessState == State.Consuming || ProcessState == State.NoPow)
+                        if (ProducerHandle.Synced && ( ProcessState == State.Consuming || ProcessState == State.NoPow))
                         //if (ProcessState == State.Consuming)
                             BufferOffset += DatumSize;
                     }                    
@@ -275,6 +288,8 @@ namespace zero.core.models.consumables
                 if (ProcessState != State.Consumed && ProcessState != State.Syncing)
                     ProcessState = State.ConsumeErr;
             }
+
+            return ProcessState;
         }
 
         private async Task ForwardToNodeServices(List<IIoTransactionModel<TBlob>> newInteropTransactions)
@@ -307,7 +322,7 @@ namespace zero.core.models.consumables
             });
 
             //forward transactions
-            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: true))
+            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
             {
                 _logger.Warn($"Failed to relay to `{NeighborRelay.PrimaryProducer.Description}'");
             }
@@ -320,17 +335,21 @@ namespace zero.core.models.consumables
         private bool Sync()
         {            
             var offset = 0;
+            var stopwatch = new Stopwatch();
+            var requiredSync = false;
+            stopwatch.Start();
+
             if (!ProducerHandle.Synced)
             {                
                 bool synced = true;
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 ProcessState = State.Syncing;
 
-                var requiredSync = false;
-
+                
                 for (var i = 0; i < DatumCount; i++)
                 {
-                    requiredSync &= requiredSync;
+
+                    requiredSync |= requiredSync;
                     var bytesLeftToProcess = 0;
                     while (bytesLeftToProcess < DatumSize)
                     {
@@ -361,37 +380,74 @@ namespace zero.core.models.consumables
                         }
                         else
                         {
-                            _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}'");
-                            ProducerHandle.Synced = true;
+                            stopwatch.Stop();
+                            _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', fps = `{offset/stopwatch.ElapsedMilliseconds}'");
+                            ProducerHandle.Synced = synced = true;
                             break;
                         }
                     }
 
+                    if (requiredSync)
+                    {
+                        //Set how many datums we have available to process
+                        DatumCount = BytesLeftToProcess / DatumSize;
+                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
+
+                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                    }
+
                     if (synced)
-                    {                        
-                        if (requiredSync)
-                        {                            
-                            var remainingBytesWithoutFragment = BytesLeftToProcess - DatumFragmentLength;
-                            if (remainingBytesWithoutFragment > 0)
-                                DatumCount = (remainingBytesWithoutFragment) / DatumSize;
-                            _logger.Warn($"remaining = {remainingBytesWithoutFragment}, datums = {DatumCount}");
-                        }                        
+                    {
                         break;
                     }                        
-                }                
+                }
+
+                stopwatch.Stop();
             } 
             
             if (!ProducerHandle.Synced)
             {
-                _logger.Warn($"({Id}) Unable to sync stream `{ProducerHandle.Description}', scanned = `{offset}'");
+                _logger.Warn($"({Id}) Unable to sync stream `{ProducerHandle.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
             }
             else if(ProducerHandle.Synced)
             {
                 ProcessState = State.Consuming;
             }
-
             
-            return ProducerHandle.Synced;
+            return requiredSync;
+        }
+
+        protected void TransferPreviousBits()
+        {
+            if (Previous?.StillHasUnprocessedFragments ?? false)
+            {
+                var previousJobFragment = (IoMessage<IoTangleMessage<TBlob>>)Previous;
+                try
+                {
+                    var bytesToTransfer = Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
+                    var remainingBytes =  Math.Abs(Math.Min(DatumProvisionLength - previousJobFragment.DatumFragmentLength , 0));
+                    BufferOffset -= bytesToTransfer;                    
+                    DatumProvisionLength -= bytesToTransfer;
+                    DatumCount = BytesLeftToProcess / DatumSize;
+                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
+                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
+
+                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset + remainingBytes, Buffer, BufferOffset, bytesToTransfer);
+                }
+                catch (Exception e) // we de-synced 
+                {
+                    _logger.Warn(e, "We desynced!:");
+
+                    ProducerHandle.Synced = false;
+                    DatumCount = 0;
+                    BytesRead = 0;
+                    ProcessState = State.Consumed;
+                    DatumFragmentLength = 0;
+                    StillHasUnprocessedFragments = false;                    
+                }
+            }
+            
         }
 
         /// <inheritdoc />
@@ -401,13 +457,12 @@ namespace zero.core.models.consumables
         /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.State" /> of the barrier's outcome</returns>
         public override async Task<State> ConsumeAsync()
         {
-            //Process protocol messages
-            await ProcessProtocolMessage();
+            TransferPreviousBits();
+
+            return await ProcessProtocolMessage();
 
             //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
-            //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");
-
-            return ProcessState;
+            //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");            
         }
 
         /// <inheritdoc />
@@ -415,10 +470,10 @@ namespace zero.core.models.consumables
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<State> ProduceAsync(IoProduceble<IoTangleMessage<TBlob>> fragment)
+        public override async Task<State> ProduceAsync()
         {
             ProcessState = State.Producing;
-            var previousJobFragment = (IoMessage<IoTangleMessage<TBlob>>)fragment;
+            
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
@@ -437,7 +492,8 @@ namespace zero.core.models.consumables
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms'");
+                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                                         $"CB = `{ProducerHandle.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
@@ -496,31 +552,7 @@ namespace zero.core.models.consumables
                                                 break;
                                             }
                                         }
-
-                                        //Copy a previously read job buffer datum fragment into the current job buffer
-                                        if (previousJobFragment != null)
-                                        {
-                                            try
-                                            {
-                                                BufferOffset -= Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
-                                                BytesRead += Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
-                                                DatumProvisionLength -= Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
-                                                Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength));
-                                            }
-                                            catch(Exception e) // we de-synced 
-                                            {
-                                                _logger.Warn(e,"We desynced!:");
-
-                                                ProducerHandle.Synced = false;
-                                                DatumCount = 0;
-                                                BytesRead = 0;
-                                                ProcessState = State.ProSkipped;
-                                                DatumFragmentLength = 0;
-                                                break;
-                                            }
-                                            //Update buffer pointers                                        
-                                        }
-
+                                        
                                         //Set how many datums we have available to process
                                         DatumCount = BytesLeftToProcess / DatumSize;
                                         DatumFragmentLength = BytesLeftToProcess % DatumSize;
@@ -570,20 +602,6 @@ namespace zero.core.models.consumables
                 }
             }
             return ProcessState;
-        }
-
-
-        /// <summary>
-        /// Set unprocessed data as more fragments.
-        /// </summary>
-        public override void MoveUnprocessedToFragment()
-        {            
-            //Set how many datums we have available to process
-            DatumCount = BytesLeftToProcess / DatumSize;
-            DatumFragmentLength = BytesLeftToProcess % DatumSize;
-
-            //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            StillHasUnprocessedFragments = DatumFragmentLength > 0;
-        }
+        }        
     }
 }

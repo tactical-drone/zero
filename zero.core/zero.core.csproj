@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <Folder Include="interop\" />
+    <Folder Include="patterns\schedulers\" />
     <Folder Include="protocol\overhead\" />
   </ItemGroup>
 

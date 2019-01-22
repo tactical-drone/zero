@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.models.consumables.sources;
@@ -41,7 +40,7 @@ namespace zero.core.models.consumables
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync(IoProduceble<IoTangleTransaction<TBlob>> fragment)
+        public override async Task<State> ProduceAsync()
         {
             ProcessState = State.Producing;
             await ProducerHandle.ProduceAsync(async producer =>
@@ -79,10 +78,10 @@ namespace zero.core.models.consumables
         /// Set unprocessed data as more fragments.
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        public override void MoveUnprocessedToFragment()
-        {
-            throw new NotImplementedException();
-        }
+        //public override void MoveUnprocessedToFragment()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         /// <summary>
         /// Consumes the job

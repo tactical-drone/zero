@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
-using Cassandra;
-using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 

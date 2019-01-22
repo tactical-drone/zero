@@ -2,7 +2,6 @@
 using zero.core.core;
 using zero.core.models.consumables;
 using zero.core.network.ip;
-using zero.core.patterns.schedulers;
 using zero.interop.utils;
 
 namespace zero.core.protocol
@@ -22,7 +21,7 @@ namespace zero.core.protocol
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            //JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 2);            
+            //JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 2);                        
         }
 
         /// <summary>

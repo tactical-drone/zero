@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using NLog;
 
 namespace zero.interop.entangled.mock
 {
@@ -128,15 +129,24 @@ namespace zero.interop.entangled.mock
         public static void GetTrits(sbyte[] buffer, int buffOffset, sbyte[] tritBuffer, int length)
         {
             var curPos = 0;
-
-            for (var i = 0; i < length && curPos < tritBuffer.Length; i++)
+            var i = 0;
+            try
             {
-                Array.Copy(ByteLookupTritTable[buffer[i + buffOffset] < 0 ? (buffer[i + buffOffset] + ByteLookupTritTable.Length) : buffer[i + buffOffset]], 0, tritBuffer, curPos, tritBuffer.Length - curPos < TritsPerByte ? (tritBuffer.Length - curPos) : TritsPerByte);
-                curPos += TritsPerByte;
-            }
+                
 
-            while (curPos < tritBuffer.Length)
-                tritBuffer[curPos++] = 0;
+                for (i = 0; i < length && curPos < tritBuffer.Length; i++)
+                {
+                    Array.Copy(ByteLookupTritTable[buffer[i + buffOffset] < 0 ? (buffer[i + buffOffset] + ByteLookupTritTable.Length) : buffer[i + buffOffset]], 0, tritBuffer, curPos, tritBuffer.Length - curPos < TritsPerByte ? (tritBuffer.Length - curPos) : TritsPerByte);
+                    curPos += TritsPerByte;
+                }
+
+                while (curPos < tritBuffer.Length)
+                    tritBuffer[curPos++] = 0;
+            }
+            catch (Exception e)
+            {
+                LogManager.GetCurrentClassLogger().Warn(e,$"buffer[{buffOffset}/{buffer.Length} ({buffer.Length - buffOffset})], tritBuffer.Length = `{tritBuffer.Length}', i = `{i}', currPos = `{curPos}'");
+            }
         }
 
         /// <summary>
