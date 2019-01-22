@@ -279,11 +279,11 @@ namespace zero.core.models.consumables
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms', " +
                                          $"tx/s = {weightedTxs:F1}");
                             if (_txProcessed[_txFpsIndex] > TxFpsSmoothCount)
-                            {
-                                _txProcessed[_txFpsIndex] = 0;
-                                _txProcessedTimeStamp[_txFpsIndex] = DateTime.Now;
+                            {                                
                                 _txFpsIndex++;
                                 _txFpsIndex %= 2;
+                                _txProcessed[_txFpsIndex] = 0;
+                                _txProcessedTimeStamp[_txFpsIndex] = DateTime.Now;
                             }                            
                         }                            
                     }
