@@ -272,7 +272,7 @@ namespace zero.core.data.providers.cassandra
             {
                 try
                 {
-                    await ExecuteAsync((BatchStatement)batch);
+                    return (RowSet) await ExecuteAsync((BatchStatement)batch);
                 }
                 catch (Exception e)
                 {

@@ -355,7 +355,6 @@ namespace zero.core.models.consumables
                 
                 for (var i = 0; i < DatumCount; i++)
                 {
-
                     requiredSync |= requiredSync;
                     var bytesLeftToProcess = 0;
                     while (bytesLeftToProcess < DatumSize)
@@ -380,7 +379,7 @@ namespace zero.core.models.consumables
                         if (!synced)
                         {
                             //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");                        
-                            BufferOffset+=17;
+                            BufferOffset+=17; //TODO this 17 is a factor of DatumSize and should be recalculated if DatumSize changes
                             bytesLeftToProcess += 17;
                             offset += 17;
                             requiredSync = true;
