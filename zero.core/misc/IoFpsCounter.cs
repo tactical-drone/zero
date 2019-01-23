@@ -12,7 +12,7 @@ namespace zero.core.misc
         /// Construct
         /// </summary>
         /// <param name="range">The initial range hysteresis</param>
-        /// <param name="time">The time hysteresis</param>
+        /// <param name="time">The time in ms hysteresis</param>
         public IoFpsCounter(int range = 250, int time = 5000)
         {
             _range = range;
@@ -36,7 +36,7 @@ namespace zero.core.misc
 
             if (Volatile.Read(ref _count[_index]) < _range) return;
 
-            _range = (int) (_time * Fps());
+            _range = (int) (_time * Fps()/1000);
 
             Interlocked.Increment(ref _index);            
             _index %= 2;
