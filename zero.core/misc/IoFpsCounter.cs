@@ -29,7 +29,7 @@ namespace zero.core.misc
         /// <summary>
         /// Increment count
         /// </summary>
-        public void Inc()
+        public void Tick()
         {
             Interlocked.Increment(ref _count[_index]);
             Interlocked.Increment(ref _total);

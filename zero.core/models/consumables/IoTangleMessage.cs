@@ -172,8 +172,13 @@ namespace zero.core.models.consumables
         /// <summary>
         /// tps counter
         /// </summary>
-        private static readonly IoFpsCounter _fpsCounter = new IoFpsCounter();
-        
+        private static readonly IoFpsCounter TotalTpsCounter = new IoFpsCounter();
+
+        /// <summary>
+        /// tps counter
+        /// </summary>
+        private static readonly IoFpsCounter ValueTpsCounter = new IoFpsCounter(20,20000);
+
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
@@ -268,11 +273,12 @@ namespace zero.core.models.consumables
                         curSyncFailureCount = syncFailureThreshold;
 
                         newInteropTransactions.Add(interopTx);
-                        _fpsCounter.Inc();
+                        TotalTpsCounter.Tick();
                         if (interopTx.Address != null && interopTx.Value != 0 )
-                        {                            
+                        {         
+                            ValueTpsCounter.Tick();
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
-                                         $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {_fpsCounter.Total}tx, {_fpsCounter.Fps():#####}tps]");
+                                         $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");
                         }                            
                     }
                     finally
