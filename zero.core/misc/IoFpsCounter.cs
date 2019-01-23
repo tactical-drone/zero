@@ -15,14 +15,14 @@ namespace zero.core.misc
         /// <param name="time">The time in ms hysteresis</param>
         public IoFpsCounter(int range = 250, int time = 5000)
         {
-            _range = range;
+            _range = new[] {range, range};
             _time = time;
         }
 
         private readonly int[] _count = new int[2];
         private readonly DateTime[] _timeStamp = { DateTime.Now, DateTime.Now };
         private volatile int _index = 0;
-        private int _range;
+        private readonly int[] _range;
         private long _total;
         private readonly int _time;
 
@@ -34,14 +34,16 @@ namespace zero.core.misc
             Interlocked.Increment(ref _count[_index]);
             Interlocked.Increment(ref _total);
 
-            if (Volatile.Read(ref _count[_index]) < _range) return;
-
-            _range = (int) (_time * Fps()/1000);
-
-            Interlocked.Increment(ref _index);            
-            _index %= 2;
-            Volatile.Write(ref _count[_index], 0);
-            _timeStamp[_index] = DateTime.Now;
+            if (Volatile.Read(ref _count[_index]) < Volatile.Read(ref _range[_index])) return;
+            
+            lock (this)
+            {
+                _range[_index] = (int)(_time * Fps() / 1000);
+                Interlocked.Increment(ref _index);
+                _index %= 2;
+                Volatile.Write(ref _count[_index], 0);
+                _timeStamp[_index] = DateTime.Now;
+            }            
         }
 
         /// <summary>
@@ -50,8 +52,9 @@ namespace zero.core.misc
         /// <returns></returns>
         public double Fps()
         {
-            return  Volatile.Read(ref _count[_index]) / (DateTime.Now - _timeStamp[_index]).TotalSeconds * Volatile.Read(ref _count[_index]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]))
-                  + Volatile.Read(ref _count[(_index + 1) % 2]) / (DateTime.Now - _timeStamp[(_index + 1) % 2]).TotalSeconds * Volatile.Read(ref _count[(_index + 1) % 2]) / (_count[_index] + _count[(_index + 1) % 2]);
+            lock(this)
+                return  Volatile.Read(ref _count[_index]) / (DateTime.Now - _timeStamp[_index]).TotalSeconds * Volatile.Read(ref _count[_index]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]))
+                      + Volatile.Read(ref _count[(_index + 1) % 2]) / (DateTime.Now - _timeStamp[(_index + 1) % 2]).TotalSeconds * Volatile.Read(ref _count[(_index + 1) % 2]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]));
         }
 
         /// <summary>
