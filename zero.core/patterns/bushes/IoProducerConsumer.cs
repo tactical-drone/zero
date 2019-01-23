@@ -283,8 +283,7 @@ namespace zero.core.patterns.bushes
                             }
                                                         
                             //Free resources
-                            Free(nextJob);
-                            JobMetaHeap.Return(nextJob);
+                            Free(nextJob);                            
                             jobSafeReleased = true;                            
                         }
                     }
@@ -314,8 +313,7 @@ namespace zero.core.patterns.bushes
                         if (nextJob.ProcessState != IoProduceble<TJob>.State.Finished)
                             nextJob.ProcessState = IoProduceble<TJob>.State.Reject;
 
-                        Free(nextJob);
-                        JobMetaHeap.Return(nextJob);
+                        Free(nextJob);                        
                     }
                 }
             }
