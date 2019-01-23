@@ -65,7 +65,7 @@ namespace zero.core.models.consumables
                 
                 ((IoTangleMessageSource<TBlob>)ProducerHandle).TxQueue.TryDequeue(out Transactions);
                 
-                ProcessState = Transactions == null ? State.ProSkipped : State.Produced;                
+                ProcessState = Transactions == null ? State.ProStarting : State.Produced;                
 
                 return true;
             });

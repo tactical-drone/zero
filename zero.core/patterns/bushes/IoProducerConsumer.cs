@@ -182,7 +182,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_skipped_delay = 1000;
+        public int parm_producer_start_retry_time = 1000;
 
         /// <summary>
         /// Produces the inline instead of in a spin loop
@@ -196,7 +196,7 @@ namespace zero.core.patterns.bushes
             if (_queue.Count < parm_max_q_size)
             {
                 IoConsumable<TJob> nextJob = null;
-                bool wasQueued = false;
+                bool jobSafeReleased = false;
                 try
                 {
                     //Allocate a job from the heap
@@ -229,12 +229,12 @@ namespace zero.core.patterns.bushes
                             
                             //TODO Double check this hack
                             //Basically to handle this weird double connection business on the TCP iri side
-                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProSkipped)
+                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProStarting)
                             {
                                 nextJob.ProcessState = IoProduceble<TJob>.State.Produced;
 
                                 if (sleepOnConsumerLag && nextJob.ProducerHandle.Synced)
-                                    await Task.Delay(parm_producer_skipped_delay, cancellationToken);
+                                    await Task.Delay(parm_producer_start_retry_time, cancellationToken);
 
                                 PrimaryProducer.ProducerBarrier.Release(1);
                                 return true;
@@ -254,7 +254,7 @@ namespace zero.core.patterns.bushes
 
                             //Enqueue the job for the consumer
                             nextJob.ProcessState = IoProduceble<TJob>.State.Queued;
-                            wasQueued = true;
+                            jobSafeReleased = true;
                             _queue.Enqueue(nextJob);
                             
                             //Signal to the consumer that there is work to do
@@ -268,7 +268,7 @@ namespace zero.core.patterns.bushes
                             }                            
                         }
                         else //produce job returned with errors
-                        {
+                        {                            
                             if (nextJob.ProducerHandle.BlockOnProduceAheadBarrier)
                                 nextJob.ProducerHandle.ProduceAheadBarrier.Release();
 
@@ -281,32 +281,11 @@ namespace zero.core.patterns.bushes
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
                                 return false;
                             }
-
-                            //TODO double check what we are supposed to do here?
-                            //TODO what about the previous fragment?
-                            var sleepTimeMs = nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Reject] +
-                                              1 / (nextJob.ProducerHandle.Counters
-                                                       [(int) IoProduceble<TJob>.State.Accept] + parm_error_timeout);
-
-                            nextJob.ProcessState = IoProduceble<TJob>.State.ProduceTo;                            
-
-                            if (sleepOnConsumerLag)
-                            {
-                                _logger.Debug(
-                                    $"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Accept]}");
-                                _logger.Debug(
-                                    $"`{PrimaryProducerDescription}' producing job `{nextJob.ProductionDescription}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms, <<FPS = {1000.0/sleepTimeMs:F1}>>");
-
-                                try
-                                {
-                                    await Task.Delay((int) sleepTimeMs, Spinners.Token);
-                                }
-                                catch
-                                {
-                                    // ignored
-                                }
-                            }
-
+                                                        
+                            //Free resources
+                            Free(nextJob);
+                            JobMetaHeap.Return(nextJob);
+                            jobSafeReleased = true;                            
                         }
                     }
                     else
@@ -328,11 +307,14 @@ namespace zero.core.patterns.bushes
                 finally
                 {
                     //prevent leaks
-                    if (nextJob != null && !wasQueued)
+                    if (nextJob != null && !jobSafeReleased)
                     {
+                        _logger.Warn("Job resources were not freed. BUG!");
                         //TODO Double check this hack
                         if (nextJob.ProcessState != IoProduceble<TJob>.State.Finished)
                             nextJob.ProcessState = IoProduceble<TJob>.State.Reject;
+
+                        Free(nextJob);
                         JobMetaHeap.Return(nextJob);
                     }
                 }
@@ -352,7 +334,7 @@ namespace zero.core.patterns.bushes
         private void Free(IoConsumable<TJob> curJob)
         {
             if(curJob.Previous != null)
-                JobMetaHeap.Return((IoConsumable<TJob>) curJob.Previous);            
+                JobMetaHeap.Return((IoConsumable<TJob>) curJob.Previous);                        
         }
        
         /// <summary>
@@ -419,7 +401,7 @@ namespace zero.core.patterns.bushes
                         //Consume the job
                         if (await curJob.ConsumeAsync() >= IoProduceble<TJob>.State.Error)
                         {
-                            _logger.Trace($"`{PrimaryProducerDescription}' consuming job `{curJob.ProductionDescription}' was unsuccessful, state = {curJob.ProcessState}");
+                            _logger.Trace($"`{PrimaryProducerDescription}' consuming job `{curJob.ProductionDescription}' was unsuccessful, state = {curJob.ProcessState}");                            
                         }
                         else
                         {
@@ -466,21 +448,20 @@ namespace zero.core.patterns.bushes
                         {
                             // ignored
                         }
-
-                        
-                        //Signal the producer that it can continue to get more work                        
-                        if ((curJob.Id % parm_stats_mod_count == 0))
+                        finally
                         {
+                            //Signal the producer that it can continue to get more work                        
+                            if ((curJob.Id % parm_stats_mod_count == 0))
+                            {
 
-                            _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
-                            _logger.Trace($"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");                            
-                            curJob.ProducerHandle.PrintCounters();
-                            _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
-                        }
+                                _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
+                                _logger.Trace($"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");
+                                curJob.ProducerHandle.PrintCounters();
+                                _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
+                            }
 
-                        Free(curJob);
-
-                        //TODO remove this spam when everything checks out?                        
+                            Free(curJob);
+                        }                                                                        
                     }
                 }
                 else

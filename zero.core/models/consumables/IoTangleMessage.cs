@@ -81,10 +81,10 @@ namespace zero.core.models.consumables
 
             //tweak this producer
             NodeServicesRelay.parm_consumer_wait_for_producer_timeout = 0;
-            NodeServicesRelay.parm_producer_skipped_delay = 0;
+            NodeServicesRelay.parm_producer_start_retry_time = 0;
 
             NeighborRelay.parm_consumer_wait_for_producer_timeout = 5000; //TODO config
-            NeighborRelay.parm_producer_skipped_delay = 0;
+            NeighborRelay.parm_producer_start_retry_time = 0;
         }
 
         public sealed override string ProductionDescription => base.ProductionDescription;
@@ -552,7 +552,7 @@ namespace zero.core.models.consumables
                                         //TODO double check this hack
                                         if (BytesRead == 0)
                                         {
-                                            ProcessState = State.ProSkipped;
+                                            ProcessState = State.ProStarting;
                                             DatumFragmentLength = 0;
                                             break;
                                         }

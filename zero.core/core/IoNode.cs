@@ -144,7 +144,7 @@ namespace zero.core.core
 
                         if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))
                         {
-                            neighbor.parm_producer_skipped_delay = 60000;
+                            neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
                             try
                             {
