@@ -1,22 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading;
-using System.Xml.Schema;
 
 namespace zero.core.misc
 {
     /// <summary>
     /// A basic fps counter
     /// </summary>
-    public class FpsCounter
+    public class IoFpsCounter
     {
         /// <summary>
         /// Construct
         /// </summary>
         /// <param name="range">The initial range hysteresis</param>
         /// <param name="time">The time hysteresis</param>
-        public FpsCounter(int range = 250, int time = 5000)
+        public IoFpsCounter(int range = 250, int time = 5000)
         {
             _range = range;
             _time = time;
@@ -27,7 +24,7 @@ namespace zero.core.misc
         private volatile int _index = 0;
         private int _range;
         private long _total;
-        private int _time;
+        private readonly int _time;
 
         /// <summary>
         /// Increment count
@@ -57,6 +54,9 @@ namespace zero.core.misc
                   + Volatile.Read(ref _count[(_index + 1) % 2]) / (DateTime.Now - _timeStamp[(_index + 1) % 2]).TotalSeconds * Volatile.Read(ref _count[(_index + 1) % 2]) / (_count[_index] + _count[(_index + 1) % 2]);
         }
 
+        /// <summary>
+        /// Total frames
+        /// </summary>
         public long Total => _total;
 
     }

@@ -172,7 +172,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// tps counter
         /// </summary>
-        private static readonly FpsCounter _fpsCounter = new FpsCounter();
+        private static readonly IoFpsCounter _fpsCounter = new IoFpsCounter();
         
         /// <summary>
         /// Maximum number of datums this buffer can hold
