@@ -170,6 +170,11 @@ namespace zero.core.models.consumables
         private Crc32 _crc32 = new Crc32();
 
         /// <summary>
+        /// tps counter
+        /// </summary>
+        private static readonly FpsCounter _fpsCounter = new FpsCounter();
+        
+        /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
         [IoParameter]
@@ -182,13 +187,7 @@ namespace zero.core.models.consumables
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting
-
-
-        private static volatile int[] _txProcessed = new int[2];
-        private static DateTime[] _txProcessedTimeStamp = {DateTime.Now, DateTime.Now};
-        private static volatile int _txFpsIndex = 0;
-        const int TxFpsSmoothCount = 1000;
-
+        
         /// <summary>
         /// Processes a iri datum
         /// </summary>
@@ -269,21 +268,12 @@ namespace zero.core.models.consumables
                         curSyncFailureCount = syncFailureThreshold;
 
                         newInteropTransactions.Add(interopTx);
-                        Interlocked.Increment(ref _txProcessed[_txFpsIndex]);
+                        _fpsCounter.Inc();
                         if (interopTx.Address != null && interopTx.Value != 0 )
-                        {
-                            var weightedTxs = _txProcessed[_txFpsIndex] /(DateTime.Now - _txProcessedTimeStamp[_txFpsIndex]).TotalSeconds * _txProcessed[_txFpsIndex]/(_txProcessed[_txFpsIndex] + _txProcessed[(_txFpsIndex+1)%2])
-                                + _txProcessed[(_txFpsIndex+1)%2] / (DateTime.Now - _txProcessedTimeStamp[(_txFpsIndex + 1) % 2]).TotalSeconds * _txProcessed[(_txFpsIndex + 1) % 2] / (_txProcessed[_txFpsIndex] + _txProcessed[(_txFpsIndex + 1) % 2]);
-
+                        {                            
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms', " +
-                                         $"tx/s = {weightedTxs:F1}");
-                            if (_txProcessed[_txFpsIndex] > TxFpsSmoothCount)
-                            {                                
-                                _txFpsIndex++;
-                                _txFpsIndex %= 2;
-                                _txProcessed[_txFpsIndex] = 0;
-                                _txProcessedTimeStamp[_txFpsIndex] = DateTime.Now;
-                            }                            
+                                         $"b = `{DatumCount}', " +
+                                         $"tx/s = {_fpsCounter.Fps():F1}");
                         }                            
                     }
                     finally
