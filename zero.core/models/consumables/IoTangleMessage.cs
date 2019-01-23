@@ -237,7 +237,7 @@ namespace zero.core.models.consumables
                             {
                                 try
                                 {
-                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i}/{DatumCount}) pow = `{interopTx.Pow}', " +
+                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i}/{DatumCount - 1}) pow = `{interopTx.Pow}', " +
                                                   $"imported = `{((IoTangleMessage<TBlob>)Previous).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
                                                   $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
@@ -380,9 +380,9 @@ namespace zero.core.models.consumables
                         if (!synced)
                         {
                             //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");                        
-                            BufferOffset++;
-                            bytesLeftToProcess++;
-                            offset++;
+                            BufferOffset+=17;
+                            bytesLeftToProcess += 17;
+                            offset += 17;
                             requiredSync = true;
                         }
                         else
