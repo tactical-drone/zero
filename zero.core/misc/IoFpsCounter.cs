@@ -38,7 +38,7 @@ namespace zero.core.misc
             
             lock (this)
             {
-                _range[_index] = (int)(_time * Fps() / 1000);
+                _range[_index] = (int)(_time * _time * Fps() / 1000000);
                 Interlocked.Increment(ref _index);
                 _index %= 2;
                 Volatile.Write(ref _count[_index], 0);
