@@ -271,9 +271,8 @@ namespace zero.core.models.consumables
                         _fpsCounter.Inc();
                         if (interopTx.Address != null && interopTx.Value != 0 )
                         {                            
-                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, pow= `{interopTx.Pow}', t= `{s.ElapsedMilliseconds}ms', " +
-                                         $"b = `{DatumCount}', " +
-                                         $"tx/s = {_fpsCounter.Fps():F1}");
+                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.Address, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
+                                         $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {_fpsCounter.Total}tx, {_fpsCounter.Fps():#####}tps]");
                         }                            
                     }
                     finally
@@ -378,8 +377,8 @@ namespace zero.core.models.consumables
                         }
                         if (!synced)
                         {
-                            //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");                        
-                            BufferOffset+=17; //TODO this 17 is a factor of DatumSize and should be recalculated if DatumSize changes
+                            //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
+                            BufferOffset += 17; //TODO this 17 is a factor of DatumSize and should be recalculated if DatumSize changes
                             bytesLeftToProcess += 17;
                             offset += 17;
                             requiredSync = true;
