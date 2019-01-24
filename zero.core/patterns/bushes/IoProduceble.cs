@@ -123,7 +123,8 @@ namespace zero.core.patterns.bushes
             {
                 if (value != State.Producing && value != State.Undefined)
                 {
-                    _logger.Fatal($"Fatal error: First state trantition should be to `{State.Producing}'");
+                    _logger.Fatal($"({Id}) Fatal error: First state trantition history's first transition should be `{State.Producing}', but is `{value}'");
+                    PrintStateHistory();
                 }
             }
 

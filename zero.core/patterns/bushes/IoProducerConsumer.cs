@@ -281,10 +281,10 @@ namespace zero.core.patterns.bushes
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
                                 return false;
                             }
-                                                        
+
                             //Free resources
-                            Free(nextJob);                            
-                            jobSafeReleased = true;                            
+                            jobSafeReleased = true;
+                            Free(nextJob);                                                        
                         }
                     }
                     else
@@ -440,6 +440,7 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
+                            //Signal the producer that it can continue to get more work                        
                             PrimaryProducer.ProducerBarrier.Release(1);
                         }
                         catch
@@ -447,8 +448,7 @@ namespace zero.core.patterns.bushes
                             // ignored
                         }
                         finally
-                        {
-                            //Signal the producer that it can continue to get more work                        
+                        {                            
                             if ((curJob.Id % parm_stats_mod_count == 0))
                             {
 
