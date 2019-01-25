@@ -33,7 +33,7 @@ namespace zero.core.data.providers.redis
         {
             if(!_default.IsConnected)            
 #pragma warning disable 4014
-                await _default.ConnectAsync(new []{IoNodeAddress.Create("tcp://10.0.75.1:6379") }.ToList()); //TODO config
+                _default.ConnectAsync(new []{IoNodeAddress.Create("tcp://10.0.75.1:6379") }.ToList()); //TODO config
 #pragma warning restore 4014
 
             return _default;
