@@ -8,15 +8,15 @@ using zero.interop.entangled.mock;
 namespace zero.interop.utils
 {
     /// <summary>
-    /// Does pow calculations on <see cref="IIoTransactionModel{TBlob}"/>
+    /// Does pow calculations on <see cref="IIoTransactionModel<TBlob>{TBlob}"/>
     /// </summary>
-    public static class IoPow
+    public static class IoPow<TBlob>
     {
         /// <summary>
         /// The minimum weight magnitude
         /// </summary>
         public const int MWM = 3;
-        public static void Compute(IIoTransactionModel transaction, string computedHash, string proposedHash) 
+        public static void Compute(IIoTransactionModel<TBlob> transaction, string computedHash, string proposedHash) 
         {
             transaction.Pow = 0;
             transaction.ReqPow = 0;
@@ -54,7 +54,7 @@ namespace zero.interop.utils
         /// <param name="computedHash">The hash that was computed</param>
         /// <param name="flexTritBuffer">The hash that was received from a neighbor</param>
         /// <param name="offset">The offset into the flex trit buffer</param>
-        public static void ComputeFromBytes(IIoTransactionModel transaction, ReadOnlyMemory<byte> computedHash, sbyte[] flexTritBuffer, int offset)
+        public static void ComputeFromBytes(IIoTransactionModel<TBlob> transaction, ReadOnlyMemory<byte> computedHash, sbyte[] flexTritBuffer, int offset)
         {
             var proposedHash = flexTritBuffer.Skip(offset).Take(Codec.TransactionHashSize).ToArray();
             var minWM = 3;

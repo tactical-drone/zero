@@ -29,7 +29,7 @@ namespace zero.core.api.controllers.generic
     [EnableCors("ApiCorsPolicy")]
     [ApiController]
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]    
-    public class IoNodeServices : Controller, IIoNodeController
+    public class IoNodeServices<TBlob> : Controller, IIoNodeController
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoNodeServices{TBlob}"/> class.
@@ -55,7 +55,7 @@ namespace zero.core.api.controllers.generic
         /// <summary>
         /// The nodes managed by this service
         /// </summary>
-        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage>> Nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage>>();
+        private static readonly ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>> Nodes = new ConcurrentDictionary<int, IoNode<IoTangleMessage<TBlob>>>();
         /// <summary>
         /// Posts the specified address.
         /// </summary>
@@ -67,7 +67,7 @@ namespace zero.core.api.controllers.generic
             if (!address.IsValid)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage>(address, ioNetClient => new TanglePeer(ioNetClient), TanglePeer.TcpReadAhead)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<TBlob>.TcpReadAhead)))
             {
                 var errStr = $"Cannot create node `${address.UrlAndPort}', a node with that id already exists";
                 _logger.Warn(errStr);
@@ -105,7 +105,7 @@ namespace zero.core.api.controllers.generic
             {
                 if (!Nodes.ContainsKey(id))
                     return IoApiReturn.Result(false, $"Could not find listener with id=`{id}'");
-                var transactions = new List<IIoTransactionModel>();
+                var transactions = new List<IIoTransactionModel<TBlob>>();
 
                 int count = 0;
                 long outstanding = 0;
@@ -117,7 +117,7 @@ namespace zero.core.api.controllers.generic
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNodeServices));
+                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNodeServices<TBlob>));
 
                         if (relaySource != null)
                         {
@@ -131,7 +131,7 @@ namespace zero.core.api.controllers.generic
                                         return Task.CompletedTask;
 
 
-                                    var msg = ((IoTangleTransaction)message);
+                                    var msg = ((IoTangleTransaction<TBlob>)message);
 
                                     if (count > 50)
                                         return Task.CompletedTask;
@@ -142,7 +142,7 @@ namespace zero.core.api.controllers.generic
                                     {
                                         foreach (var t in msg.Transactions)
                                         {
-                                            var tagStr = t.AsTrytes(t.Tag);
+                                            var tagStr = t.AsTrytes(t.TagBuffer);
 
                                             if (tagQuery == null)
                                                 transactions.Add(t);
@@ -156,12 +156,12 @@ namespace zero.core.api.controllers.generic
                                                 break;
                                         }
 
-                                        msg.ProcessState = IoProduceble<IoTangleTransaction>.State.Consumed;
+                                        msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.ProcessState == IoProduceble<IoTangleTransaction>.State.Consuming)
-                                            msg.ProcessState = IoProduceble<IoTangleTransaction>.State.ConsumeErr;
+                                        if (msg.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
+                                            msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                                     }
 
                                     return Task.CompletedTask;                                    

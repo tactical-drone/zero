@@ -6,10 +6,10 @@ namespace zero.core.data.luts
     /// Finds a transaction's verifier
     /// </summary>
     /// <typeparam name="TBlob">Type of blob field</typeparam>
-    public class IoVerifiedTransaction
+    public class IoVerifiedTransaction<TBlob>
     {
-        public ReadOnlyMemory<byte> Hash { get; set; }
-        public ReadOnlyMemory<byte> Verifier { get; set; }
+        public TBlob Hash { get; set; }
+        public TBlob Verifier { get; set; }
         public long Timestamp { get; set; }
         public sbyte Pow { get; set; }
     }

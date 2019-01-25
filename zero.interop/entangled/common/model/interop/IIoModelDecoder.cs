@@ -4,7 +4,7 @@
     /// The data model decoder contract
     /// </summary>
     /// <typeparam name="TBlob"></typeparam>
-    public interface IIoModelDecoder
+    public interface IIoModelDecoder<TBlob>
     {
         /// <summary>
         /// Deserialize ioterop model from flex trits
@@ -13,6 +13,6 @@
         /// <param name="buffOffset">Offset into the buffer</param>
         /// <param name="tritBuffer">Some buffer space</param>
         /// <returns>The deserialized transaction</returns>
-        IIoTransactionModel GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null);
+        IIoTransactionModel<TBlob> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null);
     }
 }

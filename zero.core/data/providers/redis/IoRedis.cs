@@ -40,13 +40,13 @@ namespace zero.core.data.providers.redis
         }
 
         public bool IsConnected => _redis?.IsConnected??false;
-        public Task<bool> Put(IIoTransactionModel transaction, object batch = null)
+        public Task<bool> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object batch = null)
         {            
-            MemoryMarshal.TryGetString((char[])(Array)transaction.Hash.ToArray(), out var key, out var start, out var length);
+            MemoryMarshal.TryGetString((char[])(Array)transaction.HashBuffer.ToArray(), out var key, out var start, out var length);
             return _db.StringSetAsync(key, transaction.AsBlob().ToArray());
         }
 
-        public async Task<IIoTransactionModel> Get(ReadOnlyMemory<byte> txKey)
+        public async Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> txKey)
         {
             MemoryMarshal.TryGetString((char[])(Array)txKey.ToArray(), out var key, out var start, out var length);
 
@@ -55,7 +55,8 @@ namespace zero.core.data.providers.redis
             if (val == RedisValue.Null)
                 return null;
             
-            return new IoInteropTransactionModel
+            //TODO bug
+            return (IIoTransactionModel<TBlob>) new IoInteropTransactionModel
             {
                 Blob = (byte[])(Array)((string)val).AsMemory().Slice(0).ToArray()
             };

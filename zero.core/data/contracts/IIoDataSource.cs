@@ -22,13 +22,13 @@ namespace zero.core.data.contracts
         /// <param name="transaction">The transaction to be stored</param>
         /// <param name="batch">A batch handler</param>
         /// <returns></returns>
-        Task<TResult> Put(IIoTransactionModel transaction, object batch = null);            
+        Task<TResult> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object batch = null);            
         /// <summary>
         /// Get a transaction from storage
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        Task<IIoTransactionModel> Get(ReadOnlyMemory<byte> key);
+        Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> key);
         /// <summary>
         /// Execute a batch
         /// </summary>

@@ -16,9 +16,9 @@ namespace zero.sync
         {
             LogManager.LoadConfiguration("nlog.config");
 
-            if (IoEntangled.Optimized)
+            if (IoEntangled<string>.Optimized)
             {
-                var tangleNode = new IoNode<IoTangleMessage>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer(ioNetClient), TanglePeer.TcpReadAhead);
+                var tangleNode = new IoNode<IoTangleMessage<byte[]>>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer<byte[]>(ioNetClient), TanglePeer<byte[]>.TcpReadAhead);
                 //var tangleNode = new IoNode(IoNodeAddress.Create("udp://192.168.1.2", 14600), ioNetClient=>new TanglePeer(ioNetClient));
 #pragma warning disable 4014
                 tangleNode.Start();
@@ -36,7 +36,7 @@ namespace zero.sync
             }
             else
             {
-                var tangleNode = new IoNode<IoTangleMessage>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer(ioNetClient), TanglePeer.TcpReadAhead);
+                var tangleNode = new IoNode<IoTangleMessage<string>>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer<string>(ioNetClient), TanglePeer<string>.TcpReadAhead);
                 //var tangleNode = new IoNode(IoNodeAddress.Create("udp://192.168.1.2", 14600), ioNetClient=>new TanglePeer(ioNetClient));
 #pragma warning disable 4014
                 tangleNode.Start();

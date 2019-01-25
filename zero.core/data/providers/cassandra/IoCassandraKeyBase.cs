@@ -9,7 +9,7 @@ namespace zero.core.data.cassandra
     /// The keystore config
     /// </summary>
     /// <typeparam name="TBlob">Blob type</typeparam>
-    public class IoCassandraKeyBase 
+    public class IoCassandraKeyBase<TBlob> 
     {
         private MappingConfiguration _bundle;
         public MappingConfiguration BundleMap
@@ -21,7 +21,7 @@ namespace zero.core.data.cassandra
 
                 _bundle = new MappingConfiguration();
                 _bundle.Define(
-                    new Map<IIoTransactionModel>().TableName("bundle")
+                    new Map<IIoTransactionModel<TBlob>>().TableName("bundle")
                         .ExplicitColumns()
                         .Column(c => c.SignatureOrMessage)
                         .Column(c => c.Address)
@@ -62,7 +62,7 @@ namespace zero.core.data.cassandra
             {
                 var bundledAddress = new MappingConfiguration();
                 bundledAddress.Define(
-                    new Map<IoBundledAddress>().TableName("address")
+                    new Map<IoBundledAddress<TBlob>>().TableName("address")
                         .ExplicitColumns()
                         .Column(c => c.Address)
                         .Column(c => c.Bundle)
@@ -80,7 +80,7 @@ namespace zero.core.data.cassandra
             {
                 var draggedTransaction = new MappingConfiguration();
                 draggedTransaction.Define(
-                    new Map<IoDraggedTransaction>().TableName("dragnet")
+                    new Map<IoDraggedTransaction<TBlob>>().TableName("dragnet")
                         .ExplicitColumns()                        
                         .Column(c => c.Address)
                         .Column(c => c.Bundle)
@@ -109,7 +109,7 @@ namespace zero.core.data.cassandra
             {
                 var bundledTransaction = new MappingConfiguration();
                 bundledTransaction.Define(
-                    new Map<IoBundledHash>().TableName("transactions")
+                    new Map<IoBundledHash<TBlob>>().TableName("transactions")
                         .ExplicitColumns()
                         .Column(c => c.Hash)
                         .Column(c => c.Bundle)
@@ -127,7 +127,7 @@ namespace zero.core.data.cassandra
             {
                 var taggedTransaction = new MappingConfiguration();
                 taggedTransaction.Define(
-                    new Map<IoTaggedTransaction>().TableName("tag")
+                    new Map<IoTaggedTransaction<TBlob>>().TableName("tag")
                         .ExplicitColumns()
                         .Column(c => c.Tag)
                         .Column(c => c.ObsoleteTag)
@@ -146,7 +146,7 @@ namespace zero.core.data.cassandra
             {
                 var verifiedTransaction = new MappingConfiguration();
                 verifiedTransaction.Define(
-                    new Map<IoVerifiedTransaction>().TableName("verifier")
+                    new Map<IoVerifiedTransaction<TBlob>>().TableName("verifier")
                         .ExplicitColumns()
                         .Column(c => c.Hash)
                         .Column(c=> c.Timestamp)

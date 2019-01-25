@@ -11,14 +11,14 @@ namespace zero.core.protocol
     /// <summary>
     /// The iota protocol
     /// </summary>
-    public class TanglePeer : IoNeighbor<IoTangleMessage> 
+    public class TanglePeer<TBlob> : IoNeighbor<IoTangleMessage<TBlob>> 
     {
         /// <summary>
         /// Constructs a IOTA tangle neighbor handler
         /// </summary>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
-        public TanglePeer(IoNetClient<IoTangleMessage> ioNetClient) :
-            base($"{nameof(TanglePeer)}",ioNetClient, (userData) => new IoTangleMessage(ioNetClient) { JobDescription = $"rx", WorkDescription = $"{ioNetClient.AddressString}" })
+        public TanglePeer(IoNetClient<IoTangleMessage<TBlob>> ioNetClient) :
+            base($"{nameof(TanglePeer<TBlob>)}",ioNetClient, (userData) => new IoTangleMessage<TBlob>(ioNetClient) { JobDescription = $"rx", WorkDescription = $"{ioNetClient.AddressString}" })
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -33,7 +33,7 @@ namespace zero.core.protocol
         /// <summary>
         /// Minimum difficulty
         /// </summary>
-        public const int MWM = IoPow.MWM;
+        public const int MWM = IoPow<TBlob>.MWM;
 
 
         /// <summary>

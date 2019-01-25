@@ -80,7 +80,7 @@ namespace zero.core.core
         public override async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             var processing = base.SpawnProcessingAsync(cancellationToken, spawnProducer);
-            var persisting = PersistTransactionsAsync(await IoCassandra.Default());            
+            var persisting = IoEntangled<object>.Optimized ? PersistTransactionsAsync<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactionsAsync<string>(await IoCassandra<string>.Default());
 
             await Task.WhenAll(processing, persisting);
         }
@@ -91,9 +91,9 @@ namespace zero.core.core
         /// <typeparam name="TBlob"></typeparam>
         /// <param name="dataSource">An interface to the data source</param>
         /// <returns></returns>
-        private async Task PersistTransactionsAsync(IIoDataSource<RowSet> dataSource)
+        private async Task PersistTransactionsAsync<TBlob>(IIoDataSource<RowSet> dataSource)
         {
-            var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNeighbor<IoTangleTransaction>));                       
+            var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));                       
             
             _logger.Debug($"Starting persistence for `{PrimaryProducerDescription}'");
             while (!Spinners.IsCancellationRequested)
@@ -101,7 +101,7 @@ namespace zero.core.core
                 if (relaySource == null)
                 {
                     _logger.Warn("Waiting for transaction stream to spin up...");
-                    relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction>(nameof(IoNeighbor<IoTangleTransaction>));
+                    relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));
                     await Task.Delay(2000);//TODO config
                     continue;
                 }
@@ -113,18 +113,18 @@ namespace zero.core.core
                         if (batch == null)
                             return;
 
-                        foreach (var transaction in ((IoTangleTransaction) batch).Transactions)
+                        foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
                         {                            
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
-                                batch.ProcessState = IoProduceble<IoTangleTransaction>.State.ConInvalid;
+                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConInvalid;
                         }
-                        batch.ProcessState = IoProduceble<IoTangleTransaction>.State.Consumed;
+                        batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState != IoProduceble<IoTangleTransaction>.State.Consumed)
-                            batch.ProcessState = IoProduceble<IoTangleTransaction>.State.ConsumeErr;
+                        if (batch != null && batch.ProcessState != IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed)
+                            batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                     }
                 });
 

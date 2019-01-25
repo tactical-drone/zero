@@ -97,13 +97,13 @@ namespace zero.core.models.generic
         /// </summary>
         /// <param name="model"></param>
         /// <returns></returns>
-        public async Task<bool> DupCheck(IIoTransactionModel model)
+        public async Task<bool> DupCheck<TBlob>(IIoTransactionModel<TBlob> model)
         {
             if (!ProducerHandle.Cache.IsConnected)
                 return false;
 
-            if (await ProducerHandle.Cache.Get(model.Hash) != null) return true;
-            await ProducerHandle.Cache.Put(model);
+            if (await ProducerHandle.Cache.Get<TBlob>(model.HashBuffer) != null) return true;
+            await ProducerHandle.Cache.Put<TBlob>(model);
             return false;
         }
     }

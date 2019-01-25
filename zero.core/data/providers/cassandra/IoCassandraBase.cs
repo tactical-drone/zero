@@ -12,7 +12,7 @@ namespace zero.core.data.cassandra
     /// Based to support different transaction models
     /// </summary>
     /// <typeparam name="TBlob">Blob type</typeparam>
-    public abstract class IoCassandraBase : IoCassandraKeyBase 
+    public abstract class IoCassandraBase<TBlob> : IoCassandraKeyBase<TBlob>
     {
         protected IoCassandraBase()
         {

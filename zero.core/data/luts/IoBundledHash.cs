@@ -6,11 +6,11 @@ namespace zero.core.data.lookups
     /// Gets the bundle from transaction hash
     /// </summary>
     /// <typeparam name="TBlob"></typeparam>
-    public class IoBundledHash
+    public class IoBundledHash<TBlob>
     {        
-        public ReadOnlyMemory<byte> Hash { get; set; }
+        public TBlob Hash { get; set; }
         
-        public ReadOnlyMemory<byte> Bundle { get; set; }
+        public TBlob Bundle { get; set; }
 
         public long Timestamp { get; set; }
     }

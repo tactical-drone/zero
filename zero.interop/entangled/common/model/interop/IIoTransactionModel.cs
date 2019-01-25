@@ -6,21 +6,29 @@ namespace zero.interop.entangled.common.model.interop
 {
     /// <summary>
     /// The transaction model contract used throughout the system
-    /// </summary>
-    /// <typeparam name="ReadOnlyMemory<byte>"></typeparam>
-    public interface IIoTransactionModel    
+    /// </summary>    
+    public interface IIoTransactionModel<TBlob>
     {
-        [DataMember]
-        ReadOnlyMemory<byte> SignatureOrMessage { get; set; }
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
 
         [DataMember]
-        ReadOnlyMemory<byte> Address { get; set; }
+        TBlob SignatureOrMessage { get; set; }
+
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> AddressBuffer { get; set; }
+
+        [DataMember]
+        TBlob Address { get; set; }
 
         [DataMember]
         long Value { get; set; }
 
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> ObsoleteTagBuffer { get; set; }
+
         [DataMember]
-        ReadOnlyMemory<byte> ObsoleteTag { get; set; }
+        TBlob ObsoleteTag { get; set; }
 
         [DataMember]
         long Timestamp { get; set; }
@@ -31,17 +39,29 @@ namespace zero.interop.entangled.common.model.interop
         [DataMember]
         long LastIndex { get; set; }
 
-        [DataMember]
-        ReadOnlyMemory<byte> Bundle { get; set; }
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> BundleBuffer { get; set; }
 
         [DataMember]
-        ReadOnlyMemory<byte> Trunk { get; set; }
+        TBlob Bundle { get; set; }
+    
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> TrunkBuffer { get; set; }
 
         [DataMember]
-        ReadOnlyMemory<byte> Branch { get; set; }
+        TBlob Trunk { get; set; }
+
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> BranchBuffer { get; set; }
 
         [DataMember]
-        ReadOnlyMemory<byte> Tag { get; set; }
+        TBlob Branch { get; set; }
+
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> TagBuffer { get; set; }
+
+        [DataMember]
+        TBlob Tag { get; set; }
 
         [DataMember]
         long AttachmentTimestamp { get; set; }
@@ -52,11 +72,17 @@ namespace zero.interop.entangled.common.model.interop
         [DataMember]
         long AttachmentTimestampUpper { get; set; }
 
-        [DataMember]
-        ReadOnlyMemory<byte> Nonce { get; set; }
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> NonceBuffer { get; set; }
 
         [DataMember]
-        ReadOnlyMemory<byte> Hash { get; set; }
+        TBlob Nonce { get; set; }
+    
+        [IgnoreDataMember]
+        ReadOnlyMemory<byte> HashBuffer { get; set; }
+
+        [DataMember]
+        TBlob Hash { get; set; }
 
         [DataMember]
         long SnapshotIndex { get; set; }

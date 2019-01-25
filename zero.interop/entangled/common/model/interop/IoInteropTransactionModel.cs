@@ -11,24 +11,78 @@ namespace zero.interop.entangled.common.model.interop
     /// <summary>
     /// Implements a interop transaction model
     /// </summary>
-    public class IoInteropTransactionModel : IIoTransactionModel //TODO base this
+    public class IoInteropTransactionModel : IIoTransactionModel<byte[]> //TODO base this
     {
-        public ReadOnlyMemory<byte> SignatureOrMessage { get; set; }
-        public ReadOnlyMemory<byte> Address { get; set; }
+        public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
+        public byte[] SignatureOrMessage
+        {
+            get => SignatureOrMessageBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> AddressBuffer { get; set; }
+        public byte[] Address
+        {
+            get => AddressBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
         public long Value { get; set; }
-        public ReadOnlyMemory<byte> ObsoleteTag { get; set; }
+        public ReadOnlyMemory<byte> ObsoleteTagBuffer { get; set; }
+        public byte[] ObsoleteTag
+        {
+            get => ObsoleteTagBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
         public long Timestamp { get; set; }
         public long CurrentIndex { get; set; }
         public long LastIndex { get; set; }
-        public ReadOnlyMemory<byte> Bundle { get; set; }
-        public ReadOnlyMemory<byte> Trunk { get; set; }
-        public ReadOnlyMemory<byte> Branch { get; set; }
-        public ReadOnlyMemory<byte> Tag { get; set; }
+        public ReadOnlyMemory<byte> BundleBuffer { get; set; }
+        public byte[] Bundle
+        {
+            get => BundleBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
+        public byte[] Trunk
+        {
+            get => TrunkBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> BranchBuffer { get; set; }
+        public byte[] Branch
+        {
+            get => BranchBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> TagBuffer { get; set; }
+        public byte[] Tag
+        {
+            get => TagBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
         public long AttachmentTimestamp { get; set; }
         public long AttachmentTimestampLower { get; set; }
         public long AttachmentTimestampUpper { get; set; }
-        public ReadOnlyMemory<byte> Nonce { get; set; }
-        public ReadOnlyMemory<byte> Hash { get; set; }
+        public ReadOnlyMemory<byte> NonceBuffer { get; set; }
+        public byte[] Nonce
+        {
+            get => NonceBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> HashBuffer { get; set; }
+        public byte[] Hash
+        {
+            get => HashBuffer.ToArray();
+            set => throw new NotImplementedException();
+        }
+
         public long SnapshotIndex { get; set; }
         public bool Solid { get; set; }
         public sbyte Pow { get; set; }
@@ -62,7 +116,7 @@ namespace zero.interop.entangled.common.model.interop
 
             var trytes = new sbyte[trytesToConvert];
             //Console.Write($"[{trytes.Length},{tritsToConvert}]");
-            IoEntangled.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);
+            IoEntangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);
             return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()); //TODO fix cast
         }
 
