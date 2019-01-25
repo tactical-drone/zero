@@ -119,8 +119,8 @@ namespace zero.interop.entangled.common.model.interop
 
             var trytes = new sbyte[trytesToConvert];
             //Console.Write($"[{trytes.Length},{tritsToConvert}]");
-            IoEntangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);
-            return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()); //TODO fix cast
+            IoEntangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);            
+            return Encoding.ASCII.GetString((byte[])(Array)trytes);
         }
 
         public ReadOnlyMemory<byte> AsBlob()

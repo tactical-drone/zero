@@ -73,7 +73,7 @@ namespace zero.interop.entangled.common.model.native
             //check pow
             IoEntangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
 
-            var proposedHash = new Hash(Encoding.ASCII.GetString(tryteHashByteBuffer.Select(c => (byte)c).ToArray())).Value;
+            var proposedHash = new Hash(Encoding.ASCII.GetString((byte[])(Array)tryteHashByteBuffer)).Value;
             IoPow<string>.Compute(interopTransaction, Encoding.UTF8.GetString(interopTransaction.HashBuffer.Span) , proposedHash);
 
             return interopTransaction;            
