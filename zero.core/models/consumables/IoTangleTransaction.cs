@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.models.consumables.sources;
@@ -12,13 +13,13 @@ namespace zero.core.models.consumables
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>>, IIoProducer 
+    public sealed class IoTangleTransaction : IoConsumable<IoTangleTransaction>, IIoProducer 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source)
+        public IoTangleTransaction(IoProducer<IoTangleTransaction> source)
         {
             ProducerHandle = source;
             _logger = LogManager.GetCurrentClassLogger();
@@ -31,7 +32,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IIoTransactionModel<TBlob>> Transactions;
+        public List<IIoTransactionModel> Transactions;
 
         /// <summary>
         /// Callback the generates the next job
@@ -63,7 +64,7 @@ namespace zero.core.models.consumables
                     return false;
                 }
                 
-                ((IoTangleMessageSource<TBlob>)ProducerHandle).TxQueue.TryDequeue(out Transactions);
+                ((IoTangleMessageSource)ProducerHandle).TxQueue.TryDequeue(out Transactions);
                 
                 ProcessState = Transactions == null ? State.ProStarting : State.Produced;                
 

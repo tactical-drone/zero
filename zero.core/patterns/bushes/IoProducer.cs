@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.data.providers.redis;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -26,7 +27,7 @@ namespace zero.core.patterns.bushes
             ConsumeAheadBarrier = new SemaphoreSlim(1);
             ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
-            Spinners = new CancellationTokenSource();
+            Spinners = new CancellationTokenSource();            
         }
 
         /// <summary>
@@ -120,6 +121,8 @@ namespace zero.core.patterns.bushes
         public abstract bool IsOperational { get; }
 
         public long ReadAheadBufferSize { get; set; }
+
+        public IoRedis Cache { get; set; }
 
         /// <summary>
         /// Which producer job is next in line

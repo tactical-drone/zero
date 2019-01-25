@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.data.providers.redis;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -33,7 +34,7 @@ namespace zero.core.network.ip
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            Address = remote.Address;
+            Address = remote.Address;            
         }
 
         /// <summary>
@@ -163,7 +164,7 @@ namespace zero.core.network.ip
 
             _logger.Debug($"Connecting to `{Address}'");
 
-            return await connectAsyncTask.ContinueWith(t =>
+            return await await connectAsyncTask.ContinueWith(async t =>
             {
                 if (t.Result)
                 {
@@ -172,6 +173,7 @@ namespace zero.core.network.ip
                     IoSocket.Disconnected += (s, e) => _cancellationRegistratison.Dispose();
 
                     _logger.Info($"Connected to `{AddressString}'");
+                    Cache = await IoRedis.Default();
                 }
                 else
                 {

@@ -1,4 +1,5 @@
-﻿using zero.interop.entangled.mock;
+﻿using System;
+using zero.interop.entangled.mock;
 using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.interop
@@ -6,7 +7,7 @@ namespace zero.interop.entangled.common.model.interop
     /// <summary>
     /// Implements a interop decoder using optimized c++ entangled decoders
     /// </summary>
-    public class IoInteropModelDecoder : IIoModelDecoder<byte[]>
+    public class IoInteropModelDecoder : IIoModelDecoder
     {
         //static IoInteropModel()
         //{
@@ -34,7 +35,7 @@ namespace zero.interop.entangled.common.model.interop
         /// <param name="buffOffset">Offset into the buffer</param>
         /// <param name="tritBuffer">Some buffer space</param>
         /// <returns>The deserialized transaction</returns>
-        public unsafe IIoTransactionModel<byte[]> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
+        public unsafe IIoTransactionModel GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
         {            
             fixed (sbyte* flexTrits = &flexTritBuffer[buffOffset])
             {                
@@ -56,7 +57,8 @@ namespace zero.interop.entangled.common.model.interop
                     AttachmentTimestamp = memMap.attachment_timestamp,
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
-                    Nonce = IoMarshalledTransaction.Trim(memMap.nonce),                    
+                    Nonce = IoMarshalledTransaction.Trim(memMap.nonce),   
+                    Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check this, last time slice was not working as expected
                 };
 
                 //Check pow

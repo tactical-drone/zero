@@ -89,23 +89,27 @@ namespace zero.core.network.ip
             //ioNetClient will never be null, the null in the parameter is needed for the interface contract
             if (ioNetClient != null && await ioNetClient.ConnectAsync().ContinueWith(t =>
             {
-                if (!t.Result)
+                switch (t.Status)
                 {
-                    ioNetClient.Close();
-                    return false;
+                    case TaskStatus.Canceled:                 
+                    case TaskStatus.Faulted:
+                        _logger.Error(t.Exception,$"Failed to connect to `{ioNetClient.AddressString}':");
+                        ioNetClient.Close();
+                        break;
+                    case TaskStatus.RanToCompletion:                        
+                        if (ioNetClient.IsOperational)
+                        {
+                            _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
+                            return true;
+                        }
+                        else // On connect failure
+                        {
+                            _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
+                            ioNetClient.Close();
+                            return false;
+                        }                 
                 }
-
-                if (ioNetClient.IsOperational)
-                {
-                    _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
-                    return true;
-                }
-                else // On connect failure
-                {
-                    _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
-                    ioNetClient.Close();
-                    return false;
-                }
+                return false;
             }, Spinners.Token))
             {
                 return ioNetClient;

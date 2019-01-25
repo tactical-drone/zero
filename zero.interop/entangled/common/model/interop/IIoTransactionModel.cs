@@ -1,4 +1,5 @@
-﻿using System.Runtime.Serialization;
+﻿using System;
+using System.Runtime.Serialization;
 
 // ReSharper disable InconsistentNaming
 namespace zero.interop.entangled.common.model.interop
@@ -6,20 +7,20 @@ namespace zero.interop.entangled.common.model.interop
     /// <summary>
     /// The transaction model contract used throughout the system
     /// </summary>
-    /// <typeparam name="TBlob"></typeparam>
-    public interface IIoTransactionModel<TBlob>    
+    /// <typeparam name="ReadOnlyMemory<byte>"></typeparam>
+    public interface IIoTransactionModel    
     {
         [DataMember]
-        TBlob SignatureOrMessage { get; set; }
+        ReadOnlyMemory<byte> SignatureOrMessage { get; set; }
 
         [DataMember]
-        TBlob Address { get; set; }
+        ReadOnlyMemory<byte> Address { get; set; }
 
         [DataMember]
         long Value { get; set; }
 
         [DataMember]
-        TBlob ObsoleteTag { get; set; }
+        ReadOnlyMemory<byte> ObsoleteTag { get; set; }
 
         [DataMember]
         long Timestamp { get; set; }
@@ -31,16 +32,16 @@ namespace zero.interop.entangled.common.model.interop
         long LastIndex { get; set; }
 
         [DataMember]
-        TBlob Bundle { get; set; }
+        ReadOnlyMemory<byte> Bundle { get; set; }
 
         [DataMember]
-        TBlob Trunk { get; set; }
+        ReadOnlyMemory<byte> Trunk { get; set; }
 
         [DataMember]
-        TBlob Branch { get; set; }
+        ReadOnlyMemory<byte> Branch { get; set; }
 
         [DataMember]
-        TBlob Tag { get; set; }
+        ReadOnlyMemory<byte> Tag { get; set; }
 
         [DataMember]
         long AttachmentTimestamp { get; set; }
@@ -52,10 +53,10 @@ namespace zero.interop.entangled.common.model.interop
         long AttachmentTimestampUpper { get; set; }
 
         [DataMember]
-        TBlob Nonce { get; set; }
+        ReadOnlyMemory<byte> Nonce { get; set; }
 
         [DataMember]
-        TBlob Hash { get; set; }
+        ReadOnlyMemory<byte> Hash { get; set; }
 
         [DataMember]
         long SnapshotIndex { get; set; }
@@ -78,6 +79,8 @@ namespace zero.interop.entangled.common.model.interop
         [DataMember]
         short Size { get; set; }        
         
-        string AsTrytes(TBlob field, int fixedLenTritsToConvert = 0);
+        string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
+    
+        ReadOnlyMemory<byte> AsBlob();
     }
 }

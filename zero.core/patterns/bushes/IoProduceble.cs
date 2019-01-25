@@ -123,7 +123,7 @@ namespace zero.core.patterns.bushes
             {
                 if (value != State.Producing && value != State.Undefined)
                 {
-                    _logger.Fatal($"({Id}) Fatal error: First state trantition history's first transition should be `{State.Producing}', but is `{value}'");
+                    _logger.Fatal($"({Id}) Fatal error: First state transition history's first transition should be `{State.Producing}', but is `{value}'");
                     PrintStateHistory();
                 }
             }
@@ -136,20 +136,7 @@ namespace zero.core.patterns.bushes
             //Configure the current state
             if (prevState != null)
                 prevState.Next = CurrentState;
-
-            // We need a lock if this job contained fragments because there is a race condition of ownership between 
-            // the producer and the consumer as to who returns this job to the heap. If the consumer has consumed this
-            // job it is the producers responsibility to return this job to the heap because it still needs to
-            // move the fragments to a future job. If the consumer still needs to  process this job then the consumer
-            // needs to return this job to the heap. Who exactly has control is determined by the StillHasUnprocessedFragments
-            // state. The producer will set this value to false when it has moved the datum fragments to another job so that
-            // it can be processed
-            //if (StillHasUnprocessedFragments && value == State.Consumed)
-            //{
-            //    lock (this)
-            //        CurrentState.State = value;
-            //}
-            //else
+            
             CurrentState.State = value;
 
             //Timestamps

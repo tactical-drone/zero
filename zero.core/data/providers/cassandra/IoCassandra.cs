@@ -9,6 +9,7 @@ using zero.core.data.contracts;
 using zero.core.data.lookups;
 using zero.core.data.luts;
 using zero.core.data.market;
+using zero.core.network.ip;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
 using Logger = NLog.Logger;
@@ -19,7 +20,7 @@ namespace zero.core.data.providers.cassandra
     /// Cassandra storage provider
     /// </summary>
     /// <typeparam name="TBlob"></typeparam>
-    public class IoCassandra<TBlob>: IoCassandraBase<TBlob>, IIoDataSource<TBlob> 
+    public class IoCassandra: IoCassandraBase, IIoDataSource<RowSet> 
     {
         /// <summary>
         /// Constructor
@@ -27,17 +28,17 @@ namespace zero.core.data.providers.cassandra
         public IoCassandra()
         {
             _logger = LogManager.GetCurrentClassLogger();
-            Keyspace = IoEntangled<object>.Optimized ? "zero" : "one";
+            Keyspace = IoEntangled.Optimized ? "zero" : "one";
         }
 
         private readonly Logger _logger;
         
-        private Table<IIoTransactionModel<TBlob>> _transactions;
-        private Table<IoBundledHash<TBlob>> _hashes;
-        private Table<IoBundledAddress<TBlob>> _addresses;
-        private Table<IoTaggedTransaction<TBlob>> _tags;
-        private Table<IoVerifiedTransaction<TBlob>> _verifiers;
-        private Table<IoDraggedTransaction<TBlob>> _dragnet;
+        private Table<IIoTransactionModel> _transactions;
+        private Table<IoBundledHash> _hashes;
+        private Table<IoBundledAddress> _addresses;
+        private Table<IoTaggedTransaction> _tags;
+        private Table<IoVerifiedTransaction> _verifiers;
+        private Table<IoDraggedTransaction> _dragnet;
 
         /// <summary>
         /// Makes sure that the schema is configured
@@ -70,7 +71,7 @@ namespace zero.core.data.providers.cassandra
 
                 var existingTables = keyspace.GetTablesNames();
 
-                _transactions = new Table<IIoTransactionModel<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundleMap);
+                _transactions = new Table<IIoTransactionModel>(_session, new IoCassandraKeyBase().BundleMap);
                 if (!existingTables.Contains("bundle"))
                 {
                     _transactions.CreateIfNotExists();
@@ -78,7 +79,7 @@ namespace zero.core.data.providers.cassandra
                     wasConfigured = false;
                 }
                                                                     
-                _hashes = new Table<IoBundledHash<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundledTransaction);
+                _hashes = new Table<IoBundledHash>(_session, new IoCassandraKeyBase().BundledTransaction);
                 if (!existingTables.Contains("transaction"))
                 {
                     _hashes.CreateIfNotExists();
@@ -86,7 +87,7 @@ namespace zero.core.data.providers.cassandra
                     wasConfigured = false;
                 }
                     
-                _addresses = new Table<IoBundledAddress<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundledAddressMap);
+                _addresses = new Table<IoBundledAddress>(_session, new IoCassandraKeyBase().BundledAddressMap);
                 if (!existingTables.Contains("address"))
                 {
                     _addresses.CreateIfNotExists();
@@ -94,7 +95,7 @@ namespace zero.core.data.providers.cassandra
                     wasConfigured = false;
                 }
 
-                _tags = new Table<IoTaggedTransaction<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().TaggedTransaction);
+                _tags = new Table<IoTaggedTransaction>(_session, new IoCassandraKeyBase().TaggedTransaction);
                 if (!existingTables.Contains("tag"))
                 {
                     _tags.CreateIfNotExists();
@@ -102,7 +103,7 @@ namespace zero.core.data.providers.cassandra
                     wasConfigured = false;
                 }
 
-                _verifiers = new Table<IoVerifiedTransaction<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().VerifiedTransaction);
+                _verifiers = new Table<IoVerifiedTransaction>(_session, new IoCassandraKeyBase().VerifiedTransaction);
                 if (!existingTables.Contains("verifier"))
                 {
                     _verifiers.CreateIfNotExists();
@@ -110,7 +111,7 @@ namespace zero.core.data.providers.cassandra
                     wasConfigured = false;
                 }
 
-                _dragnet = new Table<IoDraggedTransaction<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().DraggedTransactionMap);
+                _dragnet = new Table<IoDraggedTransaction>(_session, new IoCassandraKeyBase().DraggedTransactionMap);
                 if (!existingTables.Contains("dragnet"))
                 {
                     _dragnet.CreateIfNotExists();
@@ -135,20 +136,17 @@ namespace zero.core.data.providers.cassandra
         /// <param name="transaction">The transaction to persist</param>
         /// <param name="batch">A batch handler</param>
         /// <returns>The rowset with insert results</returns>
-        public async Task<RowSet> Put(IIoTransactionModel<TBlob> transaction, object batch = null)
+        public async Task<RowSet> Put(IIoTransactionModel transaction, object batch = null)        
         {
             if (!IsConnected)
             {
 #pragma warning disable 4014
-                Connect(_dbUrl);
+                Connect(_clusterAddress);
 #pragma warning restore 4014
                 return null;
             }
             
-            if (transaction.Hash == null || (transaction.Hash is string
-                    ? (transaction.Hash as string).Length
-                    // ReSharper disable once PossibleNullReferenceException
-                    : (transaction.Hash as byte[]).Length) == 0)
+            if (transaction.Hash.Length == 0)
             {
                 try
                 {
@@ -166,21 +164,21 @@ namespace zero.core.data.providers.cassandra
                                         
             var executeBatch = batch == null;
 
-            var bundledHash = new IoBundledHash<TBlob>
+            var bundledHash = new IoBundledHash
             {
                 Hash = transaction.Hash,
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp                                
             };
 
-            var bundledAddress = new IoBundledAddress<TBlob>
+            var bundledAddress = new IoBundledAddress
             {
                 Address = transaction.Address,
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp
             };
             
-            var taggedTransaction = new IoTaggedTransaction<TBlob>
+            var taggedTransaction = new IoTaggedTransaction
             {
                 Tag = transaction.Tag,
                 ObsoleteTag = transaction.ObsoleteTag,
@@ -188,7 +186,7 @@ namespace zero.core.data.providers.cassandra
                 Timestamp = transaction.Timestamp
             };
 
-            var verifiedBranchTransaction = new IoVerifiedTransaction<TBlob>
+            var verifiedBranchTransaction = new IoVerifiedTransaction
             {
                 Hash = transaction.Branch,
                 Pow = transaction.Pow,
@@ -196,7 +194,7 @@ namespace zero.core.data.providers.cassandra
                 Timestamp = transaction.Timestamp
             };
 
-            var verifiedTrunkTransaction = new IoVerifiedTransaction<TBlob>
+            var verifiedTrunkTransaction = new IoVerifiedTransaction
             {
                 Hash = transaction.Trunk,
                 Pow = transaction.Pow,
@@ -226,7 +224,7 @@ namespace zero.core.data.providers.cassandra
                         quality = short.MaxValue;
                     }
 
-                    var draggedTransaction = new IoDraggedTransaction<TBlob>
+                    var draggedTransaction = new IoDraggedTransaction
                     {
                         Address = transaction.Address,
                         Bundle = transaction.Bundle,
@@ -254,25 +252,27 @@ namespace zero.core.data.providers.cassandra
             ((BatchStatement)batch).Add(_hashes.Insert(bundledHash));
             
             // ReSharper disable once PossibleNullReferenceException
-            if (transaction.Branch != null && ((transaction.Branch is string branch ? branch.Length : (transaction.Branch as byte[]).Length) > 0))
+            //if (transaction.Branch != null && ((transaction.Branch is string branch ? branch.Length : (transaction.Branch as byte[]).Length) > 0))
+            if(transaction.Branch.Length != 0)
                 ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction));
-           
+
             // ReSharper disable once PossibleNullReferenceException
-            if (transaction.Trunk != null && ((transaction.Trunk is string trunk ? trunk.Length : (transaction.Trunk as byte[]).Length) > 0))
+            if (transaction.Trunk.Length != 0)
                 ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction));
 
             // ReSharper disable once PossibleNullReferenceException
-            if ((transaction.Address is string address ? address.Length : (transaction.Address as byte[]).Length) > 0)
-                ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));            
+            if (transaction.Address.Length != 0)
+                ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress));
 
             // ReSharper disable once PossibleNullReferenceException
-            if((transaction.Tag is string tag? tag.Length : (transaction.Tag as byte[]).Length) > 0) ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
+            if (transaction.Tag.Length != 0)
+                ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction));
                         
             if (executeBatch)
             {
                 try
                 {
-                    return (RowSet) await ExecuteAsync((BatchStatement)batch);
+                    return await ExecuteAsync((BatchStatement)batch);
                 }
                 catch (Exception e)
                 {
@@ -303,7 +303,7 @@ namespace zero.core.data.providers.cassandra
         /// </summary>
         /// <param name="key">The transaction key</param>
         /// <returns>A transaction</returns>
-        public Task<IoInteropTransactionModel> Get(TBlob key)
+        public Task<IIoTransactionModel> Get(ReadOnlyMemory<byte> key)
         {
             throw new NotImplementedException();
         }
@@ -313,24 +313,24 @@ namespace zero.core.data.providers.cassandra
         /// </summary>
         /// <param name="batch">The batch handler</param>
         /// <returns>The rowset with execution results</returns>
-        public async Task<object> ExecuteAsync(object batch)
+        public async Task<RowSet> ExecuteAsync(object batch)
         {
             return await base.ExecuteAsync((BatchStatement)batch);
         }
 
         
-        private static volatile IoCassandra<TBlob> _default;
+        private static volatile IoCassandra _default;
 
         /// <summary>
         /// Returns single connection
         /// </summary>
         /// <returns></returns>
-        public static async Task<IIoDataSource<TBlob>> Default()
+        public static async Task<IIoDataSource<RowSet>> Default()
         {
             if (_default != null) return _default;
             
-            _default = new IoCassandra<TBlob>();
-            await _default.Connect("tcp://10.0.75.1:9042"); //TODO config
+            _default = new IoCassandra();
+            await _default.Connect(IoNodeAddress.Create("tcp://10.0.75.1:9042")); //TODO config
             return _default;            
         }
     }

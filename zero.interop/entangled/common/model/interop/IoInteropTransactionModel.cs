@@ -11,24 +11,24 @@ namespace zero.interop.entangled.common.model.interop
     /// <summary>
     /// Implements a interop transaction model
     /// </summary>
-    public class IoInteropTransactionModel : IIoTransactionModel<byte[]> //TODO base this
+    public class IoInteropTransactionModel : IIoTransactionModel //TODO base this
     {
-        public byte[] SignatureOrMessage { get; set; }
-        public byte[] Address { get; set; }
+        public ReadOnlyMemory<byte> SignatureOrMessage { get; set; }
+        public ReadOnlyMemory<byte> Address { get; set; }
         public long Value { get; set; }
-        public byte[] ObsoleteTag { get; set; }
+        public ReadOnlyMemory<byte> ObsoleteTag { get; set; }
         public long Timestamp { get; set; }
         public long CurrentIndex { get; set; }
         public long LastIndex { get; set; }
-        public byte[] Bundle { get; set; }
-        public byte[] Trunk { get; set; }
-        public byte[] Branch { get; set; }
-        public byte[] Tag { get; set; }
+        public ReadOnlyMemory<byte> Bundle { get; set; }
+        public ReadOnlyMemory<byte> Trunk { get; set; }
+        public ReadOnlyMemory<byte> Branch { get; set; }
+        public ReadOnlyMemory<byte> Tag { get; set; }
         public long AttachmentTimestamp { get; set; }
         public long AttachmentTimestampLower { get; set; }
         public long AttachmentTimestampUpper { get; set; }
-        public byte[] Nonce { get; set; }
-        public byte[] Hash { get; set; }
+        public ReadOnlyMemory<byte> Nonce { get; set; }
+        public ReadOnlyMemory<byte> Hash { get; set; }
         public long SnapshotIndex { get; set; }
         public bool Solid { get; set; }
         public sbyte Pow { get; set; }
@@ -45,9 +45,13 @@ namespace zero.interop.entangled.common.model.interop
         public string Uri { get; set; }
         public short Size { get; set; }
 
-        public string AsTrytes(byte[] field, int fixedLenTritsToConvert = 0)
+        public ReadOnlyMemory<byte> Blob { get; set; }
+
+        public string Key { get; set; }
+
+        public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
-            if (field == null || field.Length == 0)
+            if (field.Length == 0)
                 return string.Empty;
 
             var tritsToConvert = IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
@@ -58,8 +62,18 @@ namespace zero.interop.entangled.common.model.interop
 
             var trytes = new sbyte[trytesToConvert];
             //Console.Write($"[{trytes.Length},{tritsToConvert}]");
-            IoEntangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field, 0, tritsToConvert, tritsToConvert);
+            IoEntangled.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);
             return Encoding.ASCII.GetString(trytes.Select(t => (byte)(t)).ToArray()); //TODO fix cast
+        }
+
+        public ReadOnlyMemory<byte> AsBlob()
+        {
+            return Blob;
+        }
+
+        public string GetKey()
+        {
+            return Key;
         }
     }
 }

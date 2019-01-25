@@ -1,6 +1,11 @@
-﻿using zero.core.patterns.bushes;
+﻿using System;
+using System.Collections;
+using System.Threading.Tasks;
+using zero.core.data.providers.redis;
+using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
+using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.models.generic
 {
@@ -8,7 +13,7 @@ namespace zero.core.models.generic
     /// <summary>
     /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
-    public abstract class IoMessage<TJob> : IoConsumable<TJob>
+    public abstract class IoMessage<TJob> : IoConsumable<TJob>        
         where TJob : IIoWorker 
         
     {
@@ -25,8 +30,8 @@ namespace zero.core.models.generic
             //        BufferSize = (int) pair.Value;
             //        Buffer = new sbyte[BufferSize];
             //    }                    
-            //};
-        }
+            //};            
+        }        
 
         /// <summary>
         /// A buffer to receive the message in
@@ -85,6 +90,21 @@ namespace zero.core.models.generic
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.Constructor();
-        }        
+        }
+
+        /// <summary>
+        /// Does dup checking on this transaction
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        public async Task<bool> DupCheck(IIoTransactionModel model)
+        {
+            if (!ProducerHandle.Cache.IsConnected)
+                return false;
+
+            if (await ProducerHandle.Cache.Get(model.Hash) != null) return true;
+            await ProducerHandle.Cache.Put(model);
+            return false;
+        }
     }
 }

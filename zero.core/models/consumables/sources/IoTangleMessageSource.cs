@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using Tangle.Net.Entity;
+using zero.core.data.providers.redis;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
@@ -15,9 +17,9 @@ namespace zero.core.models.consumables.sources
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
+    public class IoTangleMessageSource : IoProducer<IoTangleTransaction>, IIoProducer 
     {
-        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstreamRelay):base(10)//TODO
+        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage> upstreamRelay):base(10)//TODO config
         {
             //Saves forwarding producer, to leech some values from it
             _upstreamRelay = upstreamRelay;
@@ -33,12 +35,12 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// The producer that we are forwarding from
         /// </summary>
-        private readonly IoProducer<IoTangleMessage<TBlob>> _upstreamRelay;
+        private readonly IoProducer<IoTangleMessage> _upstreamRelay;
 
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();
+        public ConcurrentQueue<List<IIoTransactionModel>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel>>();
 
 
         public string Id;

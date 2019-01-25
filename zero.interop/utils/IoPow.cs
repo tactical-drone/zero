@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
@@ -15,7 +16,7 @@ namespace zero.interop.utils
         /// The minimum weight magnitude
         /// </summary>
         public const int MWM = 3;
-        public static void Compute<TBlob>(IIoTransactionModel<TBlob> transaction, string computedHash, string proposedHash) 
+        public static void Compute(IIoTransactionModel transaction, string computedHash, string proposedHash) 
         {
             transaction.Pow = 0;
             transaction.ReqPow = 0;
@@ -53,7 +54,7 @@ namespace zero.interop.utils
         /// <param name="computedHash">The hash that was computed</param>
         /// <param name="flexTritBuffer">The hash that was received from a neighbor</param>
         /// <param name="offset">The offset into the flex trit buffer</param>
-        public static void ComputeFromBytes<TBlob>(IIoTransactionModel<TBlob> transaction, byte[] computedHash, sbyte[] flexTritBuffer, int offset)
+        public static void ComputeFromBytes(IIoTransactionModel transaction, ReadOnlyMemory<byte> computedHash, sbyte[] flexTritBuffer, int offset)
         {
             var proposedHash = flexTritBuffer.Skip(offset).Take(Codec.TransactionHashSize).ToArray();
             var minWM = 3;
@@ -62,7 +63,7 @@ namespace zero.interop.utils
             
             for (var i = computedHash.Length; i-- > 0;)
             {
-                if (computedHash[i] == 0)
+                if (computedHash.ToArray()[i] == 0)
                     transaction.Pow++;
                 else
                     break;
@@ -84,7 +85,7 @@ namespace zero.interop.utils
 
             for (var i = Codec.TransactionHashSize; i-- > 0;)
             {
-                if (proposedHash[i] != computedHash[i + minWM])
+                if (proposedHash[i] != computedHash.ToArray()[i + minWM])
                 {
                     transaction.ReqPow = (sbyte)-transaction.ReqPow;
                     break;
@@ -102,9 +103,10 @@ namespace zero.interop.utils
 
             if (transaction.ReqPow > 0 )//|| transaction.ReqPow <= -minWM) //TODO remove debug stuff
             {
-                Console.WriteLine("--------------------------------------------------------------------------------------------------------------");
-                Console.WriteLine($"computed  = `{transaction.AsTrytes((TBlob)(object)computedHash)}'[{computedHash.Length}] --> {transaction.Pow}");
-                Console.WriteLine($"Requested = `{transaction.AsTrytes((TBlob)(object)proposedHash)}'[{proposedHash.Length}] --> {transaction.ReqPow}");
+                Console.WriteLine("--------------------------------------------------------------------------------------------------------------");                
+                
+                Console.WriteLine($"computed  = `{transaction.AsTrytes(computedHash)}'[{computedHash.Length}] --> {transaction.Pow}");
+                Console.WriteLine($"Requested = `{transaction.AsTrytes((byte[])(Array)proposedHash)}'[{proposedHash.Length}] --> {transaction.ReqPow}");
             }
         }
 
