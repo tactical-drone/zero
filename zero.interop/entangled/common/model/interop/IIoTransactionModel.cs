@@ -107,6 +107,6 @@ namespace zero.interop.entangled.common.model.interop
         
         string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
     
-        ReadOnlyMemory<byte> AsBlob();
+        ReadOnlyMemory<byte> AsBlob();        
     }
 }

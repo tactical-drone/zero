@@ -13,9 +13,11 @@ using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using StackExchange.Redis;
 using zero.core.data.contracts;
 using zero.core.data.providers.cassandra;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.utils;
 
 namespace zero.core.data.providers.redis
 {
@@ -42,23 +44,20 @@ namespace zero.core.data.providers.redis
         public bool IsConnected => _redis?.IsConnected??false;
         public Task<bool> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object batch = null)
         {            
-            MemoryMarshal.TryGetString((char[])(Array)transaction.HashBuffer.ToArray(), out var key, out var start, out var length);
-            return _db.StringSetAsync(key, transaction.AsBlob().ToArray());
+            return _db.StringSetAsync(Encoding.UTF8.GetString(transaction.HashBuffer.Span), transaction.AsBlob().AsArray());
         }
 
         public async Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> txKey)
-        {
-            MemoryMarshal.TryGetString((char[])(Array)txKey.ToArray(), out var key, out var start, out var length);
-
-            RedisValue val = await _db.StringGetAsync(key);
+        {            
+            RedisValue val = await _db.StringGetAsync(Encoding.UTF8.GetString(txKey.Span));
 
             if (val == RedisValue.Null)
                 return null;
-            
-            //TODO bug
+                        
+            //TODO support native
             return (IIoTransactionModel<TBlob>) new IoInteropTransactionModel
             {
-                Blob = (byte[])(Array)((string)val).AsMemory().Slice(0).ToArray()
+                Blob = (byte[])val
             };
         }
 

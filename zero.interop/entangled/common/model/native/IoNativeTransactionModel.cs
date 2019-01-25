@@ -12,7 +12,7 @@ namespace zero.interop.entangled.common.model.native
     public class IoNativeTransactionModel : IIoTransactionModel<string>
     {
         public string SignatureOrMessage
-        {
+        {            
             get => Encoding.UTF8.GetString(SignatureOrMessageBuffer.Span);
             set => throw new NotImplementedException();
         }

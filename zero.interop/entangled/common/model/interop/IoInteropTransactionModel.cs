@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
+using zero.interop.utils;
 
 // ReSharper disable InconsistentNaming
 
@@ -16,14 +18,14 @@ namespace zero.interop.entangled.common.model.interop
         public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
         public byte[] SignatureOrMessage
         {
-            get => SignatureOrMessageBuffer.ToArray();
+            get => SignatureOrMessageBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
         public ReadOnlyMemory<byte> AddressBuffer { get; set; }
         public byte[] Address
         {
-            get => AddressBuffer.ToArray();
+            get => AddressBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
@@ -31,7 +33,7 @@ namespace zero.interop.entangled.common.model.interop
         public ReadOnlyMemory<byte> ObsoleteTagBuffer { get; set; }
         public byte[] ObsoleteTag
         {
-            get => ObsoleteTagBuffer.ToArray();
+            get => ObsoleteTagBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
@@ -41,28 +43,29 @@ namespace zero.interop.entangled.common.model.interop
         public ReadOnlyMemory<byte> BundleBuffer { get; set; }
         public byte[] Bundle
         {
-            get => BundleBuffer.ToArray();
+            get => BundleBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
         public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
         public byte[] Trunk
         {
-            get => TrunkBuffer.ToArray();
+            get => TrunkBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
         public ReadOnlyMemory<byte> BranchBuffer { get; set; }
         public byte[] Branch
         {
-            get => BranchBuffer.ToArray();
+            get => BranchBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
         public ReadOnlyMemory<byte> TagBuffer { get; set; }
         public byte[] Tag
         {
-            get => TagBuffer.ToArray();
+            get => TagBuffer.AsArray();
+            //get => TagBuffer.Span;
             set => throw new NotImplementedException();
         }
 
@@ -72,14 +75,14 @@ namespace zero.interop.entangled.common.model.interop
         public ReadOnlyMemory<byte> NonceBuffer { get; set; }
         public byte[] Nonce
         {
-            get => NonceBuffer.ToArray();
+            get => NonceBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
         public ReadOnlyMemory<byte> HashBuffer { get; set; }
         public byte[] Hash
         {
-            get => HashBuffer.ToArray();
+            get => HashBuffer.AsArray();
             set => throw new NotImplementedException();
         }
 
