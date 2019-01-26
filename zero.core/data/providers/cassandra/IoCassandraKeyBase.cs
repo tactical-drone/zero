@@ -109,7 +109,7 @@ namespace zero.core.data.cassandra
             {
                 var bundledTransaction = new MappingConfiguration();
                 bundledTransaction.Define(
-                    new Map<IoBundledHash<TBlob>>().TableName("transactions")
+                    new Map<IoBundledHash<TBlob>>().TableName("transaction")
                         .ExplicitColumns()
                         .Column(c => c.Hash)
                         .Column(c => c.Bundle)

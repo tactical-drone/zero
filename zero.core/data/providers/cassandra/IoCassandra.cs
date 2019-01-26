@@ -72,7 +72,7 @@ namespace zero.core.data.providers.cassandra
                 var existingTables = keyspace.GetTablesNames();
 
                 _transactions = new Table<IIoTransactionModel<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundleMap);
-                if (!existingTables.Contains("bundle"))
+                if (!existingTables.Contains(_transactions.Name))
                 {
                     _transactions.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_transactions.Name}'");
@@ -80,7 +80,7 @@ namespace zero.core.data.providers.cassandra
                 }
                                                                     
                 _hashes = new Table<IoBundledHash<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundledTransaction);
-                if (!existingTables.Contains("transaction"))
+                if (!existingTables.Contains(_hashes.Name))
                 {
                     _hashes.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_hashes.Name}'");
@@ -88,7 +88,7 @@ namespace zero.core.data.providers.cassandra
                 }
                     
                 _addresses = new Table<IoBundledAddress<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().BundledAddressMap);
-                if (!existingTables.Contains("address"))
+                if (!existingTables.Contains(_addresses.Name))
                 {
                     _addresses.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_addresses.Name}'");
@@ -96,7 +96,7 @@ namespace zero.core.data.providers.cassandra
                 }
 
                 _tags = new Table<IoTaggedTransaction<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().TaggedTransaction);
-                if (!existingTables.Contains("tag"))
+                if (!existingTables.Contains(_tags.Name))
                 {
                     _tags.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_tags.Name}'");
@@ -104,7 +104,7 @@ namespace zero.core.data.providers.cassandra
                 }
 
                 _verifiers = new Table<IoVerifiedTransaction<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().VerifiedTransaction);
-                if (!existingTables.Contains("verifier"))
+                if (!existingTables.Contains(_verifiers.Name))
                 {
                     _verifiers.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_verifiers.Name}'");
@@ -112,7 +112,7 @@ namespace zero.core.data.providers.cassandra
                 }
 
                 _dragnet = new Table<IoDraggedTransaction<TBlob>>(_session, new IoCassandraKeyBase<TBlob>().DraggedTransactionMap);
-                if (!existingTables.Contains("dragnet"))
+                if (!existingTables.Contains(_dragnet.Name))
                 {
                     _dragnet.CreateIfNotExists();
                     _logger.Debug($"Adding table `{_dragnet.Name}'");
