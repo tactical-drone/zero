@@ -70,7 +70,7 @@ namespace zero.core.network.ip
         public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
         {
             var ioUdpClient = new IoUdpClient<TJob>(address, parm_read_ahead);
-            return await base.ConnectAsync(null, ioUdpClient);
+            return await base.ConnectAsync(address, ioUdpClient);
         }
 
     }

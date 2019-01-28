@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Data;
 using System.Net.Sockets;
 using System.Threading;
@@ -59,12 +60,22 @@ namespace zero.core.network.ip
         private CancellationTokenRegistration _cancellationRegistration;
 
         /// <summary>
+        /// A set of currently connecting net clients
+        /// </summary>
+        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
+
+        /// <summary>
+        /// Have we closed?
+        /// </summary>
+        private bool _closed;
+
+        /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_read_ahead = 1;
-
+        
         /// <summary>
         /// Start the listener
         /// </summary>
@@ -81,38 +92,55 @@ namespace zero.core.network.ip
         /// <summary>
         /// Connect to a host async
         /// </summary>
-        /// <param name="_">A stub</param>
+        /// <param name="address">A stub</param>
         /// <param name="ioNetClient">The client to connect to</param>
         /// <returns>The client object managing this socket connection</returns>
-        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress _, IoNetClient<TJob> ioNetClient = null)
+        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> ioNetClient = null)
         {
-            //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-            if (ioNetClient != null && await ioNetClient.ConnectAsync().ContinueWith(t =>
+            if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
-                switch (t.Status)
+                _logger.Warn($"Cancelling existing connection attemp to `{address}'");
+                _connectionAttempts[address.Key].Spinners.Cancel();
+                _connectionAttempts.TryRemove(address.Key, out _);
+            }
+
+            try
+            {
+                //ioNetClient will never be null, the null in the parameter is needed for the interface contract
+                if (ioNetClient != null && await ioNetClient.ConnectAsync().ContinueWith(t =>
                 {
-                    case TaskStatus.Canceled:                 
-                    case TaskStatus.Faulted:
-                        _logger.Error(t.Exception,$"Failed to connect to `{ioNetClient.AddressString}':");
-                        ioNetClient.Close();
-                        break;
-                    case TaskStatus.RanToCompletion:                        
-                        if (ioNetClient.IsOperational)
-                        {
-                            _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
-                            return true;
-                        }
-                        else // On connect failure
-                        {
-                            _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
+                    switch (t.Status)
+                    {
+                        case TaskStatus.Canceled:                 
+                        case TaskStatus.Faulted:
+                            _logger.Error(t.Exception,$"Failed to connect to `{ioNetClient.AddressString}':");
                             ioNetClient.Close();
-                            return false;
-                        }                 
+                            break;
+                        case TaskStatus.RanToCompletion:                        
+                            if (ioNetClient.IsOperational)
+                            {
+                                _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
+                                return true;
+                            }
+                            else // On connect failure
+                            {
+                                _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
+                                ioNetClient.Close();
+                                return false;
+                            }                 
+                    }
+                    return false;
+                }, Spinners.Token))
+                {
+                    return ioNetClient;
                 }
-                return false;
-            }, Spinners.Token))
+            }
+            finally
             {
-                return ioNetClient;
+                if (!_connectionAttempts.TryRemove(address.Key, out _))
+                {
+                    _logger.Fatal($"Expected key `{address.Key}'");
+                }
             }
 
             return null;
@@ -123,6 +151,13 @@ namespace zero.core.network.ip
         /// </summary>
         public virtual void Close()
         {
+            lock (this)
+            {
+                if (_closed) return;
+                _closed = true;
+            }
+
+            _logger.Debug($"Closing listener at `{ListeningAddress}'");
             //This method must always be at the top or we might recurse
             _cancellationRegistration.Dispose();
 

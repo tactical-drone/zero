@@ -58,7 +58,7 @@ namespace zero.core.data.cassandra
             _lastConnectionAttempt = DateTime.Now;            
             _isConnecting = true;
             
-            _clusterAddress = IoNodeAddress.Create(url.UrlAndPort);
+            _clusterAddress = IoNodeAddress.Create(url.Url);
             _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();            
 
             _logger.Debug("Connecting to Cassandra...");
@@ -70,7 +70,7 @@ namespace zero.core.data.cassandra
             catch (Exception e)
             {
                 _cluster = null;                
-                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
+                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.Url}' at `{_clusterAddress.ResolvedIpAndPort}':");
                 
                 return _isConnecting = false;
             }

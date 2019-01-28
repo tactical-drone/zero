@@ -53,14 +53,17 @@ namespace zero.core.core
         /// </summary>
         public void Close()
         {
-            if(_closed) return;
-            _closed = true;
-
+            lock (this)
+            {
+                if (_closed) return;
+                _closed = true;
+            }
+            
             _logger.Info($"Closing neighbor `{PrimaryProducerDescription}'");
 
-            Spinners.Cancel();
-
             OnClosed();
+            
+            Spinners.Cancel();            
         }
 
         /// <summary>

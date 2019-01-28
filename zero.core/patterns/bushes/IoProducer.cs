@@ -38,7 +38,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// True if closed
         /// </summary>
-        protected bool Closed = false;
+        protected volatile bool Closed = false;
 
         /// <summary>
         /// Used to signal shutdown
@@ -54,7 +54,7 @@ namespace zero.core.patterns.bushes
         /// Keys this instance.
         /// </summary>
         /// <returns>The unique key of this instance</returns>
-        public abstract int Key { get; }
+        public abstract string Key { get; }
 
         /// <summary>
         /// Description used as a key
@@ -192,6 +192,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);
+        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);        
     }
 }

@@ -48,7 +48,7 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override int Key => _upstreamRelay.Key;
+        public override string Key => _upstreamRelay.Key;
 
         /// <summary>
         /// Description of this producer

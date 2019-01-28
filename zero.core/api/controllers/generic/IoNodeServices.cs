@@ -64,24 +64,20 @@ namespace zero.core.api.controllers.generic
         [HttpPost]        
         public IoApiReturn Post(IoNodeAddress address)
         {
-            if (!address.IsValid)
+            if (!address.Validated)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
             if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<TBlob>.TcpReadAhead)))
             {
-                var errStr = $"Cannot create node `${address.UrlAndPort}', a node with that id already exists";
+                var errStr = $"Cannot create node `${address.Url}', a node with that id already exists";
                 _logger.Warn(errStr);
                 return IoApiReturn.Result(true, errStr);
             }
 
 
-            var dbgStr = $"Added listener at `{address.UrlAndPort}'";
+            var dbgStr = $"Added listener at `{address.Url}'";
 
             Nodes[address.Port].Start();
-
-#pragma warning disable 4014
-            Nodes[address.Port].SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
-#pragma warning restore 4014
 
             _logger.Debug(dbgStr);
             return IoApiReturn.Result(true, dbgStr, address.Port);
@@ -113,7 +109,7 @@ namespace zero.core.api.controllers.generic
 
                 Stopwatch stopwatch = new Stopwatch();
 #pragma warning disable 4014 //TODO figure out what is going on with async
-                Nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
+                Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {

@@ -553,7 +553,7 @@ namespace zero.core.models.consumables
                                         }
 
                                         if (Id == 0 && ProducerHandle is IoTcpClient<IoTangleMessage<TBlob>>)
-                                        {
+                                        {                                                                  
                                             _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                             BufferOffset += 10;
                                             bytesRead -= 10;
