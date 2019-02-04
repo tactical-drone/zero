@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
@@ -116,8 +117,20 @@ namespace zero.core.core
                         if (batch == null)
                             return;
 
+                        var stopwatch = new Stopwatch();
+
                         foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
-                        {                            
+                        {
+                            //Dup check
+                            stopwatch.Restart();
+                            if (await dataSource.Exists(transaction.Hash))
+                            {
+                                stopwatch.Stop();
+                                _logger.Trace($"Duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.SlowDup;
+                                continue;                                
+                            }
+
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
                                 batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConInvalid;

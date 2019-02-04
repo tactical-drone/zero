@@ -10,6 +10,7 @@ using NLog;
 using zero.core.api.controllers.generic;
 using zero.core.conf;
 using zero.core.core;
+using zero.core.data.providers.redis;
 using zero.core.misc;
 using zero.core.models.consumables.sources;
 using zero.core.models.generic;
@@ -234,9 +235,8 @@ namespace zero.core.models.consumables
 
                         //check for pow
                         if (interopTx.Pow < TanglePeer<TBlob>.MWM && interopTx.Pow > -TanglePeer<TBlob>.MWM)
-                        {                               
-                            if( ProcessState == State.Consuming )
-                                ProcessState = State.NoPow;                            
+                        {                                                           
+                            ProcessState = State.NoPow;                            
 
                             if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
                             //|| interopTx.Timestamp <= 0 || interopTx.Timestamp > (interopTx.Timestamp.ToString().Length > 11 ? new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeMilliseconds() : new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds())) //TODO config
@@ -273,9 +273,29 @@ namespace zero.core.models.consumables
 
                         curSyncFailureCount = syncFailureThreshold;
 
+                        //Cheap dup checker
+                        if (ProducerHandle.DupChecker != null)
+                        {
+                            var stopwatch = new Stopwatch();
+                            stopwatch.Restart();
+                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - ProducerHandle.DupChecker.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                            if (await ProducerHandle.DupChecker.IsDuplicate(interopTx.AsTrytes(interopTx.HashBuffer))
+                                //|| (interopTx.AttachmentTimestamp > 0 && interopTx.AttachmentTimestamp < oldTxCutOffValue)
+                                //|| (interopTx.Timestamp < oldTxCutOffValue))
+                                )
+                            {
+                                stopwatch.Stop();
+                                ProcessState = State.FastDup;                                
+                                _logger.Trace($"Dropping fast dup tx [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                continue;
+                            }                            
+                        }                                                    
+
+                        //Add tx to be processed
                         newInteropTransactions.Add(interopTx);
+
                         TotalTpsCounter.Tick();
-                        if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0 )
+                        if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
                             ValueTpsCounter.Tick();
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
@@ -284,8 +304,10 @@ namespace zero.core.models.consumables
                     }
                     finally
                     {
-                        if (ProducerHandle.Synced && ( ProcessState == State.Consuming || ProcessState == State.NoPow))
-                        //if (ProcessState == State.Consuming)
+                        if (ProducerHandle.Synced && ( 
+                                    ProcessState == State.Consuming 
+                                 || ProcessState == State.NoPow 
+                                 || ProcessState == State.FastDup))                            
                             BufferOffset += DatumSize;
                     }                    
                 }

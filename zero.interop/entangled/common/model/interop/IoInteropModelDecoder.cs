@@ -58,7 +58,7 @@ namespace zero.interop.entangled.common.model.interop
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
                     NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),   
-                    Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check this, last time slice was not working as expected
+                    Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check
                 };
 
                 //Check pow

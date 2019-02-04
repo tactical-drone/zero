@@ -60,6 +60,8 @@ namespace zero.core.patterns.bushes
             ConsumeErr,
             ConInvalid,
             NoPow,
+            FastDup,
+            SlowDup,
             ConCancel,
             ProdCancel,
             ConsumeTo,
@@ -227,9 +229,12 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
-                if(CurrentState?.State == value)
+                if (CurrentState?.State == value)
+                {
+                    Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
                     return;
-
+                }
+                    
                 //Update timestamps
                 UpdateStateTransitionHistory(value);
 

@@ -1,21 +1,10 @@
 ﻿using System;
-using System.Buffers.Text;
-using System.Collections;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using Cassandra;
-using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using StackExchange.Redis;
 using zero.core.data.contracts;
-using zero.core.data.providers.cassandra;
-using zero.core.misc;
 using zero.core.network.ip;
-using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
 
@@ -42,7 +31,7 @@ namespace zero.core.data.providers.redis
         }
 
         public bool IsConnected => _redis?.IsConnected??false;
-        public Task<bool> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object batch = null)
+        public Task<bool> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null)
         {            
             return _db.StringSetAsync(Encoding.UTF8.GetString(transaction.HashBuffer.Span), transaction.AsBlob().AsArray());
         }
@@ -53,12 +42,17 @@ namespace zero.core.data.providers.redis
 
             if (val == RedisValue.Null)
                 return null;
-                        
+            
             //TODO support native
             return (IIoTransactionModel<TBlob>) new IoInteropTransactionModel
             {
                 Blob = (byte[])val
             };
+        }
+
+        public Task<bool> Exists<TBlob>(TBlob key)
+        {
+            throw new NotImplementedException();
         }
 
         public Task<bool> ExecuteAsync(object batch)

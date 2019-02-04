@@ -122,7 +122,7 @@ namespace zero.core.patterns.bushes
 
         public long ReadAheadBufferSize { get; set; }
 
-        public IoRedis Cache { get; set; }
+        public IoRedisDupChecker DupChecker { get; set; }
 
         /// <summary>
         /// Which producer job is next in line

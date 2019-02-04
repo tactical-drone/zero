@@ -40,6 +40,8 @@ namespace zero.core.data.providers.cassandra
         private Table<IoVerifiedTransaction<TBlob>> _verifiers;
         private Table<IoDraggedTransaction<TBlob>> _dragnet;
 
+        private PreparedStatement _dupCheckQuery;
+
         /// <summary>
         /// Makes sure that the schema is configured
         /// </summary>
@@ -57,8 +59,8 @@ namespace zero.core.data.providers.cassandra
 
             _session.CreateKeyspaceIfNotExists(Keyspace, replicationConfig, false);
             _session.ChangeKeyspace(Keyspace);
-            
-            //ensure tables            
+
+            //ensure tables                        
             try
             {
                 KeyspaceMetadata keyspace = _cluster.Metadata.GetKeyspace(Keyspace);
@@ -118,6 +120,9 @@ namespace zero.core.data.providers.cassandra
                     _logger.Debug($"Adding table `{_dragnet.Name}'");
                     wasConfigured = false;
                 }
+
+                IoBundledHash<TBlob> transactions;
+                _dupCheckQuery = _session.Prepare($"select count(*) from {_hashes.Name} WHERE {nameof(transactions.Hash)}=? LIMIT 1");
             }
             catch (Exception e)
             {
@@ -134,17 +139,18 @@ namespace zero.core.data.providers.cassandra
         /// Puts data into cassandra
         /// </summary>
         /// <param name="transaction">The transaction to persist</param>
-        /// <param name="batch">A batch handler</param>
+        /// <param name="userData">A batch handler</param>
         /// <returns>The rowset with insert results</returns>
-        public async Task<RowSet> Put<TBlobLocal>(IIoTransactionModel<TBlobLocal> transaction, object batch = null)        
+        public async Task<RowSet> Put<TBlobLocal>(IIoTransactionModel<TBlobLocal> transaction, object userData = null)        
         {
+            //TODO fix for many neighbors?
             if (!IsConnected)
             {
 #pragma warning disable 4014
                 Connect(_clusterAddress);
 #pragma warning restore 4014
                 return null;
-            }
+            }                        
             
             if (transaction.HashBuffer.Length == 0)
             {
@@ -162,7 +168,7 @@ namespace zero.core.data.providers.cassandra
                 return null;
             }
                                         
-            var executeBatch = batch == null;
+            var executeBatch = userData == null;
 
             var bundledHash = new IoBundledHash<TBlobLocal>
             {
@@ -203,7 +209,7 @@ namespace zero.core.data.providers.cassandra
             };
 
             if (executeBatch)
-                batch = new BatchStatement();
+                userData = new BatchStatement();
 
             if (transaction.Value != 0)
             {                
@@ -240,7 +246,7 @@ namespace zero.core.data.providers.cassandra
                         UsdValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize))
                     };
                     
-                    ((BatchStatement)batch).Add(_dragnet.Insert(draggedTransaction as IoDraggedTransaction<TBlob>));
+                    ((BatchStatement)userData).Add(_dragnet.Insert(draggedTransaction as IoDraggedTransaction<TBlob>));
                 }
                 catch (Exception e)
                 {
@@ -248,31 +254,31 @@ namespace zero.core.data.providers.cassandra
                 }                
             }
 
-            ((BatchStatement)batch).Add(_transactions.Insert((IIoTransactionModel<TBlob>) transaction));
-            ((BatchStatement)batch).Add(_hashes.Insert(bundledHash as IoBundledHash<TBlob>));
+            ((BatchStatement)userData).Add(_transactions.Insert((IIoTransactionModel<TBlob>) transaction));
+            ((BatchStatement)userData).Add(_hashes.Insert(bundledHash as IoBundledHash<TBlob>));
             
             // ReSharper disable once PossibleNullReferenceException
             //if (transaction.Branch != null && ((transaction.Branch is string branch ? branch.Length : (transaction.Branch as byte[]).Length) > 0))
             if(transaction.BranchBuffer.Length != 0)
-                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedBranchTransaction as IoVerifiedTransaction<TBlob>));
+                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedBranchTransaction as IoVerifiedTransaction<TBlob>));
 
             // ReSharper disable once PossibleNullReferenceException
             if (transaction.TrunkBuffer.Length != 0)
-                ((BatchStatement)batch).Add(_verifiers.Insert(verifiedTrunkTransaction as IoVerifiedTransaction<TBlob>));
+                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedTrunkTransaction as IoVerifiedTransaction<TBlob>));
 
             // ReSharper disable once PossibleNullReferenceException
             if (transaction.AddressBuffer.Length != 0)
-                ((BatchStatement)batch).Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
+                ((BatchStatement)userData).Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
 
             // ReSharper disable once PossibleNullReferenceException
             if (transaction.TagBuffer.Length != 0)
-                ((BatchStatement)batch).Add(_tags.Insert(taggedTransaction as IoTaggedTransaction<TBlob>));
+                ((BatchStatement)userData).Add(_tags.Insert(taggedTransaction as IoTaggedTransaction<TBlob>));
                         
             if (executeBatch)
             {
                 try
                 {
-                    return await ExecuteAsync((BatchStatement)batch);
+                    return await ExecuteAsync((BatchStatement)userData);
                 }
                 catch (Exception e)
                 {
@@ -303,9 +309,22 @@ namespace zero.core.data.providers.cassandra
         /// </summary>
         /// <param name="key">The transaction key</param>
         /// <returns>A transaction</returns>
-        public Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> key)
+        public Task<IIoTransactionModel<TBlobLocal>> Get<TBlobLocal>(ReadOnlyMemory<byte> key)
         {
             throw new NotImplementedException();
+        }
+
+        public async Task<bool> Exists<TBlobLocal>(TBlobLocal key)
+        {
+            var dupCheckStatement = _dupCheckQuery.Bind(key);
+            var rowSet = await _session.ExecuteAsync(dupCheckStatement);
+
+            foreach (var row in rowSet)
+            {                
+                return row.GetValue<long>("count") > 0;
+            }
+
+            return false;
         }
 
         /// <summary>

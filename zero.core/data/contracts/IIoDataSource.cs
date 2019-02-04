@@ -20,15 +20,25 @@ namespace zero.core.data.contracts
         /// Puts data to be stored
         /// </summary>
         /// <param name="transaction">The transaction to be stored</param>
-        /// <param name="batch">A batch handler</param>
+        /// <param name="userData">A batch handler</param>
         /// <returns></returns>
-        Task<TResult> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object batch = null);            
+        Task<TResult> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null);            
+
         /// <summary>
         /// Get a transaction from storage
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
         Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> key);
+
+        /// <summary>
+        /// Checks if a transaction has been loaded.
+        /// </summary>
+        /// <typeparam name="TBlob"></typeparam>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        Task<bool> Exists<TBlob>(TBlob key);
+        
         /// <summary>
         /// Execute a batch
         /// </summary>

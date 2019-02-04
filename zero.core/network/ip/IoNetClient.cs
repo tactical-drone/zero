@@ -30,11 +30,20 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="remote">The remote socket</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoSocket remote, int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoSocket remote, int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            ListenerAddress = remote.ListenerAddress;            
+            ListenerAddress = remote.ListenerAddress;
+
+            //TODO
+            IoRedisDupChecker.Default().ContinueWith(r =>
+            {
+                if (r.Status == TaskStatus.RanToCompletion)
+                {
+                    DupChecker = r.Result;
+                }
+            });
         }
 
         /// <summary>
@@ -42,7 +51,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="listenerAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
         {
             ListenerAddress = listenerAddress;
             _logger = LogManager.GetCurrentClassLogger();
@@ -166,11 +175,11 @@ namespace zero.core.network.ip
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync()
         {            
-            var connectAsyncTask = IoSocket.ConnectAsync(ListenerAddress);
+            var connectAsyncTask = IoSocket.ConnectAsync(ListenerAddress);            
 
             _logger.Debug($"Connecting to `{ListenerAddress}'");
-
-            return await await connectAsyncTask.ContinueWith(async t =>
+            
+            return await connectAsyncTask.ContinueWith(t =>
             {
                 if (t.Result)
                 {
@@ -178,8 +187,7 @@ namespace zero.core.network.ip
 
                     IoSocket.Disconnected += (s, e) => _cancellationRegistratison.Dispose();
 
-                    _logger.Info($"Connected to `{AddressString}'");
-                    Cache = await IoRedis.Default();
+                    _logger.Info($"Connected to `{AddressString}'");                    
                 }
                 else
                 {

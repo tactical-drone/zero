@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Threading.Tasks;
+using Microsoft.Extensions.FileSystemGlobbing.Internal.PatternContexts;
 using zero.core.data.providers.redis;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
@@ -94,16 +95,12 @@ namespace zero.core.models.generic
 
         /// <summary>
         /// Does dup checking on this transaction
-        /// </summary>
-        /// <param name="model"></param>
+        /// </summary>        
         /// <returns></returns>
-        public async Task<bool> DupCheck<TBlob>(IIoTransactionModel<TBlob> model)
+        public async Task<bool> DupCheck(string key)
         {
-            if (!ProducerHandle.Cache.IsConnected)
-                return false;
-
-            if (await ProducerHandle.Cache.Get<TBlob>(model.HashBuffer) != null) return true;
-            await ProducerHandle.Cache.Put<TBlob>(model);
+            if(ProducerHandle.DupChecker.IsConnected)
+                return await ProducerHandle.DupChecker.IsDuplicate(key);
             return false;
         }
     }
