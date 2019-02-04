@@ -362,8 +362,8 @@ namespace zero.core.models.consumables
                 for (var i = 0; i < DatumCount; i++)
                 {
                     requiredSync |= requiredSync;
-                    var bytesLeftToProcess = 0;
-                    while (bytesLeftToProcess < DatumSize)
+                    var bytesProcessed = 0;
+                    while (bytesProcessed < DatumSize)
                     {
                         var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
 
@@ -385,9 +385,9 @@ namespace zero.core.models.consumables
                         if (!synced)
                         {
                             //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
-                            BufferOffset += 17; //TODO this 17 is a factor of DatumSize and should be recalculated if DatumSize changes
-                            bytesLeftToProcess += 17;
-                            offset += 17;
+                            BufferOffset += 1; 
+                            bytesProcessed += 1;
+                            offset += 1;
                             requiredSync = true;
                         }
                         else
