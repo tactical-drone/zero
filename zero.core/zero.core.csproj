@@ -37,12 +37,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="interop\" />
-    <Folder Include="patterns\schedulers\" />
-    <Folder Include="protocol\overhead\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
     <ProjectReference Include="..\zero.interop\zero.interop.csproj" />
   </ItemGroup>
