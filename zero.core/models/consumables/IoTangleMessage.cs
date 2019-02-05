@@ -379,7 +379,6 @@ namespace zero.core.models.consumables
                 bool synced = true;
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 ProcessState = State.Syncing;
-
                 
                 for (var i = 0; i < DatumCount; i++)
                 {
@@ -419,22 +418,22 @@ namespace zero.core.models.consumables
                             ProducerHandle.Synced = synced = true;
                             break;
                         }
-                    }
-
-                    if (requiredSync)
-                    {
-                        //Set how many datums we have available to process
-                        DatumCount = BytesLeftToProcess / DatumSize;
-                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
-
-                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
-                    }
+                    }                    
 
                     if (synced)
                     {
                         break;
                     }                        
+                }
+
+                if (requiredSync)
+                {
+                    //Set how many datums we have available to process
+                    DatumCount = BytesLeftToProcess / DatumSize;
+                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
+
+                    //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
                 }
 
                 stopwatch.Stop();
