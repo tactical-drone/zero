@@ -8,7 +8,9 @@ variables:
 
 before_script:
   - "dotnet --version"
+  - "dotnet --version"
   - "git submodule init"
+  - "git submodule update"
   - "dotnet restore" 
   - "apt-get update"
   - "apt install curl"
