@@ -37,7 +37,7 @@ namespace zero.web
             //    .AddEntityFrameworkStores<ApplicationDbContext>();
 
             services.AddMvc()
-            .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            .SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
 
             //.AddJsonOptions(opts =>
             //{
