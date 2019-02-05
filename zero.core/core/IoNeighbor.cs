@@ -126,7 +126,7 @@ namespace zero.core.core
                             if (await dataSource.Exists(transaction.Hash))
                             {
                                 stopwatch.Stop();
-                                _logger.Trace($"Duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                _logger.Trace($"Duplicate tx slow dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.SlowDup;
                                 continue;                                
                             }

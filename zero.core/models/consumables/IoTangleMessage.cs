@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.api.controllers.generic;
 using zero.core.conf;
 using zero.core.core;
-using zero.core.data.providers.redis;
 using zero.core.misc;
 using zero.core.models.consumables.sources;
 using zero.core.models.generic;
@@ -226,7 +223,7 @@ namespace zero.core.models.consumables
                             return ProcessState;
                         else if (requiredSync)
                         {
-                            i = 0;
+                            i = 0;                            
                             continue;
                         }
                             
@@ -243,7 +240,7 @@ namespace zero.core.models.consumables
                             {
                                 try
                                 {
-                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i}/{DatumCount - 1}) pow = `{interopTx.Pow}', " +
+                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
                                                   $"imported = `{((IoTangleMessage<TBlob>)Previous).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
                                                   $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
@@ -286,7 +283,7 @@ namespace zero.core.models.consumables
                             {
                                 stopwatch.Stop();
                                 ProcessState = State.FastDup;                                
-                                _logger.Trace($"Dropping fast dup tx [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                _logger.Trace($"Duplicate tx slow dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
                         }                                                    
@@ -300,7 +297,7 @@ namespace zero.core.models.consumables
                             ValueTpsCounter.Tick();
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");
-                        }                            
+                        }                        
                     }
                     finally
                     {
@@ -308,7 +305,7 @@ namespace zero.core.models.consumables
                                     ProcessState == State.Consuming 
                                  || ProcessState == State.NoPow 
                                  || ProcessState == State.FastDup))                            
-                            BufferOffset += DatumSize;
+                            BufferOffset += DatumSize;                        
                     }                    
                 }
 
@@ -376,50 +373,61 @@ namespace zero.core.models.consumables
 
             if (!ProducerHandle.Synced)
             {                
-                bool synced = true;
+                
                 _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
                 ProcessState = State.Syncing;
-                
+
                 for (var i = 0; i < DatumCount; i++)
                 {
                     requiredSync |= requiredSync;
                     var bytesProcessed = 0;
+                    var synced = false;
                     while (bytesProcessed < DatumSize)
                     {
-                        var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
-
-                        for (var j = Codec.MessageCrcSize; j-- > 0;)
+                        synced = true;
+                        try
                         {
-                            try
+                            var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
+
+                            for (var j = Codec.MessageCrcSize; j-- > 0;)
                             {
-                                if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
+                                try
                                 {
+                                    if ((byte)Buffer[BufferOffset + Codec.MessageSize + j] != crc[j])
+                                    {                                        
+                                        synced = false;
+                                        break;
+                                    }
+                                }
+                                catch (Exception)
+                                {
+                                    _logger.Error($"({Id}) length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
                                     synced = false;
                                     break;
                                 }
                             }
-                            catch (Exception)
+                            if (!synced)
                             {
-                                _logger.Error($"length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
+                                //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
+                                BufferOffset += 1; 
+                                bytesProcessed += 1;
+                                offset += 1;
+                                requiredSync = true;
+                            }
+                            else
+                            {
+                                stopwatch.Stop();
+                                _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
+                                ProducerHandle.Synced = synced = true;
+                                break;
                             }
                         }
-                        if (!synced)
+                        catch (Exception e)
                         {
-                            //_logger.Warn($"`{ProducerHandle.Description}' syncing... `{crc}' != `{Encoding.ASCII.GetString((byte[])(Array)Buffer.Skip(BufferOffset + MessageSize).Take(MessageCrcSize).ToArray())}'");
-                            BufferOffset += 1; 
-                            bytesProcessed += 1;
-                            offset += 1;
-                            requiredSync = true;
+                            _logger.Error(e, $"({Id}) Error while trying to sync BufferOffset = `{BufferOffset}', DatumCount = `{DatumCount}', DatumFragmentLength = `{DatumFragmentLength}' , BytesLeftToProcess = `{BytesLeftToProcess}', BytesRead = `{BytesRead}'");                            
                         }
-                        else
-                        {
-                            stopwatch.Stop();
-                            _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
-                            ProducerHandle.Synced = synced = true;
-                            break;
-                        }
-                    }                    
-
+                    }
+                    
                     if (synced)
                     {
                         break;
@@ -433,7 +441,7 @@ namespace zero.core.models.consumables
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                    StillHasUnprocessedFragments = DatumFragmentLength > 0;                 
                 }
 
                 stopwatch.Stop();
@@ -491,7 +499,7 @@ namespace zero.core.models.consumables
         public override async Task<State> ConsumeAsync()
         {
             TransferPreviousBits();
-
+            
             return await ProcessProtocolMessage();
 
             //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
