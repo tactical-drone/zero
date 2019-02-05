@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
+
 using zero.web.Models;
 
 namespace zero.web.Controllers
@@ -60,24 +56,25 @@ namespace zero.web.Controllers
         
         private static string GenerateToken(string name, bool isAdmin, string issuer, string key)
         {
-            var claims = new List<Claim>
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, name),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-            if (isAdmin) claims.Add(new Claim(ClaimTypes.Role, "admin"));
+            //var claims = new List<Claim>
+            //{
+            //    new Claim(JwtRegisteredClaimNames.Sub, name),
+            //    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            //};
+            //if (isAdmin) claims.Add(new Claim(ClaimTypes.Role, "admin"));
 
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-            var creds = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+            //var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+            //var creds = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            var token = new JwtSecurityToken(
-                issuer,
-                issuer,
-                claims,
-                expires: DateTime.Now.AddDays(1),
-                signingCredentials: creds);
+            //var token = new JwtSecurityToken(
+            //    issuer,
+            //    issuer,
+            //    claims,
+            //    expires: DateTime.Now.AddDays(1),
+            //    signingCredentials: creds);
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            //return new JwtSecurityTokenHandler().WriteToken(token);
+            throw new NotSupportedException("Assemblies went missing");
         }
     }
 }

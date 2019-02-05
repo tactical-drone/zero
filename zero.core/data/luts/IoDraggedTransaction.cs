@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace zero.core.data.lookups
+﻿namespace zero.core.data.lookups
 {    
     /// <summary>
     /// Stores where transactions are probably coming from

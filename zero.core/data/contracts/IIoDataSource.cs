@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Cassandra;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.data.contracts

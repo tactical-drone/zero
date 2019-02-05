@@ -283,7 +283,7 @@ namespace zero.core.models.consumables
                             {
                                 stopwatch.Stop();
                                 ProcessState = State.FastDup;                                
-                                _logger.Trace($"Duplicate tx slow dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                _logger.Trace($"Duplicate tx fast dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
                         }                                                    

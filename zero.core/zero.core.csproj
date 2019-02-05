@@ -20,10 +20,9 @@
     <None Include="..\readme.md" Link="readme.md" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />
-    <PackageReference Include="Microsoft.AspNetCore.All" />
-    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-18579-0056" />
+  <ItemGroup>    
+    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />    
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-19075-0444" />        
     <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />    
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />

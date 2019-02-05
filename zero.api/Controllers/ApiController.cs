@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
-using zero.core.api.commands;
 using Microsoft.AspNetCore.Mvc;
+using zero.core.api.commands;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 

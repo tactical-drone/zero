@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 using Cassandra;
 using NLog;
-using zero.core.core;
 using zero.core.network.ip;
 using Logger = NLog.Logger;
 

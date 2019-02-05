@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace zero.core.data.luts
+﻿namespace zero.core.data.luts
 {    
     /// <summary>
     /// Finds a transaction's verifier

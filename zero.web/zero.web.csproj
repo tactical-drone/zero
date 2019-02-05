@@ -15,11 +15,9 @@
     <Compile Remove="Data\Migrations\ApplicationDbContextModelSnapshot.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-18579-0056" />
-    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="3.0.0-preview-18579-0056" />
-    <PackageReference Include="Microsoft.AspNetCore.NodeServices" Version="3.0.0-preview-18579-0056" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.0.0-preview.18572.1" />
+  <ItemGroup>        
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="2.2.0" />        
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
   </ItemGroup>
   
   <!--<ItemGroup>

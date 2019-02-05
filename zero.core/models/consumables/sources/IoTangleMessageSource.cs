@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using Tangle.Net.Entity;
-using zero.core.data.providers.redis;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;

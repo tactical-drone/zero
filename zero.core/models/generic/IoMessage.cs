@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections;
-using System.Threading.Tasks;
-using Microsoft.Extensions.FileSystemGlobbing.Internal.PatternContexts;
-using zero.core.data.providers.redis;
+﻿using System.Threading.Tasks;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
-using zero.interop.entangled.common.model.interop;
 
 namespace zero.core.models.generic
 {
