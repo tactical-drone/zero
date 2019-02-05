@@ -60,6 +60,7 @@ In multiple consoles:
 2. **`~/../zero$`** `dotnet restore`
 3. **`~/../zero$`** `cd zero.web`
 4. **`~/../zero.web$`** `npm install`
+5. **`~/../zero.web$`** `dotnet dev-certs https`
 5. **`~/../zero.web$`** `cd ..`
    - Windows: (`START /B` does not work in powershell, just use two shells)
      1. `START /B dotnet run --project zero.api`
