@@ -25,11 +25,12 @@ namespace zero.core.network.ip
         /// A copy constructor used by the listener to spawn new TCP connection handlers
         /// </summary>
         /// <param name="socket">The connecting socket</param>
-        /// <param name="address">The address that was listened on where this socket was spawned</param>
+        /// <param name="listenerAddress">The address that was listened on where this socket was spawned</param>
         /// <param name="cancellationToken">Token used to send cancellation signals</param>
-        public IoTcpSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken) : base(socket, address, cancellationToken)
+        public IoTcpSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            RemoteAddress = IoNodeAddress.CreateFromRemoteSocket(socket);
             IsListeningSocket = true;
         }
 
@@ -37,6 +38,8 @@ namespace zero.core.network.ip
         /// The logger
         /// </summary>
         private readonly Logger _logger;
+
+        public sealed override IoNodeAddress RemoteAddress { get; protected set; }
 
         /// <summary>
         /// Starts a TCP listener
@@ -55,35 +58,35 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Socket listener `{Address}' returned with errors:");
+                _logger.Error(e, $"Socket listener `{ListenerAddress}' returned with errors:");
                 return false;
             }
 
             // Accept incoming connections
             while (!Spinners.Token.IsCancellationRequested)
             {
-                _logger.Debug($"Listening for a new connection at `{Address}'");
+                _logger.Debug($"Listening for a new connection at `{ListenerAddress}'");
                 await Socket.AcceptAsync().ContinueWith(t =>
                 {
                     switch (t.Status)
                     {
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Listener `{Address}' returned with status `{t.Status}':");
+                            _logger.Error(t.Exception, $"Listener `{ListenerAddress}' returned with status `{t.Status}':");
                             break;
                         case TaskStatus.RanToCompletion:
 
-                            var newSocket = new IoTcpSocket(t.Result, Address, Spinners.Token);
+                            var newSocket = new IoTcpSocket(t.Result, ListenerAddress, Spinners.Token);                            
 
                             //Do some pointless sanity checking
-                            if (newSocket.LocalAddress != Address.Ip || newSocket.LocalPort != Address.Port)
+                            if (newSocket.LocalAddress != ListenerAddress.HostStr || newSocket.LocalPort != ListenerAddress.Port)
                             {
-                                _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{Address.IpAndPort}'! Possible hackery! Investigate immediately!");
+                                _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListenerAddress.IpAndPort}'! Possible hackery! Investigate immediately!");
                                 newSocket.Close();
                                 break;
                             }
 
-                            _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{Address}'");
+                            _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListenerAddress}'");
 
                             try
                             {
@@ -91,17 +94,17 @@ namespace zero.core.network.ip
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e, $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.Address}'");
+                                _logger.Error(e, $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.ListenerAddress}'");
                             }
                             break;
                         default:
-                            _logger.Error($"Listener for `{Address}' went into unknown state `{t.Status}'");
+                            _logger.Error($"Listener for `{ListenerAddress}' went into unknown state `{t.Status}'");
                             break;
                     }
                 }, Spinners.Token);
             }
 
-            _logger.Debug($"Listener at `{Address}' exited");
+            _logger.Debug($"Listener at `{ListenerAddress}' exited");
             return true;
         }
 
@@ -115,7 +118,7 @@ namespace zero.core.network.ip
             if (!await base.ConnectAsync(address))
                 return false;
 
-            return await Socket.ConnectAsync(Address.Ip, Address.Port).ContinueWith(r =>
+            return await Socket.ConnectAsync(ListenerAddress.HostStr, ListenerAddress.Port).ContinueWith(r =>
             {
                 switch (r.Status)
                 {
@@ -126,17 +129,19 @@ namespace zero.core.network.ip
                         return Task.FromResult(false);
                     case TaskStatus.RanToCompletion:
                         //Do some pointless sanity checking
-                        if (Address.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || Address.IpEndPoint.Port != Socket.RemotePort())
+                        if (ListenerAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListenerAddress.IpEndPoint.Port != Socket.RemotePort())
                         {
-                            _logger.Fatal($"Connection to `tcp://{Address.IpAndPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                            _logger.Fatal($"Connection to `tcp://{ListenerAddress.IpAndPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
                             Socket.Close();
                             return Task.FromResult(false);
                         }
 
-                        _logger.Info($"Connected to `{Address}'");
+                        RemoteAddress = IoNodeAddress.CreateFromRemoteSocket(Socket);
+
+                        _logger.Info($"Connected to `{ListenerAddress}'");
                         break;
                     default:
-                        _logger.Error($"Connecting to `{Address}' returned with unknown state `{r.Status}'");
+                        _logger.Error($"Connecting to `{ListenerAddress}' returned with unknown state `{r.Status}'");
                         Socket.Close();
                         return Task.FromResult(false);
                 }
@@ -157,8 +162,7 @@ namespace zero.core.network.ip
             {
                 var task = Task.Factory
                     .FromAsync<int>(Socket.BeginSend(getBytes, offset, length, SocketFlags.None, null, null),
-                        Socket.EndSend).HandleCancellation(Spinners.Token);
-
+                        Socket.EndSend).HandleCancellation(Spinners.Token);                
                 await task.ContinueWith(t =>
                 {
                     switch (t.Status)
@@ -182,6 +186,10 @@ namespace zero.core.network.ip
                 Close();
                 return 0;
             }
+            finally
+            {
+                
+            }
         }
 
         /// <inheritdoc />
@@ -195,14 +203,19 @@ namespace zero.core.network.ip
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length) //TODO can we go back to array buffers?
         {
             try
-            {
-                return await Task.Factory.FromAsync(Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
-                    Socket.EndReceive).HandleCancellation(Spinners.Token);
+            {                
+                return await Task.Factory.FromAsync(
+                    Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
+                    Socket.EndReceive).HandleCancellation(Spinners.Token);                
             }
             catch (Exception)
             {
                 //_logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}', length = `{length}', offset = `{offset}' :");
                 return 0;
+            }
+            finally
+            {
+                
             }
         }
 
@@ -211,7 +224,7 @@ namespace zero.core.network.ip
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
-        public override bool Connected()
+        public override bool IsConnected()
         {
             return (Socket?.IsBound??false) && (Socket?.Connected??false);
         }

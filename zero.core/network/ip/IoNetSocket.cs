@@ -15,8 +15,8 @@ namespace zero.core.network.ip
         {
         }
 
-        protected IoNetSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken) : base(socket, address, cancellationToken)
+        protected IoNetSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
         {
-        }
+        }        
     }
 }

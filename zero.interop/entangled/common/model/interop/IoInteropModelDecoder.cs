@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Linq;
-using System.Text;
-using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 
@@ -46,27 +43,28 @@ namespace zero.interop.entangled.common.model.interop
 
                 var interopTransaction = new IoInteropTransactionModel
                 {                    
-                    SignatureOrMessage = IoMarshalledTransaction.Trim(memMap.signature_or_message),
-                    Address = IoMarshalledTransaction.Trim(memMap.address, 0),
+                    SignatureOrMessageBuffer = IoMarshalledTransaction.Trim(memMap.signature_or_message),
+                    AddressBuffer = IoMarshalledTransaction.Trim(memMap.address, 0),
                     Value = memMap.value,
-                    ObsoleteTag = IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
+                    ObsoleteTagBuffer = IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
                     Timestamp = memMap.timestamp,
                     CurrentIndex = memMap.current_index,
                     LastIndex = memMap.last_index,
-                    Bundle = memMap.bundle,
-                    Trunk = IoMarshalledTransaction.Trim(memMap.trunk),
-                    Branch = IoMarshalledTransaction.Trim(memMap.branch),
-                    Tag = IoMarshalledTransaction.Trim(memMap.tag, 0),
+                    BundleBuffer = memMap.bundle,
+                    TrunkBuffer = IoMarshalledTransaction.Trim(memMap.trunk),
+                    BranchBuffer = IoMarshalledTransaction.Trim(memMap.branch),
+                    TagBuffer = IoMarshalledTransaction.Trim(memMap.tag, 0),
                     AttachmentTimestamp = memMap.attachment_timestamp,
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower,
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
-                    Nonce = IoMarshalledTransaction.Trim(memMap.nonce),                    
+                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),   
+                    Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check
                 };
 
                 //Check pow
-                IoPow.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
+                IoPow<byte[]>.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
 
-                interopTransaction.Hash = IoMarshalledTransaction.Trim(memMap.hash);
+                interopTransaction.HashBuffer = IoMarshalledTransaction.Trim(memMap.hash);
 
                 return interopTransaction;
             }

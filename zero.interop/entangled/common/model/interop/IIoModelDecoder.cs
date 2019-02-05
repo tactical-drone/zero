@@ -4,7 +4,7 @@
     /// The data model decoder contract
     /// </summary>
     /// <typeparam name="TBlob"></typeparam>
-    public interface IIoModelDecoder<TBlob> 
+    public interface IIoModelDecoder<TBlob>
     {
         /// <summary>
         /// Deserialize ioterop model from flex trits

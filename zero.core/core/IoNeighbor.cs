@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Cassandra;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.providers.cassandra;
@@ -51,14 +53,17 @@ namespace zero.core.core
         /// </summary>
         public void Close()
         {
-            if(_closed) return;
-            _closed = true;
-
+            lock (this)
+            {
+                if (_closed) return;
+                _closed = true;
+            }
+            
             _logger.Info($"Closing neighbor `{PrimaryProducerDescription}'");
 
-            Spinners.Cancel();
-
             OnClosed();
+            
+            Spinners.Cancel();            
         }
 
         /// <summary>
@@ -78,7 +83,7 @@ namespace zero.core.core
         public override async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             var processing = base.SpawnProcessingAsync(cancellationToken, spawnProducer);
-            var persisting = IoEntangled<object>.Optimized ? PersistTransactionsAsync<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactionsAsync<string>(await IoCassandra<string>.Default());            
+            var persisting = IoEntangled<object>.Optimized ? PersistTransactionsAsync<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactionsAsync<string>(await IoCassandra<string>.Default());
 
             await Task.WhenAll(processing, persisting);
         }
@@ -89,7 +94,7 @@ namespace zero.core.core
         /// <typeparam name="TBlob"></typeparam>
         /// <param name="dataSource">An interface to the data source</param>
         /// <returns></returns>
-        private async Task PersistTransactionsAsync<TBlob>(IIoDataSource<TBlob> dataSource) 
+        private async Task PersistTransactionsAsync<TBlob>(IIoDataSource<RowSet> dataSource)
         {
             var relaySource = PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));                       
             
@@ -111,8 +116,20 @@ namespace zero.core.core
                         if (batch == null)
                             return;
 
+                        var stopwatch = new Stopwatch();
+
                         foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
-                        {                            
+                        {
+                            //Dup check
+                            stopwatch.Restart();
+                            if (await dataSource.Exists(transaction.Hash))
+                            {
+                                stopwatch.Stop();
+                                _logger.Trace($"Duplicate tx slow dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.SlowDup;
+                                continue;                                
+                            }
+
                             var rows = await dataSource.Put(transaction);
                             if (rows == null)
                                 batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConInvalid;
@@ -121,9 +138,9 @@ namespace zero.core.core
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
+                        if (batch != null && batch.ProcessState != IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed)
                             batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
-                    }                    
+                    }
                 });
 
                 if (!relaySource.PrimaryProducer.IsOperational)

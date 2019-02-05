@@ -83,5 +83,10 @@ namespace zero.core.patterns.bushes
         /// The default state string padded
         /// </summary>
         public string DefaultPadded => IoProduceble<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
+
+        public override string ToString()
+        {
+            return $"[{Previous?.State}] => ({State}) => [{Next?.State}]";
+        }
     }
 }

@@ -14,7 +14,7 @@ namespace zero.interop.entangled
     /// If we are not running optimized Tangle.net is used to mock interop functionality.
     /// </summary>
     /// <typeparam name="TBlob"></typeparam>
-    public class IoEntangled<TBlob> : IIoEntangled<TBlob> 
+    public class IoEntangled<TBlob> : IIoEntangled<TBlob>
     {
         static IoEntangled()
         {

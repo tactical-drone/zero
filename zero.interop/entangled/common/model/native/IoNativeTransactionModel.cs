@@ -1,7 +1,6 @@
-﻿using System.IO;
+﻿using System;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Formatters.Binary;
-using Cassandra.Mapping;
+using System.Text;
 using Cassandra.Mapping.Attributes;
 using zero.interop.entangled.common.model.interop;
 
@@ -11,27 +10,64 @@ namespace zero.interop.entangled.common.model.native
     /// Mocks a <see cref="IIoTransactionModel{TBlob}"/> model when not using interop decoders
     /// </summary>
     public class IoNativeTransactionModel : IIoTransactionModel<string>
-    {                
-        public string Address { get; set; }
-        
-        public string SignatureOrMessage { get; set; }
+    {
+        public string SignatureOrMessage
+        {            
+            get => Encoding.UTF8.GetString(SignatureOrMessageBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> AddressBuffer { get; set; }
+        public string Address
+        {
+            get => Encoding.UTF8.GetString(AddressBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
         
         public long Value { get; set; }
         
-        public string ObsoleteTag { get; set; }
-        
+        public ReadOnlyMemory<byte> ObsoleteTagBuffer { get; set; }
+        public string ObsoleteTag
+        {
+            get => Encoding.UTF8.GetString(ObsoleteTagBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
         public long Timestamp { get; set; }
         
         public long CurrentIndex { get; set; }
         
         public long LastIndex { get; set; }
         
-        public string Bundle { get; set; }
+        public ReadOnlyMemory<byte> BundleBuffer { get; set; }
+        public string Bundle
+        {
+            get => Encoding.UTF8.GetString(BundleBuffer.Span);
+            set => throw new NotImplementedException();
+        }
 
-        public string Trunk { get; set; }
-        public string Branch { get; set; }
-        
-        public string Tag { get; set; }
+        public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
+        public string Trunk
+        {
+            get => Encoding.UTF8.GetString(TrunkBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> BranchBuffer { get; set; }
+        public string Branch
+        {
+            get => Encoding.UTF8.GetString(BranchBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> TagBuffer { get; set; }
+        public string Tag
+        {
+            get => Encoding.UTF8.GetString(TagBuffer.Span);
+            set => throw new NotImplementedException();
+        }
 
         [Column(nameof(IoMarshalledTransaction.attachment_timestamp))]
         public long AttachmentTimestamp { get; set; }
@@ -39,10 +75,20 @@ namespace zero.interop.entangled.common.model.native
         public long AttachmentTimestampLower { get; set; }
         [Column(nameof(IoMarshalledTransaction.attachment_timestamp_upper))]
         public long AttachmentTimestampUpper { get; set; }
-        public string Nonce { get; set; }
-        
-        public string Hash { get; set; }
-        
+        public ReadOnlyMemory<byte> NonceBuffer { get; set; }
+        public string Nonce
+        {
+            get => Encoding.UTF8.GetString(NonceBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
+        public ReadOnlyMemory<byte> HashBuffer { get; set; }
+        public string Hash
+        {
+            get => Encoding.UTF8.GetString(HashBuffer.Span);
+            set => throw new NotImplementedException();
+        }
+
         [Ignore]
         public long SnapshotIndex { get; set; }
 
@@ -67,11 +113,24 @@ namespace zero.interop.entangled.common.model.native
         }
 
         [Ignore]
-        public string Uri { get; set; }        
+        public string Uri { get; set; }
 
-        public string AsTrytes(string field, int fixedLenTritsToConvert = 0)
+        [Ignore]
+        public ReadOnlyMemory<byte> Blob { get; set; }
+
+        public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
-            return field;
+            return Encoding.UTF8.GetString(field.Span);
+        }
+
+        public ReadOnlyMemory<byte> AsBlob()
+        {
+            return Blob;
+        }
+
+        public string GetKey()
+        {
+            return Hash;
         }
 
         public short Size { get; set; }

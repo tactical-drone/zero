@@ -14,13 +14,13 @@ namespace zero.sync
         {
             LogManager.LoadConfiguration("nlog.config");
 
-            if (IoEntangled<object>.Optimized)
+            if (IoEntangled<string>.Optimized)
             {
-                var tangleNode = new IoNode<IoTangleMessage<byte[]>>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer<byte[]>(ioNetClient), TanglePeer<object>.TcpReadAhead);
+                var tangleNode = new TangleNode<IoTangleMessage<byte[]>>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer<byte[]>(ioNetClient), TanglePeer<byte[]>.TcpReadAhead);
                 //var tangleNode = new IoNode(IoNodeAddress.Create("udp://192.168.1.2", 14600), ioNetClient=>new TanglePeer(ioNetClient));
 #pragma warning disable 4014
                 tangleNode.Start();
-                tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
+                //tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
 #pragma warning restore 4014
                 //tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("udp://unimatrix.uksouth.cloudapp.azure.com", 14600));
 
@@ -34,11 +34,11 @@ namespace zero.sync
             }
             else
             {
-                var tangleNode = new IoNode<IoTangleMessage<string>>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer<string>(ioNetClient), TanglePeer<object>.TcpReadAhead);
+                var tangleNode = new TangleNode<IoTangleMessage<string>>(IoNodeAddress.Create("tcp://192.168.1.2:15600"), ioNetClient => new TanglePeer<string>(ioNetClient), TanglePeer<string>.TcpReadAhead);
                 //var tangleNode = new IoNode(IoNodeAddress.Create("udp://192.168.1.2", 14600), ioNetClient=>new TanglePeer(ioNetClient));
 #pragma warning disable 4014
                 tangleNode.Start();
-                tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
+                //tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
 #pragma warning restore 4014
                 //tangleNode.SpawnConnectionAsync(IoNodeAddress.Create("udp://unimatrix.uksouth.cloudapp.azure.com", 14600));
 

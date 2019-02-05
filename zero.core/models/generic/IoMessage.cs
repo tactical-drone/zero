@@ -1,4 +1,5 @@
-﻿using zero.core.patterns.bushes;
+﻿using System.Threading.Tasks;
+using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 
@@ -8,7 +9,7 @@ namespace zero.core.models.generic
     /// <summary>
     /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
-    public abstract class IoMessage<TJob> : IoConsumable<TJob>
+    public abstract class IoMessage<TJob> : IoConsumable<TJob>        
         where TJob : IIoWorker 
         
     {
@@ -25,8 +26,8 @@ namespace zero.core.models.generic
             //        BufferSize = (int) pair.Value;
             //        Buffer = new sbyte[BufferSize];
             //    }                    
-            //};
-        }
+            //};            
+        }        
 
         /// <summary>
         /// A buffer to receive the message in
@@ -61,6 +62,11 @@ namespace zero.core.models.generic
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
         /// </summary>
+        public volatile int DatumProvisionLengthMax;
+
+        /// <summary>
+        /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
+        /// </summary>
         public volatile int DatumProvisionLength;
 
         /// <summary>
@@ -75,11 +81,22 @@ namespace zero.core.models.generic
         public override IIoHeapItem Constructor()
         {
             BytesRead = 0;
-            DatumProvisionLength = BufferSize;
-            BufferOffset = DatumProvisionLength;
+            DatumProvisionLength = DatumProvisionLengthMax;
+            BufferOffset = DatumProvisionLengthMax;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
             return base.Constructor();
-        }        
+        }
+
+        /// <summary>
+        /// Does dup checking on this transaction
+        /// </summary>        
+        /// <returns></returns>
+        public async Task<bool> DupCheck(string key)
+        {
+            if(ProducerHandle.DupChecker.IsConnected)
+                return await ProducerHandle.DupChecker.IsDuplicate(key);
+            return false;
+        }
     }
 }

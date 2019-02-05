@@ -28,9 +28,9 @@ namespace zero.core.network.ip
         /// A copy constructor
         /// </summary>
         /// <param name="socket">The underlying socket</param>
-        /// <param name="address">The address listened on</param>
+        /// <param name="listenerAddress">The address listened on</param>
         /// <param name="cancellationToken">Token used for cancellation</param>
-        public IoUdpSocket(Socket socket, IoNodeAddress address, CancellationToken cancellationToken) : base(socket, address, cancellationToken)
+        public IoUdpSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -44,6 +44,8 @@ namespace zero.core.network.ip
         /// Used to retrieve the sender information of a UDP packet and prevent mallocs for each call to receive
         /// </summary>
         private EndPoint _udpRemoteEndpointInfo;
+
+        public override IoNodeAddress RemoteAddress { get; protected set; }
 
         /// <inheritdoc />
         /// <summary>
@@ -67,7 +69,7 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"There was an error handling new connection from `udp://{RemoteAddress}' to `udp://{LocalIpAndPort}'");
+                _logger.Error(e, $"There was an error handling new connection from `udp://{RemoteAddressFallback}' to `udp://{LocalIpAndPort}'");
                 return false;
             }
 
@@ -87,7 +89,7 @@ namespace zero.core.network.ip
             //TODO HACKS! Remove
             if (!IsConnectingSocket)
                 return 0;
-            await Socket.SendToAsync(getBytes, SocketFlags.None, Address.IpEndPoint).ContinueWith(
+            await Socket.SendToAsync(getBytes, SocketFlags.None, ListenerAddress.IpEndPoint).ContinueWith(
                 t =>
                 {
                     switch (t.Status)
@@ -117,8 +119,15 @@ namespace zero.core.network.ip
                 return 0;
             try
             {
-                return await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
+                var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
                     Socket.EndReceive).HandleCancellation(Spinners.Token);
+
+                if (RemoteAddress == null)
+                {
+                    var address = IoNodeAddress.CreateFromEndpoint(_udpRemoteEndpointInfo);                    
+                    RemoteAddress = address;
+                }                    
+                return readAsync;
             }
             catch (Exception e)
             {
@@ -132,9 +141,9 @@ namespace zero.core.network.ip
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
-        public override bool Connected()
+        public override bool IsConnected()
         {
-            return Address.IpEndPoint != null || _udpRemoteEndpointInfo != null;
+            return ListenerAddress.IpEndPoint != null || _udpRemoteEndpointInfo != null;
         }
     }
 }

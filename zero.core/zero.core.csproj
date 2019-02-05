@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.0</TargetFramework>
-    <LangVersion>7.3</LangVersion>    
+    <LangVersion>latest</LangVersion>    
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -20,10 +20,10 @@
     <None Include="..\readme.md" Link="readme.md" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />
-    <PackageReference Include="Microsoft.AspNetCore.All" />
-    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-18579-0056" />    
+  <ItemGroup>    
+    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />    
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-19075-0444" />        
+    <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />    
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
     <PackageReference Include="NLog" Version="4.5.11" />
@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <Folder Include="interop\" />
+    <Folder Include="patterns\schedulers\" />
     <Folder Include="protocol\overhead\" />
   </ItemGroup>
 

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.data.providers.redis;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -23,8 +24,10 @@ namespace zero.core.patterns.bushes
             ReadAheadBufferSize = readAheadBufferSize;
             ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
+            ConsumeAheadBarrier = new SemaphoreSlim(1);
+            ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
-            Spinners = new CancellationTokenSource();
+            Spinners = new CancellationTokenSource();            
         }
 
         /// <summary>
@@ -35,7 +38,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// True if closed
         /// </summary>
-        protected bool Closed = false;
+        protected volatile bool Closed = false;
 
         /// <summary>
         /// Used to signal shutdown
@@ -51,7 +54,7 @@ namespace zero.core.patterns.bushes
         /// Keys this instance.
         /// </summary>
         /// <returns>The unique key of this instance</returns>
-        public abstract int Key { get; }
+        public abstract string Key { get; }
 
         /// <summary>
         /// Description used as a key
@@ -84,6 +87,27 @@ namespace zero.core.patterns.bushes
         public SemaphoreSlim ProducerBarrier { get; protected set; }
 
         /// <summary>
+        /// The consumer semaphore
+        /// </summary>
+        public SemaphoreSlim ConsumeAheadBarrier { get; protected set; }
+
+        /// <summary>
+        /// The consumer semaphore
+        /// </summary>
+        public SemaphoreSlim ProduceAheadBarrier { get; protected set; }
+
+
+        /// <summary>
+        /// Whether to only consume one at a time, but produce many at a time
+        /// </summary>
+        public bool BlockOnConsumeAheadBarrier = false;
+
+        /// <summary>
+        /// Whether to only consume one at a time, but produce many at a time
+        /// </summary>
+        public bool BlockOnProduceAheadBarrier = false;
+
+        /// <summary>
         /// Makes available normalized storage for all downstream usages
         /// </summary>
         public ConcurrentDictionary<string, object> ObjectStorage = new ConcurrentDictionary<string, object>();
@@ -97,6 +121,13 @@ namespace zero.core.patterns.bushes
         public abstract bool IsOperational { get; }
 
         public long ReadAheadBufferSize { get; set; }
+
+        public IoRedisDupChecker DupChecker { get; set; }
+
+        /// <summary>
+        /// Which producer job is next in line
+        /// </summary>
+        public long NextProducerId;
 
         /// <summary>
         /// Gets a value indicating whether this <see cref="IoProducer{TJob}"/> is synced.
@@ -141,7 +172,7 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoProduceble<TJob>.State.Undefined && i < (int)IoProduceble<TJob>.State.Finished)
+                if (i > (int)IoProduceble<TJob>.State.Undefined ) //&& i < (int)IoProduceble<TJob>.State.Finished)
                 {
                     heading.Append($"{((IoProduceble<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
@@ -161,6 +192,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);
+        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);        
     }
 }

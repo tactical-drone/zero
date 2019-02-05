@@ -11,7 +11,7 @@ namespace zero.core.data.cassandra
     /// Based to support different transaction models
     /// </summary>
     /// <typeparam name="TBlob">Blob type</typeparam>
-    public abstract class IoCassandraBase<TBlob> : IoCassandraKeyBase<TBlob> 
+    public abstract class IoCassandraBase<TBlob> : IoCassandraKeyBase<TBlob>
     {
         protected IoCassandraBase()
         {
@@ -24,8 +24,7 @@ namespace zero.core.data.cassandra
         protected volatile Cluster _cluster;
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;
-
-        protected string _dbUrl = string.Empty;        
+        
         protected volatile bool _isConnecting = false;
         private volatile bool _isConnected = false;
         private DateTime _lastConnectionAttempt = DateTime.Now - TimeSpan.FromSeconds(30);
@@ -51,15 +50,14 @@ namespace zero.core.data.cassandra
         /// </summary>
         /// <param name="url">The url of the database</param>
         /// <returns>True if succeeded, false otherwise</returns>
-        protected async Task<bool> Connect(string url)
+        protected async Task<bool> Connect(IoNodeAddress url)
         {
             if (_isConnecting || !_isConnected && (DateTime.Now - _lastConnectionAttempt) < TimeSpan.FromSeconds(10))
                 return false;
             _lastConnectionAttempt = DateTime.Now;            
             _isConnecting = true;
             
-            _dbUrl = url;
-            _clusterAddress = IoNodeAddress.Create(url);
+            _clusterAddress = IoNodeAddress.Create(url.Url);
             _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();            
 
             _logger.Debug("Connecting to Cassandra...");
@@ -71,7 +69,7 @@ namespace zero.core.data.cassandra
             catch (Exception e)
             {
                 _cluster = null;                
-                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.UrlAndPort}` at `{_clusterAddress.ResolvedIpAndPort}':");
+                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.Url}' at `{_clusterAddress.ResolvedIpAndPort}':");
                 
                 return _isConnecting = false;
             }

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -10,7 +10,6 @@ using zero.core.conf;
 using zero.core.data.market;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
-using zero.core.patterns.schedulers;
 
 namespace zero.core.core
 {
@@ -27,8 +26,7 @@ namespace zero.core.core
         {
             _address = address;
             _mallocNeighbor = mallocNeighbor;
-            parm_tcp_readahead = tcpReadAhead;
-            _limitedNeighborThreadScheduler = new LimitedThreadScheduler(parm_max_neighbor_pc_threads);
+            parm_tcp_readahead = tcpReadAhead;            
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
         }
@@ -56,7 +54,12 @@ namespace zero.core.core
         /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        public readonly ConcurrentDictionary<int, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<int, IoNeighbor<TJob>>();
+        public readonly ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<string, IoNeighbor<TJob>>();
+
+        /// <summary>
+        /// Allowed clients
+        /// </summary>
+        private readonly ConcurrentDictionary<string, IoNodeAddress> _whiteList = new ConcurrentDictionary<string, IoNodeAddress>();
 
         /// <summary>
         /// Used to cancel downstream processes
@@ -64,10 +67,16 @@ namespace zero.core.core
         private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
 
         /// <summary>
-        /// The scheduler used to process messages from all neighbors 
+        /// On Connected
         /// </summary>
-        private readonly LimitedThreadScheduler _limitedNeighborThreadScheduler;
-               
+        public EventHandler<IoNeighbor<TJob>> PeerConnected;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public EventHandler<IoNeighbor<TJob>> PeerDisconnected;
+
+
         /// <summary>
         /// Threads per neighbor
         /// </summary>
@@ -80,12 +89,12 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_readahead = 3;
+        protected int parm_tcp_readahead = 2;
 
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        async Task SpawnListenerAsync()
+        protected virtual async Task SpawnListenerAsync()
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
@@ -102,10 +111,17 @@ namespace zero.core.core
                     newNeighbor.Close();
                 });
 
+                //Close neighbor when connection closes
+                remoteClient.Disconnected += (s, e) =>
+                {
+                    newNeighbor.Close();
+                };
+
                 // Remove from lists if closed
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
+                    PeerDisconnected?.Invoke(this, newNeighbor);
                     Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out var _);
                 };
 
@@ -113,32 +129,37 @@ namespace zero.core.core
                 if (!Neighbors.TryAdd(remoteClient.Key, newNeighbor))
                 {
                     newNeighbor.Close();
-                    _logger.Warn($"Neighbor `{remoteClient.AddressString}' already connected. Possible spoof investigate!");
+                    _logger.Warn($"Neighbor `{remoteClient.ListenerAddress}' already connected. Possible spoof investigate!");
                 }
+
+                //New peer connection event
+                PeerConnected?.Invoke(this, newNeighbor);
 
                 //Start the producer consumer on the neighbor scheduler
                 try
                 {
-                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
+                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
                 }
                 catch (Exception e)
                 {
                     _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
                 }
             }, parm_tcp_readahead);
-        }        
+        }
 
         /// <summary>
         /// Make sure a connection stays up
         /// </summary>        
         /// <param name="address">The remote node address</param>
+        /// <param name="retry">Retry on failure</param>
+        /// <param name="retryTimeoutMs">Retry timeout in ms</param>
         /// <returns>The async task</returns>
-        public async Task SpawnConnectionAsync(IoNodeAddress address)
+        public async Task<IoNeighbor<TJob>> SpawnConnectionAsync(IoNodeAddress address, bool retry = false, int retryTimeoutMs = 10000)
         {
             IoNeighbor<TJob> newNeighbor = null;
             bool connectedAtLeastOnce = false;
 
-            while (!_spinners.IsCancellationRequested)
+            while (!_spinners.IsCancellationRequested && !connectedAtLeastOnce)
             {
                 if (newNeighbor == null && !connectedAtLeastOnce)
                 {
@@ -151,27 +172,18 @@ namespace zero.core.core
 
                         if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))
                         {
-                            neighbor.parm_producer_skipped_delay = 60000;
+                            neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
-                            try
-                            {
-#pragma warning disable 4014
-                                //Task.Factory.StartNew(() => neighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, _limitedNeighborThreadScheduler);
-#pragma warning restore 4014
-                            }
-                            catch (Exception e)
-                            {
-                                _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
-                            }
 
-                            //TODO remove this into the protocol?
-                            if(newClient.IsOperational)
-                            await newClient.ProduceAsync(client =>
+                            newNeighbor.Closed += (s, e) =>
                             {
-                                ((IoNetSocket)client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
-                                     Encoding.ASCII.GetBytes("0000015600").Length);
-                                return Task.FromResult(true) ;
-                            });
+                                if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out _))
+                                {
+                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.PrimaryProducer.Key}'");
+                                }
+                            };
+                            
+                            return newNeighbor;
                         }
                         else //strange case
                         {
@@ -181,23 +193,18 @@ namespace zero.core.core
 
                         connectedAtLeastOnce = true;
                     }
-
                 }
                 else
                 {
-                    //TODO parm
-                    await Task.Delay(6000);
-                }
+                    //TODO param
+                    await Task.Delay(retryTimeoutMs);
+                }                
 
-                //if (!newNeighbor?.PrimaryProducer?.IsOperational ?? false)
-                //{
-                //    newNeighbor.Close();
-                //    Neighbors.TryRemove(newNeighbor.PrimaryProducer.Key, out _);
-                //    newNeighbor = null;
-                //    //TODO parm
-                //    await Task.Delay(1000);
-                //}
+                if(!retry)
+                    break;
             }
+
+            return null;
         }
 
         /// <summary>
@@ -227,6 +234,41 @@ namespace zero.core.core
             Neighbors.ToList().ForEach(n => n.Value.Close());
             Neighbors.Clear();
             _logger.Info("Resistance is futile");
+        }
+        
+        public bool WhiteList(IoNodeAddress address)
+        {
+            if (_whiteList.TryAdd(address.ToString(), address))
+            {
+                _logger.Error($"Unable to add `{address}', key `{address}' already exists!");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Blacklists a neighbor
+        /// </summary>
+        /// <param name="address">The address of the neighbor</param>
+        /// <returns>The blacklisted neighbor if it was connected</returns>
+        public IoNeighbor<TJob> BlackList(IoNodeAddress address)
+        {
+            if (_whiteList.TryRemove(address.ToString(), out var ioNodeAddress))
+            {
+                var keys = new List<string>();
+                Neighbors.Values.Where(n=>n.PrimaryProducer.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
+                {                    
+                    keys.Add(n.PrimaryProducer.Key);
+                });
+
+                Neighbors[address.ToString()].Close();
+                Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
+                return ioNeighbor;
+            }
+
+            _logger.Warn($"Unable to blacklist `{address}', not found!");
+            return null;
         }
     }
 }

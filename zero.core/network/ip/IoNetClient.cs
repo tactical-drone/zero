@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.data.providers.redis;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -25,25 +26,34 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Constructor for listening
+        /// Constructor for incoming connections used by the listener
         /// </summary>
-        /// <param name="remote">The tcpclient to be wrapped</param>
+        /// <param name="remote">The remote socket</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoSocket remote, int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoSocket remote, int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            Address = remote.Address;
+            ListenerAddress = remote.ListenerAddress;
+
+            //TODO
+            IoRedisDupChecker.Default().ContinueWith(r =>
+            {
+                if (r.Status == TaskStatus.RanToCompletion)
+                {
+                    DupChecker = r.Result;
+                }
+            });
         }
 
         /// <summary>
         /// Constructor for connecting
         /// </summary>
-        /// <param name="address">The address associated with this network client</param>
+        /// <param name="listenerAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoNetClient(IoNodeAddress address, int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
         {
-            Address = address;
+            ListenerAddress = listenerAddress;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -55,7 +65,10 @@ namespace zero.core.network.ip
         /// <summary>
         /// The remote address associated with this client
         /// </summary>
-        protected readonly IoNodeAddress Address;
+        public readonly IoNodeAddress ListenerAddress;
+
+        public IoNodeAddress RemoteAddress => IoSocket.RemoteAddress;
+
 
         public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> mallocMessage = null)
@@ -83,17 +96,17 @@ namespace zero.core.network.ip
         /// <returns>
         /// The unique key of this instance
         /// </returns>
-        public override int Key => IoSocket?.LocalPort??-1;
+        public override string Key => IoSocket.Key;
 
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => $"Source producer: `{IoSocket?.RemoteIpAndPort??Address.ResolvedIpAndPort}'";
+        public override string Description => $"Source producer: `{IoSocket?.RemoteIpAndPort??ListenerAddress.ResolvedIpAndPort}'";
 
         /// <summary>
         /// A description of this client source. Currently the remote address
         /// </summary>
-        public override string SourceUri => $"{IoSocket.Address.ProtocolDesc}{IoSocket.RemoteIpAndPort}";
+        public override string SourceUri => $"{IoSocket.ListenerAddress.ProtocolDesc}{IoSocket.RemoteIpAndPort}";
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
@@ -134,21 +147,26 @@ namespace zero.core.network.ip
         /// </summary>
         public override void Close()
         {
-            if (!Closed)
+            lock (this)
+            {
+                if (Closed) return;
                 Closed = true;
-
-            Spinners?.Cancel();
+            }
+            
+            _logger.Debug($"Closing `{Description}'");
 
             OnDisconnected();
 
+            Spinners?.Cancel();
+            
             IoSocket?.Close();
-            IoSocket = null;
+            //IoSocket = null;
 
             //Unlock any blockers
             ProducerBarrier?.Dispose();
             ConsumerBarrier?.Dispose();
-
-            _logger.Debug($"Closed connection `{AddressString}'");
+            ConsumeAheadBarrier?.Dispose();
+            ProduceAheadBarrier?.Dispose();            
         }
 
         /// <summary>
@@ -156,11 +174,11 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync()
-        {
-            var connectAsyncTask = IoSocket.ConnectAsync(Address);
+        {            
+            var connectAsyncTask = IoSocket.ConnectAsync(ListenerAddress);            
 
-            _logger.Debug($"Connecting to `{Address}'");
-
+            _logger.Debug($"Connecting to `{ListenerAddress}'");
+            
             return await connectAsyncTask.ContinueWith(t =>
             {
                 if (t.Result)
@@ -169,7 +187,7 @@ namespace zero.core.network.ip
 
                     IoSocket.Disconnected += (s, e) => _cancellationRegistratison.Dispose();
 
-                    _logger.Info($"Connected to `{AddressString}'");
+                    _logger.Info($"Connected to `{AddressString}'");                    
                 }
                 else
                 {
@@ -243,7 +261,7 @@ namespace zero.core.network.ip
                         //var selectWrite = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectWrite)? "OK" : "FAILED";
 
                         //TODO more checks?
-                        if (!IoSocket.Connected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
+                        if (!IoSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
                         {
                             //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
                             _logger.Warn($"Connection to `{AddressString}' disconnected!");
@@ -258,7 +276,7 @@ namespace zero.core.network.ip
                     }
                     else
                     {
-                        return IoSocket?.Connected() ?? false;
+                        return IoSocket?.IsConnected() ?? false;
                     }
                 }
                 catch (Exception e)
@@ -272,6 +290,6 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => Address.ResolvedIpAndPort;
+        public string AddressString => ListenerAddress.ResolvedIpAndPort;
     }
 }

@@ -1,16 +1,10 @@
-﻿using System.Reflection;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using zero.core.api;
-using zero.core.api.controllers;
 using zero.core.api.controllers.bootstrap;
-using zero.core.api.controllers.generic;
 using zero.core.api.controllers.services;
-using zero.core.api.interfaces;
-using zero.interop.entangled;
 
 
 namespace zero.api

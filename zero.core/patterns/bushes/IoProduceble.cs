@@ -35,6 +35,8 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public long Id { get; private set; }
 
+        public volatile IoProduceble<TJob> Previous;
+
         /// <summary>
         /// Respective States as the work goes through the producer consumer pattern
         /// </summary>
@@ -43,7 +45,7 @@ namespace zero.core.patterns.bushes
             Undefined,
             Producing,
             Produced,
-            ProSkipped,
+            ProStarting,
             Queued,
             Consuming,
             Forwarded,            
@@ -57,9 +59,11 @@ namespace zero.core.patterns.bushes
             ProduceErr,
             ConsumeErr,
             ConInvalid,
-            ConSpam,
+            NoPow,
+            FastDup,
+            SlowDup,
             ConCancel,
-            ProCancel,
+            ProdCancel,
             ConsumeTo,
             ProduceTo,
             Cancelled,
@@ -85,7 +89,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoProducerConsumer{TJob}"/>
         /// </summary>      
-        public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length * 2];//TODO what should this size be?
+        public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];//TODO what should this size be?
 
         /// <summary>
         /// The current state
@@ -95,13 +99,13 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
         /// </summary>
-        public bool StillHasUnprocessedFragments { get; set; }
+        public volatile bool StillHasUnprocessedFragments;
 
         /// <summary>
         /// Callback the generates the next job
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
-        public abstract Task<State> ProduceAsync(IoProduceble<TJob> fragment);
+        public abstract Task<State> ProduceAsync();
 
         /// <summary>
         /// Update state history
@@ -117,36 +121,32 @@ namespace zero.core.patterns.bushes
                 Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
                 Interlocked.Add(ref ProducerHandle.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));                
             }
+            else
+            {
+                if (value != State.Producing && value != State.Undefined)
+                {
+                    _logger.Fatal($"({Id}) Fatal error: First state transition history's first transition should be `{State.Producing}', but is `{value}'");
+                    PrintStateHistory();
+                }
+            }
 
             //Allocate memory for a new current state
             var prevState = CurrentState;
-            CurrentState = new IoWorkStateTransition<TJob> {Previous = prevState};
+            var newState = new IoWorkStateTransition<TJob> { Previous = prevState };
+            CurrentState = newState;
 
             //Configure the current state
-
             if (prevState != null)
                 prevState.Next = CurrentState;
-
-            // We need a lock if this job contained fragments because there is a race condition of ownership between 
-            // the producer and the consumer as to who returns this job to the heap. If the consumer has consumed this
-            // job it is the producers responsibility to return this job to the heap because it still needs to
-            // move the fragments to a future job. If the consumer still needs to  process this job then the consumer
-            // needs to return this job to the heap. Who exactly has control is determined by the StillHasUnprocessedFragments
-            // state. The producer will set this value to false when it has moved the datum fragments to another job so that
-            // it can be processed
-            if (StillHasUnprocessedFragments && value == State.Consumed)
-            {
-                lock (this)
-                    CurrentState.State = value;
-            }
-            else
-                CurrentState.State = value;
+            
+            CurrentState.State = value;
 
             //Timestamps
             CurrentState.EnterTime = CurrentState.ExitTime = DateTime.Now;
 
             //Update the state transition history
-            StateTransitionHistory[(int)ProcessState] = CurrentState;
+            if(prevState != null)
+                StateTransitionHistory[(int)prevState.State] = newState;
         }
 
         /// <summary>
@@ -159,6 +159,14 @@ namespace zero.core.patterns.bushes
 
             ProcessState = State.Undefined;
             StillHasUnprocessedFragments = false;
+
+            var curState = 0;
+            while (StateTransitionHistory[curState] != null)
+            {
+                var prevState = curState;
+                curState = (int) StateTransitionHistory[curState].State;
+                StateTransitionHistory[prevState] = null;
+            }
 
             return this;
         }
@@ -198,7 +206,7 @@ namespace zero.core.patterns.bushes
         /// <param name="currentState">The instance to be printed</param>
         public void PrintState(IoWorkStateTransition<TJob> currentState)
         {
-            _logger.Info("Work`{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
+            _logger.Info("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
                 ProductionDescription,
                 (currentState.Previous == null ? CurrentState.DefaultPadded : currentState.Previous.PaddedStr()),
                 (currentState.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
@@ -221,9 +229,12 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
-                if(CurrentState?.State == value)
+                if (CurrentState?.State == value)
+                {
+                    Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
                     return;
-
+                }
+                    
                 //Update timestamps
                 UpdateStateTransitionHistory(value);
 
@@ -243,7 +254,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Set unprocessed data as more fragments.
         /// </summary>
-        public abstract void MoveUnprocessedToFragment();
+        //public abstract void MoveUnprocessedToFragment();
 
         public bool Reconfigure { get; }
     }

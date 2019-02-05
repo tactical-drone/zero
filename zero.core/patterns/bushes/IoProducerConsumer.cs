@@ -9,8 +9,6 @@ using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.schedulers;
-using zero.core.protocol;
 
 namespace zero.core.patterns.bushes
 {
@@ -50,10 +48,9 @@ namespace zero.core.patterns.bushes
 
             //Configure cancellations
             Spinners = new CancellationTokenSource();
-            Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());
+            Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
-            // set a default scheduler
-            JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads);
+            parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
         }
 
         /// <summary>
@@ -118,12 +115,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A connectable observer, used to multicast messages
         /// </summary>
-        public IConnectableObservable<IoConsumable<TJob>> ObservableRouter { private set; get; }
-
-        /// <summary>
-        /// The scheduler used to do work on
-        /// </summary>
-        protected LimitedThreadScheduler JobThreadScheduler;
+        public IConnectableObservable<IoConsumable<TJob>> ObservableRouter { private set; get; }        
 
         /// <summary>
         /// Maintains a handle to a job if fragmentation was detected so that the
@@ -150,7 +142,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_stats_mod_count = 100;
+        public int parm_stats_mod_count = 1000;
 
         /// <summary>
         /// Used to rate limit this queue, in ms. Set to -1 for max rate
@@ -190,7 +182,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_skipped_delay = 1000;
+        public int parm_producer_start_retry_time = 1000;
 
         /// <summary>
         /// Produces the inline instead of in a spin loop
@@ -204,96 +196,95 @@ namespace zero.core.patterns.bushes
             if (_queue.Count < parm_max_q_size)
             {
                 IoConsumable<TJob> nextJob = null;
-                bool wasQueued = false;
+                bool jobSafeReleased = false;
                 try
                 {
                     //Allocate a job from the heap
                     if ((nextJob = JobMetaHeap.Take()) != null)
                     {
+                        while (nextJob.ProducerHandle.BlockOnProduceAheadBarrier)
+                        {
+                            if (!await nextJob.ProducerHandle.ProduceAheadBarrier.WaitAsync(-1, Spinners.Token))
+                            {
+                                Interlocked.Increment(ref nextJob.ProducerHandle.NextProducerId);
+                                return false;
+                            }
+
+                            var nextProducerId = Interlocked.Read(ref nextJob.ProducerHandle.NextProducerId);
+                            if (nextJob.Id == nextProducerId)
+                            {
+                                Interlocked.Increment(ref nextJob.ProducerHandle.NextProducerId);
+                                break;
+                            }
+                            _logger.Warn($"Next id = `{nextJob.Id}' is not {nextProducerId}!!");
+                            nextJob.ProducerHandle.ProduceAheadBarrier.Release();
+                        }
+
                         //Fetch a job from TProducer. Did we get one?
                         _previousJobFragment.TryRemove(nextJob.Id - 1,  out var prevJobFragment);
-                        if (prevJobFragment != null && !prevJobFragment.StillHasUnprocessedFragments)
-                            prevJobFragment = null;
-                        if (await nextJob.ProduceAsync(prevJobFragment) < IoProduceble<TJob>.State.Error)
+                        nextJob.Previous = prevJobFragment;                        
+                        
+                        if (await nextJob.ProduceAsync() < IoProduceble<TJob>.State.Error)
                         {
+                            
                             //TODO Double check this hack
                             //Basically to handle this weird double connection business on the TCP iri side
-                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProSkipped)
+                            if (nextJob.ProcessState == IoProduceble<TJob>.State.ProStarting)
                             {
-                                nextJob.ProcessState = IoProduceble<TJob>.State.Accept;
+                                nextJob.ProcessState = IoProduceble<TJob>.State.Produced;
 
                                 if (sleepOnConsumerLag && nextJob.ProducerHandle.Synced)
-                                    await Task.Delay(parm_producer_skipped_delay, cancellationToken);
+                                    await Task.Delay(parm_producer_start_retry_time, cancellationToken);
 
                                 PrimaryProducer.ProducerBarrier.Release(1);
                                 return true;
                             }
+                            
+                            _previousJobFragment.TryAdd(nextJob.Id, nextJob);
 
-                            //Does production yield fragmented datums?
-                            if (nextJob.StillHasUnprocessedFragments)
-                                _previousJobFragment.TryAdd(nextJob.Id, nextJob);                                
-
-                            //Enqueue the job for the consumer
-                            nextJob.ProcessState = IoProduceble<TJob>.State.Queued;
-                            _queue.Enqueue(nextJob);
-                            wasQueued = true;
-
-                            //Signal to the consumer that there is work to do
                             try
                             {
-                                PrimaryProducer.ConsumerBarrier.Release(1);
+                                if (nextJob.ProducerHandle.BlockOnProduceAheadBarrier)
+                                    nextJob.ProducerHandle.ProduceAheadBarrier.Release();                                
                             }
                             catch
                             {
                                 // ignored
                             }
 
-                            //Prepare this production's remaining datum fragments for the next production
-                            if (prevJobFragment != null)
+                            //Enqueue the job for the consumer
+                            nextJob.ProcessState = IoProduceble<TJob>.State.Queued;
+                            jobSafeReleased = true;
+                            _queue.Enqueue(nextJob);
+                            
+                            //Signal to the consumer that there is work to do
+                            try
+                            {                                
+                                PrimaryProducer.ConsumerBarrier.Release(1);
+                            }
+                            catch
                             {
-                                lock (prevJobFragment)
-                                {
-                                    //If this job is not under the consumer's control, we need to return it to the heap 
-                                    if (prevJobFragment.ProcessState > IoProduceble<TJob>.State.Consumed)
-                                        JobMetaHeap.Return(prevJobFragment);
-                                    else //Signal control back to the consumer that it now has control over this job
-                                        prevJobFragment.StillHasUnprocessedFragments = false;
-                                }
+                                // ignored
                             }                            
                         }
                         else //produce job returned with errors
-                        {
+                        {                            
+                            if (nextJob.ProducerHandle.BlockOnProduceAheadBarrier)
+                                nextJob.ProducerHandle.ProduceAheadBarrier.Release();
+
+                            PrimaryProducer.ProducerBarrier.Release(1);
+
                             if (nextJob.ProcessState == IoProduceble<TJob>.State.Cancelled ||
-                                nextJob.ProcessState == IoProduceble<TJob>.State.ProCancel)
+                                nextJob.ProcessState == IoProduceble<TJob>.State.ProdCancel)
                             {
                                 Spinners.Cancel();
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
                                 return false;
                             }
 
-                            //TODO double check what we are supposed to do here?
-                            //TODO what about the previous fragment?
-                            var sleepTimeMs = nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Reject] +
-                                              1 / (nextJob.ProducerHandle.Counters
-                                                       [(int) IoProduceble<TJob>.State.Accept] + parm_error_timeout);
-
-                            if (sleepOnConsumerLag)
-                            {
-                                _logger.Debug(
-                                    $"{nextJob.ProductionDescription}, Reject = {nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Reject]}, Accept = {nextJob.ProducerHandle.Counters[(int) IoProduceble<TJob>.State.Accept]}");
-                                _logger.Debug(
-                                    $"`{PrimaryProducerDescription}' producing job `{nextJob.ProductionDescription}' returned with state `{nextJob.ProcessState}', sleeping for {sleepTimeMs}ms...");
-
-                                try
-                                {
-                                    await Task.Delay((int) sleepTimeMs, Spinners.Token);
-                                }
-                                catch
-                                {
-                                    // ignored
-                                }
-                            }
-
+                            //Free resources
+                            jobSafeReleased = true;
+                            Free(nextJob);                                                        
                         }
                     }
                     else
@@ -315,12 +306,14 @@ namespace zero.core.patterns.bushes
                 finally
                 {
                     //prevent leaks
-                    if (nextJob != null && !wasQueued)
+                    if (nextJob != null && !jobSafeReleased)
                     {
+                        _logger.Warn("Job resources were not freed. BUG!");
                         //TODO Double check this hack
                         if (nextJob.ProcessState != IoProduceble<TJob>.State.Finished)
                             nextJob.ProcessState = IoProduceble<TJob>.State.Reject;
-                        JobMetaHeap.Return(nextJob);
+
+                        Free(nextJob);                        
                     }
                 }
             }
@@ -336,21 +329,27 @@ namespace zero.core.patterns.bushes
             return true;
         }
 
+        private void Free(IoConsumable<TJob> curJob)
+        {
+            if(curJob.Previous != null)
+                JobMetaHeap.Return((IoConsumable<TJob>) curJob.Previous);                        
+        }
+       
         /// <summary>
         /// Consumes the inline instead of from a spin loop
         /// </summary>
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="sleepOnProducerLag">if set to <c>true</c> [sleep on producer lag].</param>
         /// <returns></returns>
-        public async Task<Task> ConsumeAsync(Action<IoConsumable<TJob>> inlineCallback = null, bool sleepOnProducerLag = true)
+        public async Task<Task> ConsumeAsync(Func<IoConsumable<TJob>,Task> inlineCallback = null, bool sleepOnProducerLag = true)
         {
             try
             {
                 if (PrimaryProducer == null)
                     return Task.CompletedTask;
 
-                //Waiting for a job to be produced. Did production fail?
-                if (!await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
+                if (PrimaryProducer.BlockOnConsumeAheadBarrier && !await PrimaryProducer.ConsumeAheadBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout,
+                    Spinners.Token))
                 {
                     //Was shutdown requested?
                     if (Spinners.IsCancellationRequested)
@@ -361,8 +360,29 @@ namespace zero.core.patterns.bushes
 
                     //Production timed out
                     if (sleepOnProducerLag)
+                    {
+                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' [[ReadAheadBarrier]] timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                    }
+
+                    //Try again                    
+                    return Task.CompletedTask;
+                }
+
+                //Waiting for a job to be produced. Did production fail?
+                if (!await PrimaryProducer.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
+                {
+                    //Was shutdown requested?
+                    if (Spinners.IsCancellationRequested)
+                    {
+                        _logger.Debug($"Consumer `{PrimaryProducerDescription}' is shutting down");
+                        return Task.CompletedTask;
+                    }
+                    
+                    //Production timed out
+                    if (sleepOnProducerLag)
                     {                        
-                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' [[ConsumerBarrier]] timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        await Task.Delay(parm_consumer_wait_for_producer_timeout/4);
                     }
                         
 
@@ -371,86 +391,85 @@ namespace zero.core.patterns.bushes
                 }
 
                 //A job was produced. Dequeue it and process
-                if (_queue.TryDequeue(out var currJob))
+                if (_queue.TryDequeue(out var curJob))
                 {
-                    currJob.ProcessState = IoProduceble<TJob>.State.Consuming;
+                    curJob.ProcessState = IoProduceble<TJob>.State.Consuming;
                     try
                     {
                         //Consume the job
-                        if (await currJob.ConsumeAsync() >= IoProduceble<TJob>.State.Error)
+                        if (await curJob.ConsumeAsync() >= IoProduceble<TJob>.State.Error)
                         {
-                            _logger.Trace($"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' was unsuccessful, state = {currJob.ProcessState}");
+                            _logger.Trace($"`{PrimaryProducerDescription}' consuming job `{curJob.ProductionDescription}' was unsuccessful, state = {curJob.ProcessState}");                            
                         }
-
-                        if (currJob.ProcessState == IoProduceble<TJob>.State.ConInlined)
+                        else
                         {
-                            //forward any jobs
-                            currJob.ProcessState = IoProduceble<TJob>.State.Consuming;
-                            inlineCallback?.Invoke(currJob);
-                        }
+                            if (curJob.ProcessState == IoProduceble<TJob>.State.ConInlined && inlineCallback != null)
+                            {
+                                //forward any jobs                                                                             
+                                await inlineCallback(curJob);
+                            }
 
-                        //Notify observer
-                        _observer?.OnNext(currJob);
+                            //Notify observer
+                            _observer?.OnNext(curJob);
+                        }                        
                     }
                     catch (ArgumentNullException e)
                     {
                         _logger.Trace(e.InnerException ?? e,
-                            $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' returned with errors:");
+                            $"`{PrimaryProducerDescription}' consuming job `{curJob.ProductionDescription}' returned with errors:");
                     }
                     catch (Exception e)
                     {
                         _logger.Error(e.InnerException ?? e,
-                            $"`{PrimaryProducerDescription}' consuming job `{currJob.ProductionDescription}' returned with errors:");
+                            $"`{PrimaryProducerDescription}' consuming job `{curJob.ProductionDescription}' returned with errors:");
                     }
                     finally
-                    {                        
-                        //Consume success?
-                        if (currJob.ProcessState == IoProduceble<TJob>.State.Consumed)
-                        {
-                            currJob.ProcessState = IoProduceble<TJob>.State.Accept;
+                    {
+                        if (PrimaryProducer.BlockOnConsumeAheadBarrier)
+                            PrimaryProducer.ConsumeAheadBarrier.Release();
 
-                            if (!currJob.StillHasUnprocessedFragments)
-                                JobMetaHeap.Return(currJob);                            
+                        //Consume success?
+                        if (curJob.ProcessState < IoProduceble<TJob>.State.Error)
+                        {                            
+                            curJob.ProcessState = IoProduceble<TJob>.State.Accept;                                                                    
                         }
                         else //Consume failed?
                         {                            
-                            if (!currJob.StillHasUnprocessedFragments)
-                            {
-                                JobMetaHeap.Return(currJob);
-                            }
-                            else if( currJob.ProcessState != IoProduceble<TJob>.State.Syncing)
-                            {
-                                currJob.MoveUnprocessedToFragment();
-                            }
-                            currJob.ProcessState = IoProduceble<TJob>.State.Reject;
+                            curJob.ProcessState = IoProduceble<TJob>.State.Reject;
                         }
 
-                        //Signal the producer that it can continue to get more work
                         try
                         {
+                            //Signal the producer that it can continue to get more work                        
                             PrimaryProducer.ProducerBarrier.Release(1);
                         }
                         catch
                         {
                             // ignored
                         }
+                        finally
+                        {                            
+                            if ((curJob.Id % parm_stats_mod_count == 0))
+                            {
 
-                        if ((currJob.Id % parm_stats_mod_count) == 0)
-                        {
-                            _logger.Trace(
-                                $"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");
-                            
-                            currJob.ProducerHandle.PrintCounters();
-                        }
+                                _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
+                                _logger.Trace($"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");
+                                curJob.ProducerHandle.PrintCounters();
+                                _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
+                            }
 
-                        //TODO remove this spam when everything checks out?
-                        
+                            Free(curJob);
+                        }                                                                        
                     }
                 }
                 else
                 {
                     _logger.Warn($"`{PrimaryProducerDescription}' produced nothing");
+
                     PrimaryProducer.ProducerBarrier.Release(1);
+
+                    if (PrimaryProducer.BlockOnConsumeAheadBarrier)
+                        PrimaryProducer.ConsumeAheadBarrier.Release(1);                    
                 }
             }
             catch (OperationCanceledException) { }
@@ -504,9 +523,10 @@ namespace zero.core.patterns.bushes
                     }
                 }, TaskCreationOptions.LongRunning);
 
+
                 //consumerTask.Start();
                 //producerTask.Start();
-                
+
                 //Wait for tear down                
                 await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
                 {

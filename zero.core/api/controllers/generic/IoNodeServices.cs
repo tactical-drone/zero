@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -27,7 +28,7 @@ namespace zero.core.api.controllers.generic
     [EnableCors("ApiCorsPolicy")]
     [ApiController]
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]    
-    public class IoNodeServices<TBlob> : Controller, IIoNodeController 
+    public class IoNodeServices<TBlob> : Controller, IIoNodeController
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoNodeServices{TBlob}"/> class.
@@ -62,24 +63,20 @@ namespace zero.core.api.controllers.generic
         [HttpPost]        
         public IoApiReturn Post(IoNodeAddress address)
         {
-            if (!address.IsValid)
+            if (!address.Validated)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<object>.TcpReadAhead)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<TBlob>.TcpReadAhead)))
             {
-                var errStr = $"Cannot create node `${address.UrlAndPort}', a node with that id already exists";
+                var errStr = $"Cannot create node `${address.Url}', a node with that id already exists";
                 _logger.Warn(errStr);
                 return IoApiReturn.Result(true, errStr);
             }
 
 
-            var dbgStr = $"Added listener at `{address.UrlAndPort}'";
+            var dbgStr = $"Added listener at `{address.Url}'";
 
             Nodes[address.Port].Start();
-
-#pragma warning disable 4014
-            Nodes[address.Port].SpawnConnectionAsync(IoNodeAddress.Create("tcp://unimatrix.uksouth.cloudapp.azure.com:15600"));
-#pragma warning restore 4014
 
             _logger.Debug(dbgStr);
             return IoApiReturn.Result(true, dbgStr, address.Port);
@@ -111,7 +108,7 @@ namespace zero.core.api.controllers.generic
 
                 Stopwatch stopwatch = new Stopwatch();
 #pragma warning disable 4014 //TODO figure out what is going on with async
-                Nodes.SelectMany(n => n.Value.Neighbors).Where(n => n.Key == id).Select(n => n.Value).ToList()
+                Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
@@ -126,21 +123,21 @@ namespace zero.core.api.controllers.generic
                                 await relaySource.ConsumeAsync(message =>
                                 {
                                     if (message == null)
-                                        return;
+                                        return Task.CompletedTask;
 
 
                                     var msg = ((IoTangleTransaction<TBlob>)message);
 
                                     if (count > 50)
-                                        return;
+                                        return Task.CompletedTask;
 
                                     if (msg.Transactions == null)
-                                        return;
+                                        return Task.CompletedTask;
                                     try
                                     {
                                         foreach (var t in msg.Transactions)
                                         {
-                                            var tagStr = t.AsTrytes(t.Tag);
+                                            var tagStr = t.AsTrytes(t.TagBuffer);
 
                                             if (tagQuery == null)
                                                 transactions.Add(t);
@@ -161,6 +158,8 @@ namespace zero.core.api.controllers.generic
                                         if (msg.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
                                             msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                                     }
+
+                                    return Task.CompletedTask;                                    
                                 }, sleepOnProducerLag: false);
                             }
                             stopwatch.Stop();

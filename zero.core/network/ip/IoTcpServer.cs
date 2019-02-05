@@ -67,7 +67,7 @@ namespace zero.core.network.ip
         public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
         {
             var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
-            return await base.ConnectAsync(null, ioTcpclient);
+            return await base.ConnectAsync(address, ioTcpclient);
         }
     }
 }

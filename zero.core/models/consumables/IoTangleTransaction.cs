@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.models.consumables.sources;
@@ -41,32 +40,32 @@ namespace zero.core.models.consumables
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync(IoProduceble<IoTangleTransaction<TBlob>> fragment)
+        public override async Task<State> ProduceAsync()
         {
             ProcessState = State.Producing;
             await ProducerHandle.ProduceAsync(async producer =>
             {
                 if (ProducerHandle.ProducerBarrier == null)
                 {
-                    ProcessState = State.ProCancel;
+                    ProcessState = State.ProdCancel;
                     return false;                    
                 }
 
                 if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
                 {
-                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProCancel;
+                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
                 if (ProducerHandle.Spinners.IsCancellationRequested)
                 {
-                    ProcessState = State.ProCancel;
+                    ProcessState = State.ProdCancel;
                     return false;
                 }
                 
                 ((IoTangleMessageSource<TBlob>)ProducerHandle).TxQueue.TryDequeue(out Transactions);
                 
-                ProcessState = Transactions == null ? State.ProSkipped : State.Produced;                
+                ProcessState = Transactions == null ? State.ProStarting : State.Produced;                
 
                 return true;
             });
@@ -79,10 +78,10 @@ namespace zero.core.models.consumables
         /// Set unprocessed data as more fragments.
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        public override void MoveUnprocessedToFragment()
-        {
-            throw new NotImplementedException();
-        }
+        //public override void MoveUnprocessedToFragment()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         /// <summary>
         /// Consumes the job

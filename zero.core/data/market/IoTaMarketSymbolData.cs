@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace zero.core.data.market
+﻿namespace zero.core.data.market
 {
     /// <summary>
     /// The model for crypto compare market data
