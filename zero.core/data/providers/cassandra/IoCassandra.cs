@@ -316,6 +316,9 @@ namespace zero.core.data.providers.cassandra
 
         public async Task<bool> Exists<TBlobLocal>(TBlobLocal key)
         {
+            if (!IsConnected)
+                return false;
+
             var dupCheckStatement = _dupCheckQuery.Bind(key);
             var rowSet = await _session.ExecuteAsync(dupCheckStatement);
 

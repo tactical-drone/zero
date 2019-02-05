@@ -274,7 +274,7 @@ namespace zero.core.models.consumables
                         curSyncFailureCount = syncFailureThreshold;
 
                         //Cheap dup checker
-                        if (ProducerHandle.DupChecker != null)
+                        if (ProducerHandle.DupChecker != null && ProducerHandle.DupChecker.IsConnected)
                         {
                             var stopwatch = new Stopwatch();
                             stopwatch.Restart();
