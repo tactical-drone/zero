@@ -61,14 +61,14 @@ In multiple consoles:
 3. **`~/../zero$`** `cd zero.web`
 4. **`~/../zero.web$`** `npm install`
 5. **`~/../zero.web$`** `dotnet dev-certs https`
-5. **`~/../zero.web$`** `cd ..`
+6. **`~/../zero.web$`** `cd ..`
    - Windows: (`START /B` does not work in powershell, just use two shells)
      1. `START /B dotnet run --project zero.api`
      2. `START /B dotnet run --project zero.web`
    - Linux: 
      1. **`~/../zero$`** `dotnet run --project zero.api & dotnet run --project zero.web`
-8. Wait for the server to start, this can take a while sometimes while webpack does it's thing
-7. Connect to __`https://localhost:5001`__
+7. Wait for the server to start, this can take a while sometimes while webpack does it's thing
+8. Connect to __`https://localhost:5001`__
 9. Enter the listening url for the local machine and press create, ie `tcp://192.168.1.2:15600`
 10. Make sure remote iri node is peered up connecting back to your listening url in step 6
 
