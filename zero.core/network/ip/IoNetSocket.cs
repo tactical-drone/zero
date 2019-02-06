@@ -1,5 +1,6 @@
 ﻿using System.Net.Sockets;
 using System.Threading;
+using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
@@ -17,6 +18,11 @@ namespace zero.core.network.ip
 
         protected IoNetSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
         {
-        }        
+        }
+
+        public string Description => $"{this.GetType().Name} `{base.LocalAddress}'";
+        public string SourceUri => $"{base.ListenerAddress}";
+        public bool IsOperational => NativeSocket.Connected;
+        public IIoDupChecker RecentlyProcessed { get; set; }
     }
 }

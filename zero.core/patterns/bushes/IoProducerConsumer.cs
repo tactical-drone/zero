@@ -63,6 +63,7 @@ namespace zero.core.patterns.bushes
         {
             PrimaryProducerDescription = description;
             PrimaryProducer = source;
+            
 
             JobMetaHeap = new IoHeapIo<IoConsumable<TJob>>(parm_max_q_size) { Make = mallocMessage };
         }
@@ -105,7 +106,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Stops this producer consumer
         /// </summary>
-        public CancellationTokenSource Spinners;
+        public CancellationTokenSource Spinners { get; }
 
         /// <summary>
         /// The current observer, there can only be one
@@ -190,7 +191,7 @@ namespace zero.core.patterns.bushes
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <param name="sleepOnConsumerLag">if set to <c>true</c> [sleep on consumer lag].</param>
         /// <returns></returns>
-        public async Task<bool> ProduceAsync(CancellationToken cancellationToken, bool sleepOnConsumerLag = true)
+        public async Task<bool> ProduceAsync(CancellationToken cancellationToken, bool sleepOnConsumerLag = true) //TODO fix sleepOnConsumerLag variable name that has double meaning
         {
             //And the consumer is keeping up
             if (_queue.Count < parm_max_q_size)
@@ -225,8 +226,7 @@ namespace zero.core.patterns.bushes
                         nextJob.Previous = prevJobFragment;                        
                         
                         if (await nextJob.ProduceAsync() < IoProduceble<TJob>.State.Error)
-                        {
-                            
+                        {                            
                             //TODO Double check this hack
                             //Basically to handle this weird double connection business on the TCP iri side
                             if (nextJob.ProcessState == IoProduceble<TJob>.State.ProStarting)

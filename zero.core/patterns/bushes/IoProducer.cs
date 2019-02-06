@@ -6,7 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.data.contracts;
 using zero.core.data.providers.redis;
+using zero.core.data.providers.redis.configurations.tangle;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -14,14 +16,14 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Used by <see cref="IoProducerConsumer{TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoProducer<TJob> : IoConfigurable, IIoProducer where TJob : IIoWorker        
+    public abstract class IoProducer<TJob> : IoConfigurable, IIoProducer where TJob : IIoWorker
     {
         /// <summary>
         /// Constructor
         /// </summary>
         protected IoProducer(int readAheadBufferSize = 2)
         {
-            ReadAheadBufferSize = readAheadBufferSize;
+            ReadAheadBufferSize = readAheadBufferSize;            
             ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
             ConsumeAheadBarrier = new SemaphoreSlim(1);
@@ -49,7 +51,12 @@ namespace zero.core.patterns.bushes
         /// The io forward producer
         /// </summary>
         protected ConcurrentDictionary<string, IIoForward> IoForward = new ConcurrentDictionary<string, IIoForward>();
-        
+
+        /// <summary>
+        /// The producer that we are forwarding from
+        /// </summary>
+        public IIoProducer Upstream { get; set; }
+
         /// <summary>
         /// Keys this instance.
         /// </summary>
@@ -122,7 +129,7 @@ namespace zero.core.patterns.bushes
 
         public long ReadAheadBufferSize { get; set; }
 
-        public IoRedisDupChecker DupChecker { get; set; }
+        public IIoDupChecker RecentlyProcessed { get; set; }
 
         /// <summary>
         /// Which producer job is next in line

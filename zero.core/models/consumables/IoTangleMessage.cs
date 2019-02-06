@@ -27,20 +27,20 @@ namespace zero.core.models.consumables
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
-    public class IoTangleMessage<TBlob> : IoMessage<IoTangleMessage<TBlob>>        
+    public sealed class IoTangleMessage<TBlob> : IoMessage<IoTangleMessage<TBlob>>        
     {
         /// <summary>
         /// Constructs buffers that hold tangle message information
         /// </summary>  
-        /// <param name="source">The network source where messages are to be obtained</param>
-        public IoTangleMessage(IoProducer<IoTangleMessage<TBlob>> source)
+        /// <param name="upstream">The upstream producer where messages are coming from</param>
+        public IoTangleMessage(IoProducer<IoTangleMessage<TBlob>> upstream)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
             _entangled = IoEntangled<TBlob>.Default;
 
             //Every job knows which source produced it
-            ProducerHandle = source;
+            ProducerHandle = upstream;
 
             //Set some tangle specific protocol constants
             DatumSize = Codec.MessageSize + ((ProducerHandle is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
@@ -52,21 +52,23 @@ namespace zero.core.models.consumables
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
-            WorkDescription = $"Deserialize messages from `{source.Description}'";
+            WorkDescription = $"Deserialize messages from `{upstream.Description}'";
 
-            //forward to nodeservices
+            //forward to node services
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _nodeServicesProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}",ProducerHandle);
+                _nodeServicesProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}", ProducerHandle);
                 if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
                     _nodeServicesProxy = (IoTangleMessageSource<TBlob>)ProducerHandle.ObjectStorage[nameof(_nodeServicesProxy)];
                 }
             }
 
-            NodeServicesRelay = source.GetRelaySource(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));
+            NodeServicesRelay = upstream.GetRelaySource(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));            
+            NodeServicesRelay.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+            NodeServicesRelay.parm_producer_start_retry_time = 0;
 
-            //forward to neighbors
+            //forward to neighbor
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
                 _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_neighborProxy)}", ProducerHandle);
@@ -76,13 +78,8 @@ namespace zero.core.models.consumables
                 }
             }
 
-            NeighborRelay = source.GetRelaySource(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy));
-
-            //tweak this producer
-            NodeServicesRelay.parm_consumer_wait_for_producer_timeout = 0;
-            NodeServicesRelay.parm_producer_start_retry_time = 0;
-
-            NeighborRelay.parm_consumer_wait_for_producer_timeout = 5000; //TODO config
+            NeighborRelay = upstream.GetRelaySource(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
+            NeighborRelay.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborRelay.parm_producer_start_retry_time = 0;
         }
 
@@ -96,7 +93,7 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public sealed override IoProducer<IoTangleMessage<TBlob>> ProducerHandle { get; protected set; }
+        //public IoProducer<IoTangleMessage<TBlob>> ProducerHandle { get; protected set; }
 
         /// <summary>
         /// The entangled libs
@@ -166,17 +163,17 @@ namespace zero.core.models.consumables
         /// <summary>
         /// Crc checker
         /// </summary>
-        private Crc32 _crc32 = new Crc32();
+        private readonly Crc32 _crc32 = new Crc32();
 
         /// <summary>
         /// tps counter
         /// </summary>
-        private static readonly IoFpsCounter TotalTpsCounter = new IoFpsCounter();
+        private static readonly IoFpsCounter TotalTpsCounter = new IoFpsCounter(); //TODO send this to the producer handle
 
         /// <summary>
         /// tps counter
         /// </summary>
-        private static readonly IoFpsCounter ValueTpsCounter = new IoFpsCounter(10);
+        private static readonly IoFpsCounter ValueTpsCounter = new IoFpsCounter(10); //TODO send this to the producer handle
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -190,8 +187,8 @@ namespace zero.core.models.consumables
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting
-        
+        public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting        
+
         /// <summary>
         /// Processes a iri datum
         /// </summary>
@@ -271,12 +268,12 @@ namespace zero.core.models.consumables
                         curSyncFailureCount = syncFailureThreshold;
 
                         //Cheap dup checker
-                        if (ProducerHandle.DupChecker != null && ProducerHandle.DupChecker.IsConnected)
+                        if (ProducerHandle.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
                         {
                             var stopwatch = new Stopwatch();
                             stopwatch.Restart();
-                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - ProducerHandle.DupChecker.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                            if (await ProducerHandle.DupChecker.IsDuplicate(interopTx.AsTrytes(interopTx.HashBuffer))
+                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - ProducerHandle.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer))
                                 //|| (interopTx.AttachmentTimestamp > 0 && interopTx.AttachmentTimestamp < oldTxCutOffValue)
                                 //|| (interopTx.Timestamp < oldTxCutOffValue))
                                 )
@@ -310,8 +307,8 @@ namespace zero.core.models.consumables
                 }
 
                 //Relay batch
-                await ForwardToNeighbor(newInteropTransactions);
-                await ForwardToNodeServices(newInteropTransactions);
+                await ForwardToNeighborAsync(newInteropTransactions);
+                await ForwardToNodeServicesAsync(newInteropTransactions);
 
                 ProcessState = State.Consumed;
             }
@@ -324,7 +321,7 @@ namespace zero.core.models.consumables
             return ProcessState;
         }
 
-        private async Task ForwardToNodeServices(List<IIoTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TBlob>> newInteropTransactions)
         {
             //cog the source
             await _nodeServicesProxy.ProduceAsync(source =>
@@ -342,7 +339,7 @@ namespace zero.core.models.consumables
             }
         }
 
-        private async Task ForwardToNeighbor(List<IIoTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TBlob>> newInteropTransactions)
         {
             //cog the source
             await _neighborProxy.ProduceAsync(source =>
@@ -354,7 +351,7 @@ namespace zero.core.models.consumables
             });
 
             //forward transactions
-            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token))
             {
                 _logger.Warn($"Failed to relay to `{NeighborRelay.PrimaryProducer.Description}'");
             }
@@ -459,7 +456,7 @@ namespace zero.core.models.consumables
             return requiredSync;
         }
 
-        protected void TransferPreviousBits()
+        private void TransferPreviousBits()
         {
             if (Previous?.StillHasUnprocessedFragments ?? false)
             {

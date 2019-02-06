@@ -17,43 +17,36 @@ namespace zero.core.models.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
     {
-        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstreamRelay):base(10)//TODO config
+        public IoTangleMessageSource(string id, IoProducer<IoTangleMessage<TBlob>> upstream):base(10)//TODO config
         {
-            //Saves forwarding producer, to leech some values from it
-            _upstreamRelay = upstreamRelay;
-            _logger = LogManager.GetCurrentClassLogger();
+            //Saves forwarding producer, to leech some values from it            
+            _logger = LogManager.GetCurrentClassLogger();            
             Id = id;
         }
 
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
-
-        /// <summary>
-        /// The producer that we are forwarding from
-        /// </summary>
-        private readonly IoProducer<IoTangleMessage<TBlob>> _upstreamRelay;
-
+        private readonly Logger _logger;        
+        
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
         public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();
-
 
         public string Id;
 
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => _upstreamRelay.Key;
+        public override string Key => Upstream.Key;
 
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Broadcast tangle transaction from `{_upstreamRelay.Description}' to `{Id}'";
+        public override string Description => $"Broadcast tangle transaction from `{Upstream.Description}' to `{Id}'";
 
-        public override string SourceUri => _upstreamRelay.SourceUri;
+        public override string SourceUri => Upstream.SourceUri;
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -61,7 +54,7 @@ namespace zero.core.models.consumables.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => _upstreamRelay.IsOperational;        
+        public override bool IsOperational => Upstream.IsOperational;        
 
         /// <summary>
         /// returns the forward producer

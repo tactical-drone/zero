@@ -8,30 +8,31 @@ using zero.core.network.ip;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
 
-namespace zero.core.data.providers.redis
+namespace zero.core.data.providers.redis.configurations.tangle
 {
-    public class IoRedis: IoRedisBase, IIoDataSource<bool>    
+    public class IoTangleTransactionCache: IoRedisBase, IIoDataSource<bool>    
     {
 
-        private static volatile IoRedis _default = new IoRedis();
+        private static volatile IoTangleTransactionCache _default = new IoTangleTransactionCache();
         /// <summary>
         /// Returns single connection
         /// </summary>
         /// <returns></returns>
-#pragma warning disable 1998
-        public static async Task<IoRedis> Default()
-#pragma warning restore 1998
+
+        public static async Task<IoTangleTransactionCache> Default()
         {
             if(!_default.IsConnected)            
-#pragma warning disable 4014
-                _default.ConnectAsync(new []{IoNodeAddress.Create("tcp://10.0.75.1:6379") }.ToList()); //TODO config
-#pragma warning restore 4014
+                await _default.ConnectAsync(new []{IoNodeAddress.Create("tcp://10.0.75.1:6379") }.ToList()); //TODO config
 
             return _default;
         }
 
-        public bool IsConnected => _redis?.IsConnected??false;
-        public Task<bool> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null)
+        /// <summary>
+        /// Returns true if redis is connected, false otherwise
+        /// </summary>
+        public new bool IsConnected => base.IsConnected;
+
+        public Task<bool> PutAsync<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null)
         {            
             return _db.StringSetAsync(Encoding.UTF8.GetString(transaction.HashBuffer.Span), transaction.AsBlob().AsArray());
         }
@@ -50,12 +51,12 @@ namespace zero.core.data.providers.redis
             };
         }
 
-        public Task<bool> Exists<TBlob>(TBlob key)
+        public Task<bool> TransactionExistsAsync<TBlob>(TBlob key)
         {
             throw new NotImplementedException();
         }
 
-        public Task<bool> ExecuteAsync(object batch)
+        public Task<bool> ExecuteAsync(object usedData)
         {
             throw new NotImplementedException();
         }

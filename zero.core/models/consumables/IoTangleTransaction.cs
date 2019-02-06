@@ -12,15 +12,17 @@ namespace zero.core.models.consumables
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>>, IIoProducer 
+    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>> 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source)
+        /// <param name="waitForProducerTimeout">The time we wait for the producer before reporting it</param>
+        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source, int waitForProducerTimeout = 0)
         {
-            ProducerHandle = source;
+            _waitForProducerTimeout = waitForProducerTimeout;
+            ProducerHandle = source;            
             _logger = LogManager.GetCurrentClassLogger();
             WorkDescription = "forward";
             JobDescription = $"tangle transaction from, `{source.Description}'";
@@ -32,6 +34,8 @@ namespace zero.core.models.consumables
         /// The transaction that is ultimately consumed
         /// </summary>
         public List<IIoTransactionModel<TBlob>> Transactions;
+
+        private int _waitForProducerTimeout;
 
         /// <summary>
         /// Callback the generates the next job
@@ -51,7 +55,7 @@ namespace zero.core.models.consumables
                     return false;                    
                 }
 
-                if (!await ProducerHandle.ProducerBarrier.WaitAsync(0, ProducerHandle.Spinners.Token))
+                if (!await ProducerHandle.ProducerBarrier.WaitAsync(_waitForProducerTimeout, ProducerHandle.Spinners.Token))
                 {
                     ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;

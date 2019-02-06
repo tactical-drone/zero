@@ -6,6 +6,7 @@ using Cassandra;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.providers.cassandra;
+using zero.core.data.providers.cassandra.keyspaces.tangle;
 using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -83,7 +84,7 @@ namespace zero.core.core
         public override async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             var processing = base.SpawnProcessingAsync(cancellationToken, spawnProducer);
-            var persisting = IoEntangled<object>.Optimized ? PersistTransactionsAsync<byte[]>(await IoCassandra<byte[]>.Default()) : PersistTransactionsAsync<string>(await IoCassandra<string>.Default());
+            var persisting = IoEntangled<object>.Optimized ? PersistTransactionsAsync<byte[]>(await IoTangleCassandraDb<byte[]>.Default()) : PersistTransactionsAsync<string>(await IoTangleCassandraDb<string>.Default());
 
             await Task.WhenAll(processing, persisting);
         }
@@ -117,12 +118,11 @@ namespace zero.core.core
                             return;
 
                         var stopwatch = new Stopwatch();
-
                         foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
                         {
                             //Dup check
                             stopwatch.Restart();
-                            if (await dataSource.Exists(transaction.Hash))
+                            if (await dataSource.TransactionExistsAsync(transaction.Hash))
                             {
                                 stopwatch.Stop();
                                 _logger.Trace($"Duplicate tx slow dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
@@ -130,9 +130,23 @@ namespace zero.core.core
                                 continue;                                
                             }
 
-                            var rows = await dataSource.Put(transaction);
-                            if (rows == null)
-                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConInvalid;
+                            RowSet putResult = null;
+                            try
+                            {
+                                putResult = await dataSource.PutAsync(transaction);
+                            }
+                            catch (Exception e)
+                            {                                
+                                _logger.Fatal(e, $"`{nameof(dataSource.PutAsync)}' should never throw exceptions. BUG!");
+                            }
+                            finally
+                            {
+                                if (putResult == null)
+                                {
+                                    batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.DbError;
+                                    await relaySource.PrimaryProducer.Upstream.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
+                                }                                    
+                            }                                                                                        
                         }
                         batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
                     }

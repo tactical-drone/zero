@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.providers.redis;
+using zero.core.data.providers.redis.configurations.tangle;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
@@ -34,16 +35,7 @@ namespace zero.core.network.ip
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            ListenerAddress = remote.ListenerAddress;
-
-            //TODO
-            IoRedisDupChecker.Default().ContinueWith(r =>
-            {
-                if (r.Status == TaskStatus.RanToCompletion)
-                {
-                    DupChecker = r.Result;
-                }
-            });
+            ListenerAddress = remote.ListenerAddress;                        
         }
 
         /// <summary>
@@ -84,6 +76,7 @@ namespace zero.core.network.ip
                 lock (this)
                 {
                     IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, mallocMessage));
+                    producer.Upstream = this;
                 }                
             }
                

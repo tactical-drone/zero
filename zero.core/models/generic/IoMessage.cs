@@ -92,11 +92,9 @@ namespace zero.core.models.generic
         /// Does dup checking on this transaction
         /// </summary>        
         /// <returns></returns>
-        public async Task<bool> DupCheck(string key)
-        {
-            if(ProducerHandle.DupChecker.IsConnected)
-                return await ProducerHandle.DupChecker.IsDuplicate(key);
-            return false;
+        public async Task<bool> WasProcessedRecentlyAsync(string key)
+        {            
+            return await ProducerHandle.RecentlyProcessed.KeyExistsAsync(key);            
         }
     }
 }

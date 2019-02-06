@@ -1,4 +1,4 @@
-﻿namespace zero.core.data.luts
+﻿namespace zero.core.data.providers.cassandra.keyspaces.tangle.luts
 {
     /// <summary>
     /// Gets the bundle from address

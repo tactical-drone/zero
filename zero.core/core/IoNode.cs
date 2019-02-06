@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.market;
+using zero.core.data.providers.redis.configurations.tangle;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 
@@ -101,7 +102,7 @@ namespace zero.core.core
 
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
 
-            await _netServer.StartListenerAsync(remoteClient =>
+            await _netServer.StartListenerAsync(async remoteClient =>
             {
                 var newNeighbor = _mallocNeighbor(remoteClient);
 
@@ -134,6 +135,22 @@ namespace zero.core.core
 
                 //New peer connection event
                 PeerConnected?.Invoke(this, newNeighbor);
+
+                //start redis
+                var connectTask =  IoTangleTransactionHashCache.Default();
+                                        
+                await connectTask.ContinueWith(r =>
+                {
+                    switch (r.Status)
+                    {
+                        case TaskStatus.Canceled:
+                        case TaskStatus.Faulted:
+                            break;
+                        case TaskStatus.RanToCompletion:
+                            remoteClient.RecentlyProcessed = r.Result;
+                            break;
+                    }
+                });                
 
                 //Start the producer consumer on the neighbor scheduler
                 try

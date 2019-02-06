@@ -58,6 +58,7 @@ namespace zero.core.patterns.bushes
             Syncing,
             ProduceErr,
             ConsumeErr,
+            DbError,
             ConInvalid,
             NoPow,
             FastDup,
@@ -198,7 +199,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_id_pad_size = 14;
+        protected int parm_id_pad_size = 14;        
 
         /// <summary>
         /// Log the state

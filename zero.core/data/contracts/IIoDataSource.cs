@@ -6,8 +6,8 @@ namespace zero.core.data.contracts
 {
     /// <summary>
     /// The data source interface
-    /// </summary>
-    /// <typeparam name="TBlob">The type of the blob field, string or byte array</typeparam>
+    /// </summary>    
+    /// <typeparam name="TResult">The result type from db transactions</typeparam>
     public interface IIoDataSource<TResult> 
     {
         /// <summary>
@@ -21,7 +21,7 @@ namespace zero.core.data.contracts
         /// <param name="transaction">The transaction to be stored</param>
         /// <param name="userData">A batch handler</param>
         /// <returns></returns>
-        Task<TResult> Put<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null);            
+        Task<TResult> PutAsync<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null);            
 
         /// <summary>
         /// Get a transaction from storage
@@ -36,13 +36,13 @@ namespace zero.core.data.contracts
         /// <typeparam name="TBlob"></typeparam>
         /// <param name="key"></param>
         /// <returns></returns>
-        Task<bool> Exists<TBlob>(TBlob key);
+        Task<bool> TransactionExistsAsync<TBlob>(TBlob key);
         
         /// <summary>
         /// Execute a batch
         /// </summary>
-        /// <param name="batch">The batch handler</param>
+        /// <param name="usedData">The batch handler</param>
         /// <returns>Some result</returns>
-        Task<TResult> ExecuteAsync(object batch);
+        Task<TResult> ExecuteAsync(object usedData);
     }
 }
