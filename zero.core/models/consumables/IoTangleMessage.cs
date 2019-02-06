@@ -57,7 +57,7 @@ namespace zero.core.models.consumables
             //forward to node services
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _nodeServicesProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}", ProducerHandle);
+                _nodeServicesProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}");
                 if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
                     _nodeServicesProxy = (IoTangleMessageSource<TBlob>)ProducerHandle.ObjectStorage[nameof(_nodeServicesProxy)];
@@ -71,7 +71,7 @@ namespace zero.core.models.consumables
             //forward to neighbor
             if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
-                _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_neighborProxy)}", ProducerHandle);
+                _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_neighborProxy)}");
                 if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
                     _neighborProxy = (IoTangleMessageSource<TBlob>)ProducerHandle.ObjectStorage[nameof(_neighborProxy)];

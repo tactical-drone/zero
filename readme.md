@@ -4,7 +4,28 @@ A borg assimilated version of the iota reference implementation.
 
 ## Current status
 
-A borg scout ship, a harmless vessel exploring the vast expanses of the tangle.
+A borg scout ship, a harmless vessel exploring the vast expanses of the tangle:
+
+- *zero.sync*: Listens for IRI connections and displays non zero transactions on screen. 
+  - If a cassandra host is provided data will be loaded. 
+  - If a redis host is provided incoming TXs will be dup checked
+- *zero.api*: Services *zero.web*
+- *zero.web*: A basic web framework POC that displays a transactions live stream that can be filtered on TAG
+
+**Configuration is non existant** so to listener IP, cassandra IP and redis IP needs to be manually edited in the code and recompiled.
+
+*zero.sync* **listening port must match** iri listening port. This is a current limitation
+
+**Only TCP connections are supported** at the moment. *dotnet core* UDP has some strange issue with CRC offloading and fragmented UDP packets. UDP connections might work in linux.
+
+The recent upgrade to *dotnet 3 preview 2* **broked the API listener**. It says it is listening but you cant connect to it. Still needs investigation, but this means *zero.web* will not run at the moment.
+
+Basically all that is working right now is *zero.sync*.
+
+Optionally start cassandra and redis hosts and you will gain data loading that you can view with [Datastax DevCenter](https://academy.datastax.com/all-downloads)
+
+- `docker run -p 6379:6379 --name redis -d redis`
+- `docker run --name cassandra -d cassandra -p 9042:9042 `
 
 ## Requirements
 
@@ -30,7 +51,7 @@ Requires **3.0.100-preview-010184** to be installed
 - Windows & Linux both needs:
   - nodejs
   - npm
-  - visual studio 2018 or `dotnet cmd line` 
+  - visual studio 2017 or `dotnet cmd line` 
 - Linux also needs:
   - [bazel](https://bazel.build/)
   - [Entangled - branch dotnet-interop](https://gitlab.com/unimatrix-one/entangled/tree/dotnet-interop)
@@ -49,10 +70,12 @@ Most commands must be executed from the root folder **`~/../zero$`**:
    4. Configure the location of entangled inside the file `fetch-interop-libs.sh` using the var `$ENTANGLED_DIR`
    5. Run **`~/../zero$`** `./fetch-interop-libs.sh`
    6. After this there should be a file called libinterop.so
-3. Running 
-   1. **`~/../zero$`** `dotnet run --project zero.sync`
+3. Running (**TCP connects supported only**, UDP is not supported because of crc offload is broken on windows)
+   1. Edit **`~/../zero/zero.sync/Program.cs`** and insert appropriate listen IP (config is on it's way)
+      - **Warning**: Make sure *zero* listening port and *iri* listening port matches. This is a limitation currently that will  be fixed soon
+   2. **`~/../zero$`** `dotnet run --project zero.sync`
 
-### Web
+### Web (currently not working on dotnet3 beta, the API listener is not working)
 
 In multiple consoles:
 
