@@ -18,14 +18,11 @@ namespace zero.core.models.consumables
         /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
-        /// <param name="waitForProducerTimeout">The time we wait for the producer before reporting it</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source, int waitForProducerTimeout = 0)
+        /// <param name="waitForConsumerTimeout">The time we wait for the producer before reporting it</param>
+        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source, int waitForConsumerTimeout = 0) : base("forward", $"tangle transaction from: `{source.Description}'", source)
         {
-            _waitForProducerTimeout = waitForProducerTimeout;
-            ProducerHandle = source;            
-            _logger = LogManager.GetCurrentClassLogger();
-            WorkDescription = "forward";
-            JobDescription = $"tangle transaction from, `{source.Description}'";
+            _waitForConsumerTimeout = waitForConsumerTimeout;            
+            _logger = LogManager.GetCurrentClassLogger();            
         }
 
         private readonly Logger _logger;
@@ -35,39 +32,41 @@ namespace zero.core.models.consumables
         /// </summary>
         public List<IIoTransactionModel<TBlob>> Transactions;
 
-        private int _waitForProducerTimeout;
+        /// <summary>
+        /// How long to wait the consumer before logging it
+        /// </summary>
+        private readonly int _waitForConsumerTimeout;
 
         /// <summary>
         /// Callback the generates the next job
-        /// </summary>
-        /// <param name="fragment"></param>
+        /// </summary>        
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
         public override async Task<State> ProduceAsync()
         {
             ProcessState = State.Producing;
-            await ProducerHandle.ProduceAsync(async producer =>
+            await Producer.ProduceAsync(async producer =>
             {
-                if (ProducerHandle.ProducerBarrier == null)
+                if (Producer.ProducerBarrier == null)
                 {
                     ProcessState = State.ProdCancel;
                     return false;                    
                 }
 
-                if (!await ProducerHandle.ProducerBarrier.WaitAsync(_waitForProducerTimeout, ProducerHandle.Spinners.Token))
+                if (!await Producer.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Producer.Spinners.Token))
                 {
-                    ProcessState = !ProducerHandle.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = !Producer.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
-                if (ProducerHandle.Spinners.IsCancellationRequested)
+                if (Producer.Spinners.IsCancellationRequested)
                 {
                     ProcessState = State.ProdCancel;
                     return false;
                 }
                 
-                ((IoTangleMessageSource<TBlob>)ProducerHandle).TxQueue.TryDequeue(out Transactions);
+                ((IoTangleMessageSource<TBlob>)Producer).TxQueue.TryDequeue(out Transactions);
                 
                 ProcessState = Transactions == null ? State.ProStarting : State.Produced;                
 
@@ -77,15 +76,6 @@ namespace zero.core.models.consumables
             //If the producer gave us nothing, mark this production to be skipped            
             return ProcessState;
         }
-
-        /// <summary>
-        /// Set unprocessed data as more fragments.
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
-        //public override void MoveUnprocessedToFragment()
-        //{
-        //    throw new NotImplementedException();
-        //}
 
         /// <summary>
         /// Consumes the job

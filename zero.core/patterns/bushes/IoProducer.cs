@@ -74,14 +74,14 @@ namespace zero.core.patterns.bushes
         public abstract string SourceUri { get; }
 
         /// <summary>
-        /// Counters for <see cref="IoProduceble{TJob}.State"/>
+        /// Counters for <see cref="IoProducible{TJob}.State"/>
         /// </summary>
-        public long[] Counters { get; set; } = new long[Enum.GetNames(typeof(IoProduceble<>.State)).Length];
+        public long[] Counters { get; set; } = new long[Enum.GetNames(typeof(IoProducible<>.State)).Length];
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
-        public long[] ServiceTimes { get; set; } = new long[Enum.GetNames(typeof(IoProduceble<>.State)).Length];
+        public long[] ServiceTimes { get; set; } = new long[Enum.GetNames(typeof(IoProducible<>.State)).Length];
 
         /// <summary>
         /// The producer semaphore
@@ -170,7 +170,7 @@ namespace zero.core.patterns.bushes
 
             var padding = IoWorkStateTransition<TJob>.StateStrPadding;
 
-            for (var i = 0; i < IoProduceble<TJob>.StateMapSize; i++)
+            for (var i = 0; i < IoProducible<TJob>.StateMapSize; i++)
             {
 
                 var count = Interlocked.Read(ref Counters[i]);
@@ -179,9 +179,9 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoProduceble<TJob>.State.Undefined ) //&& i < (int)IoProduceble<TJob>.State.Finished)
+                if (i > (int)IoProducible<TJob>.State.Undefined ) //&& i < (int)IoProduceble<TJob>.State.Finished)
                 {
-                    heading.Append($"{((IoProduceble<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                    heading.Append($"{((IoProducible<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }

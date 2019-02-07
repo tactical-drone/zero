@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Primitives;
 using NLog;
 using zero.core.api.controllers.generic;
 using zero.core.conf;
@@ -31,19 +32,20 @@ namespace zero.core.models.consumables
     {
         /// <summary>
         /// Constructs buffers that hold tangle message information
-        /// </summary>  
-        /// <param name="upstream">The upstream producer where messages are coming from</param>
-        public IoTangleMessage(IoProducer<IoTangleMessage<TBlob>> upstream)
+        /// </summary>
+        /// <param name="jobDescription">A description of the job needed to do the work</param>
+        /// <param name="workDescription">A description of the work that needs to be done</param>
+        /// <param name="producer">The upstream producer where messages are coming from</param>
+        public IoTangleMessage(string jobDescription, string workDescription, IoProducer<IoTangleMessage<TBlob>> producer):base(jobDescription, workDescription, producer)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
             _entangled = IoEntangled<TBlob>.Default;
 
-            //Every job knows which source produced it
-            ProducerHandle = upstream;
+            //Every job knows which source produced it            
 
             //Set some tangle specific protocol constants
-            DatumSize = Codec.MessageSize + ((ProducerHandle is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
+            DatumSize = Codec.MessageSize + ((Producer is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
@@ -52,33 +54,33 @@ namespace zero.core.models.consumables
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
             //Configure a description of this consumer
-            WorkDescription = $"Deserialize messages from `{upstream.Description}'";
+            WorkDescription = $"Deserialize messages from `{producer.Description}'";
 
             //forward to node services
-            if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
+            if (!Producer.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
                 _nodeServicesProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}");
-                if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
+                if (!Producer.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
-                    _nodeServicesProxy = (IoTangleMessageSource<TBlob>)ProducerHandle.ObjectStorage[nameof(_nodeServicesProxy)];
+                    _nodeServicesProxy = (IoTangleMessageSource<TBlob>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
                 }
             }
 
-            NodeServicesRelay = upstream.GetRelaySource(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));            
-            NodeServicesRelay.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+            NodeServicesRelay = producer.GetRelaySource(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));
+            NodeServicesRelay.parm_consumer_wait_for_producer_timeout = 0; 
             NodeServicesRelay.parm_producer_start_retry_time = 0;
 
             //forward to neighbor
-            if (!ProducerHandle.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
+            if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
                 _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_neighborProxy)}");
-                if (!ProducerHandle.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
+                if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
-                    _neighborProxy = (IoTangleMessageSource<TBlob>)ProducerHandle.ObjectStorage[nameof(_neighborProxy)];
+                    _neighborProxy = (IoTangleMessageSource<TBlob>)Producer.ObjectStorage[nameof(_neighborProxy)];
                 }
             }
 
-            NeighborRelay = upstream.GetRelaySource(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
+            NeighborRelay = producer.GetRelaySource(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
             NeighborRelay.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborRelay.parm_producer_start_retry_time = 0;
         }
@@ -89,11 +91,7 @@ namespace zero.core.models.consumables
         /// logger
         /// </summary>
         private readonly Logger _logger;
-
-        /// <summary>
-        /// The ultimate source of workload
-        /// </summary>
-        //public IoProducer<IoTangleMessage<TBlob>> ProducerHandle { get; protected set; }
+        
 
         /// <summary>
         /// The entangled libs
@@ -200,7 +198,7 @@ namespace zero.core.models.consumables
             
             try
             {
-                if (!ProducerHandle.Synced && !Sync())
+                if (!Producer.Synced && !Sync())
                 {
                     return ProcessState;
                 }
@@ -216,7 +214,7 @@ namespace zero.core.models.consumables
                     {
                         s.Restart();
                         var requiredSync = !localSync && Sync();
-                        if (!ProducerHandle.Synced)
+                        if (!Producer.Synced)
                             return ProcessState;
                         else if (requiredSync)
                         {
@@ -225,7 +223,7 @@ namespace zero.core.models.consumables
                         }
                             
                         var interopTx = _entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
-                        interopTx.Uri = ProducerHandle.SourceUri;
+                        interopTx.Uri = Producer.SourceUri;
 
                         //check for pow
                         if (interopTx.Pow < TanglePeer<TBlob>.MWM && interopTx.Pow > -TanglePeer<TBlob>.MWM)
@@ -243,8 +241,8 @@ namespace zero.core.models.consumables
                                                   $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
                                                   $"BytesLeftToProcess = `{BytesLeftToProcess}', " +
                                                   $"DatumFragmentLength = `{DatumFragmentLength}', " +                                                  
-                                                  $"PB = `{ProducerHandle.ProducerBarrier.CurrentCount}', " +
-                                                  $"CB = `{ProducerHandle.ConsumerBarrier.CurrentCount}'");
+                                                  $"PB = `{Producer.ProducerBarrier.CurrentCount}', " +
+                                                  $"CB = `{Producer.ConsumerBarrier.CurrentCount}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) value = `{interopTx.Value}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) pow = `{interopTx.Pow}'");
                                     //_logger.Trace($"({Id}.{DatumCount}) time = `{interopTx.Timestamp}'");
@@ -256,7 +254,7 @@ namespace zero.core.models.consumables
 
                                 if (--curSyncFailureCount == 0)
                                 {
-                                    ProducerHandle.Synced = false;
+                                    Producer.Synced = false;
                                     localSync = false;
                                     BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
@@ -268,11 +266,11 @@ namespace zero.core.models.consumables
                         curSyncFailureCount = syncFailureThreshold;
 
                         //Cheap dup checker
-                        if (ProducerHandle.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
+                        if (Producer.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
                         {
                             var stopwatch = new Stopwatch();
                             stopwatch.Restart();
-                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - ProducerHandle.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - Producer.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
                             if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer))
                                 //|| (interopTx.AttachmentTimestamp > 0 && interopTx.AttachmentTimestamp < oldTxCutOffValue)
                                 //|| (interopTx.Timestamp < oldTxCutOffValue))
@@ -298,7 +296,7 @@ namespace zero.core.models.consumables
                     }
                     finally
                     {
-                        if (ProducerHandle.Synced && ( 
+                        if (Producer.Synced && ( 
                                     ProcessState == State.Consuming 
                                  || ProcessState == State.NoPow 
                                  || ProcessState == State.FastDup))                            
@@ -333,7 +331,7 @@ namespace zero.core.models.consumables
             });
 
             //forward transactions
-            if (!await NodeServicesRelay.ProduceAsync(ProducerHandle.Spinners.Token, sleepOnConsumerLag: false))
+            if (!await NodeServicesRelay.ProduceAsync(Producer.Spinners.Token, sleepOnConsumerLag: false))
             {
                 _logger.Warn($"Failed to relay to `{NodeServicesRelay.PrimaryProducer.Description}'");
             }
@@ -351,7 +349,7 @@ namespace zero.core.models.consumables
             });
 
             //forward transactions
-            if (!await NeighborRelay.ProduceAsync(ProducerHandle.Spinners.Token))
+            if (!await NeighborRelay.ProduceAsync(Producer.Spinners.Token))
             {
                 _logger.Warn($"Failed to relay to `{NeighborRelay.PrimaryProducer.Description}'");
             }
@@ -368,10 +366,10 @@ namespace zero.core.models.consumables
             var requiredSync = false;
             stopwatch.Start();
 
-            if (!ProducerHandle.Synced)
+            if (!Producer.Synced)
             {                
                 
-                _logger.Debug($"({Id}) Synchronizing `{ProducerHandle.Description}'...");
+                _logger.Debug($"({Id}) Synchronizing `{Producer.Description}'...");
                 ProcessState = State.Syncing;
 
                 for (var i = 0; i < DatumCount; i++)
@@ -414,8 +412,8 @@ namespace zero.core.models.consumables
                             else
                             {
                                 stopwatch.Stop();
-                                _logger.Trace($"({Id}) Synchronized stream `{ProducerHandle.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
-                                ProducerHandle.Synced = synced = true;
+                                _logger.Trace($"({Id}) Synchronized stream `{Producer.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
+                                Producer.Synced = synced = true;
                                 break;
                             }
                         }
@@ -444,11 +442,11 @@ namespace zero.core.models.consumables
                 stopwatch.Stop();
             } 
             
-            if (!ProducerHandle.Synced)
+            if (!Producer.Synced)
             {
-                _logger.Warn($"({Id}) Unable to sync stream `{ProducerHandle.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
+                _logger.Warn($"({Id}) Unable to sync stream `{Producer.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
             }
-            else if(ProducerHandle.Synced)
+            else if(Producer.Synced)
             {
                 ProcessState = State.Consuming;
             }
@@ -477,7 +475,7 @@ namespace zero.core.models.consumables
                 {
                     _logger.Warn(e, "We desynced!:");
 
-                    ProducerHandle.Synced = false;
+                    Producer.Synced = false;
                     DatumCount = 0;
                     BytesRead = 0;
                     ProcessState = State.Consumed;
@@ -515,7 +513,7 @@ namespace zero.core.models.consumables
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                var sourceTaskSuccess = await ProducerHandle.ProduceAsync(async ioSocket =>
+                var sourceTaskSuccess = await Producer.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -524,14 +522,14 @@ namespace zero.core.models.consumables
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await ProducerHandle.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, ProducerHandle.Spinners.Token))
+                    if (!await Producer.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Producer.Spinners.Token))
                     {
-                        if (!ProducerHandle.Spinners.IsCancellationRequested)
+                        if (!Producer.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
                             _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                         $"CB = `{ProducerHandle.ConsumerBarrier.CurrentCount}'");
+                                         $"CB = `{Producer.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
@@ -543,14 +541,14 @@ namespace zero.core.models.consumables
                         return true;
                     }
 
-                    if (ProducerHandle.Spinners.IsCancellationRequested)
+                    if (Producer.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.ProdCancel;
                         return false;
                     }
 
                     //Async read the message from the message stream
-                    if (ProducerHandle.IsOperational)
+                    if (Producer.IsOperational)
                     {                                                
                         await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
                             rx =>
@@ -561,8 +559,8 @@ namespace zero.core.models.consumables
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        ProducerHandle.Spinners.Cancel();
-                                        ProducerHandle.Close();
+                                        Producer.Spinners.Cancel();
+                                        Producer.Close();
                                         _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
                                         break;
                                     //Success
@@ -578,7 +576,7 @@ namespace zero.core.models.consumables
                                             break;
                                         }
 
-                                        if (Id == 0 && ProducerHandle is IoTcpClient<IoTangleMessage<TBlob>>)
+                                        if (Id == 0 && Producer is IoTcpClient<IoTangleMessage<TBlob>>)
                                         {                                                                  
                                             _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                             BufferOffset += 10;
@@ -607,14 +605,14 @@ namespace zero.core.models.consumables
                                         ProcessState = State.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{ProductionDescription}', State={rx.Status}");
                                 }
-                            }, ProducerHandle.Spinners.Token);
+                            }, Producer.Spinners.Token);
                     }
                     else
                     {
-                        ProducerHandle.Close();
+                        Producer.Close();
                     }
 
-                    if (ProducerHandle.Spinners.IsCancellationRequested)
+                    if (Producer.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.Cancelled;
                         return false;
@@ -624,7 +622,7 @@ namespace zero.core.models.consumables
 
                 if (!sourceTaskSuccess)
                 {
-                    _logger.Trace($"Failed to source job from `{ProducerHandle.Description}' for `{ProductionDescription}'");
+                    _logger.Trace($"Failed to source job from `{Producer.Description}' for `{ProductionDescription}'");
                 }
             }
             catch (Exception e)

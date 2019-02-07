@@ -94,7 +94,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => $"Source producer: `{IoSocket?.RemoteIpAndPort??ListenerAddress.ResolvedIpAndPort}'";
+        public override string Description => $"{GetType().Name}: `{IoSocket?.RemoteIpAndPort??ListenerAddress.ResolvedIpAndPort}'";
 
         /// <summary>
         /// A description of this client source. Currently the remote address

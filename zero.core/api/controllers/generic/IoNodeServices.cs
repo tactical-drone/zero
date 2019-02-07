@@ -151,12 +151,12 @@ namespace zero.core.api.controllers.generic
                                                 break;
                                         }
 
-                                        msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
+                                        msg.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.ProcessState == IoProduceble<IoTangleTransaction<TBlob>>.State.Consuming)
-                                            msg.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                                        if (msg.ProcessState == IoProducible<IoTangleTransaction<TBlob>>.State.Consuming)
+                                            msg.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                                     }
 
                                     return Task.CompletedTask;                                    

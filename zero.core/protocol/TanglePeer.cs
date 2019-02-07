@@ -17,7 +17,7 @@ namespace zero.core.protocol
         /// </summary>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
         public TanglePeer(IoNetClient<IoTangleMessage<TBlob>> ioNetClient) :
-            base($"{nameof(TanglePeer<TBlob>)}",ioNetClient, (userData) => new IoTangleMessage<TBlob>(ioNetClient) { JobDescription = $"rx", WorkDescription = $"{ioNetClient.AddressString}" })
+            base($"{nameof(TanglePeer<TBlob>)}",ioNetClient, (userData) => new IoTangleMessage<TBlob>($"rx", $"{ioNetClient.AddressString}", ioNetClient))
         {
             _logger = LogManager.GetCurrentClassLogger();
 

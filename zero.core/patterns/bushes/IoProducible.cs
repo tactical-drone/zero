@@ -10,19 +10,21 @@ using zero.core.patterns.heap;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Produces work that needs to be done
+    /// Meta data about produced work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
-    public abstract class IoProduceble<TJob> : IoConfigurable, IIoWorker
+    public abstract class IoProducible<TJob> : IoConfigurable, IIoWorker
         where TJob : IIoWorker
         
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProduceble()
+        protected IoProducible(string workDescription, IoProducer<TJob> producer)
         {            
             _logger = LogManager.GetCurrentClassLogger();
+            Producer = producer;
+            WorkDescription = workDescription;
         }
 
         /// <summary>
@@ -35,7 +37,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public long Id { get; private set; }
 
-        public volatile IoProduceble<TJob> Previous;
+        public volatile IoProducible<TJob> Previous;
 
         /// <summary>
         /// Respective States as the work goes through the producer consumer pattern
@@ -75,7 +77,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A description of this kind of work
         /// </summary>
-        public string WorkDescription;
+        public string WorkDescription { get; protected set; }
 
         /// <summary>
         /// A description of the job and work
@@ -85,7 +87,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public virtual IoProducer<TJob> ProducerHandle { get; protected set; }
+        public IoProducer<TJob> Producer { get; }
 
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoProducerConsumer{TJob}"/>
@@ -119,8 +121,8 @@ namespace zero.core.patterns.bushes
             {
                 CurrentState.ExitTime = DateTime.Now;
 
-                Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
-                Interlocked.Add(ref ProducerHandle.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));                
+                Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
+                Interlocked.Add(ref Producer.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));                
             }
             else
             {
@@ -195,11 +197,11 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Log formatting parm that pads job ID strings
+        /// Log formatting param that pads job ID strings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_id_pad_size = 14;        
+        protected int parm_id_pad_size = 12;        
 
         /// <summary>
         /// Log the state
@@ -232,7 +234,7 @@ namespace zero.core.patterns.bushes
             {
                 if (CurrentState?.State == value)
                 {
-                    Interlocked.Increment(ref ProducerHandle.Counters[(int)CurrentState.State]);
+                    Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
                     return;
                 }
                     
@@ -242,7 +244,7 @@ namespace zero.core.patterns.bushes
                 //generate a unique id
                 if (value == State.Undefined)
                 {
-                    Id = Interlocked.Read(ref ProducerHandle.Counters[(int)State.Undefined]);
+                    Id = Interlocked.Read(ref Producer.Counters[(int)State.Undefined]);
                 }
 
                 if (value == State.Accept || value == State.Reject)
@@ -250,13 +252,6 @@ namespace zero.core.patterns.bushes
                     ProcessState = State.Finished;
                 }
             }
-        }
-
-        /// <summary>
-        /// Set unprocessed data as more fragments.
-        /// </summary>
-        //public abstract void MoveUnprocessedToFragment();
-
-        public bool Reconfigure { get; }
+        }        
     }
 }

@@ -26,11 +26,11 @@ namespace zero.core.core
         /// <summary>
         /// Construct
         /// </summary>
-        /// <param name="kind">A description of the neighbor</param>
+        /// <param name="type">A description of the neighbor</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
-        public IoNeighbor(string kind, IoNetClient<TJob> ioNetClient, Func<object, IoConsumable<TJob>> mallocMessage)
-            : base($"{kind} `{ioNetClient.Description}'", ioNetClient, mallocMessage)
+        public IoNeighbor(string type, IoNetClient<TJob> ioNetClient, Func<object, IoConsumable<TJob>> mallocMessage)
+            : base($"{type} `{ioNetClient.Description}'", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -126,7 +126,7 @@ namespace zero.core.core
                             {
                                 stopwatch.Stop();
                                 _logger.Trace($"Duplicate tx slow dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
-                                batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.SlowDup;
+                                batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup;
                                 continue;                                
                             }
 
@@ -143,17 +143,17 @@ namespace zero.core.core
                             {
                                 if (putResult == null)
                                 {
-                                    batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.DbError;
+                                    batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.DbError;
                                     await relaySource.PrimaryProducer.Upstream.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
                                 }                                    
                             }                                                                                        
                         }
-                        batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed;
+                        batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.Consumed;
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState != IoProduceble<IoTangleTransaction<TBlob>>.State.Consumed)
-                            batch.ProcessState = IoProduceble<IoTangleTransaction<TBlob>>.State.ConsumeErr;
+                        if (batch != null && batch.ProcessState != IoProducible<IoTangleTransaction<TBlob>>.State.Consumed)
+                            batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.ConsumeErr;
                     }
                 });
 
