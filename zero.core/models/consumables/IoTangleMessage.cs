@@ -292,10 +292,8 @@ namespace zero.core.models.consumables
         {
             //cog the source
             await _nodeServicesProxy.ProduceAsync(source =>
-            {
-                if (NodeServicesRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleTransactionProducer<TBlob>) source).TxQueue.TryAdd(newInteropTransactions);
-
+            {                
+                ((IoTangleTransactionProducer<TBlob>) source).TxQueue.TryAdd(newInteropTransactions);
                 return Task.FromResult(true);
             });
 
@@ -310,10 +308,8 @@ namespace zero.core.models.consumables
         {
             //cog the source
             await _neighborProxy.ProduceAsync(source =>
-            {
-                if (NeighborRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
-
+            {                
+                ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
                 return Task.FromResult(true);
             });
 
