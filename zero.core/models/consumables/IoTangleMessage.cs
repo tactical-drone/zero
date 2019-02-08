@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Primitives;
 using NLog;
 using zero.core.api.controllers.generic;
 using zero.core.conf;
@@ -106,27 +105,27 @@ namespace zero.core.models.consumables
         /// <summary>
         /// Used to store one datum's worth of decoded trytes
         /// </summary>
-        public StringBuilder TryteBuffer = new StringBuilder((Codec.TransactionSize * Codec.TritsPerByte - 1) / Codec.Radix);
+        public StringBuilder TryteBuffer = new StringBuilder(IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRYTES_HASH);
 
         /// <summary>
         /// The tryte bytebuffer
         /// </summary>
-        public sbyte[] TryteByteBuffer = new sbyte[(Codec.TransactionSize * Codec.TritsPerByte - 1) / Codec.Radix];
+        public sbyte[] TryteByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRYTES_HASH];
 
         /// <summary>
         /// Used to store the hash trits
         /// </summary>//TODO
-        public sbyte[] TritHashBuffer = new sbyte[((Codec.TransactionHashSize) * Codec.TritsPerByte) + 1];
+        public sbyte[] TritHashBuffer = new sbyte[IoTransaction.NUM_TRITS_HASH];
 
         /// <summary>
         /// Used to store the hash trytes
         /// </summary>
-        public StringBuilder TryteHashBuffer = new StringBuilder(((Codec.TransactionHashSize) * Codec.TritsPerByte + 1) / Codec.Radix);
+        public StringBuilder TryteHashBuffer = new StringBuilder(IoTransaction.NUM_TRYTES_HASH);
 
         /// <summary>
         /// The tryte hash byte buffer
         /// </summary>
-        public sbyte[] TryteHashByteBuffer = new sbyte[(int)Math.Ceiling((decimal)(Codec.TransactionHashSize * Codec.TritsPerByte / Codec.Radix) + 1)]; //TODO where does this +1 come from? Why is it here?
+        public sbyte[] TryteHashByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_HASH]; 
 
         /// <summary>
         /// The number of bytes left to process in this buffer

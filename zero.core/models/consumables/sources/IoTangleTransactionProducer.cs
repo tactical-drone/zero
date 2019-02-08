@@ -21,8 +21,7 @@ namespace zero.core.models.consumables.sources
         {
             //Saves forwarding producer, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
-
-            Description = $"Produce {nameof(IoTangleTransaction<TBlob>)}: `{Upstream.Description}' -> `{destDescription}'";
+            _destDescription = destDescription;
         }
 
         /// <summary>
@@ -33,7 +32,12 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();        
+        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();
+
+        /// <summary>
+        /// Describe the destination producer
+        /// </summary>
+        private readonly string _destDescription;
 
         /// <summary>
         /// Keys this instance.
@@ -43,7 +47,7 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description { get; }
+        public override string Description => $"Produce {nameof(IoTangleTransaction<TBlob>)}: `{Upstream.Description}' -> `{_destDescription}'";
 
         /// <summary>
         /// The original source URI
