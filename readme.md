@@ -51,7 +51,7 @@ Requires **3.0.100-preview-010184** to be installed
 - Windows & Linux both needs:
   - nodejs
   - npm
-  - visual studio 2017 or `dotnet cmd line` 
+  - **visual studio 2019** or `dotnet cmd line` 
 - Linux also needs:
   - [bazel](https://bazel.build/)
   - [Entangled - branch dotnet-interop](https://gitlab.com/unimatrix-one/entangled/tree/dotnet-interop)
