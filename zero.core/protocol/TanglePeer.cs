@@ -116,7 +116,9 @@ namespace zero.core.protocol
                     RowSet putResult = null;
                     try
                     {
-                        if (await dataSource.TransactionExistsAsync(transaction.Hash))
+                        var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - relaySource.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                    if(     (transaction.AttachmentTimestamp > 0 && transaction.AttachmentTimestamp < oldTxCutOffValue || transaction.Timestamp < oldTxCutOffValue)
+                            && await dataSource.TransactionExistsAsync(transaction.Hash))
                         {
                             stopwatch.Stop();
                             _logger.Trace(

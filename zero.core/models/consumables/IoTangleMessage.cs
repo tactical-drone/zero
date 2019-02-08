@@ -246,10 +246,7 @@ namespace zero.core.models.consumables
                             var stopwatch = new Stopwatch();
                             stopwatch.Restart();
                             var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - Producer.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer))
-                                //|| (interopTx.AttachmentTimestamp > 0 && interopTx.AttachmentTimestamp < oldTxCutOffValue)
-                                //|| (interopTx.Timestamp < oldTxCutOffValue))
-                                )
+                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)))
                             {
                                 stopwatch.Stop();
                                 ProcessState = State.FastDup;                                
