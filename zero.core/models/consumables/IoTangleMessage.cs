@@ -96,32 +96,7 @@ namespace zero.core.models.consumables
         /// Used to store one datum's worth of decoded trits
         /// </summary>//TODO
         public sbyte[] TritBuffer = new sbyte[IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRITS_HASH];
-
-        /// <summary>
-        /// Used to store one datum's worth of decoded trytes
-        /// </summary>
-        public StringBuilder TryteBuffer = new StringBuilder(IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRYTES_HASH);
-
-        /// <summary>
-        /// The tryte byte buffer
-        /// </summary>
-        public sbyte[] TryteByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRYTES_HASH];
-
-        /// <summary>
-        /// Used to store the hash trits
-        /// </summary>//TODO
-        public sbyte[] TritHashBuffer = new sbyte[IoTransaction.NUM_TRITS_HASH];
-
-        /// <summary>
-        /// Used to store the hash trytes
-        /// </summary>
-        public StringBuilder TryteHashBuffer = new StringBuilder(IoTransaction.NUM_TRYTES_HASH);
-
-        /// <summary>
-        /// The tryte hash byte buffer
-        /// </summary>
-        public sbyte[] TryteHashByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_HASH]; 
-
+        
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
