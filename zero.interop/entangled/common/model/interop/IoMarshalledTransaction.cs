@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using Org.BouncyCastle.Crypto.Paddings;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
+using zero.interop.utils;
 
 namespace zero.interop.entangled.common.model.interop
 {
@@ -60,13 +62,13 @@ namespace zero.interop.entangled.common.model.interop
         [MarshalAs(UnmanagedType.I1)]        
         public bool solid;
 
-        public static byte[] Trim(byte[] buffer, byte nullSet = 9)
+        public static ReadOnlyMemory<byte> Trim(byte[] buffer, byte nullSet = 9)
         {            
             for (var i = buffer.Length; i-- > 0;)
             {
                 if (buffer[i] != 0)
-                {
-                    var trimmed = i == buffer.Length - 1 ? buffer : buffer.AsSpan().Slice(0, i + 1).ToArray(); //TODO ?
+                {                    
+                    var trimmed = i == buffer.Length - 1 ? buffer : MemoryMarshal.CreateFromPinnedArray(buffer, 0, i + 2);
 
                     if (trimmed.Length != 0) return trimmed;
                     if (nullSet == 9)
