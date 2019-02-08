@@ -137,7 +137,7 @@ namespace zero.core.protocol
                     }
                     finally
                     {
-                        if (putResult == null)
+                        if (putResult == null && batch.ProcessState != IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup)
                         {
                             relaySource.IsArbitrating = false;
                             batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.DbError;
