@@ -66,9 +66,9 @@ namespace zero.core.models.consumables
                     return false;
                 }
                 
-                ((IoTangleTransactionProducer<TBlob>)Producer).TxQueue.TryDequeue(out Transactions);
-                
-                ProcessState = Transactions == null ? State.ProStarting : State.Produced;                
+                Transactions = ((IoTangleTransactionProducer<TBlob>)Producer).TxQueue.Take();
+
+                ProcessState = State.Produced;
 
                 return true;
             });

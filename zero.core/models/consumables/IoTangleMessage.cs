@@ -39,9 +39,7 @@ namespace zero.core.models.consumables
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _entangled = IoEntangled<TBlob>.Default;
-
-            //Every job knows which source produced it            
+            _entangled = IoEntangled<TBlob>.Default;            
 
             //Set some tangle specific protocol constants
             DatumSize = Codec.MessageSize + ((Producer is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
@@ -83,15 +81,12 @@ namespace zero.core.models.consumables
             NeighborRelay.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborRelay.parm_producer_start_retry_time = 0;
         }
-
-        public sealed override string ProductionDescription => base.ProductionDescription;
-
+        
         /// <summary>
         /// logger
         /// </summary>
         private readonly Logger _logger;
         
-
         /// <summary>
         /// The entangled libs
         /// </summary>
@@ -108,7 +103,7 @@ namespace zero.core.models.consumables
         public StringBuilder TryteBuffer = new StringBuilder(IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRYTES_HASH);
 
         /// <summary>
-        /// The tryte bytebuffer
+        /// The tryte byte buffer
         /// </summary>
         public sbyte[] TryteByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRYTES_HASH];
 
@@ -324,7 +319,7 @@ namespace zero.core.models.consumables
             await _nodeServicesProxy.ProduceAsync(source =>
             {
                 if (NodeServicesRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleTransactionProducer<TBlob>) source).TxQueue.Enqueue(newInteropTransactions);
+                    ((IoTangleTransactionProducer<TBlob>) source).TxQueue.TryAdd(newInteropTransactions);
 
                 return Task.FromResult(true);
             });
@@ -342,7 +337,7 @@ namespace zero.core.models.consumables
             await _neighborProxy.ProduceAsync(source =>
             {
                 if (NeighborRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.Enqueue(newInteropTransactions);
+                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
 
                 return Task.FromResult(true);
             });

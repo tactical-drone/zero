@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
-using Tangle.Net.Entity;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
@@ -11,7 +10,7 @@ using zero.interop.entangled.common.model.interop;
 namespace zero.core.models.consumables.sources
 {
     /// <summary>
-    /// A producer that serves <see cref="Transaction"/>
+    /// A producer that serves <see cref="IoTangleTransaction{TBlob}"/>
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
@@ -32,7 +31,7 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();
+        public BlockingCollection<List<IIoTransactionModel<TBlob>>> TxQueue = new BlockingCollection<List<IIoTransactionModel<TBlob>>>();        
 
         /// <summary>
         /// Describe the destination producer
@@ -62,15 +61,7 @@ namespace zero.core.models.consumables.sources
         /// </value>
         public override bool IsOperational => Upstream.IsOperational;        
 
-        /// <summary>
-        /// returns the forward producer
-        /// </summary>
-        /// <typeparam name="TFJob"></typeparam>
-        /// <param name="id"></param>
-        /// <param name="producer"></param>
-        /// <param name="jobMalloc"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <inheritdoc />        
         public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
@@ -83,7 +74,7 @@ namespace zero.core.models.consumables.sources
         /// <exception cref="NotImplementedException"></exception>
         public override void Close()
         {
-            TxQueue.Clear();
+            TxQueue.Dispose();
         }
 
         /// <summary>
@@ -92,12 +83,7 @@ namespace zero.core.models.consumables.sources
         /// <param name="callback">The callback.</param>
         /// <returns>The async task</returns>        
         public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
-        {            
-            if (!IsOperational)
-            {
-                return false;
-            }
-
+        {                        
             try
             {
                 return await callback(this);
