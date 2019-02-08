@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
+using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -20,7 +21,7 @@ namespace zero.core.patterns.bushes
         /// Constructor
         /// </summary>
         protected IoProducer(int readAheadBufferSize = 2)
-        {
+        {            
             ReadAheadBufferSize = readAheadBufferSize;            
             ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
@@ -46,6 +47,11 @@ namespace zero.core.patterns.bushes
         public CancellationTokenSource Spinners;
 
         /// <summary>
+        /// The producer consumer instance that arbitrates work done
+        /// </summary>
+        public IoProducerConsumer<TJob> Arbiter { get; protected set; }
+
+        /// <summary>
         /// A dictionary of downstream producers
         /// </summary>
         protected ConcurrentDictionary<string, IIoForward> IoForward = new ConcurrentDictionary<string, IIoForward>();
@@ -53,7 +59,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The upstream producer
         /// </summary>
-        public IIoProducer Upstream { get; set; }
+        public IIoProducer Upstream { get; protected set; }
 
         /// <summary>
         /// Keys this instance.
@@ -156,10 +162,15 @@ namespace zero.core.patterns.bushes
         protected long parm_event_min_ave_display = 0;
 
         /// <summary>
-        /// Returns the source to relay jobs too
+        /// Creates a new downstream arbiter
         /// </summary>
-        public abstract IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
-            Func<object, IoConsumable<TFJob>> jobMalloc = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
+        /// <typeparam name="TFJob">The type of job serviced</typeparam>
+        /// <param name="id">The arbiter id</param>
+        /// <param name="producer">The producer of the source arbiter</param>
+        /// <param name="jobMalloc">Used to allocate jobs</param>
+        /// <returns></returns>
+        public abstract IoForward<TFJob> CreateDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> jobMalloc = null) 
+            where TFJob : IoConsumable<TFJob>, IIoWorker;
 
         /// <summary>
         /// Print counters
@@ -203,6 +214,18 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);        
+        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);
+
+        /// <summary>
+        /// Configure an upstream producer
+        /// </summary>        
+        /// <param name="producer">The upstream producer</param>        
+        public abstract void ConfigureUpstream(IIoProducer producer);
+
+        /// <summary>
+        /// Set the arbiter that arbitrates jobs
+        /// </summary>
+        /// <param name="arbiter">The arbiter</param>
+        public abstract void SetArbiter(IoProducerConsumer<TJob> arbiter);
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.conf;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
@@ -16,11 +17,12 @@ namespace zero.core.models.consumables.sources
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
     public sealed class IoTangleTransactionProducer<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
     {
-        public IoTangleTransactionProducer(string destDescription):base(10)//TODO config
+        public IoTangleTransactionProducer(string destDescription, int bufferSize):base(bufferSize)//TODO config
         {
             //Saves forwarding producer, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
             _destDescription = destDescription;
+            TxQueue = new BlockingCollection<List<IIoTransactionModel<TBlob>>>(bufferSize);
         }
 
         /// <summary>
@@ -31,7 +33,7 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public BlockingCollection<List<IIoTransactionModel<TBlob>>> TxQueue = new BlockingCollection<List<IIoTransactionModel<TBlob>>>();        
+        public BlockingCollection<List<IIoTransactionModel<TBlob>>> TxQueue;
 
         /// <summary>
         /// Describe the destination producer
@@ -62,7 +64,7 @@ namespace zero.core.models.consumables.sources
         public override bool IsOperational => Upstream.IsOperational;        
 
         /// <inheritdoc />        
-        public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
+        public override IoForward<TFJob> CreateDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
             throw new NotImplementedException();
@@ -105,6 +107,17 @@ namespace zero.core.models.consumables.sources
                 _logger.Error(e,$"Producer `{Description}' callback failed:");
                 return false;
             }
+        }
+
+        /// <inheritdoc />        
+        public override void ConfigureUpstream(IIoProducer producer)
+        {
+            Upstream = producer;            
+        }
+
+        public override void SetArbiter(IoProducerConsumer<IoTangleTransaction<TBlob>> arbiter)
+        {
+            Arbiter = arbiter;
         }
     }
 }

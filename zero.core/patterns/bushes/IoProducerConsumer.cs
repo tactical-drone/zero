@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics.Tracing;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
@@ -38,7 +39,7 @@ namespace zero.core.patterns.bushes
                 //update heap to match max Q size
                 if (pair.Key == nameof(parm_max_q_size))
                 {
-                    JobMetaHeap.MaxSize = parm_max_q_size;
+                    JobHeap.MaxSize = parm_max_q_size;
                 }
             };
 
@@ -62,10 +63,9 @@ namespace zero.core.patterns.bushes
         public void ConfigureProducer(string description, IoProducer<TJob> source, Func<object, IoConsumable<TJob>> mallocMessage)
         {
             PrimaryProducerDescription = description;
-            PrimaryProducer = source;
-            
+            PrimaryProducer = source;            
 
-            JobMetaHeap = new IoHeapIo<IoConsumable<TJob>>(parm_max_q_size) { Make = mallocMessage };
+            JobHeap = new IoHeapIo<IoConsumable<TJob>>(parm_max_q_size) { Make = mallocMessage };
         }
 
         /// <summary>
@@ -91,7 +91,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The heap where new consumable meta data is allocated from
         /// </summary>
-        public IoHeapIo<IoConsumable<TJob>> JobMetaHeap { get; protected set; }
+        public IoHeapIo<IoConsumable<TJob>> JobHeap { get; protected set; }
 
         /// <summary>
         /// A description of this producer consumer
@@ -116,7 +116,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A connectable observer, used to multicast messages
         /// </summary>
-        public IConnectableObservable<IoConsumable<TJob>> ObservableRouter { private set; get; }        
+        public IConnectableObservable<IoConsumable<TJob>> ObservableRouter { private set; get; }
+
+        /// <summary>
+        /// Indicates whether jobs are being processed
+        /// </summary>
+        public bool IsArbitrating { get; set; } = false;
 
         /// <summary>
         /// Maintains a handle to a job if fragmentation was detected so that the
@@ -201,7 +206,7 @@ namespace zero.core.patterns.bushes
                 try
                 {
                     //Allocate a job from the heap
-                    if ((nextJob = JobMetaHeap.Take()) != null)
+                    if ((nextJob = JobHeap.Take()) != null)
                     {
                         while (nextJob.Producer.BlockOnProduceAheadBarrier)
                         {
@@ -330,7 +335,7 @@ namespace zero.core.patterns.bushes
         private void Free(IoConsumable<TJob> curJob)
         {
             if(curJob.Previous != null)
-                JobMetaHeap.Return((IoConsumable<TJob>) curJob.Previous);                        
+                JobHeap.Return((IoConsumable<TJob>) curJob.Previous);                        
         }
        
         /// <summary>
@@ -359,7 +364,7 @@ namespace zero.core.patterns.bushes
                     //Production timed out
                     if (sleepOnProducerLag)
                     {
-                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' [[ReadAheadBarrier]] timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' [[ReadAheadBarrier]] timed out waiting on `{JobHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                     }
 
                     //Try again                    
@@ -379,7 +384,7 @@ namespace zero.core.patterns.bushes
                     //Production timed out
                     if (sleepOnProducerLag)
                     {                        
-                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' [[ConsumerBarrier]] timed out waiting on `{JobMetaHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Warn($"Consumer `{PrimaryProducerDescription}' [[ConsumerBarrier]] timed out waiting on `{JobHeap.Make(null).JobDescription}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                         await Task.Delay(parm_consumer_wait_for_producer_timeout/4);
                     }
                         
@@ -451,7 +456,7 @@ namespace zero.core.patterns.bushes
                             {
 
                                 _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
-                                _logger.Trace($"`{PrimaryProducerDescription}' consumer job heap = [[{JobMetaHeap.CacheSize()}/{JobMetaHeap.FreeCapacity()}/{JobMetaHeap.MaxSize}]]");
+                                _logger.Trace($"`{PrimaryProducerDescription}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
                                 curJob.Producer.PrintCounters();
                                 _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
                             }

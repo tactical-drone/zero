@@ -8,6 +8,7 @@ using NLog;
 using zero.core.api.controllers.generic;
 using zero.core.conf;
 using zero.core.core;
+using zero.core.data.providers.cassandra;
 using zero.core.misc;
 using zero.core.models.consumables.sources;
 using zero.core.models.generic;
@@ -50,36 +51,35 @@ namespace zero.core.models.consumables
             DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLength];
 
-            //Configure a description of this consumer
-            WorkDescription = $"Deserialize messages from `{producer.Description}'";
-
             //forward to node services
             if (!Producer.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _nodeServicesProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_nodeServicesProxy)}");
+                _nodeServicesProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
                 if (!Producer.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
                     _nodeServicesProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
                 }
             }
 
-            NodeServicesRelay = producer.GetRelaySource(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));
-            NodeServicesRelay.parm_consumer_wait_for_producer_timeout = 0; 
-            NodeServicesRelay.parm_producer_start_retry_time = 0;
+            NodeServicesArbiter = producer.CreateDownstreamArbiter(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));            
+
+
+            NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0; 
+            NodeServicesArbiter.parm_producer_start_retry_time = 0;
 
             //forward to neighbor
             if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
-                _neighborProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_neighborProxy)}");
+                _neighborProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_neighborProxy)}", parm_forward_queue_length);
                 if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
                     _neighborProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_neighborProxy)];
                 }
             }
 
-            NeighborRelay = producer.GetRelaySource(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
-            NeighborRelay.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
-            NeighborRelay.parm_producer_start_retry_time = 0;
+            NeighborServicesArbiter = producer.CreateDownstreamArbiter(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
+            NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+            NeighborServicesArbiter.parm_producer_start_retry_time = 0;
         }
         
         /// <summary>
@@ -120,12 +120,12 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TBlob>> NodeServicesRelay;
+        public IoForward<IoTangleTransaction<TBlob>> NodeServicesArbiter;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TBlob>> NeighborRelay;
+        public IoForward<IoTangleTransaction<TBlob>> NeighborServicesArbiter;
 
         /// <summary>
         /// Crc checker
@@ -154,7 +154,13 @@ namespace zero.core.models.consumables
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting        
+        public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting    
+
+        /// <summary>
+        /// The amount of items that can be ready for production before blocking
+        /// </summary>
+        [IoParameter]
+        public int parm_forward_queue_length = 10;
 
         /// <summary>
         /// Processes a iri datum
@@ -298,9 +304,9 @@ namespace zero.core.models.consumables
             });
 
             //forward transactions
-            if (!await NodeServicesRelay.ProduceAsync(Producer.Spinners.Token, sleepOnConsumerLag: false))
+            if (!await NodeServicesArbiter.ProduceAsync(Producer.Spinners.Token, sleepOnConsumerLag: false))
             {
-                _logger.Warn($"Failed to relay to `{NodeServicesRelay.PrimaryProducer.Description}'");
+                _logger.Warn($"Failed to forward to `{NodeServicesArbiter.PrimaryProducer.Description}'");
             }
         }
 
@@ -308,15 +314,19 @@ namespace zero.core.models.consumables
         {
             //cog the source
             await _neighborProxy.ProduceAsync(source =>
-            {                
-                ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
+            {
+                if (_neighborProxy.Arbiter.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
+                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.Add(newInteropTransactions);
+                else
+                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
+
                 return Task.FromResult(true);
             });
 
             //forward transactions
-            if (!await NeighborRelay.ProduceAsync(Producer.Spinners.Token))
+            if (!await NeighborServicesArbiter.ProduceAsync(Producer.Spinners.Token))
             {
-                _logger.Warn($"Failed to relay to `{NeighborRelay.PrimaryProducer.Description}'");
+                _logger.Warn($"Failed to forward to `{NeighborServicesArbiter.PrimaryProducer.Description}'");
             }
         }
 

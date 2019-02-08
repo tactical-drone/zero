@@ -155,7 +155,9 @@ namespace zero.core.core
                 //Start the producer consumer on the neighbor scheduler
                 try
                 {
+#pragma warning disable 4014
                     Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+#pragma warning restore 4014
                 }
                 catch (Exception e)
                 {

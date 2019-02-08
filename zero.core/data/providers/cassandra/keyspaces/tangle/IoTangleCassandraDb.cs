@@ -289,17 +289,20 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
 
         public async Task<bool> TransactionExistsAsync<TBlobFunc>(TBlobFunc key)
         {
-            if (!IsConnected)
+            if (!IsConfigured)
                 return false;
 
             var dupCheckStatement = _dupCheckQuery.Bind(key);
-            var rowSet = await _session.ExecuteAsync(dupCheckStatement);
-
-            foreach (var row in rowSet)
-            {                
-                return row.GetValue<long>("count") > 0;
+            
+            var rowSet = await base.ExecuteAsync(dupCheckStatement);
+            if (rowSet != null)
+            {
+                foreach (var row in rowSet)
+                {
+                    return row.GetValue<long>("count") > 0;
+                }
             }
-
+            
             return false;
         }
 

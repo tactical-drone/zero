@@ -92,8 +92,7 @@ namespace zero.core.data.providers.cassandra
 
             if (_isConnecting || !_isConnected && (DateTime.Now - _lastConnectionAttempt) < TimeSpan.FromMilliseconds(parm_cassandra_connection_retry_wait_time_ms))
                 return false;
-
-            IsConfigured = false;
+            
             IsConnected = false;
 
             _clusterAddress = clusterAddress;
@@ -149,19 +148,17 @@ namespace zero.core.data.providers.cassandra
         /// </summary>        
         /// <param name="batch">A batch handler</param>
         /// <returns>The <see cref="RowSet"/> containing transaction results</returns>
-        public async Task<RowSet> ExecuteAsync(BatchStatement batch)
+        public async Task<RowSet> ExecuteAsync(IStatement batch)
         {
             if (!await EnsureDatabaseAsync())
                 return null;
 
-            Task<RowSet> executeAsyncTask;
-
             try
             {
-                executeAsyncTask = _session.ExecuteAsync(batch);
-#pragma warning disable 4014
-                executeAsyncTask.ContinueWith(r =>
-#pragma warning restore 4014
+                var executeAsyncTask = _session.ExecuteAsync(batch);
+
+                await executeAsyncTask.ContinueWith(r =>
+
                 {
                     switch (r.Status)
                     {
@@ -172,15 +169,15 @@ namespace zero.core.data.providers.cassandra
                             break;
                     }
                 });
+
+                return executeAsyncTask.Result;
             }
             catch (Exception e)
             {
                 _logger.Error(e,"Unable to execute batch statement:");
                 IsConnected = false; //TODO, does cassandra have auto retry connect?
                 return null;
-            }            
-
-            return await executeAsyncTask;
+            }                        
         }
     }
 }

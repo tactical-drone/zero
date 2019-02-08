@@ -31,7 +31,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="remote">The remote socket</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        protected IoNetClient(IoSocket remote, int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoSocket remote,int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
@@ -42,6 +42,7 @@ namespace zero.core.network.ip
         /// Constructor for connecting
         /// </summary>
         /// <param name="listenerAddress">The address associated with this network client</param>
+        /// <param name="arbiter">The job arbitrator</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
         protected IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
         {
@@ -72,7 +73,7 @@ namespace zero.core.network.ip
         /// <param name="producer">The downstream producer</param>
         /// <param name="jobMalloc">Allocates jobs</param>
         /// <returns><see cref="IoForward{TJob}"/> worker</returns>
-        public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
+        public override IoForward<TFJob> CreateDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
             if (!IoForward.ContainsKey(id))
@@ -85,8 +86,9 @@ namespace zero.core.network.ip
 
                 lock (this)
                 {
-                    IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, jobMalloc));
-                    producer.Upstream = this;
+                    IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, jobMalloc));                    
+                    producer.ConfigureUpstream(this);
+                    producer.SetArbiter((IoProducerConsumer<TFJob>)IoForward[id]);
                 }                
             }
                
@@ -117,6 +119,11 @@ namespace zero.core.network.ip
         protected IoNetSocket IoSocket;
 
         /// <summary>
+        /// Returns the host address URL in the format tcp://IP:port
+        /// </summary>
+        public string AddressString => ListenerAddress.ResolvedIpAndPort;
+
+        /// <summary>
         /// Transmit timeout in ms
         /// </summary>
         [IoParameter]
@@ -143,7 +150,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Handle to unregister cancellation registrations
         /// </summary>
-        private CancellationTokenRegistration _cancellationRegistratison;
+        private CancellationTokenRegistration _cancellationRegistration;
         
         /// <summary>
         /// Closes the connection
@@ -186,9 +193,9 @@ namespace zero.core.network.ip
             {
                 if (t.Result)
                 {
-                    _cancellationRegistratison = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
+                    _cancellationRegistration = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
 
-                    IoSocket.Disconnected += (s, e) => _cancellationRegistratison.Dispose();
+                    IoSocket.Disconnected += (s, e) => _cancellationRegistration.Dispose();
 
                     _logger.Info($"Connected to `{AddressString}'");                    
                 }
@@ -237,6 +244,16 @@ namespace zero.core.network.ip
                 _logger.Error(e,$"Producer `{Description}' callback failed:");
                 return false;
             }
+        }
+
+        public override void ConfigureUpstream(IIoProducer producer)
+        {
+            Upstream = producer;            
+        }
+
+        public override void SetArbiter(IoProducerConsumer<TJob> arbiter)
+        {
+            Arbiter = arbiter;
         }
 
         /// <summary>
@@ -288,11 +305,6 @@ namespace zero.core.network.ip
                     return false;
                 }
             }            
-        }
-
-        /// <summary>
-        /// Returns the host address URL in the format tcp://IP:port
-        /// </summary>
-        public string AddressString => ListenerAddress.ResolvedIpAndPort;
+        }        
     }
 }

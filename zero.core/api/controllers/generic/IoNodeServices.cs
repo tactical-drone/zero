@@ -112,13 +112,13 @@ namespace zero.core.api.controllers.generic
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.PrimaryProducer.GetRelaySource<IoTangleTransaction<TBlob>>(nameof(IoNodeServices<TBlob>));
+                        var relaySource = n.PrimaryProducer.CreateDownstreamArbiter<IoTangleTransaction<TBlob>>(nameof(IoNodeServices<TBlob>));
 
                         if (relaySource != null)
                         {
                             stopwatch.Start();
                             count = 0;
-                            while (Interlocked.Read(ref relaySource.JobMetaHeap.ReferenceCount) > 0)
+                            while (Interlocked.Read(ref relaySource.JobHeap.ReferenceCount) > 0)
                             {
                                 await relaySource.ConsumeAsync(message =>
                                 {
@@ -163,8 +163,8 @@ namespace zero.core.api.controllers.generic
                                 }, sleepOnProducerLag: false);
                             }
                             stopwatch.Stop();
-                            outstanding = relaySource.JobMetaHeap.ReferenceCount;
-                            freeBufferSpace = relaySource.JobMetaHeap.FreeCapacity();
+                            outstanding = relaySource.JobHeap.ReferenceCount;
+                            freeBufferSpace = relaySource.JobHeap.FreeCapacity();
                         }
                         else
                             _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");
