@@ -29,7 +29,7 @@ namespace zero.core.patterns.bushes.contracts
         bool IsOperational { get; }
 
         /// <summary>
-        /// This producer's dup checker
+        /// Used to identify work that was done recently
         /// </summary>
         IIoDupChecker RecentlyProcessed { get; set; }
     }

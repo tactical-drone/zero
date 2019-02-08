@@ -17,25 +17,25 @@ namespace zero.core.network.ip
         /// </summary>
         public IoTcpClient()
         {
-            _logger = LogManager.CreateNullLogger();
+            _logger = LogManager.CreateNullLogger();            
         }
 
         private readonly Logger _logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpClient"/> class.
+        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
         public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket)remote, readAheadBufferSize) { }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpClient"/> class.
+        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="listenerAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
         public IoTcpClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(listenerAddress, readAheadBufferSize) { }
-
+        
         /// <summary>
         /// Connects to a remote listener
         /// </summary>

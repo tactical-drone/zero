@@ -59,15 +59,25 @@ namespace zero.core.network.ip
         /// </summary>
         public readonly IoNodeAddress ListenerAddress;
 
+        /// <summary>
+        /// The client remote address
+        /// </summary>
         public IoNodeAddress RemoteAddress => IoSocket.RemoteAddress;
 
-
+        /// <summary>
+        /// Configure a downstream producer
+        /// </summary>
+        /// <typeparam name="TFJob">The id of the downstream producer</typeparam>
+        /// <param name="id">The id of the downstream producer</param>
+        /// <param name="producer">The downstream producer</param>
+        /// <param name="jobMalloc">Allocates jobs</param>
+        /// <returns><see cref="IoForward{TJob}"/> worker</returns>
         public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
-            Func<object, IoConsumable<TFJob>> mallocMessage = null)
+            Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
             if (!IoForward.ContainsKey(id))
             {
-                if (producer == null || mallocMessage == null)
+                if (producer == null || jobMalloc == null)
                 {
                     _logger.Warn($"Waiting for the multicast producer of `{Description}' to initialize...");
                     return null;
@@ -75,7 +85,7 @@ namespace zero.core.network.ip
 
                 lock (this)
                 {
-                    IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, mallocMessage));
+                    IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, jobMalloc));
                     producer.Upstream = this;
                 }                
             }

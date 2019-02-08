@@ -7,8 +7,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
-using zero.core.data.providers.redis;
-using zero.core.data.providers.redis.configurations.tangle;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -48,12 +46,12 @@ namespace zero.core.patterns.bushes
         public CancellationTokenSource Spinners;
 
         /// <summary>
-        /// The io forward producer
+        /// A dictionary of downstream producers
         /// </summary>
         protected ConcurrentDictionary<string, IIoForward> IoForward = new ConcurrentDictionary<string, IIoForward>();
 
         /// <summary>
-        /// The producer that we are forwarding from
+        /// The upstream producer
         /// </summary>
         public IIoProducer Upstream { get; set; }
 
@@ -127,8 +125,14 @@ namespace zero.core.patterns.bushes
         /// </value>
         public abstract bool IsOperational { get; }
 
+        /// <summary>
+        /// The amount of productions that can be made while consumption is behind
+        /// </summary>
         public long ReadAheadBufferSize { get; set; }
 
+        /// <summary>
+        /// Used to identify work that was done recently
+        /// </summary>
         public IIoDupChecker RecentlyProcessed { get; set; }
 
         /// <summary>
@@ -155,7 +159,7 @@ namespace zero.core.patterns.bushes
         /// Returns the source to relay jobs too
         /// </summary>
         public abstract IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
-            Func<object, IoConsumable<TFJob>> mallocMessage = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
+            Func<object, IoConsumable<TFJob>> jobMalloc = null) where TFJob : IoConsumable<TFJob>, IIoWorker;
 
         /// <summary>
         /// Print counters

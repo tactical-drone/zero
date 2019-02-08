@@ -15,13 +15,14 @@ namespace zero.core.models.consumables.sources
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleTransactionProducer<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
+    public sealed class IoTangleTransactionProducer<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
     {
-        public IoTangleTransactionProducer(string id):base(10)//TODO config
+        public IoTangleTransactionProducer(string destDescription):base(10)//TODO config
         {
             //Saves forwarding producer, to leech some values from it            
-            _logger = LogManager.GetCurrentClassLogger();            
-            Id = id;
+            _logger = LogManager.GetCurrentClassLogger();
+
+            Description = $"Produce {nameof(IoTangleTransaction<TBlob>)}: `{Upstream.Description}' -> `{destDescription}'";
         }
 
         /// <summary>
@@ -32,9 +33,7 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();
-
-        public string Id;
+        public ConcurrentQueue<List<IIoTransactionModel<TBlob>>>  TxQueue = new ConcurrentQueue<List<IIoTransactionModel<TBlob>>>();        
 
         /// <summary>
         /// Keys this instance.
@@ -44,8 +43,11 @@ namespace zero.core.models.consumables.sources
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Broadcast tangle transaction from `{Upstream.Description}' to `{Id}'";
+        public override string Description { get; }
 
+        /// <summary>
+        /// The original source URI
+        /// </summary>
         public override string SourceUri => Upstream.SourceUri;
 
         /// <summary>
@@ -62,11 +64,11 @@ namespace zero.core.models.consumables.sources
         /// <typeparam name="TFJob"></typeparam>
         /// <param name="id"></param>
         /// <param name="producer"></param>
-        /// <param name="mallocMessage"></param>
+        /// <param name="jobMalloc"></param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
         public override IoForward<TFJob> GetRelaySource<TFJob>(string id, IoProducer<TFJob> producer = null,
-            Func<object, IoConsumable<TFJob>> mallocMessage = null)
+            Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
             throw new NotImplementedException();
         }
@@ -77,7 +79,7 @@ namespace zero.core.models.consumables.sources
         /// <exception cref="NotImplementedException"></exception>
         public override void Close()
         {
-            throw new NotImplementedException();
+            TxQueue.Clear();
         }
 
         /// <summary>
@@ -86,8 +88,7 @@ namespace zero.core.models.consumables.sources
         /// <param name="callback">The callback.</param>
         /// <returns>The async task</returns>        
         public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
-        {
-            //Is the TCP connection up?
+        {            
             if (!IsOperational)
             {
                 return false;
