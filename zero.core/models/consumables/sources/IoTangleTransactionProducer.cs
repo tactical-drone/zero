@@ -15,9 +15,9 @@ namespace zero.core.models.consumables.sources
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleMessageSource<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
+    public class IoTangleTransactionProducer<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
     {
-        public IoTangleMessageSource(string id):base(10)//TODO config
+        public IoTangleTransactionProducer(string id):base(10)//TODO config
         {
             //Saves forwarding producer, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();            

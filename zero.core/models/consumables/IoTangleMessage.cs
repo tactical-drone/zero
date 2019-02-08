@@ -59,10 +59,10 @@ namespace zero.core.models.consumables
             //forward to node services
             if (!Producer.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _nodeServicesProxy = new IoTangleMessageSource<TBlob>($"{nameof(_nodeServicesProxy)}");
+                _nodeServicesProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_nodeServicesProxy)}");
                 if (!Producer.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
-                    _nodeServicesProxy = (IoTangleMessageSource<TBlob>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
+                    _nodeServicesProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
                 }
             }
 
@@ -73,10 +73,10 @@ namespace zero.core.models.consumables
             //forward to neighbor
             if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
-                _neighborProxy = new IoTangleMessageSource<TBlob>($"{nameof(_neighborProxy)}");
+                _neighborProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_neighborProxy)}");
                 if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
-                    _neighborProxy = (IoTangleMessageSource<TBlob>)Producer.ObjectStorage[nameof(_neighborProxy)];
+                    _neighborProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_neighborProxy)];
                 }
             }
 
@@ -141,12 +141,12 @@ namespace zero.core.models.consumables
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleMessageSource<TBlob> _nodeServicesProxy;
+        private static IoTangleTransactionProducer<TBlob> _nodeServicesProxy;
 
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleMessageSource<TBlob> _neighborProxy;
+        private static IoTangleTransactionProducer<TBlob> _neighborProxy;
 
         /// <summary>
         /// The transaction broadcaster
@@ -325,7 +325,7 @@ namespace zero.core.models.consumables
             await _nodeServicesProxy.ProduceAsync(source =>
             {
                 if (NodeServicesRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleMessageSource<TBlob>) source).TxQueue.Enqueue(newInteropTransactions);
+                    ((IoTangleTransactionProducer<TBlob>) source).TxQueue.Enqueue(newInteropTransactions);
 
                 return Task.FromResult(true);
             });
@@ -343,7 +343,7 @@ namespace zero.core.models.consumables
             await _neighborProxy.ProduceAsync(source =>
             {
                 if (NeighborRelay.PrimaryProducer.ProducerBarrier.CurrentCount != 0)
-                    ((IoTangleMessageSource<TBlob>)source).TxQueue.Enqueue(newInteropTransactions);
+                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.Enqueue(newInteropTransactions);
 
                 return Task.FromResult(true);
             });
