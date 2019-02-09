@@ -76,7 +76,9 @@ namespace zero.core.api.controllers.generic
 
             var dbgStr = $"Added listener at `{address.Url}'";
 
-            Nodes[address.Port].Start();
+#pragma warning disable 4014
+            Nodes[address.Port].StartAsync();
+#pragma warning restore 4014
 
             _logger.Debug(dbgStr);
             return IoApiReturn.Result(true, dbgStr, address.Port);

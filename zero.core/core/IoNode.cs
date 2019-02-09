@@ -229,14 +229,12 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public void Start()
+        public async Task StartAsync()
         {
             _logger.Info("Unimatrix Zero");
             try
             {
-#pragma warning disable 4014
-                SpawnListenerAsync().ContinueWith(_=> _logger.Info("You will be assimilated!"));
-#pragma warning restore 4014                
+                await SpawnListenerAsync().ContinueWith(_=> _logger.Info("You will be assimilated!"));
             }
             catch (Exception e)
             {
