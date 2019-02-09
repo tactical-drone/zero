@@ -187,6 +187,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
             var taggedTransaction = new IoTaggedTransaction<TBlobLocal>
             {
                 Tag = transaction.Tag,
+                Partition = (long)Math.Truncate(transaction.Timestamp/3600.0) * 3600,
                 ObsoleteTag = transaction.ObsoleteTag,
                 Hash = transaction.Hash,
                 Timestamp = transaction.Timestamp
