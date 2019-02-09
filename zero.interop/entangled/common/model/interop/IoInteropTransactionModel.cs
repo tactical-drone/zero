@@ -86,6 +86,8 @@ namespace zero.interop.entangled.common.model.interop
             set => throw new NotImplementedException();
         }
 
+        public byte[] Snapshot { get; set; }
+
         public long SnapshotIndex { get; set; }
         public bool Solid { get; set; }
         public sbyte Pow { get; set; }

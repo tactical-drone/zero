@@ -57,6 +57,9 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.AttachmentTimestamp)
                         .Column(c => c.AttachmentTimestampLower)
                         .Column(c => c.AttachmentTimestampUpper)
+                        .Column(c => c.Snapshot)
+                        .Column(c => c.SnapshotIndex) //TODO maybe we don't need to store this extra info
+                        .Column(c => c.Solid)
                         .Column(c => c.Nonce)
                         .Column(c => c.Hash)
                         .Column(c => c.Size)
@@ -161,8 +164,10 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     new Map<IoVerifiedTransaction<TBlob>>().TableName("verifier")
                         .ExplicitColumns()
                         .Column(c => c.Hash)
-                        .Column(c=> c.Timestamp)
+                        .Column(c => c.Timestamp)
                         .Column(c => c.Verifier)
+                        .Column(c=>c.Trunk)
+                        .Column(c=>c.Branch)
                         .Column(c => c.Pow)
                         .PartitionKey(c => c.Hash)
                         .ClusteringKey(c => c.Timestamp, SortOrder.Descending));

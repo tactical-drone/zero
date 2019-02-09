@@ -205,6 +205,8 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                 Hash = transaction.Trunk,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,
+                Trunk = transaction.Trunk,
+                Branch = transaction.Branch,
                 Timestamp = transaction.Timestamp
             };
 

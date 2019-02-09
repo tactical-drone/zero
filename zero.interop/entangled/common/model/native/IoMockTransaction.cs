@@ -10,6 +10,7 @@ namespace zero.interop.entangled.common.model.native
     /// </summary>
     public class IoMockTransaction: Transaction
     {
+        public string Snapshot;
         public long SnapshotIndex = 0;
         public bool Solid = false;
 

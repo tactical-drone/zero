@@ -85,6 +85,9 @@ namespace zero.interop.entangled.common.model.interop
         TBlob Hash { get; set; }
 
         [DataMember]
+        TBlob Snapshot { get; set; }
+
+        [DataMember]
         long SnapshotIndex { get; set; }
 
         [DataMember]

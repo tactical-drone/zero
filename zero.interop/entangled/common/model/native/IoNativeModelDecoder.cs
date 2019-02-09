@@ -48,6 +48,7 @@ namespace zero.interop.entangled.common.model.native
                 AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound,                
                 NonceBuffer = Encoding.UTF8.GetBytes(tx.Nonce.Value.Trim('9').AsMemory().ToArray()),
                 HashBuffer = Encoding.UTF8.GetBytes(tx.Hash.Value.AsMemory().ToArray()),
+                Snapshot = tx.Snapshot,
                 SnapshotIndex = tx.SnapshotIndex,
                 Solid = tx.Solid,
                 Blob = ((byte[])(Array)tryteBuffer),

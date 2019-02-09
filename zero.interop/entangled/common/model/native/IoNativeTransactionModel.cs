@@ -90,6 +90,9 @@ namespace zero.interop.entangled.common.model.native
         }
 
         [Ignore]
+        public string Snapshot { get; set; }
+
+        [Ignore]
         public long SnapshotIndex { get; set; }
 
         [Ignore]
@@ -133,6 +136,6 @@ namespace zero.interop.entangled.common.model.native
             return Hash;
         }
 
-        public short Size { get; set; }
+        public short Size { get; set; }        
     }
 }
