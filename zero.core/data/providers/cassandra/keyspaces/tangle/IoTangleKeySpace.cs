@@ -53,6 +53,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                             //if (IoEntangled<object>.Optimized)
                             //    map.AsFrozen();
                         })
+                        .Column(c=>c.ObsoleteTag)
                         .Column(c => c.AttachmentTimestamp)
                         .Column(c => c.AttachmentTimestampLower)
                         .Column(c => c.AttachmentTimestampUpper)
