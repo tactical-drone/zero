@@ -12,6 +12,8 @@
 
         public TBlob Hash { get; set; }
 
+        public long Partition;
+
         public long Timestamp { get; set; }
     }
 }

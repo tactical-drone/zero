@@ -53,7 +53,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                             //if (IoEntangled<object>.Optimized)
                             //    map.AsFrozen();
                         })
-                        .Column(c=>c.ObsoleteTag)
+                        .Column(c => c.ObsoleteTag)
                         .Column(c => c.AttachmentTimestamp)
                         .Column(c => c.AttachmentTimestampLower)
                         .Column(c => c.AttachmentTimestampUpper)
@@ -61,9 +61,8 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.Hash)
                         .Column(c => c.Size)
 
-                        .PartitionKey(c => c.Bundle)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
-                        .ClusteringKey(c => c.CurrentIndex, SortOrder.Ascending));
+                        .PartitionKey(c => c.Bundle)                        
+                        .ClusteringKey(c => c.Hash));
 
                 return _bundle;
             }
@@ -81,7 +80,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.Bundle)
                         .Column(c => c.Timestamp)
                         .PartitionKey(c => c.Address)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)
                         .ClusteringKey(c => c.Bundle));
                 return bundledAddress;
             }
@@ -101,6 +100,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.LocalTimestamp)
                         .Column(c => c.AttachmentTimestamp)                                                
                         .Column(c => c.Value)
+                        .Column(c => c.Direction)
                         .Column(c => c.Quality)
                         .Column(c => c.Uri)
                         .Column(c => c.BtcValue)
@@ -108,8 +108,8 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.EurValue)
                         .Column(c => c.UsdValue)
                         .PartitionKey(c => c.Address)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
-                        .ClusteringKey(c => c.Value, SortOrder.Descending)                        
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)                        
+                        .ClusteringKey(c => c.Value, SortOrder.Descending)          
                         .ClusteringKey(c => c.Uri, SortOrder.Ascending)
                         .ClusteringKey(c => c.Bundle, SortOrder.Ascending));
                 return draggedTransaction;
@@ -127,9 +127,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.Hash)
                         .Column(c => c.Bundle)
                         .Column(c => c.Timestamp)
-                        .PartitionKey(c => c.Hash)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
-                        .ClusteringKey(c => c.Bundle, SortOrder.Ascending));
+                        .PartitionKey(c => c.Hash));
                 return bundledTransaction;
             }
         }
@@ -143,11 +141,12 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     new Map<IoTaggedTransaction<TBlob>>().TableName("tag")
                         .ExplicitColumns()
                         .Column(c => c.Tag)
+                        .Column(c => c.Partition)
                         .Column(c => c.ObsoleteTag)
                         .Column(c => c.Hash)
                         .Column(c => c.Timestamp)
-                        .PartitionKey(c => c.Tag)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
+                        .PartitionKey(c => c.Tag, c=>c.Partition)
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)
                         .ClusteringKey(c => c.Hash, SortOrder.Ascending));
                 return taggedTransaction;
             }
@@ -166,7 +165,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         .Column(c => c.Verifier)
                         .Column(c => c.Pow)
                         .PartitionKey(c => c.Hash)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending));
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending));
                 return verifiedTransaction;
             }
         }

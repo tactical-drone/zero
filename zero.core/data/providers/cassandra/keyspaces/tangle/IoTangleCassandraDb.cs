@@ -238,6 +238,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                         Timestamp = transaction.Timestamp,
                         LocalTimestamp = ((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds(),
                         Value = transaction.Value,
+                        Direction = (short)(transaction.CurrentIndex == transaction.LastIndex? 0:(transaction.Value>0?1:-1)),
                         Quality = (short)quality,
                         Uri = transaction.Uri,                                                
                         BtcValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),

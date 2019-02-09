@@ -1,4 +1,6 @@
-﻿namespace zero.core.data.lookups
+﻿using System;
+
+namespace zero.core.data.lookups
 {    
     /// <summary>
     /// Stores where transactions are probably coming from
@@ -14,6 +16,7 @@
         public long AttachmentTimestamp;
 
         public long Value;
+        public short Direction;
         public short Quality;
 
         public string Uri { get; set; }
