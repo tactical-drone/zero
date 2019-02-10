@@ -1,8 +1,9 @@
 ﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using zero.core.api;
 using zero.interop.entangled;
 
-namespace zero.core.api.controllers.bootstrap
+namespace zero.tangle.api.controllers.bootstrap
 {
     [EnableCors("ApiCorsPolicy")]    
     [ApiController]

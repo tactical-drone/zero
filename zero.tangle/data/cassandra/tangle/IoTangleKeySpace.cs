@@ -1,16 +1,15 @@
 ﻿using Cassandra.Mapping;
-using zero.core.data.lookups;
-using zero.core.data.luts;
-using zero.core.data.providers.cassandra.keyspaces.tangle.luts;
+using zero.core.data.providers.cassandra;
 using zero.interop.entangled.common.model.interop;
+using zero.tangle.data.cassandra.tangle.luts;
 
-namespace zero.core.data.providers.cassandra.keyspaces.tangle
+namespace zero.tangle.data.cassandra.tangle
 {
     /// <summary>
     /// The tangle keyspace config
     /// </summary>
     /// <typeparam name="TBlob">Blob type</typeparam>
-    public class IoTangleKeySpace<TBlob>
+    public class IoTangleKeySpace<TBlob> : IIoCassandraKeySpace
     {
         /// <summary>
         /// Constructs a new keyspace

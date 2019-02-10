@@ -5,24 +5,22 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.api.controllers.generic;
 using zero.core.conf;
 using zero.core.core;
-using zero.core.data.providers.cassandra;
 using zero.core.misc;
-using zero.core.models.consumables.sources;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.core.protocol;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
+using zero.tangle.api.controllers.generic;
+using zero.tangle.models.sources;
 using Logger = NLog.Logger;
 
-namespace zero.core.models.consumables
+namespace zero.tangle.models
 {
     /// <summary>
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 

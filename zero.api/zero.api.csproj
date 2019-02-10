@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
+    <ProjectReference Include="..\zero.tangle\zero.tangle.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace zero.core.data.lookups
+﻿namespace zero.tangle.data.cassandra.tangle.luts
 {    
     /// <summary>
     /// Stores where transactions are probably coming from

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Diagnostics.Tracing;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;

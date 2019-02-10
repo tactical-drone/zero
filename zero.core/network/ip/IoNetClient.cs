@@ -4,8 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.data.providers.redis;
-using zero.core.data.providers.redis.configurations.tangle;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 

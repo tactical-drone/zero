@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Cassandra;
 using NLog;
 using zero.core.conf;
-using zero.core.data.providers.cassandra.keyspaces.tangle;
 using zero.core.network.ip;
 using Logger = NLog.Logger;
 
@@ -15,7 +14,7 @@ namespace zero.core.data.providers.cassandra
     /// <typeparam name="TBlob">Blob type</typeparam>
     public abstract class IoCassandraBase<TBlob> : IoConfigurable
     {
-        protected IoCassandraBase(IoTangleKeySpace<TBlob> keySpaceConfiguration)
+        protected IoCassandraBase(IIoCassandraKeySpace keySpaceConfiguration)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _keySpaceConfiguration = keySpaceConfiguration;            
@@ -23,7 +22,7 @@ namespace zero.core.data.providers.cassandra
 
         private readonly Logger _logger;
                 
-        protected IoTangleKeySpace<TBlob> _keySpaceConfiguration;
+        protected IIoCassandraKeySpace _keySpaceConfiguration;
         protected volatile Cluster _cluster;
         protected ISession _session;
         protected IoNodeAddress _clusterAddress;

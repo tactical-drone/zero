@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="data\cassandra\" />
+    <Folder Include="data\redis\" />
+    <Folder Include="models\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CassandraCSharpDriver" Version="3.7.0" />
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="3.0.0-preview-19075-0444" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
+    <PackageReference Include="NLog" Version="4.5.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\zero.core\zero.core.csproj" />
+    <ProjectReference Include="..\zero.interop\zero.interop.csproj" />
+  </ItemGroup>
+
+</Project>

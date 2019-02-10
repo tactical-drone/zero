@@ -1,12 +1,11 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.models.consumables.sources;
 using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
+using zero.tangle.models.sources;
 
-namespace zero.core.models.consumables
+namespace zero.tangle.models
 {
     /// <summary>
     /// Stores meta data used when consuming jobs of this kind

@@ -6,15 +6,14 @@ using Cassandra;
 using NLog;
 using zero.core.core;
 using zero.core.data.contracts;
-using zero.core.data.providers.cassandra.keyspaces.tangle;
-using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.interop.entangled;
 using zero.interop.utils;
+using zero.tangle.data.cassandra.tangle;
+using zero.tangle.models;
 using Logger = NLog.Logger;
 
-namespace zero.core.protocol
+namespace zero.tangle
 {
     /// <inheritdoc />
     /// <summary>

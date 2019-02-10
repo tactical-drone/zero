@@ -1,4 +1,4 @@
-﻿namespace zero.core.data.lookups
+﻿namespace zero.tangle.data.cassandra.tangle.luts
 {        
     /// <summary>
     /// Gets the bundle from transaction hash

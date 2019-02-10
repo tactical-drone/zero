@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
-using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes

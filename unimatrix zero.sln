@@ -17,6 +17,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deps", "deps", "{CB5DA72D-A
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tangle.Net.Standard", "deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj", "{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "zero.tangle", "zero.tangle\zero.tangle.csproj", "{C62A1201-3B24-4C0F-8D22-25A309E99E2E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -47,6 +49,10 @@ Global
 		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F6547BEE-E19F-4DD6-9CFC-3DA33534818B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C62A1201-3B24-4C0F-8D22-25A309E99E2E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C62A1201-3B24-4C0F-8D22-25A309E99E2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C62A1201-3B24-4C0F-8D22-25A309E99E2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C62A1201-3B24-4C0F-8D22-25A309E99E2E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

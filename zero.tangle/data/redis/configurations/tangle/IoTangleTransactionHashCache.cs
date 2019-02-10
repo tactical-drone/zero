@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 using StackExchange.Redis;
 using zero.core.conf;
 using zero.core.data.contracts;
+using zero.core.data.providers.redis;
 using zero.core.network.ip;
 
-namespace zero.core.data.providers.redis.configurations.tangle
+namespace zero.tangle.data.redis.configurations.tangle
 {
     public class IoTangleTransactionHashCache : IoRedisBase, IIoDupChecker
     {

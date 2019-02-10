@@ -9,16 +9,16 @@ using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NLog.Targets;
-using zero.core.api.interfaces;
+using zero.core.api;
 using zero.core.api.models;
 using zero.core.core;
-using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.core.protocol;
 using zero.interop.entangled.common.model.interop;
+using zero.tangle.api.interfaces;
+using zero.tangle.models;
 
-namespace zero.core.api.controllers.generic
+namespace zero.tangle.api.controllers.generic
 {
     /// <summary>
     /// Node services

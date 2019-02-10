@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using zero.core.api.controllers.bootstrap;
-using zero.core.api.controllers.services;
+using zero.tangle.api.controllers.bootstrap;
+using zero.tangle.api.controllers.services;
 
 
 namespace zero.api

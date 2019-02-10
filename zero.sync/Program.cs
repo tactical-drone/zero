@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Runtime.Loader;
-using System.Threading.Tasks;
 using NLog;
-using zero.core.core;
-using zero.core.models.consumables;
 using zero.core.network.ip;
-using zero.core.protocol;
 using zero.interop.entangled;
+using zero.tangle;
+using zero.tangle.models;
 
 namespace zero.sync
 {

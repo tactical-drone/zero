@@ -1,6 +1,7 @@
-﻿using zero.core.network.ip;
+﻿using zero.core.api;
+using zero.core.network.ip;
 
-namespace zero.core.api.interfaces
+namespace zero.tangle.api.interfaces
 {
     /// <summary>
     /// Node services interface

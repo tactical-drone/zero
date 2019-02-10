@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.market;
-using zero.core.data.providers.redis.configurations.tangle;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 
@@ -95,7 +94,7 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async Task SpawnListenerAsync()
+        protected virtual async Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
@@ -136,21 +135,10 @@ namespace zero.core.core
                 //New peer connection event
                 PeerConnected?.Invoke(this, newNeighbor);
 
-                //start redis
-                var connectTask =  IoTangleTransactionHashCache.Default();
-                                        
-                await connectTask.ContinueWith(r =>
-                {
-                    switch (r.Status)
-                    {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            break;
-                        case TaskStatus.RanToCompletion:
-                            remoteClient.RecentlyProcessed = r.Result;
-                            break;
-                    }
-                });                
+                //super class specific mutations
+                connectionReceivedAction?.Invoke(newNeighbor);
+
+                //start redis                
 
                 //Start the producer consumer on the neighbor scheduler
                 try

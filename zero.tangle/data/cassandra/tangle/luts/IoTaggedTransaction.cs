@@ -1,4 +1,4 @@
-﻿namespace zero.core.data.luts
+﻿namespace zero.tangle.data.cassandra.tangle.luts
 {    
     /// <summary>
     /// Finds transactions by tag

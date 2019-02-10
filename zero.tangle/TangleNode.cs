@@ -5,8 +5,9 @@ using NLog;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
+using zero.tangle.data.redis.configurations.tangle;
 
-namespace zero.core.protocol
+namespace zero.tangle
 {
     /// <summary>
     /// Tangle Node type
@@ -26,10 +27,28 @@ namespace zero.core.protocol
         /// Start listener and connect back to any new connections
         /// </summary>
         /// <returns>Task</returns>
-        protected override Task SpawnListenerAsync()
+        protected override Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
         {            
-            PeerConnected += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
-            return base.SpawnListenerAsync();
+            //PeerConnected += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
+
+            return base.SpawnListenerAsync(async ioNeighbor =>
+            {
+                await ConnectBackAsync(ioNeighbor);
+
+                var connectTask = IoTangleTransactionHashCache.Default();
+                await connectTask.ContinueWith(r =>
+                {
+                    switch (r.Status)
+                    {
+                        case TaskStatus.Canceled:
+                        case TaskStatus.Faulted:
+                            break;
+                        case TaskStatus.RanToCompletion:
+                            ioNeighbor.PrimaryProducer.RecentlyProcessed = r.Result;
+                            break;
+                    }
+                });
+            });
         }
 
         /// <summary>

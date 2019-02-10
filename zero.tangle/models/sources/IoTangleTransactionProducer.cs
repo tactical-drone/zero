@@ -3,12 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.conf;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled.common.model.interop;
 
-namespace zero.core.models.consumables.sources
+namespace zero.tangle.models.sources
 {
     /// <summary>
     /// A producer that serves <see cref="IoTangleTransaction{TBlob}"/>

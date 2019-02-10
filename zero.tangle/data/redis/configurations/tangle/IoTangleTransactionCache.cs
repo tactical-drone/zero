@@ -4,11 +4,12 @@ using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 using zero.core.data.contracts;
+using zero.core.data.providers.redis;
 using zero.core.network.ip;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
 
-namespace zero.core.data.providers.redis.configurations.tangle
+namespace zero.tangle.data.redis.configurations.tangle
 {
     public class IoTangleTransactionCache: IoRedisBase, IIoDataSource<bool>    
     {

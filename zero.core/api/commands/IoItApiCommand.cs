@@ -17,21 +17,7 @@ namespace zero.core.api.commands
         public string command;
 
         static IoItApiCommand()
-        {
-            new getNodeInfo();
-            new getNeighbors();
-            new addNeighbors();
-            new removeNeighbors();
-            new getTips();
-            new findTransactions();
-            new getTrytes();
-            new getInclusionStates();
-            new getBalances();
-            new getTransactionsToApprove();
-            new attachToTangle();
-            new interruptAttachingToTangle();
-            new broadcastTransactions();
-            new storeTransactions();
+        {            
             Logger = LogManager.GetLogger(nameof(IoItApiCommand));
         }
 

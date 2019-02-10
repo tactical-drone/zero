@@ -5,16 +5,15 @@ using Cassandra;
 using Cassandra.Data.Linq;
 using NLog;
 using zero.core.data.contracts;
-using zero.core.data.lookups;
-using zero.core.data.luts;
 using zero.core.data.market;
-using zero.core.data.providers.cassandra.keyspaces.tangle.luts;
+using zero.core.data.providers.cassandra;
 using zero.core.network.ip;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
+using zero.tangle.data.cassandra.tangle.luts;
 using Logger = NLog.Logger;
 
-namespace zero.core.data.providers.cassandra.keyspaces.tangle
+namespace zero.tangle.data.cassandra.tangle
 {
     /// <summary>
     /// Tangle Cassandra storage provider
@@ -27,11 +26,14 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
         /// </summary>
         public IoTangleCassandraDb():base(new IoTangleKeySpace<TBlob>(IoEntangled<TBlob>.Optimized ? "zero" : "one"))
         {
+            
             _logger = LogManager.GetCurrentClassLogger();            
+            _ioTangleKeySpace = (IoTangleKeySpace<TBlob>) _keySpaceConfiguration;
         }
 
         private readonly Logger _logger;
-        
+
+        private IoTangleKeySpace<TBlob> _ioTangleKeySpace;
         private Table<IIoTransactionModel<TBlob>> _transactions;
         private Table<IoBundledHash<TBlob>> _hashes;
         private Table<IoBundledAddress<TBlob>> _addresses;
@@ -74,7 +76,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
 
                 var existingTables = keyspace.GetTablesNames();
 
-                _transactions = new Table<IIoTransactionModel<TBlob>>(_session, _keySpaceConfiguration.BundleMap);
+                _transactions = new Table<IIoTransactionModel<TBlob>>(_session, _ioTangleKeySpace.BundleMap);
                 if (!existingTables.Contains(_transactions.Name))
                 {
                     _transactions.CreateIfNotExists();
@@ -82,7 +84,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     wasConfigured = false;
                 }
                                                                     
-                _hashes = new Table<IoBundledHash<TBlob>>(_session, _keySpaceConfiguration.BundledTransaction);
+                _hashes = new Table<IoBundledHash<TBlob>>(_session, _ioTangleKeySpace.BundledTransaction);
                 if (!existingTables.Contains(_hashes.Name))
                 {
                     _hashes.CreateIfNotExists();
@@ -90,7 +92,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     wasConfigured = false;
                 }
                     
-                _addresses = new Table<IoBundledAddress<TBlob>>(_session, _keySpaceConfiguration.BundledAddressMap);
+                _addresses = new Table<IoBundledAddress<TBlob>>(_session, _ioTangleKeySpace.BundledAddressMap);
                 if (!existingTables.Contains(_addresses.Name))
                 {
                     _addresses.CreateIfNotExists();
@@ -98,7 +100,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     wasConfigured = false;
                 }
 
-                _tags = new Table<IoTaggedTransaction<TBlob>>(_session, _keySpaceConfiguration.TaggedTransaction);
+                _tags = new Table<IoTaggedTransaction<TBlob>>(_session, _ioTangleKeySpace.TaggedTransaction);
                 if (!existingTables.Contains(_tags.Name))
                 {
                     _tags.CreateIfNotExists();
@@ -106,7 +108,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     wasConfigured = false;
                 }
 
-                _verifiers = new Table<IoVerifiedTransaction<TBlob>>(_session, _keySpaceConfiguration.VerifiedTransaction);
+                _verifiers = new Table<IoVerifiedTransaction<TBlob>>(_session, _ioTangleKeySpace.VerifiedTransaction);
                 if (!existingTables.Contains(_verifiers.Name))
                 {
                     _verifiers.CreateIfNotExists();
@@ -114,7 +116,7 @@ namespace zero.core.data.providers.cassandra.keyspaces.tangle
                     wasConfigured = false;
                 }
 
-                _dragnet = new Table<IoDraggedTransaction<TBlob>>(_session, _keySpaceConfiguration.DraggedTransactionMap);
+                _dragnet = new Table<IoDraggedTransaction<TBlob>>(_session, _ioTangleKeySpace.DraggedTransactionMap);
                 if (!existingTables.Contains(_dragnet.Name))
                 {
                     _dragnet.CreateIfNotExists();

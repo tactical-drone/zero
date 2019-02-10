@@ -1,17 +1,8 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using Cassandra;
 using NLog;
-using zero.core.data.contracts;
-using zero.core.data.providers.cassandra;
-using zero.core.data.providers.cassandra.keyspaces.tangle;
-using zero.core.models.consumables;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled;
 using Logger = NLog.Logger;
 
 namespace zero.core.core
