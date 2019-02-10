@@ -6,6 +6,7 @@ A borg assimilated version of the iota reference implementation.
 
 A borg scout ship, a harmless vessel exploring the vast expanses of the tangle:
 
+- *zero.tangle*: The iota tangle node implementation
 - *zero.sync*: Listens for IRI connections and displays non zero transactions on screen. 
   - If a cassandra host is provided data will be loaded. 
   - If a redis host is provided incoming TXs will be dup checked

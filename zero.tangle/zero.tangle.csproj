@@ -5,7 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="data\cassandra\" />
     <Folder Include="data\redis\" />
     <Folder Include="models\" />
   </ItemGroup>
