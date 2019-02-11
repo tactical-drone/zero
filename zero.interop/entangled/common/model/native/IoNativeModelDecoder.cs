@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using RestSharp.Extensions;
 using Tangle.Net.Entity;
+using zero.core.models;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
@@ -49,7 +50,7 @@ namespace zero.interop.entangled.common.model.native
                 NonceBuffer = Encoding.UTF8.GetBytes(tx.Nonce.Value.Trim('9').AsMemory().ToArray()),
                 HashBuffer = Encoding.UTF8.GetBytes(tx.Hash.Value.AsMemory().ToArray()),
                 Snapshot = tx.Snapshot,
-                SnapshotIndex = tx.SnapshotIndex,
+                MilestoneIndexEstimate = tx.SnapshotIndex,
                 Solid = tx.Solid,
                 Blob = ((byte[])(Array)tryteBuffer),
 

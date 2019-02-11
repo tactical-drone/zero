@@ -1,4 +1,5 @@
-﻿using zero.interop.entangled.common.trinary.interop;
+﻿using zero.interop.entangled.common.model;
+using zero.interop.entangled.common.trinary.interop;
 
 namespace zero.interop.entangled.common.trinary.abstraction
 {
@@ -65,6 +66,20 @@ namespace zero.interop.entangled.common.trinary.abstraction
                 {
                     IoFlexTrit.flex_trits_to_trytes(trytes, toLen, flexTrits, numTritsAvailable, numTritsToConvert);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Get long from trits
+        /// </summary>
+        /// <param name="flexTritBuffer">The trit buffer</param>
+        /// <param name="offset">offset into the buffer</param>
+        /// <returns>The long value</returns>
+        public unsafe long GetLongFromFlexTrits(sbyte[] flexTritBuffer, int offset)
+        {            
+            fixed (sbyte* flexTrits = &flexTritBuffer[offset])
+            {                
+                return IoTritLong.trits_to_long(flexTrits, IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT);
             }
         }
     }

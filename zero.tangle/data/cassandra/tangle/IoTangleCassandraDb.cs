@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
+using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.market;
 using zero.core.data.providers.cassandra;
+using zero.core.models;
 using zero.core.network.ip;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.common.model.native;
 using zero.tangle.data.cassandra.tangle.luts;
 using Logger = NLog.Logger;
 
@@ -33,15 +36,17 @@ namespace zero.tangle.data.cassandra.tangle
 
         private readonly Logger _logger;
 
-        private IoTangleKeySpace<TBlob> _ioTangleKeySpace;
+        private readonly IoTangleKeySpace<TBlob> _ioTangleKeySpace;
         private Table<IIoTransactionModel<TBlob>> _transactions;
         private Table<IoBundledHash<TBlob>> _hashes;
         private Table<IoBundledAddress<TBlob>> _addresses;
         private Table<IoTaggedTransaction<TBlob>> _tags;
-        private Table<IoVerifiedTransaction<TBlob>> _verifiers;
+        private Table<IoApprovedTransaction<TBlob>> _verifiers;
         private Table<IoDraggedTransaction<TBlob>> _dragnet;
 
         private PreparedStatement _dupCheckQuery;
+        private readonly string _getTransactionQuery = $"select * from bundle where bundle=? order by currentindex limit 1 ALLOW FILTERING";
+        private readonly string _getClosestMilestoneQuery = $"select * from tag where partition IN ? and ismilestonetransaction = true LIMIT 1 ALLOW FILTERING";
 
         /// <summary>
         /// Makes sure that the schema is configured
@@ -75,7 +80,7 @@ namespace zero.tangle.data.cassandra.tangle
                 }
 
                 var existingTables = keyspace.GetTablesNames();
-
+                
                 _transactions = new Table<IIoTransactionModel<TBlob>>(_session, _ioTangleKeySpace.BundleMap);
                 if (!existingTables.Contains(_transactions.Name))
                 {
@@ -83,6 +88,7 @@ namespace zero.tangle.data.cassandra.tangle
                     _logger.Debug($"Adding table `{_transactions.Name}'");
                     wasConfigured = false;
                 }
+                
                                                                     
                 _hashes = new Table<IoBundledHash<TBlob>>(_session, _ioTangleKeySpace.BundledTransaction);
                 if (!existingTables.Contains(_hashes.Name))
@@ -99,7 +105,7 @@ namespace zero.tangle.data.cassandra.tangle
                     _logger.Debug($"Adding table `{_addresses.Name}'");
                     wasConfigured = false;
                 }
-
+                
                 _tags = new Table<IoTaggedTransaction<TBlob>>(_session, _ioTangleKeySpace.TaggedTransaction);
                 if (!existingTables.Contains(_tags.Name))
                 {
@@ -108,7 +114,7 @@ namespace zero.tangle.data.cassandra.tangle
                     wasConfigured = false;
                 }
 
-                _verifiers = new Table<IoVerifiedTransaction<TBlob>>(_session, _ioTangleKeySpace.VerifiedTransaction);
+                _verifiers = new Table<IoApprovedTransaction<TBlob>>(_session, _ioTangleKeySpace.ApprovedTransaction);
                 if (!existingTables.Contains(_verifiers.Name))
                 {
                     _verifiers.CreateIfNotExists();
@@ -192,25 +198,29 @@ namespace zero.tangle.data.cassandra.tangle
                 Partition = (long)Math.Truncate(transaction.Timestamp/3600.0) * 3600,
                 ObsoleteTag = transaction.ObsoleteTag,
                 Hash = transaction.Hash,
-                Timestamp = transaction.Timestamp
+                Bundle = transaction.Bundle,
+                Timestamp = transaction.Timestamp,
+                IsMilestoneTransaction = transaction.IsMilestoneTransaction,
+                MilestoneIndex = -transaction.MilestoneIndexEstimate //negative indicates that this is an initial estimate
             };
 
-            var verifiedBranchTransaction = new IoVerifiedTransaction<TBlobLocal>
+            var partition = (long)Math.Truncate( transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp: transaction.Timestamp / 600.0) * 600;             
+            var verifiedBranchTransaction = new IoApprovedTransaction<TBlobLocal>
             {
+                Partition = partition,
                 Hash = transaction.Branch,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,
-                Timestamp = transaction.Timestamp
+                MilestoneIndexEstimate = transaction.MilestoneIndexEstimate
             };
 
-            var verifiedTrunkTransaction = new IoVerifiedTransaction<TBlobLocal>
+            var verifiedTrunkTransaction = new IoApprovedTransaction<TBlobLocal>
             {
+                Partition = partition,
                 Hash = transaction.Trunk,
                 Pow = transaction.Pow,
-                Verifier = transaction.Hash,
-                Trunk = transaction.Trunk,
-                Branch = transaction.Branch,
-                Timestamp = transaction.Timestamp
+                Verifier = transaction.Hash,                
+                MilestoneIndexEstimate = transaction.MilestoneIndexEstimate
             };
 
             if (executeBatch)
@@ -264,15 +274,15 @@ namespace zero.tangle.data.cassandra.tangle
             ((BatchStatement)userData).Add(_hashes.Insert(bundledHash as IoBundledHash<TBlob>));
                         
             if(transaction.BranchBuffer.Length != 0)
-                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedBranchTransaction as IoVerifiedTransaction<TBlob>));
+                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedBranchTransaction as IoApprovedTransaction<TBlob>));
             
             if (transaction.TrunkBuffer.Length != 0)
-                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedTrunkTransaction as IoVerifiedTransaction<TBlob>));
+                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedTrunkTransaction as IoApprovedTransaction<TBlob>));
             
             if (transaction.AddressBuffer.Length != 0)
                 ((BatchStatement)userData).Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
             
-            if (transaction.TagBuffer.Length != 0)
+            if (transaction.TagBuffer.Length != 0 || transaction.IsMilestoneTransaction)
                 ((BatchStatement)userData).Add(_tags.Insert(taggedTransaction as IoTaggedTransaction<TBlob>));
                         
             if (executeBatch)
@@ -288,9 +298,15 @@ namespace zero.tangle.data.cassandra.tangle
         /// </summary>
         /// <param name="key">The transaction key</param>
         /// <returns>A transaction</returns>
-        public Task<IIoTransactionModel<TBlobFunc>> Get<TBlobFunc>(ReadOnlyMemory<byte> key)
+        public async Task<IIoTransactionModel<TBlobF>> GetAsync<TBlobF>(TBlobF key)        
         {
-            throw new NotImplementedException();
+            if (!IsConfigured)
+                return null;
+            
+            if(IoEntangled<TBlob>.Optimized)
+                return (IIoTransactionModel<TBlobF>) await _mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(_getTransactionQuery, key);
+            else
+                return (IIoTransactionModel<TBlobF>)await _mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key);
         }
 
         public async Task<bool> TransactionExistsAsync<TBlobFunc>(TBlobFunc key)
@@ -310,6 +326,22 @@ namespace zero.tangle.data.cassandra.tangle
             }
             
             return false;
+        }
+
+        public async Task<IoTaggedTransaction<TBlob>> GetClosestMilestone(long timestamp)
+        {
+            if (!IsConfigured)
+                return null;
+
+            var partitionSize = 3600;
+            var partition = (long)Math.Truncate(timestamp / (double)partitionSize) * partitionSize;
+
+            return await _mapper.FirstOrDefaultAsync<IoTaggedTransaction<TBlob>>(_getClosestMilestoneQuery, new[] { partition- partitionSize, partition, partition+ partitionSize });
+
+            //return await _tags                
+            //    .Where(t => t.Partition > partition - 3600)
+            //    .Where(t => t.Partition < partition + 3600)
+            //    .Where(t => t.IsMilestoneTransaction).Where(t => t.Timestamp < timestamp).AllowFiltering().Take(1).FirstOrDefault().ExecuteAsync();
         }
 
         /// <summary>

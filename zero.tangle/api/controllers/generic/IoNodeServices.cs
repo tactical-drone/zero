@@ -12,6 +12,7 @@ using NLog.Targets;
 using zero.core.api;
 using zero.core.api.models;
 using zero.core.core;
+using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.interop.entangled.common.model.interop;
@@ -66,7 +67,7 @@ namespace zero.tangle.api.controllers.generic
             if (!address.Validated)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, ioNetClient => new TanglePeer<TBlob>(ioNetClient), TanglePeer<TBlob>.TcpReadAhead)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TBlob>>(address, (node, ioNetClient) => new TanglePeer<TBlob>((TangleNode<IoTangleMessage<TBlob>, TBlob>) node, ioNetClient), TanglePeer<TBlob>.TcpReadAhead)))
             {
                 var errStr = $"Cannot create node `${address.Url}', a node with that id already exists";
                 _logger.Warn(errStr);

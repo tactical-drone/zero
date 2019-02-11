@@ -17,7 +17,7 @@ namespace zero.sync
 
             if (IoEntangled<string>.Optimized)
             {
-                var tangleNode = new TangleNode<IoTangleMessage<byte[]>>(IoNodeAddress.Create(listenerAddress), ioNetClient => new TanglePeer<byte[]>(ioNetClient), TanglePeer<byte[]>.TcpReadAhead);
+                var tangleNode = new TangleNode<IoTangleMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress), (node, ioNetClient) =>  new TanglePeer<byte[]>((TangleNode<IoTangleMessage<byte[]>, byte[]>) node, ioNetClient), TanglePeer<byte[]>.TcpReadAhead);
                 
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
@@ -28,7 +28,7 @@ namespace zero.sync
             }
             else
             {
-                var tangleNode = new TangleNode<IoTangleMessage<string>>(IoNodeAddress.Create(listenerAddress), ioNetClient => new TanglePeer<string>(ioNetClient), TanglePeer<string>.TcpReadAhead);
+                var tangleNode = new TangleNode<IoTangleMessage<string>, string>(IoNodeAddress.Create(listenerAddress), (node, ioNetClient) => new TanglePeer<string>((TangleNode<IoTangleMessage<string>,string>) node, ioNetClient), TanglePeer<string>.TcpReadAhead);
                 
                 var tangleNodeTask = tangleNode.StartAsync();
 #pragma warning restore 4014

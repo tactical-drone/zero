@@ -1,5 +1,6 @@
 ﻿using Cassandra.Mapping;
 using zero.core.data.providers.cassandra;
+using zero.core.models;
 using zero.interop.entangled.common.model.interop;
 using zero.tangle.data.cassandra.tangle.luts;
 
@@ -56,15 +57,14 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.AttachmentTimestamp)
                         .Column(c => c.AttachmentTimestampLower)
                         .Column(c => c.AttachmentTimestampUpper)
-                        .Column(c => c.Snapshot)
-                        .Column(c => c.SnapshotIndex) //TODO maybe we don't need to store this extra info
-                        .Column(c => c.Solid)
+                        .Column(c => c.MilestoneIndexEstimate)
                         .Column(c => c.Nonce)
                         .Column(c => c.Hash)
                         .Column(c => c.Size)
 
-                        .PartitionKey(c => c.Bundle)                        
-                        .ClusteringKey(c => c.Hash));
+                        .PartitionKey(c => c.Bundle)
+                        .ClusteringKey(c => c.CurrentIndex, SortOrder.Ascending)
+                        .ClusteringKey(c => c.Hash, SortOrder.Ascending));                        
 
                 return _bundle;
             }
@@ -146,30 +146,34 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.Partition)
                         .Column(c => c.ObsoleteTag)
                         .Column(c => c.Hash)
+                        .Column(c => c.Bundle)
                         .Column(c => c.Timestamp)
-                        .PartitionKey(c => c.Tag, c=>c.Partition)
+                        .Column(c => c.IsMilestoneTransaction)
+                        .Column(c=>c.MilestoneIndex)
+                        .PartitionKey(c => c.Partition)
+                        .ClusteringKey(c => c.MilestoneIndex, SortOrder.Descending)
+                        .ClusteringKey(c => c.Tag, SortOrder.Ascending)
                         .ClusteringKey(c => c.Timestamp, SortOrder.Descending)
                         .ClusteringKey(c => c.Hash, SortOrder.Ascending));
                 return taggedTransaction;
             }
         }
 
-        public MappingConfiguration VerifiedTransaction
+        public MappingConfiguration ApprovedTransaction
         {
             get
             {
                 var verifiedTransaction = new MappingConfiguration();
                 verifiedTransaction.Define(
-                    new Map<IoVerifiedTransaction<TBlob>>().TableName("verifier")
+                    new Map<IoApprovedTransaction<TBlob>>().TableName("approvee")
                         .ExplicitColumns()
-                        .Column(c => c.Hash)
-                        .Column(c => c.Timestamp)
+                        .Column(c => c.Partition)
+                        .Column(c => c.Hash)                        
                         .Column(c => c.Verifier)
-                        .Column(c=>c.Trunk)
-                        .Column(c=>c.Branch)
                         .Column(c => c.Pow)
-                        .PartitionKey(c => c.Hash)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending));
+                        .Column(c => c.MilestoneIndexEstimate)
+                        .PartitionKey(c => c.Partition)
+                        .ClusteringKey(c => c.Hash));                        
                 return verifiedTransaction;
             }
         }

@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    
+    <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
 
 </Project>

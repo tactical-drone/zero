@@ -1,4 +1,5 @@
 ﻿using System;
+using Tangle.Net.Cryptography;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.mock;
 
@@ -20,6 +21,11 @@ namespace zero.interop.entangled.common.trinary.native
         }
 
         public void GetTrytesFromFlexTrits(sbyte[] tryteBuffer, int toLen, sbyte[] flexTritBuffer, int offset, int _, int numTritsToConvert)
+        {
+            throw new NotImplementedException();
+        }
+
+        public long GetLongFromFlexTrits(sbyte[] tryteBuffer, int offset)
         {
             throw new NotImplementedException();
         }

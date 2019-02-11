@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using StackExchange.Redis;
 using zero.core.data.contracts;
 using zero.core.data.providers.redis;
+using zero.core.models;
 using zero.core.network.ip;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
@@ -38,15 +39,19 @@ namespace zero.tangle.data.redis.configurations.tangle
             return _db.StringSetAsync(Encoding.UTF8.GetString(transaction.HashBuffer.Span), transaction.AsBlob().AsArray());
         }
 
-        public async Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> txKey)
-        {            
-            RedisValue val = await _db.StringGetAsync(Encoding.UTF8.GetString(txKey.Span));
+        public async Task<IIoTransactionModel<TBlobF>> GetAsync<TBlobF>(TBlobF key)
+        {
+            RedisValue val;
+            if (key is string)
+                val = await _db.StringGetAsync(key as string);            
+            else
+                val = await _db.StringGetAsync(Encoding.UTF8.GetString(key as byte[]));
+
 
             if (val == RedisValue.Null)
                 return null;
-            
-            //TODO support native
-            return (IIoTransactionModel<TBlob>) new IoInteropTransactionModel
+                        
+            return (IIoTransactionModel<TBlobF>) new IoInteropTransactionModel
             {
                 Blob = (byte[])val
             };

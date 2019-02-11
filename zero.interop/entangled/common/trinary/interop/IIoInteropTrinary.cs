@@ -33,5 +33,11 @@
         /// <param name="numTritsAvailable">The number of trits available for conversion?</param>
         /// <param name="numTritsToConvert">The number of trits to convert</param>
         void GetTrytesFromFlexTrits(sbyte[] tryteBuffer, int toLen, sbyte[] flexTritBuffer, int offset, int numTritsAvailable, int numTritsToConvert);
+
+        /// <summary>
+        /// Gets a long value
+        /// </summary>
+        /// <returns>The value</returns>
+        long GetLongFromFlexTrits(sbyte[] tritBuffer, int offset);
     }
 }

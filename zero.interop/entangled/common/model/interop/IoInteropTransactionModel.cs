@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using zero.core.models;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
@@ -19,14 +20,14 @@ namespace zero.interop.entangled.common.model.interop
         public byte[] SignatureOrMessage
         {
             get => SignatureOrMessageBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => SignatureOrMessageBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public ReadOnlyMemory<byte> AddressBuffer { get; set; }
         public byte[] Address
         {
             get => AddressBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => AddressBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public long Value { get; set; }
@@ -34,7 +35,7 @@ namespace zero.interop.entangled.common.model.interop
         public byte[] ObsoleteTag
         {
             get => ObsoleteTagBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => ObsoleteTagBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public long Timestamp { get; set; }
@@ -44,29 +45,28 @@ namespace zero.interop.entangled.common.model.interop
         public byte[] Bundle
         {
             get => BundleBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => BundleBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
         public byte[] Trunk
         {
             get => TrunkBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => TrunkBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public ReadOnlyMemory<byte> BranchBuffer { get; set; }
         public byte[] Branch
         {
             get => BranchBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => BranchBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public ReadOnlyMemory<byte> TagBuffer { get; set; }
         public byte[] Tag
         {
-            get => TagBuffer.AsArray();
-            //get => TagBuffer.Span;
-            set => throw new NotImplementedException();
+            get => TagBuffer.AsArray();            
+            set => TagBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public long AttachmentTimestamp { get; set; }
@@ -76,19 +76,19 @@ namespace zero.interop.entangled.common.model.interop
         public byte[] Nonce
         {
             get => NonceBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => NonceBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public ReadOnlyMemory<byte> HashBuffer { get; set; }
         public byte[] Hash
         {
             get => HashBuffer.AsArray();
-            set => throw new NotImplementedException();
+            set => HashBuffer = new ReadOnlyMemory<byte>(value);
         }
 
         public byte[] Snapshot { get; set; }
 
-        public long SnapshotIndex { get; set; }
+        public long MilestoneIndexEstimate { get; set; }
         public bool Solid { get; set; }
         public sbyte Pow { get; set; }
         public sbyte ReqPow { get; set; }
@@ -103,6 +103,7 @@ namespace zero.interop.entangled.common.model.interop
         }
         public string Uri { get; set; }
         public short Size { get; set; }
+        public bool IsMilestoneTransaction { get; set; }
 
         public ReadOnlyMemory<byte> Blob { get; set; }
 
@@ -128,6 +129,14 @@ namespace zero.interop.entangled.common.model.interop
         public ReadOnlyMemory<byte> AsBlob()
         {
             return Blob;
+        }
+
+        private long _milestoneIndex = -1;
+        public long GetMilestoneIndex()
+        {
+            if (_milestoneIndex > -1)
+                return _milestoneIndex;
+            return _milestoneIndex = IoEntangled<byte[]>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)ObsoleteTag, 0);
         }
 
         public string GetKey()

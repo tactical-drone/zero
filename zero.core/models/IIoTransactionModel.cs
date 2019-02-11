@@ -2,7 +2,7 @@
 using System.Runtime.Serialization;
 
 // ReSharper disable InconsistentNaming
-namespace zero.interop.entangled.common.model.interop
+namespace zero.core.models
 {
     /// <summary>
     /// The transaction model contract used throughout the system
@@ -88,7 +88,7 @@ namespace zero.interop.entangled.common.model.interop
         TBlob Snapshot { get; set; }
 
         [DataMember]
-        long SnapshotIndex { get; set; }
+        long MilestoneIndexEstimate { get; set; }
 
         [DataMember]
         bool Solid { get; set; }
@@ -106,10 +106,14 @@ namespace zero.interop.entangled.common.model.interop
         string Uri { get; set; }        
 
         [DataMember]
-        short Size { get; set; }        
+        short Size { get; set; }
+        
+        [DataMember]
+        bool IsMilestoneTransaction { get; set; }
         
         string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
     
-        ReadOnlyMemory<byte> AsBlob();        
+        ReadOnlyMemory<byte> AsBlob();
+        long GetMilestoneIndex();
     }
 }

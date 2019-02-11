@@ -1,4 +1,5 @@
 ﻿using System;
+using zero.core.models;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 

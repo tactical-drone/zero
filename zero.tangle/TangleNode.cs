@@ -2,7 +2,9 @@
 using System.Text;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.conf;
 using zero.core.core;
+using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.tangle.data.redis.configurations.tangle;
@@ -13,16 +15,25 @@ namespace zero.tangle
     /// Tangle Node type
     /// </summary>
     /// <typeparam name="TJob">Message job types</typeparam>
-    public class TangleNode<TJob>:IoNode<TJob> 
+    /// <typeparam name="TBlob">Type of the blob field</typeparam>
+    public class TangleNode<TJob,TBlob>:IoNode<TJob> 
         where TJob : IIoWorker
-    {
-        public TangleNode(IoNodeAddress address, Func<IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
+    {        
+        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
 
         private readonly Logger _logger;
-        
+
+        /// <summary>
+        /// The latest milestone seen
+        /// </summary>
+        public IIoTransactionModel<TBlob> MilestoneTransaction { get; set; }
+
+        [IoParameter]
+        public string parm_coo_address = "KPWCHICGJZXKE9GSUDXZYUAPLHAKAHYHDXNPHENTERYMMBQOPSQIDENXKLKCEYCPVTZQLEEJVYJZV9BWU";
+
         /// <summary>
         /// Start listener and connect back to any new connections
         /// </summary>

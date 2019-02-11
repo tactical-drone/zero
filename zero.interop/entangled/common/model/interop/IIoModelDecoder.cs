@@ -1,4 +1,6 @@
-﻿namespace zero.interop.entangled.common.model.interop
+﻿using zero.core.models;
+
+namespace zero.interop.entangled.common.model.interop
 {
     /// <summary>
     /// The data model decoder contract

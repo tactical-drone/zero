@@ -1,13 +1,18 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using zero.core.core;
 using zero.core.data.contracts;
+using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.models;
@@ -24,9 +29,10 @@ namespace zero.tangle
         /// <summary>
         /// Constructs a IOTA tangle neighbor handler
         /// </summary>
+        /// <param name="node">The node this peer is connected to</param>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
-        public TanglePeer(IoNetClient<IoTangleMessage<TBlob>> ioNetClient) :
-            base($"{nameof(TanglePeer<TBlob>)}",ioNetClient, (userData) => new IoTangleMessage<TBlob>($"rx", $"{ioNetClient.AddressString}", ioNetClient))
+        public TanglePeer(TangleNode<IoTangleMessage<TBlob>, TBlob> node, IoNetClient<IoTangleMessage<TBlob>> ioNetClient) :
+            base(node,ioNetClient, (userData) => new IoTangleMessage<TBlob>($"rx", $"{ioNetClient.AddressString}", ioNetClient))
         {
             _logger = LogManager.GetCurrentClassLogger();            
             //JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 2);                        
@@ -35,7 +41,7 @@ namespace zero.tangle
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private readonly Logger _logger;        
 
         /// <summary>
         /// Minimum difficulty
@@ -69,24 +75,24 @@ namespace zero.tangle
         /// <returns></returns>
         private async Task PersistTransactionsAsync(IIoDataSource<RowSet> dataSource)
         {
-            var relaySource = PrimaryProducer.CreateDownstreamArbiter<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));
+            var transactionArbiter = PrimaryProducer.CreateDownstreamArbiter<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));
 
             _logger.Debug($"Starting persistence for `{PrimaryProducerDescription}'");
             while (!Spinners.IsCancellationRequested)
             {
-                if (relaySource == null)
+                if (transactionArbiter == null)
                 {
                     _logger.Warn("Waiting for transaction stream to spin up...");
-                    relaySource = PrimaryProducer.CreateDownstreamArbiter<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));
+                    transactionArbiter = PrimaryProducer.CreateDownstreamArbiter<IoTangleTransaction<TBlob>>(nameof(IoNeighbor<IoTangleTransaction<TBlob>>));
                     await Task.Delay(2000);//TODO config
                     continue;
                 }
 
-                await relaySource.ConsumeAsync(async batch =>
+                await transactionArbiter.ConsumeAsync(async batch =>
                 {
                     try
                     {
-                        await LoadTransactionsAsync(dataSource, batch, relaySource);
+                        await LoadTransactionsAsync(dataSource, batch, transactionArbiter);
                     }
                     finally
                     {
@@ -95,58 +101,122 @@ namespace zero.tangle
                     }
                 });
 
-                if (!relaySource.PrimaryProducer.IsOperational)
+                if (!transactionArbiter.PrimaryProducer.IsOperational)
                     break;
             }
 
             _logger.Debug($"Shutting down persistence for `{PrimaryProducerDescription}'");
         }
 
-        private async Task LoadTransactionsAsync(IIoDataSource<RowSet> dataSource, IoConsumable<IoTangleTransaction<TBlob>> batch, IoForward<IoTangleTransaction<TBlob>> relaySource)
+        /// <summary>
+        /// Load transactions into a datastore
+        /// </summary>
+        /// <param name="dataSource">The datastore</param>
+        /// <param name="transactions">The transactions to load</param>
+        /// <param name="transactionArbiter">The arbiter</param>
+        /// <returns></returns>
+        private async Task LoadTransactionsAsync(IIoDataSource<RowSet> dataSource, IoConsumable<IoTangleTransaction<TBlob>> transactions, IoForward<IoTangleTransaction<TBlob>> transactionArbiter)
         {
             
-                if (batch == null)
+                if (transactions == null)
                     return;
 
-                foreach (var transaction in ((IoTangleTransaction<TBlob>) batch).Transactions)
+                foreach (var transaction in ((IoTangleTransaction<TBlob>) transactions).Transactions)
                 {
                     var stopwatch = Stopwatch.StartNew();
 
                     RowSet putResult = null;
                     try
                     {
-                        var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - relaySource.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                        var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
                     if(     (transaction.AttachmentTimestamp > 0 && transaction.AttachmentTimestamp < oldTxCutOffValue || transaction.Timestamp < oldTxCutOffValue)
                             && await dataSource.TransactionExistsAsync(transaction.Hash))
                         {
                             stopwatch.Stop();
-                            _logger.Trace(
-                                $"Duplicate tx slow dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
-                            batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup;
+                            _logger.Warn( $"Slow duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)}'");
+                            transactions.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup;
                             continue;
                         }
 
+                        // Update milestone mechanics
+                        await UpdateMilestoneIndexAsync(dataSource, transaction);
+
+                        //Load the transaction
                         putResult = await dataSource.PutAsync(transaction);
-                        relaySource.IsArbitrating = true;
+
+                        //indicate that loading is happening
+                        if(!transactionArbiter.IsArbitrating)
+                            transactionArbiter.IsArbitrating = true;
                     }
                     catch (Exception e)
                     {
                         _logger.Fatal(e, $"`{nameof(dataSource.PutAsync)}' should never throw exceptions. BUG!");
-                        relaySource.IsArbitrating = false;
+                        transactionArbiter.IsArbitrating = false;
                     }
                     finally
                     {
-                        if (putResult == null && batch.ProcessState != IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup)
+                        if (putResult == null && transactions.ProcessState != IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup)
                         {
-                            relaySource.IsArbitrating = false;
-                            batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.DbError;
-                            await relaySource.PrimaryProducer.Upstream.RecentlyProcessed.DeleteKeyAsync(
+                            transactionArbiter.IsArbitrating = false;
+                            transactions.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.DbError;
+                            await transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DeleteKeyAsync(
                                 transaction.AsTrytes(transaction.HashBuffer));
                         }
                     }
                 }
 
-                batch.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.Consumed;            
+                transactions.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.Consumed;            
+        }
+
+        private async Task UpdateMilestoneIndexAsync(IIoDataSource<RowSet> dataSource, IIoTransactionModel<TBlob> transaction)
+        {
+            var node = (TangleNode<IoTangleMessage<TBlob>, TBlob>)_node;
+            transaction.MilestoneIndexEstimate = -1;
+
+            //Update latest seen milestone transaction
+            if (transaction.AddressBuffer.Length != 0)
+            {                
+                if (node.MilestoneTransaction == null && transaction.AsTrytes(transaction.AddressBuffer) ==
+                    node.parm_coo_address)
+                {
+                    node.MilestoneTransaction = transaction;
+                    transaction.IsMilestoneTransaction = true;
+                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
+                    _logger.Debug($"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                }
+                // ReSharper disable once PossibleNullReferenceException
+                else if (node.MilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.MilestoneTransaction.AddressBuffer.AsArray()))
+                {
+                    node.MilestoneTransaction = transaction;
+                    transaction.IsMilestoneTransaction = true;
+                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
+                    _logger.Debug($"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                }
+            }
+
+            //set transaction milestone
+            if (node.MilestoneTransaction != null && node.MilestoneTransaction.Timestamp <= transaction.Timestamp )
+            {
+                transaction.MilestoneIndexEstimate = node.MilestoneTransaction.GetMilestoneIndex() + 1;
+            }
+            else //look for a candidate milestone in storage
+            {
+                var closestMilestone = await ((IoTangleCassandraDb<TBlob>) dataSource).GetClosestMilestone(transaction.Timestamp);                                 
+                if (closestMilestone != null)
+                {
+                    var milestoneTransactionBundle = await ((IoTangleCassandraDb<TBlob>)dataSource).GetAsync(closestMilestone.Bundle);
+
+                    if (node.MilestoneTransaction == null)
+                    {
+                        node.MilestoneTransaction = milestoneTransactionBundle;
+                        var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset) DateTime.Now).ToUnixTimeSeconds() - milestoneTransactionBundle.Timestamp);
+                        _logger.Warn($"Old milestoneIndex = `{milestoneTransactionBundle.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
+                    }
+                    
+                    transaction.MilestoneIndexEstimate = milestoneTransactionBundle.GetMilestoneIndex() + 1;
+                 }                     
+            }
+            //set nearby milestone            
         }
     }
 }

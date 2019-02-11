@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
-using zero.interop.entangled.common.model.interop;
+using zero.core.models;
 
 namespace zero.core.data.contracts
 {
@@ -28,7 +28,7 @@ namespace zero.core.data.contracts
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        Task<IIoTransactionModel<TBlob>> Get<TBlob>(ReadOnlyMemory<byte> key);
+        Task<IIoTransactionModel<TBlobF>> GetAsync<TBlobF>(TBlobF key);
 
         /// <summary>
         /// Checks if a transaction has been loaded.

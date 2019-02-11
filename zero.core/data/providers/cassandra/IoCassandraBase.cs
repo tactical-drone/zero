@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Cassandra;
+using Cassandra.Mapping;
 using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
@@ -25,6 +26,7 @@ namespace zero.core.data.providers.cassandra
         protected IIoCassandraKeySpace _keySpaceConfiguration;
         protected volatile Cluster _cluster;
         protected ISession _session;
+        protected IMapper _mapper;
         protected IoNodeAddress _clusterAddress;
         
         protected volatile bool _isConnecting = false;
@@ -62,6 +64,8 @@ namespace zero.core.data.providers.cassandra
                         if(_session?.IsDisposed??false)
                             _session.Dispose();
                         _session = null;
+                        _mapper = null;
+
                     }
                     catch (Exception e)
                     {
@@ -107,6 +111,7 @@ namespace zero.core.data.providers.cassandra
             {
                 _connectionAttempts++;
                 _session = await _cluster.ConnectAsync();
+                _mapper = new Mapper(_session);
             }
             catch (Exception e)
             {                

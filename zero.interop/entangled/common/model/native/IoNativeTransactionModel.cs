@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Cassandra.Mapping.Attributes;
+using Tangle.Net.Cryptography;
+using Tangle.Net.Entity;
+using zero.core.models;
 using zero.interop.entangled.common.model.interop;
 
 namespace zero.interop.entangled.common.model.native
@@ -14,14 +18,14 @@ namespace zero.interop.entangled.common.model.native
         public string SignatureOrMessage
         {            
             get => Encoding.UTF8.GetString(SignatureOrMessageBuffer.Span);
-            set => throw new NotImplementedException();
+            set => SignatureOrMessageBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public ReadOnlyMemory<byte> AddressBuffer { get; set; }
         public string Address
         {
             get => Encoding.UTF8.GetString(AddressBuffer.Span);
-            set => throw new NotImplementedException();
+            set => AddressBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
@@ -32,7 +36,7 @@ namespace zero.interop.entangled.common.model.native
         public string ObsoleteTag
         {
             get => Encoding.UTF8.GetString(ObsoleteTagBuffer.Span);
-            set => throw new NotImplementedException();
+            set => ObsoleteTagBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public long Timestamp { get; set; }
@@ -45,28 +49,28 @@ namespace zero.interop.entangled.common.model.native
         public string Bundle
         {
             get => Encoding.UTF8.GetString(BundleBuffer.Span);
-            set => throw new NotImplementedException();
+            set => BundleBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
         public string Trunk
         {
             get => Encoding.UTF8.GetString(TrunkBuffer.Span);
-            set => throw new NotImplementedException();
+            set => TrunkBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public ReadOnlyMemory<byte> BranchBuffer { get; set; }
         public string Branch
         {
             get => Encoding.UTF8.GetString(BranchBuffer.Span);
-            set => throw new NotImplementedException();
+            set => BranchBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public ReadOnlyMemory<byte> TagBuffer { get; set; }
         public string Tag
         {
             get => Encoding.UTF8.GetString(TagBuffer.Span);
-            set => throw new NotImplementedException();
+            set => TagBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         [Column(nameof(IoMarshalledTransaction.attachment_timestamp))]
@@ -79,21 +83,21 @@ namespace zero.interop.entangled.common.model.native
         public string Nonce
         {
             get => Encoding.UTF8.GetString(NonceBuffer.Span);
-            set => throw new NotImplementedException();
+            set => NonceBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         public ReadOnlyMemory<byte> HashBuffer { get; set; }
         public string Hash
         {
             get => Encoding.UTF8.GetString(HashBuffer.Span);
-            set => throw new NotImplementedException();
+            set => HashBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
         [Ignore]
         public string Snapshot { get; set; }
 
         [Ignore]
-        public long SnapshotIndex { get; set; }
+        public long MilestoneIndexEstimate { get; set; }
 
         [Ignore]
         public bool Solid { get; set; }
@@ -121,6 +125,8 @@ namespace zero.interop.entangled.common.model.native
         [Ignore]
         public ReadOnlyMemory<byte> Blob { get; set; }
 
+        public bool IsMilestoneTransaction { get; set; }
+
         public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
             return Encoding.UTF8.GetString(field.Span);
@@ -129,6 +135,15 @@ namespace zero.interop.entangled.common.model.native
         public ReadOnlyMemory<byte> AsBlob()
         {
             return Blob;
+        }
+
+        private long _milestoneIndex = -1;
+        public long GetMilestoneIndex()
+        {
+            if (_milestoneIndex > -1)
+                return _milestoneIndex;
+
+            return _milestoneIndex = Converter.ConvertTritsToBigInt(new TryteString(ObsoleteTag).ToTrits(), 0, 15).LongValue;                       
         }
 
         public string GetKey()

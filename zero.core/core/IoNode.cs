@@ -22,7 +22,7 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
         {
             _address = address;
             _mallocNeighbor = mallocNeighbor;
@@ -44,7 +44,7 @@ namespace zero.core.core
         /// <summary>
         /// Used to allocate peers when connections are made
         /// </summary>
-        private readonly Func<IoNetClient<TJob>, IoNeighbor<TJob>> _mallocNeighbor;
+        private readonly Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> _mallocNeighbor;
 
         /// <summary>
         /// The wrapper for <see cref="IoNetServer"/>
@@ -103,7 +103,7 @@ namespace zero.core.core
 
             await _netServer.StartListenerAsync(async remoteClient =>
             {
-                var newNeighbor = _mallocNeighbor(remoteClient);
+                var newNeighbor = _mallocNeighbor(this, remoteClient);
 
                 // Register close hooks
                 var cancelRegistration = _spinners.Token.Register(() =>
@@ -174,7 +174,7 @@ namespace zero.core.core
 
                     if (newClient != null && newClient.IsOperational)
                     {
-                        var neighbor = newNeighbor = _mallocNeighbor(newClient);
+                        var neighbor = newNeighbor = _mallocNeighbor(this, newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
                         if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))

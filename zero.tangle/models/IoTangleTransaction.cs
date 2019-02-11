@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.models;
 using zero.core.patterns.bushes;
-using zero.interop.entangled.common.model.interop;
 using zero.tangle.models.sources;
 
 namespace zero.tangle.models
@@ -11,7 +11,7 @@ namespace zero.tangle.models
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>> 
+    public class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>> 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.

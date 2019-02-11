@@ -8,6 +8,7 @@ using NLog;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
+using zero.core.models;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -248,12 +249,12 @@ namespace zero.tangle.models
                             {
                                 stopwatch.Stop();
                                 ProcessState = State.FastDup;                                
-                                _logger.Trace($"Duplicate tx fast dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                _logger.Trace($"({Id}) Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
-                        }                                                    
+                        }
 
-                        //Add tx to be processed
+                            //Add tx to be processed
                         newInteropTransactions.Add(interopTx);
 
                         TotalTpsCounter.Tick();
@@ -261,8 +262,8 @@ namespace zero.tangle.models
                         {         
                             ValueTpsCounter.Tick();
                             _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
-                                         $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");
-                        }                        
+                                         $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
+                        }                                                
                     }
                     finally
                     {
@@ -275,8 +276,11 @@ namespace zero.tangle.models
                 }
 
                 //Relay batch
-                await ForwardToNeighborAsync(newInteropTransactions);
-                await ForwardToNodeServicesAsync(newInteropTransactions);
+                if (newInteropTransactions.Count > 0)
+                {
+                    await ForwardToNeighborAsync(newInteropTransactions);
+                    await ForwardToNodeServicesAsync(newInteropTransactions);
+                }                
 
                 ProcessState = State.Consumed;
             }
