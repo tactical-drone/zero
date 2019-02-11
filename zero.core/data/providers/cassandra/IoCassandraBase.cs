@@ -26,7 +26,7 @@ namespace zero.core.data.providers.cassandra
         protected IIoCassandraKeySpace _keySpaceConfiguration;
         protected volatile Cluster _cluster;
         protected ISession _session;
-        protected IMapper _mapper;
+        private   IMapper _mapper;
         protected IoNodeAddress _clusterAddress;
         
         protected volatile bool _isConnecting = false;
@@ -182,6 +182,24 @@ namespace zero.core.data.providers.cassandra
                 IsConnected = false; //TODO, does cassandra have auto retry connect?
                 return null;
             }                        
+        }
+        
+        protected async Task<T> Mapper<T>(Func<IMapper, Task<T>> func)
+        where T:class, new()
+        {
+            if (!await EnsureDatabaseAsync())
+                return null;
+
+            try
+            {
+                return await func(_mapper);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Unable to execute mapper query:");
+                IsConnected = false;
+                return null;
+            }
         }
     }
 }

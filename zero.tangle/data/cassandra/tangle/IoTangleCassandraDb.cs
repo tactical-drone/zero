@@ -303,10 +303,21 @@ namespace zero.tangle.data.cassandra.tangle
                 return null;
             
             if(IoEntangled<TBlob>.Optimized)
-                return (IIoTransactionModel<TBlobF>) await _mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(_getTransactionQuery, key);
+                return (IIoTransactionModel<TBlobF>) await Mapper(async mapper => await mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(_getTransactionQuery, key));
             else
-                return (IIoTransactionModel<TBlobF>)await _mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key);
+                return (IIoTransactionModel<TBlobF>) await Mapper(async mapper => await mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key));
         }
+
+        //public async Task<IIoTransactionModel<TBlob>> GetAsync2(TBlob key)
+        //{
+        //    if (!IsConfigured)
+        //        return null;
+
+        //    if (IoEntangled<TBlob>.Optimized)
+        //        return (IIoTransactionModel<TBlob>)await Mapper(mapper => mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(_getTransactionQuery, key));
+        //    else
+        //        return (IIoTransactionModel<TBlob>)await Mapper(mapper => mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key));
+        //}
 
         /// <summary>
         /// Checks whether a transaction has been loaded
@@ -346,7 +357,16 @@ namespace zero.tangle.data.cassandra.tangle
             var partitionSize = 3600;
             var partition = (long)Math.Truncate(timestamp / (double)partitionSize) * partitionSize;
 
-            return await _mapper.FirstOrDefaultAsync<IoTaggedTransaction<TBlob>>(_getClosestMilestoneQuery, new[] { partition- partitionSize, partition, partition+ partitionSize });            
+            try
+            {
+                return await Mapper(async (mapper) => await mapper.FirstOrDefaultAsync<IoTaggedTransaction<TBlob>>(_getClosestMilestoneQuery, new[] {partition - partitionSize, partition, partition + partitionSize}));
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,$"Get closest milestone query failed: ");
+                IsConnected = false;
+                return null;
+            }
         }
 
         /// <summary>

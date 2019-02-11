@@ -129,8 +129,9 @@ namespace zero.tangle
                     RowSet putResult = null;
                     try
                     {
+                        //drop duplicates
                         var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                    if(     (transaction.AttachmentTimestamp > 0 && transaction.AttachmentTimestamp < oldTxCutOffValue || transaction.Timestamp < oldTxCutOffValue)
+                        if((transaction.AttachmentTimestamp > 0 && transaction.AttachmentTimestamp < oldTxCutOffValue || transaction.Timestamp < oldTxCutOffValue)
                             && await dataSource.TransactionExistsAsync(transaction.Hash))
                         {
                             stopwatch.Stop();
