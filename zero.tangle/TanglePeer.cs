@@ -168,6 +168,12 @@ namespace zero.tangle
                 transactions.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.Consumed;            
         }
 
+        /// <summary>
+        /// Update milestone mechanics
+        /// </summary>
+        /// <param name="dataSource">The source where milestone data can be found</param>
+        /// <param name="transaction">The latest transaction</param>
+        /// <returns></returns>
         private async Task UpdateMilestoneIndexAsync(IIoDataSource<RowSet> dataSource, IIoTransactionModel<TBlob> transaction)
         {
             var node = (TangleNode<IoTangleMessage<TBlob>, TBlob>)_node;

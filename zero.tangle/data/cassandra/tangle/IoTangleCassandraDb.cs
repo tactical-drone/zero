@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
-using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.market;
@@ -309,6 +308,12 @@ namespace zero.tangle.data.cassandra.tangle
                 return (IIoTransactionModel<TBlobF>)await _mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key);
         }
 
+        /// <summary>
+        /// Checks whether a transaction has been loaded
+        /// </summary>
+        /// <typeparam name="TBlobFunc">The transaction key type</typeparam>
+        /// <param name="key">The transaction key</param>
+        /// <returns>True if the key was found, false otherwise</returns>
         public async Task<bool> TransactionExistsAsync<TBlobFunc>(TBlobFunc key)
         {
             if (!IsConfigured)
@@ -328,6 +333,11 @@ namespace zero.tangle.data.cassandra.tangle
             return false;
         }
 
+        /// <summary>
+        /// Search for the closest milestone
+        /// </summary>
+        /// <param name="timestamp">The nearby timestamp</param>
+        /// <returns>The nearest milestone transaction</returns>
         public async Task<IoTaggedTransaction<TBlob>> GetClosestMilestone(long timestamp)
         {
             if (!IsConfigured)
@@ -336,12 +346,7 @@ namespace zero.tangle.data.cassandra.tangle
             var partitionSize = 3600;
             var partition = (long)Math.Truncate(timestamp / (double)partitionSize) * partitionSize;
 
-            return await _mapper.FirstOrDefaultAsync<IoTaggedTransaction<TBlob>>(_getClosestMilestoneQuery, new[] { partition- partitionSize, partition, partition+ partitionSize });
-
-            //return await _tags                
-            //    .Where(t => t.Partition > partition - 3600)
-            //    .Where(t => t.Partition < partition + 3600)
-            //    .Where(t => t.IsMilestoneTransaction).Where(t => t.Timestamp < timestamp).AllowFiltering().Take(1).FirstOrDefault().ExecuteAsync();
+            return await _mapper.FirstOrDefaultAsync<IoTaggedTransaction<TBlob>>(_getClosestMilestoneQuery, new[] { partition- partitionSize, partition, partition+ partitionSize });            
         }
 
         /// <summary>
@@ -356,7 +361,6 @@ namespace zero.tangle.data.cassandra.tangle
 
         
         private static volatile IoTangleCassandraDb<TBlob> _default;
-
         /// <summary>
         /// Returns single connection
         /// </summary>
