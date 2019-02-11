@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Text;
 using Tangle.Net.Cryptography;
+using Tangle.Net.Entity;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.mock;
 
@@ -25,9 +27,9 @@ namespace zero.interop.entangled.common.trinary.native
             throw new NotImplementedException();
         }
 
-        public long GetLongFromFlexTrits(sbyte[] tryteBuffer, int offset)
+        public long GetLongFromFlexTrits(sbyte[] tryteBuffer, int offset, int numTrits)
         {
-            throw new NotImplementedException();
+            return Converter.ConvertTritsToBigInt(new TryteString(Encoding.UTF8.GetString((byte[])(Array)tryteBuffer)).ToTrits(), offset, numTrits).LongValue;
         }
     }
 }

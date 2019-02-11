@@ -101,7 +101,7 @@ namespace zero.core.core
 
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
 
-            await _netServer.StartListenerAsync(async remoteClient =>
+            await _netServer.StartListenerAsync(remoteClient =>
             {
                 var newNeighbor = _mallocNeighbor(this, remoteClient);
 

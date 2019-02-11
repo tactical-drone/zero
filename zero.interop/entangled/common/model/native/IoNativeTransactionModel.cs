@@ -143,7 +143,7 @@ namespace zero.interop.entangled.common.model.native
             if (_milestoneIndex > -1)
                 return _milestoneIndex;
 
-            return _milestoneIndex = Converter.ConvertTritsToBigInt(new TryteString(ObsoleteTag).ToTrits(), 0, 15).LongValue;                       
+            return _milestoneIndex = IoEntangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);            
         }
 
         public string GetKey()

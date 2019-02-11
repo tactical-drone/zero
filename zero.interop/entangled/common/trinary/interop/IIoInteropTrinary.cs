@@ -35,9 +35,9 @@
         void GetTrytesFromFlexTrits(sbyte[] tryteBuffer, int toLen, sbyte[] flexTritBuffer, int offset, int numTritsAvailable, int numTritsToConvert);
 
         /// <summary>
-        /// Gets a long value
+        /// Gets a long value from flex trits
         /// </summary>
         /// <returns>The value</returns>
-        long GetLongFromFlexTrits(sbyte[] tritBuffer, int offset);
+        long GetLongFromFlexTrits(sbyte[] tritBuffer, int offset, int numTrits);
     }
 }

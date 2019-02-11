@@ -74,12 +74,13 @@ namespace zero.interop.entangled.common.trinary.abstraction
         /// </summary>
         /// <param name="flexTritBuffer">The trit buffer</param>
         /// <param name="offset">offset into the buffer</param>
+        /// <param name="numTrits">The number of trits to convert</param>
         /// <returns>The long value</returns>
-        public unsafe long GetLongFromFlexTrits(sbyte[] flexTritBuffer, int offset)
+        public unsafe long GetLongFromFlexTrits(sbyte[] flexTritBuffer, int offset, int numTrits)
         {            
             fixed (sbyte* flexTrits = &flexTritBuffer[offset])
             {                
-                return IoTritLong.trits_to_long(flexTrits, IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT);
+                return IoTritLong.trits_to_long(flexTrits, numTrits);
             }
         }
     }

@@ -47,7 +47,7 @@ namespace zero.interop.entangled.common.model.interop
                     SignatureOrMessageBuffer = IoMarshalledTransaction.Trim(memMap.signature_or_message),
                     AddressBuffer = IoMarshalledTransaction.Trim(memMap.address, 0),
                     Value = memMap.value,
-                    ObsoleteTagBuffer = IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
+                    ObsoleteTagBuffer = memMap.obsolete_tag,//IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
                     Timestamp = memMap.timestamp,
                     CurrentIndex = memMap.current_index,
                     LastIndex = memMap.last_index,

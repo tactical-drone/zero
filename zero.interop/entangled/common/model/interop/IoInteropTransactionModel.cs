@@ -132,11 +132,19 @@ namespace zero.interop.entangled.common.model.interop
         }
 
         private long _milestoneIndex = -1;
+        /// <summary>
+        /// Decodes a long value from <see cref="ObsoleteTag"/>
+        /// </summary>
+        /// <returns>The <see cref="ObsoleteTag"/> as a long</returns>
         public long GetMilestoneIndex()
         {
             if (_milestoneIndex > -1)
                 return _milestoneIndex;
-            return _milestoneIndex = IoEntangled<byte[]>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)ObsoleteTag, 0);
+
+            var tritBuffer = new sbyte[15];
+            IoEntangled<byte[]>.Default.Ternary.GetTritsFromFlexTrits((sbyte[]) (Array) ObsoleteTagBuffer.AsArray(), 0, tritBuffer, 15);
+        
+            return _milestoneIndex = IoEntangled<byte[]>.Default.Ternary.GetLongFromFlexTrits(tritBuffer, 0, 15);                
         }
 
         public string GetKey()

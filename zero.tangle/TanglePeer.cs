@@ -13,6 +13,7 @@ using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.interop.entangled;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.models;
@@ -188,7 +189,9 @@ namespace zero.tangle
                     node.MilestoneTransaction = transaction;
                     transaction.IsMilestoneTransaction = true;
                     var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
-                    _logger.Debug($"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                    _logger.Debug(IoEntangled<TBlob>.Optimized
+                        ? $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
+                        : $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
                 }
                 // ReSharper disable once PossibleNullReferenceException
                 else if (node.MilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.MilestoneTransaction.AddressBuffer.AsArray()))
@@ -196,7 +199,9 @@ namespace zero.tangle
                     node.MilestoneTransaction = transaction;
                     transaction.IsMilestoneTransaction = true;
                     var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
-                    _logger.Debug($"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                    _logger.Debug(IoEntangled<TBlob>.Optimized
+                        ? $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
+                        : $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
                 }
             }
 
@@ -216,7 +221,9 @@ namespace zero.tangle
                     {
                         node.MilestoneTransaction = milestoneTransactionBundle;
                         var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset) DateTime.Now).ToUnixTimeSeconds() - milestoneTransactionBundle.Timestamp);
-                        _logger.Warn($"Old milestoneIndex = `{milestoneTransactionBundle.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
+                        _logger.Debug(IoEntangled<TBlob>.Optimized
+                            ? $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.AsTrytes(milestoneTransactionBundle.HashBuffer)}]"
+                            : $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
                     }
                     
                     transaction.MilestoneIndexEstimate = milestoneTransactionBundle.GetMilestoneIndex() + 1;
