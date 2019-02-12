@@ -229,8 +229,8 @@ namespace zero.tangle
                             node.MilestoneTransaction = milestoneTransactionBundle;
                             var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - milestoneTransactionBundle.Timestamp);
                             _logger.Debug(IoEntangled<TBlob>.Optimized
-                                ? $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.AsTrytes(milestoneTransactionBundle.HashBuffer)}]"
-                                : $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
+                                ? $"Old milestoneIndex = `{milestoneTransactionBundle.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.AsTrytes(milestoneTransactionBundle.HashBuffer)}]"
+                                : $"Old milestoneIndex = `{milestoneTransactionBundle.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
                         }
 
                         transaction.MilestoneIndexEstimate = milestoneTransactionBundle.GetMilestoneIndex() + 1;
