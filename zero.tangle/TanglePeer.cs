@@ -218,16 +218,23 @@ namespace zero.tangle
                 {
                     var milestoneTransactionBundle = await ((IoTangleCassandraDb<TBlob>)dataSource).GetAsync(closestMilestone.Bundle);
 
-                    if (node.MilestoneTransaction == null)
+                    if (milestoneTransactionBundle == null)
                     {
-                        node.MilestoneTransaction = milestoneTransactionBundle;
-                        var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset) DateTime.Now).ToUnixTimeSeconds() - milestoneTransactionBundle.Timestamp);
-                        _logger.Debug(IoEntangled<TBlob>.Optimized
-                            ? $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.AsTrytes(milestoneTransactionBundle.HashBuffer)}]"
-                            : $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
+                        _logger.Warn($"Could not find close milestone tx in bundle = `{closestMilestone.Bundle}' for t = `{transaction.Timestamp}'");
                     }
-                    
-                    transaction.MilestoneIndexEstimate = milestoneTransactionBundle.GetMilestoneIndex() + 1;
+                    else
+                    {
+                        if (node.MilestoneTransaction == null)
+                        {
+                            node.MilestoneTransaction = milestoneTransactionBundle;
+                            var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - milestoneTransactionBundle.Timestamp);
+                            _logger.Debug(IoEntangled<TBlob>.Optimized
+                                ? $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.AsTrytes(milestoneTransactionBundle.HashBuffer)}]"
+                                : $"Old milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
+                        }
+
+                        transaction.MilestoneIndexEstimate = milestoneTransactionBundle.GetMilestoneIndex() + 1;
+                    }                    
                  }                     
             }
             //set nearby milestone            
