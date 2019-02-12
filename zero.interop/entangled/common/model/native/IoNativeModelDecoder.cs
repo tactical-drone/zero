@@ -27,9 +27,9 @@ namespace zero.interop.entangled.common.model.native
 
             var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.UTF8.GetString(new ReadOnlySpan<byte>((byte[])(Array)tryteBuffer))));
 
-            var obsoleteTag = tx.ObsoleteTag.Value.Trim('9');
+            var obsoleteTag = tx.ObsoleteTag.Value.TrimEnd('9');
             if (string.IsNullOrEmpty(obsoleteTag))            
-                obsoleteTag = "9";
+                obsoleteTag = "";
             
             var interopTransaction = new IoNativeTransactionModel
             {

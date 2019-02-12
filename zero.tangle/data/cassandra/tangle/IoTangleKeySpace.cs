@@ -118,7 +118,7 @@ namespace zero.tangle.data.cassandra.tangle
             }
         }
 
-        public MappingConfiguration BundledTransaction
+        public MappingConfiguration BundledTransactionMap
         {
             get
             {
@@ -135,7 +135,7 @@ namespace zero.tangle.data.cassandra.tangle
             }
         }
 
-        public MappingConfiguration TaggedTransaction
+        public MappingConfiguration TaggedTransactionMap
         {
             get
             {
@@ -145,22 +145,18 @@ namespace zero.tangle.data.cassandra.tangle
                         .ExplicitColumns()
                         .Column(c => c.Tag)
                         .Column(c => c.Partition)
-                        .Column(c => c.ObsoleteTag)
                         .Column(c => c.Hash)
                         .Column(c => c.Bundle)
                         .Column(c => c.Timestamp)
-                        .Column(c => c.IsMilestoneTransaction)
-                        .Column(c=>c.MilestoneIndex)
                         .PartitionKey(c => c.Partition)
-                        .ClusteringKey(c => c.MilestoneIndex, SortOrder.Descending)
                         .ClusteringKey(c => c.Tag, SortOrder.Ascending)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)                        
                         .ClusteringKey(c => c.Hash, SortOrder.Ascending));
                 return taggedTransaction;
             }
         }
 
-        public MappingConfiguration ApprovedTransaction
+        public MappingConfiguration ApprovedTransactionMap
         {
             get
             {
@@ -176,6 +172,28 @@ namespace zero.tangle.data.cassandra.tangle
                         .PartitionKey(c => c.Partition)
                         .ClusteringKey(c => c.Hash));                        
                 return verifiedTransaction;
+            }
+        }
+
+        public MappingConfiguration MilestoneTransactionMap
+        {
+            get
+            {
+                var milestoneTransaction = new MappingConfiguration();
+                milestoneTransaction.Define(
+                    new Map<IoMilestoneTransaction<TBlob>>().TableName("milestone")
+                        .ExplicitColumns()                        
+                        .Column(c => c.Partition)
+                        .Column(c => c.ObsoleteTag)
+                        .Column(c => c.Hash)
+                        .Column(c => c.Bundle)
+                        .Column(c => c.Timestamp)                        
+                        .Column(c => c.MilestoneIndex)
+                        .PartitionKey(c => c.Partition)
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)
+                        .ClusteringKey(c => c.MilestoneIndex, SortOrder.Descending)                        
+                        .ClusteringKey(c => c.Hash, SortOrder.Ascending));
+                return milestoneTransaction;
             }
         }
     }

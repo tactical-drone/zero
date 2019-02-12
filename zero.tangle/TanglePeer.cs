@@ -141,7 +141,7 @@ namespace zero.tangle
                         }
 
                         // Update milestone mechanics
-                        await UpdateMilestoneIndexAsync(dataSource, transaction);
+                        await UpdateMilestoneIndexAsync((IoTangleCassandraDb<TBlob>) dataSource, transaction);
 
                         //Load the transaction
                         putResult = await dataSource.PutAsync(transaction);
@@ -176,68 +176,52 @@ namespace zero.tangle
         /// <param name="dataSource">The source where milestone data can be found</param>
         /// <param name="transaction">The latest transaction</param>
         /// <returns></returns>
-        private async Task UpdateMilestoneIndexAsync(IIoDataSource<RowSet> dataSource, IIoTransactionModel<TBlob> transaction)
+        private async Task UpdateMilestoneIndexAsync(IoTangleCassandraDb<TBlob> dataSource, IIoTransactionModel<TBlob> transaction)
         {
             var node = (TangleNode<IoTangleMessage<TBlob>, TBlob>)_node;
             transaction.MilestoneIndexEstimate = 0;
 
             //Update latest seen milestone transaction
-            if (transaction.AddressBuffer.Length != 0)
+            if (   node.LatestMilestoneTransaction == null && transaction.AsTrytes(transaction.AddressBuffer) == node.parm_coo_address
+                || node.LatestMilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.LatestMilestoneTransaction.AddressBuffer.AsArray())
+               )
+            {
+                node.LatestMilestoneTransaction = transaction;
+                transaction.IsMilestoneTransaction = true;
+                transaction.MilestoneIndexEstimate = transaction.GetMilestoneIndex();
+
+                var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
+                _logger.Debug(IoEntangled<TBlob>.Optimized
+                    ? $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
+                    : $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+            }            
+            //Load from the DB if we don't have one ready
+            else if (node.LatestMilestoneTransaction == null) 
+            {                    
+                node.LatestMilestoneTransaction = await dataSource.GetBestMilestoneEstimateBundle(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds());
+
+                if (node.LatestMilestoneTransaction != null)
+                {
+                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - node.LatestMilestoneTransaction.Timestamp);
+                    _logger.Debug(IoEntangled<TBlob>.Optimized
+                        ? $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.AsTrytes(node.LatestMilestoneTransaction.HashBuffer)}]"
+                        : $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.Hash}]");
+                }                    
+            }
+
+            //If this is a milestone transaction there is nothing more to be done
+            if( transaction.IsMilestoneTransaction)
+                return;
+
+            //set transaction milestone estimate if the transaction newer than newest milestone seen
+            if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp )
+            {
+                transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 2;
+            }
+            else //look for a candidate milestone in storage for older transactions
             {                
-                if (node.MilestoneTransaction == null && transaction.AsTrytes(transaction.AddressBuffer) ==
-                    node.parm_coo_address)
-                {
-                    node.MilestoneTransaction = transaction;
-                    transaction.IsMilestoneTransaction = true;
-                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
-                    _logger.Debug(IoEntangled<TBlob>.Optimized
-                        ? $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
-                        : $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
-                }
-                // ReSharper disable once PossibleNullReferenceException
-                else if (node.MilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.MilestoneTransaction.AddressBuffer.AsArray()))
-                {
-                    node.MilestoneTransaction = transaction;
-                    transaction.IsMilestoneTransaction = true;
-                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
-                    _logger.Debug(IoEntangled<TBlob>.Optimized
-                        ? $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
-                        : $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
-                }
-            }
-
-            //set transaction milestone
-            if (node.MilestoneTransaction != null && node.MilestoneTransaction.Timestamp <= transaction.Timestamp )
-            {
-                transaction.MilestoneIndexEstimate = node.MilestoneTransaction.GetMilestoneIndex() + 1;
-            }
-            else //look for a candidate milestone in storage
-            {
-                var closestMilestone = await ((IoTangleCassandraDb<TBlob>) dataSource).GetClosestMilestone(transaction.Timestamp);                                 
-                if (closestMilestone != null)
-                {
-                    var milestoneTransactionBundle = await ((IoTangleCassandraDb<TBlob>)dataSource).GetAsync(closestMilestone.Bundle);
-
-                    if (milestoneTransactionBundle == null)
-                    {
-                        _logger.Warn($"Could not find close milestone tx in bundle = `{closestMilestone.Bundle}' for t = `{transaction.Timestamp}'");
-                    }
-                    else
-                    {
-                        if (node.MilestoneTransaction == null)
-                        {
-                            node.MilestoneTransaction = milestoneTransactionBundle;
-                            var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - milestoneTransactionBundle.Timestamp);
-                            _logger.Debug(IoEntangled<TBlob>.Optimized
-                                ? $"Old milestoneIndex = `{milestoneTransactionBundle.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.AsTrytes(milestoneTransactionBundle.HashBuffer)}]"
-                                : $"Old milestoneIndex = `{milestoneTransactionBundle.GetMilestoneIndex()}', dt = `{timeDiff}': [{milestoneTransactionBundle.Hash}]");
-                        }
-
-                        transaction.MilestoneIndexEstimate = milestoneTransactionBundle.GetMilestoneIndex() + 1;
-                    }                    
-                 }                     
-            }
-            //set nearby milestone            
+                transaction.MilestoneIndexEstimate = (await dataSource.GetBestMilestoneEstimateBundle(transaction.Timestamp))?.GetMilestoneIndex()??0;
+            }            
         }
     }
 }

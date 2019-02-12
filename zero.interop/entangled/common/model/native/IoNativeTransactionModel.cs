@@ -141,19 +141,20 @@ namespace zero.interop.entangled.common.model.native
             return Blob;
         }
 
-        private long _milestoneIndex = 0;
+        private long _milestoneIndex = -1;
         public long GetMilestoneIndex()
         {
-            if (_milestoneIndex != 0)
+            if (_milestoneIndex != -1)
                 return _milestoneIndex;
 
             try
-            {
-                _milestoneIndex = IoEntangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);
+            {                
+                _milestoneIndex = IoEntangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);                
             }
             catch (Exception e)
             {
-                _logger.Error(e,$"Unable to parse milestone index from ObsoleteTag = `{ObsoleteTag}' [{Hash}]:");                
+                _logger.Error(e,$"Unable to parse milestone index from ObsoleteTag = `{ObsoleteTag}' [{Hash}]:");
+                _milestoneIndex = 0;
             }
 
             return _milestoneIndex;

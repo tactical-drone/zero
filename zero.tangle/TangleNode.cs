@@ -29,7 +29,7 @@ namespace zero.tangle
         /// <summary>
         /// The latest milestone seen
         /// </summary>
-        public IIoTransactionModel<TBlob> MilestoneTransaction { get; set; }
+        public IIoTransactionModel<TBlob> LatestMilestoneTransaction { get; set; }
 
         [IoParameter]
         public string parm_coo_address = "KPWCHICGJZXKE9GSUDXZYUAPLHAKAHYHDXNPHENTERYMMBQOPSQIDENXKLKCEYCPVTZQLEEJVYJZV9BWU";

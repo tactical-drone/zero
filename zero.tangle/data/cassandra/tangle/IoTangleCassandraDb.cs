@@ -1,18 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
+using Cassandra.Mapping;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.market;
 using zero.core.data.providers.cassandra;
+using zero.core.misc;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 using zero.tangle.data.cassandra.tangle.luts;
+using zero.tangle.models;
 using Logger = NLog.Logger;
 
 namespace zero.tangle.data.cassandra.tangle
@@ -27,8 +31,7 @@ namespace zero.tangle.data.cassandra.tangle
         /// Constructor
         /// </summary>
         public IoTangleCassandraDb():base(new IoTangleKeySpace<TBlob>(IoEntangled<TBlob>.Optimized ? "zero" : "one"))
-        {
-            
+        {            
             _logger = LogManager.GetCurrentClassLogger();            
             _ioTangleKeySpace = (IoTangleKeySpace<TBlob>) _keySpaceConfiguration;
         }
@@ -36,16 +39,23 @@ namespace zero.tangle.data.cassandra.tangle
         private readonly Logger _logger;
 
         private readonly IoTangleKeySpace<TBlob> _ioTangleKeySpace;
-        private Table<IIoTransactionModel<TBlob>> _transactions;
-        private Table<IoBundledHash<TBlob>> _hashes;
+        private Table<IIoTransactionModel<TBlob>> _bundles;
+        private Table<IoBundledHash<TBlob>> _transactions;
         private Table<IoBundledAddress<TBlob>> _addresses;
         private Table<IoTaggedTransaction<TBlob>> _tags;
         private Table<IoApprovedTransaction<TBlob>> _verifiers;
         private Table<IoDraggedTransaction<TBlob>> _dragnet;
+        private Table<IoMilestoneTransaction<TBlob>> _milestones;
+                            
+        /// Partitioners        
+        private readonly IoTaggedTransaction<TBlob> _tagsPartitioner = new IoTaggedTransaction<TBlob>();
+        private IoApprovedTransaction<TBlob> _approveePartitioner = new IoApprovedTransaction<TBlob>();        
+        private IoMilestoneTransaction<TBlob> _milestonePartitioner = new IoMilestoneTransaction<TBlob>();
 
         private PreparedStatement _dupCheckQuery;
-        private readonly string _getTransactionQuery = $"select * from bundle where bundle=? order by currentindex limit 1 ALLOW FILTERING";
-        private readonly string _getClosestMilestoneQuery = $"select * from tag where partition IN ? and ismilestonetransaction = true LIMIT 1 ALLOW FILTERING";
+        private string _getTransactionQuery;
+        private string _getLowerMilestoneQuery;
+        private string _getHigherMilestoneQuery;
 
         /// <summary>
         /// Makes sure that the schema is configured
@@ -80,20 +90,20 @@ namespace zero.tangle.data.cassandra.tangle
 
                 var existingTables = keyspace.GetTablesNames();
                 
-                _transactions = new Table<IIoTransactionModel<TBlob>>(_session, _ioTangleKeySpace.BundleMap);
-                if (!existingTables.Contains(_transactions.Name))
+                _bundles = new Table<IIoTransactionModel<TBlob>>(_session, _ioTangleKeySpace.BundleMap);
+                if (!existingTables.Contains(_bundles.Name))
                 {
-                    _transactions.CreateIfNotExists();
-                    _logger.Debug($"Adding table `{_transactions.Name}'");
+                    _bundles.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_bundles.Name}'");
                     wasConfigured = false;
                 }
                 
                                                                     
-                _hashes = new Table<IoBundledHash<TBlob>>(_session, _ioTangleKeySpace.BundledTransaction);
-                if (!existingTables.Contains(_hashes.Name))
+                _transactions = new Table<IoBundledHash<TBlob>>(_session, _ioTangleKeySpace.BundledTransactionMap);
+                if (!existingTables.Contains(_transactions.Name))
                 {
-                    _hashes.CreateIfNotExists();
-                    _logger.Debug($"Adding table `{_hashes.Name}'");
+                    _transactions.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_transactions.Name}'");
                     wasConfigured = false;
                 }
                     
@@ -105,7 +115,7 @@ namespace zero.tangle.data.cassandra.tangle
                     wasConfigured = false;
                 }
                 
-                _tags = new Table<IoTaggedTransaction<TBlob>>(_session, _ioTangleKeySpace.TaggedTransaction);
+                _tags = new Table<IoTaggedTransaction<TBlob>>(_session, _ioTangleKeySpace.TaggedTransactionMap);
                 if (!existingTables.Contains(_tags.Name))
                 {
                     _tags.CreateIfNotExists();
@@ -113,7 +123,7 @@ namespace zero.tangle.data.cassandra.tangle
                     wasConfigured = false;
                 }
 
-                _verifiers = new Table<IoApprovedTransaction<TBlob>>(_session, _ioTangleKeySpace.ApprovedTransaction);
+                _verifiers = new Table<IoApprovedTransaction<TBlob>>(_session, _ioTangleKeySpace.ApprovedTransactionMap);
                 if (!existingTables.Contains(_verifiers.Name))
                 {
                     _verifiers.CreateIfNotExists();
@@ -128,8 +138,17 @@ namespace zero.tangle.data.cassandra.tangle
                     _logger.Debug($"Adding table `{_dragnet.Name}'");
                     wasConfigured = false;
                 }
-                
-                _dupCheckQuery = _session.Prepare($"select count(*) from {_hashes.Name} WHERE {nameof(IoBundledHash<TBlob>.Hash)}=? LIMIT 1");
+
+                _milestones = new Table<IoMilestoneTransaction<TBlob>>(_session, _ioTangleKeySpace.MilestoneTransactionMap);
+                if (!existingTables.Contains(_milestones.Name))
+                {
+                    _milestones.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_milestones.Name}'");
+                    wasConfigured = false;
+                }
+
+                //Prepare all queries
+                PrepareStatements();                                
             }
             catch (Exception e)
             {
@@ -139,10 +158,30 @@ namespace zero.tangle.data.cassandra.tangle
 
             _logger.Trace("Ensured schema!");
 
-            IsConfigured = true;
+            //Wait for the config to take hold //TODO hack
+            if(wasConfigured)
+                await Task.Delay(2000);
+
+            IsConfigured = true;            
 
             return wasConfigured;
-        }        
+        }
+
+        private void PrepareStatements()
+        {
+            //check transaction existence 
+            _dupCheckQuery = _session.Prepare($"select count(*) from {_transactions.Name} where {nameof(IoBundledHash<TBlob>.Hash)}=? limit 1");
+
+            //get transaction by bundle
+            //_getTransactionQuery = $"select * from {_bundles.Name} where {nameof(IIoTransactionModel<TBlob>.Bundle)}=? order by {nameof(IIoTransactionModel<TBlob>.CurrentIndex)} limit 1 allow filtering";
+            _getTransactionQuery = $"select * from {_bundles.Name} where {nameof(IIoTransactionModel<TBlob>.Bundle)}=? limit 1";
+
+            //get milestone based on upper bound timestamp
+            _getLowerMilestoneQuery = $"select * from {_milestones.Name} where partition IN ? and {nameof(IoMilestoneTransaction<TBlob>.Timestamp)} <= ? limit 1";
+
+            //relax a milestone based on lower bound timestamp
+            _getHigherMilestoneQuery = $"select * from {_milestones.Name} where partition IN ? and {nameof(IoMilestoneTransaction<TBlob>.Timestamp)} > ? order by timestamp ASC limit 2";
+        }
 
         /// <summary>
         /// Puts data into cassandra
@@ -195,19 +234,16 @@ namespace zero.tangle.data.cassandra.tangle
             var taggedTransaction = new IoTaggedTransaction<TBlobLocal>
             {
                 Tag = transaction.Tag,
-                Partition = (long)Math.Truncate(transaction.Timestamp/3600.0) * 3600,
-                ObsoleteTag = transaction.ObsoleteTag,
+                Partition = transaction.Timestamp,
                 Hash = transaction.Hash,
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp,
-                IsMilestoneTransaction = transaction.IsMilestoneTransaction,
-                MilestoneIndex = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : - transaction.MilestoneIndexEstimate //negative indicates that this is an initial estimate
             };
 
-            var partition = (long)Math.Truncate( transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp: transaction.Timestamp / 600.0) * 600;             
+            var timestamp = transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp: transaction.Timestamp;
             var verifiedBranchTransaction = new IoApprovedTransaction<TBlobLocal>
             {
-                Partition = partition,
+                Partition = timestamp,
                 Hash = transaction.Branch,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,
@@ -216,15 +252,27 @@ namespace zero.tangle.data.cassandra.tangle
 
             var verifiedTrunkTransaction = new IoApprovedTransaction<TBlobLocal>
             {
-                Partition = partition,
+                Partition = timestamp,
                 Hash = transaction.Trunk,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,                
                 MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
             };
 
+            var milestoneTransaction = new IoMilestoneTransaction<TBlobLocal>
+            {                
+                Partition = transaction.Timestamp,
+                ObsoleteTag = transaction.ObsoleteTag,
+                Hash = transaction.Hash,
+                Bundle = transaction.Bundle,
+                Timestamp = transaction.Timestamp,                
+                MilestoneIndex = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate //negative indicates that this is an initial estimate
+            };
+
             if (executeBatch)
                 userData = new BatchStatement();
+
+            var batchStatement = ((BatchStatement) userData);
 
             if (transaction.Value != 0)
             {                
@@ -262,7 +310,7 @@ namespace zero.tangle.data.cassandra.tangle
                         UsdValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize))
                     };
                     
-                    ((BatchStatement)userData).Add(_dragnet.Insert(draggedTransaction as IoDraggedTransaction<TBlob>));
+                    batchStatement.Add(_dragnet.Insert(draggedTransaction as IoDraggedTransaction<TBlob>));
                 }
                 catch (Exception e)
                 {
@@ -270,24 +318,27 @@ namespace zero.tangle.data.cassandra.tangle
                 }                
             }
 
-            ((BatchStatement)userData).Add(_transactions.Insert((IIoTransactionModel<TBlob>) transaction));
-            ((BatchStatement)userData).Add(_hashes.Insert(bundledHash as IoBundledHash<TBlob>));
+            batchStatement.Add(_bundles.Insert((IIoTransactionModel<TBlob>) transaction));
+            batchStatement.Add(_transactions.Insert(bundledHash as IoBundledHash<TBlob>));
                         
             if(transaction.BranchBuffer.Length != 0)
-                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedBranchTransaction as IoApprovedTransaction<TBlob>));
+                batchStatement.Add(_verifiers.Insert(verifiedBranchTransaction as IoApprovedTransaction<TBlob>));
             
             if (transaction.TrunkBuffer.Length != 0)
-                ((BatchStatement)userData).Add(_verifiers.Insert(verifiedTrunkTransaction as IoApprovedTransaction<TBlob>));
+                batchStatement.Add(_verifiers.Insert(verifiedTrunkTransaction as IoApprovedTransaction<TBlob>));
             
             if (transaction.AddressBuffer.Length != 0)
-                ((BatchStatement)userData).Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
+                batchStatement.Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
             
             if (transaction.TagBuffer.Length != 0 || transaction.IsMilestoneTransaction)
-                ((BatchStatement)userData).Add(_tags.Insert(taggedTransaction as IoTaggedTransaction<TBlob>));
+                batchStatement.Add(_tags.Insert(taggedTransaction as IoTaggedTransaction<TBlob>));
+
+            if (transaction.IsMilestoneTransaction)
+                batchStatement.Add(_milestones.Insert(milestoneTransaction as IoMilestoneTransaction<TBlob>));
                         
             if (executeBatch)
             {                
-                return await ExecuteAsync((BatchStatement)userData);                
+                return await ExecuteAsync(batchStatement);
             }
 
             return null;
@@ -304,21 +355,10 @@ namespace zero.tangle.data.cassandra.tangle
                 return null;
             
             if(IoEntangled<TBlob>.Optimized)
-                return (IIoTransactionModel<TBlobF>) await Mapper(async mapper => await mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(_getTransactionQuery, key));
+                return (IIoTransactionModel<TBlobF>) await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(query, args),_getTransactionQuery, key);
             else
-                return (IIoTransactionModel<TBlobF>) await Mapper(async mapper => await mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key));
+                return (IIoTransactionModel<TBlobF>) await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(query, args),_getTransactionQuery, key);
         }
-
-        //public async Task<IIoTransactionModel<TBlob>> GetAsync2(TBlob key)
-        //{
-        //    if (!IsConfigured)
-        //        return null;
-
-        //    if (IoEntangled<TBlob>.Optimized)
-        //        return (IIoTransactionModel<TBlob>)await Mapper(mapper => mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(_getTransactionQuery, key));
-        //    else
-        //        return (IIoTransactionModel<TBlob>)await Mapper(mapper => mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(_getTransactionQuery, key));
-        //}
 
         /// <summary>
         /// Checks whether a transaction has been loaded
@@ -344,30 +384,60 @@ namespace zero.tangle.data.cassandra.tangle
             
             return false;
         }
-
+        
         /// <summary>
-        /// Search for the closest milestone
+        /// Search for the latest milestone seen before a certain time
         /// </summary>
         /// <param name="timestamp">The nearby timestamp</param>
         /// <returns>The nearest milestone transaction</returns>
-        public async Task<IoTaggedTransaction<TBlob>> GetClosestMilestone(long timestamp)
+        public async Task<IoMilestoneTransaction<TBlob>> GetMilestone(long timestamp)
+        {
+            if (!IsConfigured)
+                return null;            
+            
+            return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoMilestoneTransaction<TBlob>>(query, args), _getLowerMilestoneQuery, _tagsPartitioner.GetPartitionSet(timestamp), timestamp);
+        }
+
+        /// <summary>
+        /// Search for the best confirming milestone worse case estimate
+        /// </summary>
+        /// <param name="timestamp">A nearby timestamp</param>
+        /// <returns>A milestone that should confirm this timestamp</returns>
+        public async Task<IoMilestoneTransaction<TBlob>> GetBestMilestoneEstimate(long timestamp)
         {
             if (!IsConfigured)
                 return null;
 
-            var partitionSize = 3600;
-            var partition = (long)Math.Truncate(timestamp / (double)partitionSize) * partitionSize;
+            var lowerMilestone = await GetMilestone(timestamp);
+            var queryTimestamp = lowerMilestone?.Timestamp ?? timestamp;
 
-            try
+            var milestoneEstimates = await Mapper(async (mapper, query, args) =>
+                await mapper.FetchPageAsync<IoMilestoneTransaction<TBlob>>(
+                    Cql.New(query, args).WithOptions(options => options.SetPageSize(int.MaxValue))), _getHigherMilestoneQuery, _tagsPartitioner.GetPartitionSet(queryTimestamp), queryTimestamp);
+
+            return milestoneEstimates.LastOrDefault() ?? lowerMilestone;
+        }
+
+        /// <summary>
+        /// Search for the best confirming milestone worse case estimate
+        /// </summary>
+        /// <param name="timestamp">A nearby timestamp</param>
+        /// <returns>A milestone that should confirm this timestamp</returns>
+        public async Task<IIoTransactionModel<TBlob>> GetBestMilestoneEstimateBundle(long timestamp)
+        {
+            //Search a milestone tx
+            var bestMilestone = await GetBestMilestoneEstimate(timestamp);
+            if (bestMilestone == null) return null;
+
+            //Search the bundle tx of this milestone
+            var milestoneBundle = await GetAsync(bestMilestone.Bundle);
+            if (milestoneBundle == null)
             {
-                return await Mapper(async (mapper) => await mapper.FirstOrDefaultAsync<IoTaggedTransaction<TBlob>>(_getClosestMilestoneQuery, new[] {partition - partitionSize, partition, partition + partitionSize}));
+                _logger.Fatal($"Could not find best milestone tx `{bestMilestone.Hash}', bundle = `{bestMilestone.Bundle}' for t = `{timestamp}'");
             }
-            catch (Exception e)
-            {
-                _logger.Error(e,$"Get closest milestone query failed: ");
-                IsConnected = false;
-                return null;
-            }
+
+            //return the milestone bundle tx
+            return milestoneBundle;
         }
 
         /// <summary>

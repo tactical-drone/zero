@@ -1,11 +1,18 @@
 ﻿using System;
+using System.Collections;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
+using Microsoft.AspNetCore.Mvc;
 using NLog;
+using Org.BouncyCastle.Asn1.X9;
 using zero.core.conf;
+using zero.core.misc;
 using zero.core.network.ip;
 using Logger = NLog.Logger;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace zero.core.data.providers.cassandra
 {
@@ -110,8 +117,8 @@ namespace zero.core.data.providers.cassandra
             try
             {
                 _connectionAttempts++;
-                _session = await _cluster.ConnectAsync();
-                _mapper = new Mapper(_session);
+                _session = await _cluster.ConnectAsync();                
+                _mapper = new Mapper(_session);                
             }
             catch (Exception e)
             {                
@@ -184,22 +191,46 @@ namespace zero.core.data.providers.cassandra
             }                        
         }
         
-        protected async Task<T> Mapper<T>(Func<IMapper, Task<T>> func)
-        where T:class, new()
+        protected async Task<T> Mapper<T>(Func<IMapper, string, object[], Task<T>> func, string query, params object[] args)
+        where T:class
         {
             if (!await EnsureDatabaseAsync())
                 return null;
-
+           
             try
             {
-                return await func(_mapper);
+                return await func(_mapper, query, args);
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Unable to execute mapper query:");
+                _logger.Error(e, $"`{BindQueryParameters(query, args)}'");
                 IsConnected = false;
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Returns a query string with bound parameters
+        /// </summary>
+        /// <param name="query">The query</param>
+        /// <param name="args">The parameters to bind</param>
+        /// <returns>A query string containing parameters</returns>
+        protected string BindQueryParameters(string query, params object[] args)
+        {
+            foreach (var o in args)
+            {
+                if (o.GetType().IsArray)
+                {
+                    var setStrChrArray = (new ArrayList((Array) o)).ToArray().SelectMany(e => $"{e},").ToList();
+                    var setString = Encoding.ASCII.GetString(setStrChrArray.ConvertAll(input => (byte)input).ToArray()).TrimEnd(',');                    
+                    query = query.ReplaceFirst("?", $"({setString})");
+                }
+                else
+                {
+                    query = query.ReplaceFirst("?", $"{o}");
+                }                
+            }
+            return query;
         }
     }
 }
