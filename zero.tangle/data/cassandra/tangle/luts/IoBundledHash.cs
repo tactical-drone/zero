@@ -11,5 +11,7 @@
         public TBlob Bundle { get; set; }
 
         public long Timestamp { get; set; }
+
+        public long MilestoneIndex { get; set; }
     }
 }

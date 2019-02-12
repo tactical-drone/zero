@@ -129,6 +129,7 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.Hash)
                         .Column(c => c.Bundle)
                         .Column(c => c.Timestamp)
+                        .Column(c => c.MilestoneIndex)
                         .PartitionKey(c => c.Hash));
                 return bundledTransaction;
             }

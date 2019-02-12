@@ -181,7 +181,8 @@ namespace zero.tangle.data.cassandra.tangle
             {
                 Hash = transaction.Hash,
                 Bundle = transaction.Bundle,
-                Timestamp = transaction.Timestamp                                
+                Timestamp = transaction.Timestamp,
+                MilestoneIndex = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
             };
 
             var bundledAddress = new IoBundledAddress<TBlobLocal>
