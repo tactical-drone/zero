@@ -138,14 +138,14 @@ namespace zero.interop.entangled.common.model.interop
             return Blob;
         }
 
-        private long _milestoneIndex = -1;
+        private long _milestoneIndex = 0;
         /// <summary>
         /// Decodes a long value from <see cref="ObsoleteTag"/>
         /// </summary>
         /// <returns>The <see cref="ObsoleteTag"/> as a long</returns>
         public long GetMilestoneIndex()
         {
-            if (_milestoneIndex > -1)
+            if (_milestoneIndex != 0)
                 return _milestoneIndex;
 
             var tritBuffer = new sbyte[15];

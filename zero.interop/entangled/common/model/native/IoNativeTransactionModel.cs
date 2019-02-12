@@ -141,10 +141,10 @@ namespace zero.interop.entangled.common.model.native
             return Blob;
         }
 
-        private long _milestoneIndex = -1;
+        private long _milestoneIndex = 0;
         public long GetMilestoneIndex()
         {
-            if (_milestoneIndex > -1)
+            if (_milestoneIndex != 0)
                 return _milestoneIndex;
 
             try
