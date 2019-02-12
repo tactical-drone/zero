@@ -200,7 +200,7 @@ namespace zero.tangle.data.cassandra.tangle
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp,
                 IsMilestoneTransaction = transaction.IsMilestoneTransaction,
-                MilestoneIndex = -transaction.MilestoneIndexEstimate //negative indicates that this is an initial estimate
+                MilestoneIndex = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : - transaction.MilestoneIndexEstimate //negative indicates that this is an initial estimate
             };
 
             var partition = (long)Math.Truncate( transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp: transaction.Timestamp / 600.0) * 600;             
@@ -210,7 +210,7 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = transaction.Branch,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,
-                MilestoneIndexEstimate = transaction.MilestoneIndexEstimate
+                MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
             };
 
             var verifiedTrunkTransaction = new IoApprovedTransaction<TBlobLocal>
@@ -219,7 +219,7 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = transaction.Trunk,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,                
-                MilestoneIndexEstimate = transaction.MilestoneIndexEstimate
+                MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
             };
 
             if (executeBatch)

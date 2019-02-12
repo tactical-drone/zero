@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using NLog;
 using zero.core.models;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
@@ -16,6 +17,12 @@ namespace zero.interop.entangled.common.model.interop
     /// </summary>
     public class IoInteropTransactionModel : IIoTransactionModel<byte[]> //TODO base this
     {
+        public IoInteropTransactionModel()
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
+
+        private Logger _logger;
         public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
         public byte[] SignatureOrMessage
         {
@@ -143,8 +150,17 @@ namespace zero.interop.entangled.common.model.interop
 
             var tritBuffer = new sbyte[15];
             IoEntangled<byte[]>.Default.Ternary.GetTritsFromFlexTrits((sbyte[]) (Array) ObsoleteTagBuffer.AsArray(), 0, tritBuffer, 15);
-        
-            return _milestoneIndex = IoEntangled<byte[]>.Default.Ternary.GetLongFromFlexTrits(tritBuffer, 0, 15);                
+
+            try
+            {
+                _milestoneIndex = IoEntangled<byte[]>.Default.Ternary.GetLongFromFlexTrits(tritBuffer, 0, 15);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"Unable to parse milestone index from ObsoleteTag = `{AsTrytes(ObsoleteTagBuffer)}' [{AsTrytes(HashBuffer)}]:");                
+            }
+
+            return _milestoneIndex;
         }
 
         public string GetKey()

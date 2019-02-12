@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using Cassandra.Mapping.Attributes;
-using Tangle.Net.Cryptography;
-using Tangle.Net.Entity;
+using NLog;
 using zero.core.models;
 using zero.interop.entangled.common.model.interop;
 
@@ -15,6 +12,13 @@ namespace zero.interop.entangled.common.model.native
     /// </summary>
     public class IoNativeTransactionModel : IIoTransactionModel<string>
     {
+        public IoNativeTransactionModel()
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
+
+        private Logger _logger;
+
         public string SignatureOrMessage
         {            
             get => Encoding.UTF8.GetString(SignatureOrMessageBuffer.Span);
@@ -143,7 +147,16 @@ namespace zero.interop.entangled.common.model.native
             if (_milestoneIndex > -1)
                 return _milestoneIndex;
 
-            return _milestoneIndex = IoEntangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);            
+            try
+            {
+                _milestoneIndex = IoEntangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,$"Unable to parse milestone index from ObsoleteTag = `{ObsoleteTag}' [{Hash}]:");                
+            }
+
+            return _milestoneIndex;
         }
 
         public string GetKey()
