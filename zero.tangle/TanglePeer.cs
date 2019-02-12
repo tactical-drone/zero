@@ -179,7 +179,7 @@ namespace zero.tangle
         private async Task UpdateMilestoneIndexAsync(IIoDataSource<RowSet> dataSource, IIoTransactionModel<TBlob> transaction)
         {
             var node = (TangleNode<IoTangleMessage<TBlob>, TBlob>)_node;
-            transaction.MilestoneIndexEstimate = -1;
+            transaction.MilestoneIndexEstimate = 0;
 
             //Update latest seen milestone transaction
             if (transaction.AddressBuffer.Length != 0)
