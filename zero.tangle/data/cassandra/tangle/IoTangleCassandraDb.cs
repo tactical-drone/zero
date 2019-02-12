@@ -299,7 +299,7 @@ namespace zero.tangle.data.cassandra.tangle
                         Bundle = transaction.Bundle,
                         AttachmentTimestamp = transaction.AttachmentTimestamp,
                         Timestamp = transaction.Timestamp,
-                        LocalTimestamp = ((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds(),
+                        LocalTimestamp = ((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds(),
                         Value = transaction.Value,
                         Direction = (short)(transaction.CurrentIndex == transaction.LastIndex? 0:(transaction.Value>0?1:-1)),
                         Quality = (short)quality,

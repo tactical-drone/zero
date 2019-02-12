@@ -244,7 +244,7 @@ namespace zero.tangle.models
                         {
                             var stopwatch = new Stopwatch();
                             stopwatch.Restart();
-                            var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - Producer.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                            
                             if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)))
                             {
                                 stopwatch.Stop();

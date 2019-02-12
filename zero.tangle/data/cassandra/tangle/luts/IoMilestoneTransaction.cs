@@ -7,7 +7,7 @@ namespace zero.tangle.data.cassandra.tangle.luts
 {
     public class IoMilestoneTransaction<TBlob> : IoCassandraPartitionedLut
     {
-        public override long PartitionSize => 3600;
+        public override long PartitionSize => 3600000;
         public TBlob Hash { get; set; }
         public TBlob Bundle { get; set; }
         public TBlob ObsoleteTag { get; set; }

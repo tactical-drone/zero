@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using zero.core.core;
 using zero.core.data.contracts;
+using zero.core.misc;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -130,7 +131,7 @@ namespace zero.tangle
                     try
                     {
                         //drop duplicates
-                        var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeSeconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                        var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
                         if((transaction.AttachmentTimestamp > 0 && transaction.AttachmentTimestamp < oldTxCutOffValue || transaction.Timestamp < oldTxCutOffValue)
                             && await dataSource.TransactionExistsAsync(transaction.Hash))
                         {
@@ -186,14 +187,18 @@ namespace zero.tangle
                 || node.LatestMilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.LatestMilestoneTransaction.AddressBuffer.AsArray())
                )
             {
-                node.LatestMilestoneTransaction = transaction;
                 transaction.IsMilestoneTransaction = true;
                 transaction.MilestoneIndexEstimate = transaction.GetMilestoneIndex();
 
-                var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - transaction.Timestamp);
-                _logger.Debug(IoEntangled<TBlob>.Optimized
-                    ? $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
-                    : $"New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                if (transaction.Timestamp > (node.LatestMilestoneTransaction?.Timestamp??0))
+                {
+                    node.LatestMilestoneTransaction = transaction;
+
+                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds() - transaction.Timestamp);
+                    _logger.Info(IoEntangled<TBlob>.Optimized
+                        ? $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
+                        : $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                }                                
             }            
             //Load from the DB if we don't have one ready
             else if (node.LatestMilestoneTransaction == null) 
@@ -219,8 +224,33 @@ namespace zero.tangle
                 transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 2;
             }
             else //look for a candidate milestone in storage for older transactions
-            {                
-                transaction.MilestoneIndexEstimate = (await dataSource.GetBestMilestoneEstimateBundle(transaction.Timestamp))?.GetMilestoneIndex()??0;
+            {
+                var stopwatch = Stopwatch.StartNew();
+                var relaxMilestone = await dataSource.GetBestMilestoneEstimateBundle(transaction.Timestamp);
+                stopwatch.Stop();
+                
+                try
+                {                    
+                    if (relaxMilestone != null)
+                        _logger.Trace($"Relaxed milestone: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                    else
+                    {
+                        try
+                        {
+                            _logger.Trace($"Milestone not found: `{transaction.Timestamp}' = `{transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                        }
+                        catch
+                        {
+                            _logger.Trace($"Milestone not found: `{transaction.Timestamp}', t = `{stopwatch.ElapsedMilliseconds}ms'");                            
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.Trace($"Cannot find milestone for invalid date: `{transaction.Timestamp.DateTime()}'");                    
+                }
+                
+                transaction.MilestoneIndexEstimate = (relaxMilestone)?.GetMilestoneIndex()??0;
             }            
         }
     }

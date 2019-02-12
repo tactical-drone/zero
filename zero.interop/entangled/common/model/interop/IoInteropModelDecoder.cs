@@ -1,4 +1,5 @@
 ﻿using System;
+using zero.core.misc;
 using zero.core.models;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
@@ -48,16 +49,16 @@ namespace zero.interop.entangled.common.model.interop
                     AddressBuffer = IoMarshalledTransaction.Trim(memMap.address, 0),
                     Value = memMap.value,
                     ObsoleteTagBuffer = memMap.obsolete_tag,//IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
-                    Timestamp = memMap.timestamp,
+                    Timestamp = memMap.timestamp.NormalizeDateTime(),
                     CurrentIndex = memMap.current_index,
                     LastIndex = memMap.last_index,
                     BundleBuffer = memMap.bundle,
                     TrunkBuffer = IoMarshalledTransaction.Trim(memMap.trunk),
                     BranchBuffer = IoMarshalledTransaction.Trim(memMap.branch),
                     TagBuffer = IoMarshalledTransaction.Trim(memMap.tag, 0),
-                    AttachmentTimestamp = memMap.attachment_timestamp,
-                    AttachmentTimestampLower = memMap.attachment_timestamp_lower,
-                    AttachmentTimestampUpper = memMap.attachment_timestamp_upper,
+                    AttachmentTimestamp = memMap.attachment_timestamp.NormalizeDateTime(),
+                    AttachmentTimestampLower = memMap.attachment_timestamp_lower.NormalizeDateTime(),
+                    AttachmentTimestampUpper = memMap.attachment_timestamp_upper.NormalizeDateTime(),
                     NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),   
                     Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check
                 };

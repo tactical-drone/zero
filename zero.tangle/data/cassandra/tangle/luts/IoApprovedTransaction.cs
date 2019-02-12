@@ -8,7 +8,7 @@ namespace zero.tangle.data.cassandra.tangle.luts
     /// <typeparam name="TBlob">Type of blob field</typeparam>
     public class IoApprovedTransaction<TBlob>:IoCassandraPartitionedLut
     {
-        public override long PartitionSize => 3600;
+        public override long PartitionSize => 3600000;
         public TBlob Hash { get; set; }
         public TBlob Verifier { get; set; }                
         public sbyte Pow { get; set; }        

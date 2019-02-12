@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using RestSharp.Extensions;
 using Tangle.Net.Entity;
+using zero.core.misc;
 using zero.core.models;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
@@ -37,16 +38,16 @@ namespace zero.interop.entangled.common.model.native
                 AddressBuffer = Encoding.UTF8.GetBytes(tx.Address.Value),
                 Value = tx.Value,
                 ObsoleteTagBuffer = Encoding.UTF8.GetBytes(obsoleteTag.AsMemory().ToArray()),
-                Timestamp = tx.Timestamp,
+                Timestamp = tx.Timestamp.NormalizeDateTime(),
                 CurrentIndex = tx.CurrentIndex,
                 LastIndex = tx.LastIndex,
                 BundleBuffer = Encoding.UTF8.GetBytes(tx.BundleHash.Value.AsMemory().ToArray()),
                 TrunkBuffer = Encoding.UTF8.GetBytes(tx.TrunkTransaction.Value.AsMemory().ToArray()),
                 BranchBuffer = Encoding.UTF8.GetBytes(tx.BranchTransaction.Value.AsMemory().ToArray()),                                                
                 TagBuffer = Encoding.UTF8.GetBytes(tx.Tag.Value.Trim('9').AsMemory().ToArray()),
-                AttachmentTimestamp = tx.AttachmentTimestamp,
-                AttachmentTimestampLower = tx.AttachmentTimestampLowerBound,
-                AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound,                
+                AttachmentTimestamp = tx.AttachmentTimestamp.NormalizeDateTime(),
+                AttachmentTimestampLower = tx.AttachmentTimestampLowerBound.NormalizeDateTime(),
+                AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound.NormalizeDateTime(),                
                 NonceBuffer = Encoding.UTF8.GetBytes(tx.Nonce.Value.Trim('9').AsMemory().ToArray()),
                 HashBuffer = Encoding.UTF8.GetBytes(tx.Hash.Value.AsMemory().ToArray()),
                 Snapshot = tx.Snapshot,
