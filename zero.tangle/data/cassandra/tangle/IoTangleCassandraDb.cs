@@ -503,7 +503,7 @@ namespace zero.tangle.data.cassandra.tangle
 
             if (milestoneLessTransactions.Count == 0)
             {
-                _logger.Trace($"No transactions found to relax transactions at `{milestoneTransaction.GetAttachmentTime().DateTime()}'");
+                _logger.Trace($"No transactions found to relax at `{milestoneTransaction.GetAttachmentTime().DateTime()}'");
             }
 
             foreach (var milestoneLessTransaction in milestoneLessTransactions)
