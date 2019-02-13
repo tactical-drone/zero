@@ -132,8 +132,7 @@ namespace zero.tangle
                     {
                         //drop duplicates
                         var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                        if((transaction.AttachmentTimestamp > 0 && transaction.AttachmentTimestamp < oldTxCutOffValue || transaction.Timestamp < oldTxCutOffValue)
-                            && await dataSource.TransactionExistsAsync(transaction.Hash))
+                        if(transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
                         {
                             stopwatch.Stop();
                             _logger.Warn( $"Slow duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
@@ -193,7 +192,7 @@ namespace zero.tangle
                 transaction.MilestoneIndexEstimate = transaction.GetMilestoneIndex();
                 
                 //relax zero transaction milestone estimates that belong to this milestone
-                await dataSource.RelaxZeroTransactionMilestoneEstimates(transaction);
+                //await dataSource.RelaxZeroTransactionMilestoneEstimates(transaction);
 
                 //relax zero transaction milestone estimates that belong to this milestone
                 await dataSource.RelaxTransactionMilestoneEstimates(transaction);

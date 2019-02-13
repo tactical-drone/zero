@@ -22,7 +22,8 @@ namespace zero.core.data.providers.cassandra
 
         public long[] GetPartitionSet(long value)
         {
-            return new[] { value - PartitionSize, value, value + PartitionSize};
+            var partition = GetPartition(value);
+            return new[] { partition - PartitionSize, partition, partition + PartitionSize};
         }
     }
 }
