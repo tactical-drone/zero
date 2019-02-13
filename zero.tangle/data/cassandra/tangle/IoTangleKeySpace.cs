@@ -171,8 +171,8 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.SecondsToMilestone)
                         .Column(c => c.MilestoneIndexEstimate)
                         .PartitionKey(c => c.Partition)
-                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
-                        .ClusteringKey(c => c.Hash));                        
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Descending)
+                        .ClusteringKey(c => c.Hash));
                 return verifiedTransaction;
             }
         }
