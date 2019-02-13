@@ -539,7 +539,7 @@ namespace zero.tangle.data.cassandra.tangle
                 }
             }
             totalTime.Stop();
-            _logger.Info($"Relaxed `{loadedTx}/{processedTx}' milestones estimates to `{milestoneTransaction.GetMilestoneIndex()}', st = `{scanTime.ElapsedMilliseconds}ms', ut = `{totalTime.ElapsedMilliseconds - scanTime.ElapsedMilliseconds}ms', `{loadedTx/scanTime.ElapsedMilliseconds* 1000:F1}/rps'");
+            _logger.Info($"Relaxed `{loadedTx}/{processedTx}' milestones estimates to `{milestoneTransaction.GetMilestoneIndex()}', st = `{scanTime.ElapsedMilliseconds}ms', ut = `{totalTime.ElapsedMilliseconds - scanTime.ElapsedMilliseconds}ms', `{loadedTx * 1000 / scanTime.ElapsedMilliseconds:F1}/rps'");
         }
 
         /// <summary>
