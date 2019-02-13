@@ -11,7 +11,9 @@ namespace zero.tangle.data.cassandra.tangle.luts
         public override long PartitionSize => 3600000;
         public TBlob Hash { get; set; }
         public TBlob Verifier { get; set; }                
-        public sbyte Pow { get; set; }        
+        public sbyte Pow { get; set; }           
+        public long Timestamp { get; set; }
+        public long SecondsToMilestone { get; set; }
         public long MilestoneIndexEstimate { get; set; }        
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Cassandra;
@@ -43,7 +44,7 @@ namespace zero.tangle.data.cassandra.tangle
         private Table<IoBundledHash<TBlob>> _transactions;
         private Table<IoBundledAddress<TBlob>> _addresses;
         private Table<IoTaggedTransaction<TBlob>> _tags;
-        private Table<IoApprovedTransaction<TBlob>> _verifiers;
+        private Table<IoApprovedTransaction<TBlob>> _approvees;
         private Table<IoDraggedTransaction<TBlob>> _dragnet;
         private Table<IoMilestoneTransaction<TBlob>> _milestones;
                             
@@ -56,6 +57,9 @@ namespace zero.tangle.data.cassandra.tangle
         private string _getTransactionQuery;
         private string _getLowerMilestoneQuery;
         private string _getHigherMilestoneQuery;
+        private string _getMilestoneLessTransactions;
+        private string _getMilestoneTransactions;
+        private PreparedStatement _relaxZeroTransactionMilestoneEstimate;
 
         /// <summary>
         /// Makes sure that the schema is configured
@@ -123,11 +127,11 @@ namespace zero.tangle.data.cassandra.tangle
                     wasConfigured = false;
                 }
 
-                _verifiers = new Table<IoApprovedTransaction<TBlob>>(_session, _ioTangleKeySpace.ApprovedTransactionMap);
-                if (!existingTables.Contains(_verifiers.Name))
+                _approvees = new Table<IoApprovedTransaction<TBlob>>(_session, _ioTangleKeySpace.ApprovedTransactionMap);
+                if (!existingTables.Contains(_approvees.Name))
                 {
-                    _verifiers.CreateIfNotExists();
-                    _logger.Debug($"Adding table `{_verifiers.Name}'");
+                    _approvees.CreateIfNotExists();
+                    _logger.Debug($"Adding table `{_approvees.Name}'");
                     wasConfigured = false;
                 }
 
@@ -177,10 +181,20 @@ namespace zero.tangle.data.cassandra.tangle
             _getTransactionQuery = $"select * from {_bundles.Name} where {nameof(IIoTransactionModel<TBlob>.Bundle)}=? limit 1";
 
             //get milestone based on upper bound timestamp
-            _getLowerMilestoneQuery = $"select * from {_milestones.Name} where partition IN ? and {nameof(IoMilestoneTransaction<TBlob>.Timestamp)} <= ? limit 1";
+            _getLowerMilestoneQuery = $"select * from {_milestones.Name} where {nameof(IoMilestoneTransaction<TBlob>.Partition)} in ? and {nameof(IoMilestoneTransaction<TBlob>.Timestamp)} <= ? limit 1";
 
             //relax a milestone based on lower bound timestamp
-            _getHigherMilestoneQuery = $"select * from {_milestones.Name} where partition IN ? and {nameof(IoMilestoneTransaction<TBlob>.Timestamp)} > ? order by timestamp ASC limit 2";
+            _getHigherMilestoneQuery = $"select * from {_milestones.Name} where {nameof(IoMilestoneTransaction<TBlob>.Partition)} in ? and {nameof(IoMilestoneTransaction<TBlob>.Timestamp)} > ? order by timestamp ASC limit 2";
+
+
+            //Find transactions without milestone estimates
+            _getMilestoneLessTransactions = $"select * from {_approvees.Name} where {nameof(IoApprovedTransaction<TBlob>.Partition)} in ? and {nameof(IoApprovedTransaction<TBlob>.MilestoneIndexEstimate)} = 0 allow filtering";
+
+            //Find transactions without milestone estimates
+            _getMilestoneTransactions = $"select * from {_approvees.Name} where {nameof(IoApprovedTransaction<TBlob>.Partition)} in ? and {nameof(IoApprovedTransaction<TBlob>.MilestoneIndexEstimate)} < 0 allow filtering";
+
+            //relax a transaction zero milestone
+            _relaxZeroTransactionMilestoneEstimate = _session.Prepare($"update {_approvees.Name} set {nameof(IoApprovedTransaction<TBlob>.MilestoneIndexEstimate)}=?, {nameof(IoApprovedTransaction<TBlob>.SecondsToMilestone)}=? where {nameof(IoApprovedTransaction<TBlob>.Partition)} in ? and  {nameof(IoApprovedTransaction<TBlob>.Timestamp)} = ? and {nameof(IoApprovedTransaction<TBlob>.Hash)} = ?");
         }
 
         /// <summary>
@@ -220,8 +234,7 @@ namespace zero.tangle.data.cassandra.tangle
             {
                 Hash = transaction.Hash,
                 Bundle = transaction.Bundle,
-                Timestamp = transaction.Timestamp,
-                MilestoneIndex = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
+                Timestamp = transaction.Timestamp,                
             };
 
             var bundledAddress = new IoBundledAddress<TBlobLocal>
@@ -239,23 +252,26 @@ namespace zero.tangle.data.cassandra.tangle
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp,
             };
-
-            var timestamp = transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp: transaction.Timestamp;
+            
             var verifiedBranchTransaction = new IoApprovedTransaction<TBlobLocal>
             {
-                Partition = timestamp,
+                Partition = transaction.GetAttachmentTime(),
                 Hash = transaction.Branch,
                 Pow = transaction.Pow,
                 Verifier = transaction.Hash,
+                Timestamp = transaction.GetAttachmentTime(),
+                SecondsToMilestone = transaction.SecondsToMilestone,
                 MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
             };
 
             var verifiedTrunkTransaction = new IoApprovedTransaction<TBlobLocal>
             {
-                Partition = timestamp,
+                Partition = transaction.GetAttachmentTime(),
                 Hash = transaction.Trunk,
                 Pow = transaction.Pow,
-                Verifier = transaction.Hash,                
+                Verifier = transaction.Hash,
+                Timestamp = transaction.GetAttachmentTime(),
+                SecondsToMilestone = transaction.SecondsToMilestone,
                 MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
             };
 
@@ -266,7 +282,7 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = transaction.Hash,
                 Bundle = transaction.Bundle,
                 Timestamp = transaction.Timestamp,                
-                MilestoneIndex = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate //negative indicates that this is an initial estimate
+                MilestoneIndex = transaction.MilestoneIndexEstimate
             };
 
             if (executeBatch)
@@ -322,10 +338,10 @@ namespace zero.tangle.data.cassandra.tangle
             batchStatement.Add(_transactions.Insert(bundledHash as IoBundledHash<TBlob>));
                         
             if(transaction.BranchBuffer.Length != 0)
-                batchStatement.Add(_verifiers.Insert(verifiedBranchTransaction as IoApprovedTransaction<TBlob>));
+                batchStatement.Add(_approvees.Insert(verifiedBranchTransaction as IoApprovedTransaction<TBlob>));
             
             if (transaction.TrunkBuffer.Length != 0)
-                batchStatement.Add(_verifiers.Insert(verifiedTrunkTransaction as IoApprovedTransaction<TBlob>));
+                batchStatement.Add(_approvees.Insert(verifiedTrunkTransaction as IoApprovedTransaction<TBlob>));
             
             if (transaction.AddressBuffer.Length != 0)
                 batchStatement.Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
@@ -438,6 +454,72 @@ namespace zero.tangle.data.cassandra.tangle
 
             //return the milestone bundle tx
             return milestoneBundle;
+        }
+
+        /// <summary>
+        /// Relaxes zero milestone transaction estimates
+        /// </summary>
+        /// <param name="milestoneTransaction"></param>
+        /// <returns></returns>
+        public async Task RelaxZeroTransactionMilestoneEstimates(IIoTransactionModel<TBlob> milestoneTransaction)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var milestoneLessTransactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TBlob>>(query, args), _getMilestoneLessTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp))).ToList();
+
+            var batch = new BatchStatement();
+            var batchSize = 0;
+            var processedTx = 0;
+
+            foreach (var milestoneLessTransaction in milestoneLessTransactions)
+            {
+                batch.Add(_relaxZeroTransactionMilestoneEstimate.Bind( -milestoneTransaction.MilestoneIndexEstimate, (long)(milestoneTransaction.GetAttachmentTime().DateTime() - milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds,
+                    _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp), milestoneLessTransaction.Timestamp, milestoneLessTransaction.Hash));
+                
+                if (batchSize++ > 100 || ++processedTx == milestoneLessTransactions.Count) //TODO param
+                {
+                    var rows = await base.ExecuteAsync(batch);
+                    stopwatch.Stop();
+                    if(rows.Any())
+                        _logger.Debug($"Relaxed `{rows.GetRows().First().GetValue<long>("count")}' [zero]milestone estimates to `{milestoneTransaction.GetMilestoneIndex()}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                    batchSize = 0;                    
+                }
+            }
+        }
+
+        /// <summary>
+        /// Relaxes zero milestone transaction estimates
+        /// </summary>
+        /// <param name="milestoneTransaction"></param>
+        /// <returns></returns>
+        public async Task RelaxTransactionMilestoneEstimates(IIoTransactionModel<TBlob> milestoneTransaction)
+        {
+            var stopwatch = Stopwatch.StartNew();            
+            var milestoneLessTransactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TBlob>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp))).ToList();
+
+            var batch = new BatchStatement();
+            var batchSize = 0;
+            var processedTx = 0;
+
+            foreach (var milestoneLessTransaction in milestoneLessTransactions)
+            {
+                if (milestoneLessTransaction.SecondsToMilestone < (long)(milestoneTransaction.Timestamp.DateTime() - milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds)
+                {
+                    processedTx++;
+                    continue;                    
+                }
+
+                batch.Add(_relaxZeroTransactionMilestoneEstimate.Bind(-milestoneTransaction.MilestoneIndexEstimate, (long)(milestoneTransaction.GetAttachmentTime().DateTime() - milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds,
+                    _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp), milestoneLessTransaction.SecondsToMilestone, milestoneLessTransaction.Hash));
+
+                if (batchSize++ > 100 || ++processedTx == milestoneLessTransactions.Count) //TODO param
+                {
+                    var rows = await base.ExecuteAsync(batch);
+                    stopwatch.Stop();
+                    if (rows.Any())
+                        _logger.Debug($"Relaxed `{rows.GetRows().First().GetValue<long>("count")}' milestone estimates to `{milestoneTransaction.GetMilestoneIndex()}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                    batchSize = 0;
+                }
+            }
         }
 
         /// <summary>

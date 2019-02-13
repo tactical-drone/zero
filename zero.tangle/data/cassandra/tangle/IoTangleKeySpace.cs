@@ -128,8 +128,7 @@ namespace zero.tangle.data.cassandra.tangle
                         .ExplicitColumns()
                         .Column(c => c.Hash)
                         .Column(c => c.Bundle)
-                        .Column(c => c.Timestamp)
-                        .Column(c => c.MilestoneIndex)
+                        .Column(c => c.Timestamp)                        
                         .PartitionKey(c => c.Hash));
                 return bundledTransaction;
             }
@@ -168,8 +167,11 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.Hash)                        
                         .Column(c => c.Verifier)
                         .Column(c => c.Pow)
+                        .Column(c => c.Timestamp)
+                        .Column(c => c.SecondsToMilestone)
                         .Column(c => c.MilestoneIndexEstimate)
                         .PartitionKey(c => c.Partition)
+                        .ClusteringKey(c => c.Timestamp, SortOrder.Ascending)
                         .ClusteringKey(c => c.Hash));                        
                 return verifiedTransaction;
             }

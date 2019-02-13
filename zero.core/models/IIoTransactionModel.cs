@@ -110,10 +110,18 @@ namespace zero.core.models
         
         [DataMember]
         bool IsMilestoneTransaction { get; set; }
+
+        [IgnoreDataMember]
+        long SecondsToMilestone { get; set; }
+
+        [IgnoreDataMember]
+        IIoTransactionModel<TBlob> MilestoneEstimateTransaction { get; set; }
         
         string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
     
         ReadOnlyMemory<byte> AsBlob();
         long GetMilestoneIndex();
+
+        long GetAttachmentTime();
     }
 }

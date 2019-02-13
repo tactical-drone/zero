@@ -111,6 +111,8 @@ namespace zero.interop.entangled.common.model.interop
         public string Uri { get; set; }
         public short Size { get; set; }
         public bool IsMilestoneTransaction { get; set; }
+        public long SecondsToMilestone { get; set; }
+        public IIoTransactionModel<byte[]> MilestoneEstimateTransaction { get; set; }
 
         public ReadOnlyMemory<byte> Blob { get; set; }
 
@@ -162,6 +164,11 @@ namespace zero.interop.entangled.common.model.interop
             }
 
             return _milestoneIndex;
+        }
+
+        public long GetAttachmentTime()
+        {
+            return AttachmentTimestamp > 0 ? AttachmentTimestamp : Timestamp;
         }
 
         public string GetKey()

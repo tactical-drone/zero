@@ -130,6 +130,8 @@ namespace zero.interop.entangled.common.model.native
         public ReadOnlyMemory<byte> Blob { get; set; }
 
         public bool IsMilestoneTransaction { get; set; }
+        public long SecondsToMilestone { get; set; }
+        public IIoTransactionModel<string> MilestoneEstimateTransaction { get; set; }
 
         public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
@@ -158,6 +160,11 @@ namespace zero.interop.entangled.common.model.native
             }
 
             return _milestoneIndex;
+        }
+
+        public long GetAttachmentTime()
+        {
+            return AttachmentTimestamp > 0 ? AttachmentTimestamp : Timestamp;
         }
 
         public string GetKey()

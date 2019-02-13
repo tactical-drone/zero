@@ -136,7 +136,7 @@ namespace zero.tangle
                             && await dataSource.TransactionExistsAsync(transaction.Hash))
                         {
                             stopwatch.Stop();
-                            _logger.Warn( $"Slow duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp)}'");
+                            _logger.Warn( $"Slow duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
                             transactions.ProcessState = IoProducible<IoTangleTransaction<TBlob>>.State.SlowDup;
                             continue;
                         }
@@ -187,14 +187,22 @@ namespace zero.tangle
                 || node.LatestMilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.LatestMilestoneTransaction.AddressBuffer.AsArray())
                )
             {
+                transaction.SecondsToMilestone = 0;
                 transaction.IsMilestoneTransaction = true;
+                transaction.MilestoneEstimateTransaction = transaction;
                 transaction.MilestoneIndexEstimate = transaction.GetMilestoneIndex();
+                
+                //relax zero transaction milestone estimates that belong to this milestone
+                await dataSource.RelaxZeroTransactionMilestoneEstimates(transaction);
+
+                //relax zero transaction milestone estimates that belong to this milestone
+                await dataSource.RelaxTransactionMilestoneEstimates(transaction);
 
                 if (transaction.Timestamp > (node.LatestMilestoneTransaction?.Timestamp??0))
                 {
                     node.LatestMilestoneTransaction = transaction;
 
-                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds() - transaction.Timestamp);
+                    var timeDiff = DateTime.Now - transaction.Timestamp.DateTime();
                     _logger.Info(IoEntangled<TBlob>.Optimized
                         ? $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
                         : $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
@@ -203,11 +211,11 @@ namespace zero.tangle
             //Load from the DB if we don't have one ready
             else if (node.LatestMilestoneTransaction == null) 
             {                    
-                node.LatestMilestoneTransaction = await dataSource.GetBestMilestoneEstimateBundle(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds());
+                node.LatestMilestoneTransaction = await dataSource.GetBestMilestoneEstimateBundle(((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds());
 
                 if (node.LatestMilestoneTransaction != null)
                 {
-                    var timeDiff = TimeSpan.FromSeconds(((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds() - node.LatestMilestoneTransaction.Timestamp);
+                    var timeDiff = DateTime.Now - node.LatestMilestoneTransaction.Timestamp.DateTime();
                     _logger.Debug(IoEntangled<TBlob>.Optimized
                         ? $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.AsTrytes(node.LatestMilestoneTransaction.HashBuffer)}]"
                         : $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.Hash}]");
@@ -222,6 +230,7 @@ namespace zero.tangle
             if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp )
             {
                 transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 2;
+                transaction.SecondsToMilestone = 90; //TODO param
             }
             else //look for a candidate milestone in storage for older transactions
             {
@@ -251,6 +260,9 @@ namespace zero.tangle
                 }
                 
                 transaction.MilestoneIndexEstimate = (relaxMilestone)?.GetMilestoneIndex()??0;
+
+                if(relaxMilestone != null)
+                    transaction.SecondsToMilestone = (long) ((transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp : transaction.Timestamp).DateTime() - relaxMilestone.GetMilestoneIndex().DateTime()).TotalSeconds;
             }            
         }
     }
