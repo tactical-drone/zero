@@ -8,7 +8,7 @@ namespace zero.tangle.data.cassandra.tangle.luts
     /// <typeparam name="TBlob"></typeparam>
     public class IoTaggedTransaction<TBlob> : IoCassandraPartitionedLut
     {        
-        public override long PartitionSize => 360000;
+        public override long PartitionSize => 60000;
         public TBlob Tag { get; set; }
 
         public long Timestamp { get; set; }

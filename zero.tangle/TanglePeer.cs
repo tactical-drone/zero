@@ -229,7 +229,7 @@ namespace zero.tangle
             if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp )
             {
                 transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 2;
-                transaction.SecondsToMilestone = 90; //TODO param
+                transaction.SecondsToMilestone = (long)(node.LatestMilestoneTransaction.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds; //TODO param
             }
             else //look for a candidate milestone in storage for older transactions
             {
