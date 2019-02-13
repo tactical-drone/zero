@@ -240,7 +240,7 @@ namespace zero.tangle
                 try
                 {                    
                     if (relaxMilestone != null)
-                        _logger.Trace($"Relaxed milestone: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                        _logger.Trace($"Attached milestone: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
                     else
                     {
                         try
@@ -261,7 +261,7 @@ namespace zero.tangle
                 transaction.MilestoneIndexEstimate = (relaxMilestone)?.GetMilestoneIndex()??0;
 
                 if(relaxMilestone != null)
-                    transaction.SecondsToMilestone = (long) ((transaction.AttachmentTimestamp > 0 ? transaction.AttachmentTimestamp : transaction.Timestamp).DateTime() - relaxMilestone.GetMilestoneIndex().DateTime()).TotalSeconds;
+                    transaction.SecondsToMilestone = (long) (relaxMilestone.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds;
             }            
         }
     }

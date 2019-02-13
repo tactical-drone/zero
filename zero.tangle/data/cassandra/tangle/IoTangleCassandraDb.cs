@@ -516,16 +516,15 @@ namespace zero.tangle.data.cassandra.tangle
                 batch.Add(_relaxZeroTransactionMilestoneEstimate.Bind(-milestoneTransaction.MilestoneIndexEstimate, (long)(milestoneTransaction.GetAttachmentTime().DateTime() - milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds,
                     _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp), milestoneLessTransaction.SecondsToMilestone, milestoneLessTransaction.Hash));
                 
-                if (batchSize++ > 50 || ++processedTx == milestoneLessTransactions.Count) //TODO param
+                if (batchSize++ > 10 || ++processedTx == milestoneLessTransactions.Count) //TODO param
                 {                    
-                    var rows = await base.ExecuteAsync(batch);                    
-                    stopwatch.Stop();
-                    if (rows.Any())
-                        _logger.Info($"Relaxed `{rows.GetRows().First().GetValue<long>("count")}' milestone estimates to `{milestoneTransaction.GetMilestoneIndex()}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                    var rows = await base.ExecuteAsync(batch);                                        
                     batchSize = 0;
                     batch = new BatchStatement();
                 }
             }
+            stopwatch.Stop();
+            _logger.Info($"Relaxed `{processedTx}' milestones estimates to `{milestoneTransaction.GetMilestoneIndex()}', t = `{stopwatch.ElapsedMilliseconds}ms'");
         }
 
         /// <summary>
