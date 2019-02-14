@@ -40,7 +40,7 @@ namespace zero.tangle.models
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _entangled = IoEntangled<TBlob>.Default;            
+            _entangled = Entangled<TBlob>.Default;            
 
             //Set some tangle specific protocol constants
             DatumSize = Codec.MessageSize + ((Producer is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);

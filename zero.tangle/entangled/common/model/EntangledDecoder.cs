@@ -10,7 +10,7 @@ namespace zero.tangle.entangled.common.model
     /// <summary>
     /// Implements a interop decoder using optimized c++ entangled decoders
     /// </summary>
-    public class IoInteropModelDecoder : IIoModelDecoder<byte[]>
+    public class EntangledDecoder : IIoModelDecoder<byte[]>
     {
         //static IoInteropModel()
         //{
@@ -42,7 +42,7 @@ namespace zero.tangle.entangled.common.model
         {
             return IoMarshalTransactionDecoder.Deserialize(flexTritBuffer, buffOffset, memMap =>
             {
-                var interopTransaction = new IoInteropTransactionModel
+                var interopTransaction = new EntangledTransaction
                 {
                     SignatureOrMessageBuffer = IoMarshalledTransaction.Trim(memMap.signature_or_message),
                     AddressBuffer = IoMarshalledTransaction.Trim(memMap.address, 0),

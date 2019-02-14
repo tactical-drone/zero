@@ -55,7 +55,7 @@ namespace zero.tangle.data.redis.configurations.tangle
             if (val == RedisValue.Null)
                 return default(TTransaction);
                         
-            return  new IoInteropTransactionModel
+            return  new EntangledTransaction
             {
                 Blob = (byte[])val
             } as TTransaction;

@@ -203,7 +203,7 @@ namespace zero.tangle
                     node.LatestMilestoneTransaction = transaction;
 
                     var timeDiff = DateTime.Now - transaction.Timestamp.DateTime();
-                    _logger.Info(IoEntangled<TBlob>.Optimized
+                    _logger.Info(Entangled<TBlob>.Optimized
                         ? $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
                         : $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
                 }                                
@@ -216,7 +216,7 @@ namespace zero.tangle
                 if (node.LatestMilestoneTransaction != null)
                 {
                     var timeDiff = DateTime.Now - node.LatestMilestoneTransaction.Timestamp.DateTime();
-                    _logger.Debug(IoEntangled<TBlob>.Optimized
+                    _logger.Debug(Entangled<TBlob>.Optimized
                         ? $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.AsTrytes(node.LatestMilestoneTransaction.HashBuffer)}]"
                         : $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.Hash}]");
                 }                    

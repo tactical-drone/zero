@@ -9,9 +9,9 @@ namespace zero.tangle.entangled
     /// <summary>
     /// The optimized interop contract implementation
     /// </summary>
-    public class IoEntangledInterop : IIoEntangled<byte[]>
+    public class EntangledInterop : IIoEntangled<byte[]>
     {                
         public IIoTrinary Ternary { get; } = new IoInteropTrinary();
-        public IIoModelDecoder<byte[]> ModelDecoder { get; } = new IoInteropModelDecoder();
+        public IIoModelDecoder<byte[]> ModelDecoder { get; } = new EntangledDecoder();
     }
 }

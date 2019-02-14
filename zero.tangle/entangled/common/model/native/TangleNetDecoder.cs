@@ -15,7 +15,7 @@ namespace zero.tangle.entangled.common.model.native
     /// <summary>
     /// A native C# model decoder used for mocking <see cref="IIoModelDecoder{TBlob}"/>
     /// </summary>
-    internal class IoNativeModelDecoder : IIoModelDecoder<string>
+    internal class TangleNetDecoder : IIoModelDecoder<string>
     {
         
         public IIoTransactionModelInterface GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
@@ -23,8 +23,8 @@ namespace zero.tangle.entangled.common.model.native
             var tryteBuffer = new sbyte[IoTransaction.NUM_TRYTES_SERIALIZED_TRANSACTION];
             var tryteHashByteBuffer = new sbyte[IoTransaction.NUM_TRYTES_HASH];
 
-            IoEntangled<string>.Default.Ternary.GetTritsFromFlexTrits(flexTritBuffer, buffOffset, tritBuffer, Codec.MessageSize);
-            IoEntangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, 0, tryteBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION);
+            Entangled<string>.Default.Ternary.GetTritsFromFlexTrits(flexTritBuffer, buffOffset, tritBuffer, Codec.MessageSize);
+            Entangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, 0, tryteBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION);
 
             var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.UTF8.GetString(new ReadOnlySpan<byte>((byte[])(Array)tryteBuffer))));
 
@@ -32,7 +32,7 @@ namespace zero.tangle.entangled.common.model.native
             if (string.IsNullOrEmpty(obsoleteTag))            
                 obsoleteTag = "";
             
-            var interopTransaction = new IoNativeTransactionModel
+            var interopTransaction = new TangleNetTransaction
             {
                 SignatureOrMessageBuffer = Encoding.UTF8.GetBytes(tx.Fragment.Value.Trim('9')),
                 AddressBuffer = Encoding.UTF8.GetBytes(tx.Address.Value),
@@ -74,7 +74,7 @@ namespace zero.tangle.entangled.common.model.native
                                                + interopTransaction.HashBuffer.Length);
 
             //check pow
-            IoEntangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
+            Entangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
 
             var proposedHash = new Hash(Encoding.ASCII.GetString((byte[])(Array)tryteHashByteBuffer)).Value;
             IoPow<string>.Compute((IIoTransactionModel<string>) interopTransaction, Encoding.UTF8.GetString(interopTransaction.HashBuffer.Span) , proposedHash);

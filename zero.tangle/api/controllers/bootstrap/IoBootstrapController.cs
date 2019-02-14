@@ -20,7 +20,7 @@ namespace zero.tangle.api.controllers.bootstrap
         [Route("kind")]
         public IoApiReturn Kind()
         {
-            if (IoEntangled<string>.Optimized)
+            if (Entangled<string>.Optimized)
                 return IoApiReturn.Result(true,"Using interop decoders", "");
             else
                 return IoApiReturn.Result(true, "Using native decoders", "/native");

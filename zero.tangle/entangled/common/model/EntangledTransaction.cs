@@ -14,9 +14,9 @@ namespace zero.tangle.entangled.common.model
     /// <summary>
     /// Implements a interop transaction model
     /// </summary>
-    public class IoInteropTransactionModel : IIoTransactionModel<byte[]> //TODO base this
+    public class EntangledTransaction : IIoTransactionModel<byte[]> //TODO base this
     {
-        public IoInteropTransactionModel()
+        public EntangledTransaction()
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -130,7 +130,7 @@ namespace zero.tangle.entangled.common.model
 
             var trytes = new sbyte[trytesToConvert];
             //Console.Write($"[{trytes.Length},{tritsToConvert}]");
-            IoEntangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);            
+            Entangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);            
             return Encoding.ASCII.GetString((byte[])(Array)trytes);
         }
 
@@ -150,11 +150,11 @@ namespace zero.tangle.entangled.common.model
                 return _milestoneIndex;
 
             var tritBuffer = new sbyte[15];
-            IoEntangled<byte[]>.Default.Ternary.GetTritsFromFlexTrits((sbyte[]) (Array) ObsoleteTagBuffer.AsArray(), 0, tritBuffer, 15);
+            Entangled<byte[]>.Default.Ternary.GetTritsFromFlexTrits((sbyte[]) (Array) ObsoleteTagBuffer.AsArray(), 0, tritBuffer, 15);
 
             try
             {
-                _milestoneIndex = IoEntangled<byte[]>.Default.Ternary.GetLongFromFlexTrits(tritBuffer, 0, 15);
+                _milestoneIndex = Entangled<byte[]>.Default.Ternary.GetLongFromFlexTrits(tritBuffer, 0, 15);
             }
             catch (Exception e)
             {

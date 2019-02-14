@@ -15,9 +15,9 @@ namespace zero.tangle.entangled
     /// If we are not running optimized Tangle.net is used to mock interop functionality.
     /// </summary>
     /// <typeparam name="TBlob"></typeparam>
-    public class IoEntangled<TBlob> : IIoEntangled<TBlob>
+    public class Entangled<TBlob> : IIoEntangled<TBlob>
     {
-        static IoEntangled()
+        static Entangled()
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -40,18 +40,18 @@ namespace zero.tangle.entangled
                     var rootFolder = AppContext.BaseDirectory;
                     if (File.Exists(Path.Combine(rootFolder, "libinterop.so")))
                     {
-                        _default = (IIoEntangled<TBlob>) new IoEntangledInterop();
+                        _default = (IIoEntangled<TBlob>) new EntangledInterop();
                         _logger.Info("Using entangled interop!");
                     }
                     else
                     {
                         _logger.Warn($"`{Path.Combine(rootFolder, "libinterop.so")}' not found, falling back to native decoders");
-                        _default = new IoEntangled<TBlob>();
+                        _default = new Entangled<TBlob>();
                     }
                 }
                 else //fallback to Tangle.Net
                 {                    
-                    _default = new IoEntangled<TBlob>();
+                    _default = new Entangled<TBlob>();
                     _logger.Warn("Interop with entangled is not supported in windows, falling back to native decoders");
                 }
 
@@ -60,6 +60,6 @@ namespace zero.tangle.entangled
         } 
 
         public IIoTrinary Ternary { get; } = new IoNativeTrinary();
-        public IIoModelDecoder<TBlob> ModelDecoder { get; } = (IIoModelDecoder<TBlob>) new IoNativeModelDecoder();
+        public IIoModelDecoder<TBlob> ModelDecoder { get; } = (IIoModelDecoder<TBlob>) new TangleNetDecoder();
     }
 }

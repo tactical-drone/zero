@@ -34,7 +34,7 @@ namespace zero.tangle.data.cassandra.tangle
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoTangleCassandraDb():base(new IoTangleKeySpace<TBlob>(IoEntangled<TBlob>.Optimized ? "zero" : "one"))
+        public IoTangleCassandraDb():base(new IoTangleKeySpace<TBlob>(Entangled<TBlob>.Optimized ? "zero" : "one"))
         {            
             _logger = LogManager.GetCurrentClassLogger();            
             _ioTangleKeySpace = (IoTangleKeySpace<TBlob>) _keySpaceConfiguration;
@@ -378,10 +378,10 @@ namespace zero.tangle.data.cassandra.tangle
             if (!IsConfigured)
                 return default(TTransaction);
             
-            if(IoEntangled<TBlob>.Optimized)
-                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(query, args),_getTransactionQuery, key) as TTransaction;
+            if(Entangled<TBlob>.Optimized)
+                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<EntangledTransaction>(query, args),_getTransactionQuery, key) as TTransaction;
             else
-                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(query, args),_getTransactionQuery, key) as TTransaction;
+                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<TangleNetTransaction>(query, args),_getTransactionQuery, key) as TTransaction;
         }
 
         /// <summary>

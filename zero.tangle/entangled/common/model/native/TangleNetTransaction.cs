@@ -11,9 +11,9 @@ namespace zero.tangle.entangled.common.model.native
     /// <summary>
     /// Mocks a <see cref="IIoTransactionModelInterface"/> model when not using interop decoders
     /// </summary>
-    public class IoNativeTransactionModel : IIoTransactionModel<string>
+    public class TangleNetTransaction : IIoTransactionModel<string>
     {
-        public IoNativeTransactionModel()
+        public TangleNetTransaction()
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -152,7 +152,7 @@ namespace zero.tangle.entangled.common.model.native
 
             try
             {                
-                _milestoneIndex = IoEntangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);                
+                _milestoneIndex = Entangled<string>.Default.Ternary.GetLongFromFlexTrits((sbyte[])(Array)Encoding.UTF8.GetBytes(ObsoleteTag), 0, 15);                
             }
             catch (Exception e)
             {

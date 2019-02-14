@@ -16,7 +16,7 @@ namespace zero.sync
 
             var listenerAddress = "tcp://192.168.1.2:15600";
 
-            if (IoEntangled<string>.Optimized)
+            if (Entangled<string>.Optimized)
             {
                 var tangleNode = new TangleNode<IoTangleMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress), (node, ioNetClient) =>  new TanglePeer<byte[]>((TangleNode<IoTangleMessage<byte[]>, byte[]>) node, ioNetClient), TanglePeer<byte[]>.TcpReadAhead);
                 
