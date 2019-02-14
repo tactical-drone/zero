@@ -1,13 +1,14 @@
 ﻿using System;
 using System.IO;
 using NLog;
+using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.common.trinary.native;
 using zero.interop.entangled.interfaces;
+using zero.tangle.entangled.common.model.native;
 
-namespace zero.interop.entangled
+namespace zero.tangle.entangled
 {
     /// <summary>
     /// Implements contract <see cref="IIoEntangled{TBlob}"/> depending on whether we are running in <see cref="Optimized"/> mode or not.

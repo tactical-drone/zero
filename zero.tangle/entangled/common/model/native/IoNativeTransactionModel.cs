@@ -3,12 +3,13 @@ using System.Text;
 using Cassandra.Mapping.Attributes;
 using NLog;
 using zero.core.models;
+using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
 
-namespace zero.interop.entangled.common.model.native
+namespace zero.tangle.entangled.common.model.native
 {
     /// <summary>
-    /// Mocks a <see cref="IIoTransactionModel{TBlob}"/> model when not using interop decoders
+    /// Mocks a <see cref="IIoTransactionModelInterface"/> model when not using interop decoders
     /// </summary>
     public class IoNativeTransactionModel : IIoTransactionModel<string>
     {

@@ -17,6 +17,9 @@ using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 using zero.tangle.data.cassandra.tangle.luts;
+using zero.tangle.entangled;
+using zero.tangle.entangled.common.model;
+using zero.tangle.entangled.common.model.native;
 using zero.tangle.models;
 using Logger = NLog.Logger;
 
@@ -204,22 +207,25 @@ namespace zero.tangle.data.cassandra.tangle
         /// <param name="transaction">The transaction to persist</param>
         /// <param name="userData">A batch handler</param>
         /// <returns>The rowset with insert results</returns>
-        public async Task<RowSet> PutAsync<TBlobLocal>(IIoTransactionModel<TBlobLocal> transaction, object userData = null)
+        public async Task<RowSet> PutAsync<TTransaction>(TTransaction transaction, object userData = null)
+        where TTransaction: class, IIoTransactionModelInterface
         {
             if (!IsConfigured)
                 return null;
 
+            var tangleTransaction = (IIoTransactionModel<TBlob>)transaction;
+
             //Basic TX validation check
-            if (transaction.HashBuffer.Length == 0)
+            if (tangleTransaction.HashBuffer.Length == 0)
             {
                 try
                 {
                     _logger.Trace($"Invalid transaction");
-                    _logger.Trace($"value = `{transaction.Value}'");
-                    _logger.Trace($"pow = `{transaction.Pow}'");
-                    _logger.Trace($"time = `{transaction.Timestamp}'");
-                    _logger.Trace($"bundle = `{transaction.AsTrytes(transaction.BundleBuffer)}'");
-                    _logger.Trace($"address = `{transaction.AsTrytes(transaction.AddressBuffer)}'");
+                    _logger.Trace($"value = `{tangleTransaction.Value}'");
+                    _logger.Trace($"pow = `{tangleTransaction.Pow}'");
+                    _logger.Trace($"time = `{tangleTransaction.Timestamp}'");
+                    _logger.Trace($"bundle = `{tangleTransaction.AsTrytes(tangleTransaction.BundleBuffer)}'");
+                    _logger.Trace($"address = `{tangleTransaction.AsTrytes(tangleTransaction.AddressBuffer)}'");
                 }
                 catch
                 {
@@ -231,59 +237,59 @@ namespace zero.tangle.data.cassandra.tangle
                                         
             var executeBatch = userData == null;
 
-            var bundledHash = new IoBundledHash<TBlobLocal>
+            var bundledHash = new IoBundledHash<TBlob>
             {
-                Hash = transaction.Hash,
-                Bundle = transaction.Bundle,
-                Timestamp = transaction.GetAttachmentTime(),                
+                Hash = tangleTransaction.Hash,
+                Bundle = tangleTransaction.Bundle,
+                Timestamp = tangleTransaction.GetAttachmentTime(),                
             };
 
-            var bundledAddress = new IoBundledAddress<TBlobLocal>
+            var bundledAddress = new IoBundledAddress<TBlob>
             {
-                Address = transaction.Address,
-                Bundle = transaction.Bundle,
-                Timestamp = transaction.GetAttachmentTime()
+                Address = tangleTransaction.Address,
+                Bundle = tangleTransaction.Bundle,
+                Timestamp = tangleTransaction.GetAttachmentTime()
             };
             
-            var taggedTransaction = new IoTaggedTransaction<TBlobLocal>
+            var taggedTransaction = new IoTaggedTransaction<TBlob>
             {
-                Tag = transaction.Tag,
-                Partition = transaction.GetAttachmentTime(),
-                Hash = transaction.Hash,
-                Bundle = transaction.Bundle,
-                Timestamp = transaction.GetAttachmentTime(),
+                Tag = tangleTransaction.Tag,
+                Partition = tangleTransaction.GetAttachmentTime(),
+                Hash = tangleTransaction.Hash,
+                Bundle = tangleTransaction.Bundle,
+                Timestamp = tangleTransaction.GetAttachmentTime(),
             };
             
-            var verifiedBranchTransaction = new IoApprovedTransaction<TBlobLocal>
+            var verifiedBranchTransaction = new IoApprovedTransaction<TBlob>
             {
-                Partition = transaction.GetAttachmentTime(),
-                Hash = transaction.Branch,
-                Pow = transaction.Pow,
-                Verifier = transaction.Hash,
-                Timestamp = transaction.GetAttachmentTime(),
-                SecondsToMilestone = transaction.SecondsToMilestone,
-                MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
+                Partition = tangleTransaction.GetAttachmentTime(),
+                Hash = tangleTransaction.Branch,
+                Pow = tangleTransaction.Pow,
+                Verifier = tangleTransaction.Hash,
+                Timestamp = tangleTransaction.GetAttachmentTime(),
+                SecondsToMilestone = tangleTransaction.SecondsToMilestone,
+                MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate
             };
 
-            var verifiedTrunkTransaction = new IoApprovedTransaction<TBlobLocal>
+            var verifiedTrunkTransaction = new IoApprovedTransaction<TBlob>
             {
-                Partition = transaction.GetAttachmentTime(),
-                Hash = transaction.Trunk,
-                Pow = transaction.Pow,
-                Verifier = transaction.Hash,
-                Timestamp = transaction.GetAttachmentTime(),
-                SecondsToMilestone = transaction.SecondsToMilestone,
-                MilestoneIndexEstimate = transaction.IsMilestoneTransaction ? transaction.MilestoneIndexEstimate : -transaction.MilestoneIndexEstimate
+                Partition = tangleTransaction.GetAttachmentTime(),
+                Hash = tangleTransaction.Trunk,
+                Pow = tangleTransaction.Pow,
+                Verifier = tangleTransaction.Hash,
+                Timestamp = tangleTransaction.GetAttachmentTime(),
+                SecondsToMilestone = tangleTransaction.SecondsToMilestone,
+                MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate
             };
 
-            var milestoneTransaction = new IoMilestoneTransaction<TBlobLocal>
+            var milestoneTransaction = new IoMilestoneTransaction<TBlob>
             {                
-                Partition = transaction.GetAttachmentTime(),
-                ObsoleteTag = transaction.ObsoleteTag,
-                Hash = transaction.Hash,
-                Bundle = transaction.Bundle,
-                Timestamp = transaction.GetAttachmentTime(),                
-                MilestoneIndex = transaction.MilestoneIndexEstimate
+                Partition = tangleTransaction.GetAttachmentTime(),
+                ObsoleteTag = tangleTransaction.ObsoleteTag,
+                Hash = tangleTransaction.Hash,
+                Bundle = tangleTransaction.Bundle,
+                Timestamp = tangleTransaction.GetAttachmentTime(),                
+                MilestoneIndex = tangleTransaction.MilestoneIndexEstimate
             };
 
             if (executeBatch)
@@ -291,14 +297,14 @@ namespace zero.tangle.data.cassandra.tangle
 
             var batchStatement = ((BatchStatement) userData);
 
-            if (transaction.Value != 0)
+            if (tangleTransaction.Value != 0)
             {                
                 try
                 {
                     double quality;
                     try
                     {
-                        quality = IoMarketDataClient.Quality + (DateTime.Now - (transaction.Timestamp.ToString().Length > 11? DateTimeOffset.FromUnixTimeMilliseconds(transaction.Timestamp): DateTimeOffset.FromUnixTimeSeconds(transaction.Timestamp))).TotalMinutes;
+                        quality = IoMarketDataClient.Quality + (DateTime.Now - (tangleTransaction.Timestamp.ToString().Length > 11? DateTimeOffset.FromUnixTimeMilliseconds(tangleTransaction.Timestamp): DateTimeOffset.FromUnixTimeSeconds(tangleTransaction.Timestamp))).TotalMinutes;
 
                         if (quality > short.MaxValue)
                             quality = short.MaxValue;
@@ -310,21 +316,21 @@ namespace zero.tangle.data.cassandra.tangle
                         quality = short.MaxValue;
                     }
 
-                    var draggedTransaction = new IoDraggedTransaction<TBlobLocal>
+                    var draggedTransaction = new IoDraggedTransaction<TBlob>
                     {
-                        Address = transaction.Address,
-                        Bundle = transaction.Bundle,
-                        AttachmentTimestamp = transaction.AttachmentTimestamp,
-                        Timestamp = transaction.Timestamp,
+                        Address = tangleTransaction.Address,
+                        Bundle = tangleTransaction.Bundle,
+                        AttachmentTimestamp = tangleTransaction.AttachmentTimestamp,
+                        Timestamp = tangleTransaction.Timestamp,
                         LocalTimestamp = ((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds(),
-                        Value = transaction.Value,
-                        Direction = (short)(transaction.CurrentIndex == transaction.LastIndex? 0:(transaction.Value>0?1:-1)),
+                        Value = tangleTransaction.Value,
+                        Direction = (short)(tangleTransaction.CurrentIndex == tangleTransaction.LastIndex? 0:(tangleTransaction.Value>0?1:-1)),
                         Quality = (short)quality,
-                        Uri = transaction.Uri,                                                
-                        BtcValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
-                        EthValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
-                        EurValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize)),
-                        UsdValue = (float)(transaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize))
+                        Uri = tangleTransaction.Uri,                                                
+                        BtcValue = (float)(tangleTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Btc.Price / IoMarketDataClient.BundleSize)),
+                        EthValue = (float)(tangleTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eth.Price / IoMarketDataClient.BundleSize)),
+                        EurValue = (float)(tangleTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Eur.Price / IoMarketDataClient.BundleSize)),
+                        UsdValue = (float)(tangleTransaction.Value * (IoMarketDataClient.CurrentData.Raw.Iot.Usd.Price / IoMarketDataClient.BundleSize))
                     };
                     
                     batchStatement.Add(_dragnet.Insert(draggedTransaction as IoDraggedTransaction<TBlob>));
@@ -335,22 +341,22 @@ namespace zero.tangle.data.cassandra.tangle
                 }                
             }
 
-            batchStatement.Add(_bundles.Insert((IIoTransactionModel<TBlob>) transaction));
+            batchStatement.Add(_bundles.Insert((IIoTransactionModel<TBlob>) tangleTransaction));
             batchStatement.Add(_transactions.Insert(bundledHash as IoBundledHash<TBlob>));
                         
-            if(transaction.BranchBuffer.Length != 0)
+            if(tangleTransaction.BranchBuffer.Length != 0)
                 batchStatement.Add(_approvees.Insert(verifiedBranchTransaction as IoApprovedTransaction<TBlob>));
             
-            if (transaction.TrunkBuffer.Length != 0)
+            if (tangleTransaction.TrunkBuffer.Length != 0)
                 batchStatement.Add(_approvees.Insert(verifiedTrunkTransaction as IoApprovedTransaction<TBlob>));
             
-            if (transaction.AddressBuffer.Length != 0)
+            if (tangleTransaction.AddressBuffer.Length != 0)
                 batchStatement.Add(_addresses.Insert(bundledAddress as IoBundledAddress<TBlob>));
             
-            if (transaction.TagBuffer.Length != 0 || transaction.IsMilestoneTransaction)
+            if (tangleTransaction.TagBuffer.Length != 0 || tangleTransaction.IsMilestoneTransaction)
                 batchStatement.Add(_tags.Insert(taggedTransaction as IoTaggedTransaction<TBlob>));
 
-            if (transaction.IsMilestoneTransaction)
+            if (tangleTransaction.IsMilestoneTransaction)
                 batchStatement.Add(_milestones.Insert(milestoneTransaction as IoMilestoneTransaction<TBlob>));
                         
             if (executeBatch)
@@ -366,15 +372,16 @@ namespace zero.tangle.data.cassandra.tangle
         /// </summary>
         /// <param name="key">The transaction key</param>
         /// <returns>A transaction</returns>
-        public async Task<IIoTransactionModel<TBlobF>> GetAsync<TBlobF>(TBlobF key)        
+        public async Task<TTransaction> GetAsync<TTransaction, TBlobF>(TBlobF key)
+                    where TTransaction: class, IIoTransactionModelInterface
         {
             if (!IsConfigured)
-                return null;
+                return default(TTransaction);
             
             if(IoEntangled<TBlob>.Optimized)
-                return (IIoTransactionModel<TBlobF>) await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(query, args),_getTransactionQuery, key);
+                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoInteropTransactionModel>(query, args),_getTransactionQuery, key) as TTransaction;
             else
-                return (IIoTransactionModel<TBlobF>) await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(query, args),_getTransactionQuery, key);
+                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoNativeTransactionModel>(query, args),_getTransactionQuery, key) as TTransaction;
         }
 
         /// <summary>
@@ -447,7 +454,7 @@ namespace zero.tangle.data.cassandra.tangle
             if (bestMilestone == null) return null;
 
             //Search the bundle tx of this milestone
-            var milestoneBundle = await GetAsync(bestMilestone.Bundle);
+            var milestoneBundle = await GetAsync<IIoTransactionModel<TBlob>, TBlob>(bestMilestone.Bundle);
             if (milestoneBundle == null)
             {
                 _logger.Fatal($"Could not find best milestone tx `{bestMilestone.Hash}', bundle = `{bestMilestone.Bundle}' for t = `{timestamp}'");

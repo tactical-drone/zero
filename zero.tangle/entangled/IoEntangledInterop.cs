@@ -2,8 +2,9 @@
 using zero.interop.entangled.common.trinary.abstraction;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.interfaces;
+using zero.tangle.entangled.common.model;
 
-namespace zero.interop.entangled
+namespace zero.tangle.entangled
 {
     /// <summary>
     /// The optimized interop contract implementation

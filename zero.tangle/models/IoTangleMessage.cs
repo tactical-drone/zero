@@ -18,6 +18,7 @@ using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
 using zero.tangle.api.controllers.generic;
+using zero.tangle.entangled;
 using zero.tangle.models.sources;
 using Logger = NLog.Logger;
 
@@ -196,7 +197,7 @@ namespace zero.tangle.models
                             continue;
                         }
                             
-                        var interopTx = _entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
+                        var interopTx = (IIoTransactionModel<TBlob>)_entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
                         interopTx.Uri = Producer.SourceUri;
 
                         //check for pow

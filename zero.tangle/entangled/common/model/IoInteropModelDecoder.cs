@@ -1,10 +1,11 @@
 ﻿using System;
 using zero.core.misc;
 using zero.core.models;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 
-namespace zero.interop.entangled.common.model.interop
+namespace zero.tangle.entangled.common.model
 {
     /// <summary>
     /// Implements a interop decoder using optimized c++ entangled decoders
@@ -37,14 +38,12 @@ namespace zero.interop.entangled.common.model.interop
         /// <param name="buffOffset">Offset into the buffer</param>
         /// <param name="tritBuffer">Some buffer space</param>
         /// <returns>The deserialized transaction</returns>
-        public unsafe IIoTransactionModel<byte[]> GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
-        {            
-            fixed (sbyte* flexTrits = &flexTritBuffer[buffOffset])
-            {                
-                IoTransaction.transaction_deserialize_from_trits(out var memMap, flexTrits);
-
+        public  IIoTransactionModelInterface GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
+        {
+            return IoMarshalTransactionDecoder.Deserialize(flexTritBuffer, buffOffset, memMap =>
+            {
                 var interopTransaction = new IoInteropTransactionModel
-                {                    
+                {
                     SignatureOrMessageBuffer = IoMarshalledTransaction.Trim(memMap.signature_or_message),
                     AddressBuffer = IoMarshalledTransaction.Trim(memMap.address, 0),
                     Value = memMap.value,
@@ -59,7 +58,7 @@ namespace zero.interop.entangled.common.model.interop
                     AttachmentTimestamp = memMap.attachment_timestamp.NormalizeDateTime(),
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower.NormalizeDateTime(),
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper.NormalizeDateTime(),
-                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),   
+                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),
                     Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check
                 };
 
@@ -69,7 +68,7 @@ namespace zero.interop.entangled.common.model.interop
                 interopTransaction.HashBuffer = IoMarshalledTransaction.Trim(memMap.hash);
 
                 return interopTransaction;
-            }
+            });                                
         }
     }
 }

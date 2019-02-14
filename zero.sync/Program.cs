@@ -3,6 +3,7 @@ using NLog;
 using zero.core.network.ip;
 using zero.interop.entangled;
 using zero.tangle;
+using zero.tangle.entangled;
 using zero.tangle.models;
 
 namespace zero.sync

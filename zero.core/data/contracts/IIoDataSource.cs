@@ -21,14 +21,16 @@ namespace zero.core.data.contracts
         /// <param name="transaction">The transaction to be stored</param>
         /// <param name="userData">A batch handler</param>
         /// <returns></returns>
-        Task<TResult> PutAsync<TBlob>(IIoTransactionModel<TBlob> transaction, object userData = null);            
+        Task<TResult> PutAsync<TTransaction>(TTransaction transaction, object userData = null)
+            where TTransaction : class, IIoTransactionModelInterface;
 
         /// <summary>
         /// Get a transaction from storage
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        Task<IIoTransactionModel<TBlobF>> GetAsync<TBlobF>(TBlobF key);
+        Task<TTransaction> GetAsync<TTransaction, TBlobF>(TBlobF key)
+            where TTransaction : class, IIoTransactionModelInterface;
 
         /// <summary>
         /// Checks if a transaction has been loaded.

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using zero.core.api;
 using zero.interop.entangled;
+using zero.tangle.entangled;
 
 namespace zero.tangle.api.controllers.bootstrap
 {

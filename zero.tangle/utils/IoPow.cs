@@ -9,7 +9,7 @@ using zero.interop.entangled.mock;
 namespace zero.interop.utils
 {
     /// <summary>
-    /// Does pow calculations on <see cref="IIoTransactionModel<TBlob>{TBlob}"/>
+    /// Does pow calculations on <see cref="IIoTransactionModelInterface<TBlob>{TBlob}"/>
     /// </summary>
     public static class IoPow<TBlob>
     {

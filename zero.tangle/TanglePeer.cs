@@ -17,6 +17,7 @@ using zero.core.patterns.bushes.contracts;
 using zero.interop.entangled;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
+using zero.tangle.entangled;
 using zero.tangle.models;
 using Logger = NLog.Logger;
 

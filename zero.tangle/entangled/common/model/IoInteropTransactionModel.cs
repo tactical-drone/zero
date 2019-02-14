@@ -1,16 +1,15 @@
 ﻿using System;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using NLog;
 using zero.core.models;
+using zero.interop.entangled;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
 
 // ReSharper disable InconsistentNaming
 
-namespace zero.interop.entangled.common.model.interop
+namespace zero.tangle.entangled.common.model
 {
     /// <summary>
     /// Implements a interop transaction model

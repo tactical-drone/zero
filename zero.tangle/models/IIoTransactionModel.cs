@@ -7,7 +7,7 @@ namespace zero.core.models
     /// <summary>
     /// The transaction model contract used throughout the system
     /// </summary>    
-    public interface IIoTransactionModel<TBlob>
+    public interface IIoTransactionModel<TBlob> : IIoTransactionModelInterface
     {
         [IgnoreDataMember]
         ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
