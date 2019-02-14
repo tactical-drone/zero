@@ -166,6 +166,8 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.Partition)
                         .Column(c => c.Hash)                        
                         .Column(c => c.Verifier)
+                        .Column(c => c.TrunkBranch)
+                        .Column(c => c.Balance)
                         .Column(c => c.Pow)
                         .Column(c => c.Timestamp)
                         .Column(c => c.SecondsToMilestone)

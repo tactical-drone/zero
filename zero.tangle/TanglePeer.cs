@@ -52,6 +52,10 @@ namespace zero.tangle
         /// </summary>
         public const int TcpReadAhead = 50;
 
+        public long MinMilestones = 2;
+
+        public long AveMilestoneSeconds = 44;
+
         /// <summary>
         /// Start processors for this neighbor
         /// </summary>
@@ -224,8 +228,8 @@ namespace zero.tangle
             //set transaction milestone estimate if the transaction newer than newest milestone seen
             if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp )
             {
-                transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 7;
-                transaction.SecondsToMilestone = 5 * 60; //TODO param
+                transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + MinMilestones;
+                transaction.SecondsToMilestone = MinMilestones * AveMilestoneSeconds;
             }
             else //look for a candidate milestone in storage for older transactions
             {
@@ -247,18 +251,21 @@ namespace zero.tangle
                         {
                             _logger.Trace($"Milestone not found: `{transaction.Timestamp}', t = `{stopwatch.ElapsedMilliseconds}ms'");                            
                         }
+                        return;
                     }
+
+                    var secondsToMilestone = (long)(relaxMilestone.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds;
+                    if (secondsToMilestone > MinMilestones * AveMilestoneSeconds)
+                    {
+                        transaction.MilestoneIndexEstimate = (relaxMilestone)?.GetMilestoneIndex() ?? 0;
+                        transaction.SecondsToMilestone = (long)(relaxMilestone.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds;
+                    }                    
                 }
                 catch (Exception e)
                 {
                     _logger.Trace($"Cannot find milestone for invalid date: `{transaction.Timestamp.DateTime()}'");                    
-                }
-                
-                transaction.MilestoneIndexEstimate = (relaxMilestone)?.GetMilestoneIndex()??0;
-
-                if(relaxMilestone != null)
-                    transaction.SecondsToMilestone = (long) (relaxMilestone.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds;
+                }                
             }            
-        }
+        }        
     }
 }

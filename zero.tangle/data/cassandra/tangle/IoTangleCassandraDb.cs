@@ -266,6 +266,8 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = tangleTransaction.Branch,
                 Pow = tangleTransaction.Pow,
                 Verifier = tangleTransaction.Hash,
+                TrunkBranch = tangleTransaction.Branch,
+                Balance = 0,
                 Timestamp = tangleTransaction.GetAttachmentTime(),
                 SecondsToMilestone = tangleTransaction.SecondsToMilestone,
                 MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate
@@ -277,6 +279,8 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = tangleTransaction.Trunk,
                 Pow = tangleTransaction.Pow,
                 Verifier = tangleTransaction.Hash,
+                TrunkBranch = tangleTransaction.Trunk,
+                Balance = 0,
                 Timestamp = tangleTransaction.GetAttachmentTime(),
                 SecondsToMilestone = tangleTransaction.SecondsToMilestone,
                 MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate
