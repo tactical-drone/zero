@@ -503,7 +503,7 @@ namespace zero.tangle.data.cassandra.tangle
         {
             var totalTime = Stopwatch.StartNew();
             var scanTime = Stopwatch.StartNew();
-            var milestoneLessTransactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TBlob>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.GetAttachmentTime()))).ToList();
+            var milestoneLessTransactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TBlob>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.GetAttachmentTime())));
             scanTime.Stop();
             var batch = new BatchStatement();
             batch.SetBatchType(BatchType.Unlogged);
@@ -513,12 +513,14 @@ namespace zero.tangle.data.cassandra.tangle
             var processedTx = 0;
             var loadedTx = 0;
 
-            if (milestoneLessTransactions.Count == 0)
+            var ioApprovedTransactions = milestoneLessTransactions?.ToList();
+            if (!ioApprovedTransactions?.Any()??true)
             {
                 _logger.Trace($"No transactions found to relax at milestone = `{milestoneTransaction.GetAttachmentTime().DateTime()}'");
+                return;
             }
 
-            foreach (var milestoneLessTransaction in milestoneLessTransactions)
+            foreach (var milestoneLessTransaction in ioApprovedTransactions)
             {
                 var timeDiff = (long) (milestoneTransaction.GetAttachmentTime().DateTime() -
                                        milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds;
@@ -536,7 +538,7 @@ namespace zero.tangle.data.cassandra.tangle
                     _approveePartitioner.GetPartition(milestoneLessTransaction.Timestamp), milestoneLessTransaction.Timestamp, milestoneLessTransaction.Hash));
 
 
-                if (batchSize++ > 50 || ++processedTx == milestoneLessTransactions.Count) //TODO param
+                if (batchSize++ > 50 || ++processedTx == ioApprovedTransactions.Count) //TODO param
                 {                    
                     var rows = await base.ExecuteAsync(batch);
                     loadedTx += batchSize;
