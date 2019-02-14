@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using zero.core.core;
 using zero.core.data.contracts;
@@ -13,8 +11,6 @@ using zero.core.misc;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.entangled;
@@ -119,8 +115,7 @@ namespace zero.tangle
         /// <param name="transactionArbiter">The arbiter</param>
         /// <returns></returns>
         private async Task LoadTransactionsAsync(IIoDataSource<RowSet> dataSource, IoConsumable<IoTangleTransaction<TBlob>> transactions, IoForward<IoTangleTransaction<TBlob>> transactionArbiter)
-        {
-            
+        {            
                 if (transactions == null)
                     return;
 
@@ -229,8 +224,8 @@ namespace zero.tangle
             //set transaction milestone estimate if the transaction newer than newest milestone seen
             if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp )
             {
-                transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 2;
-                transaction.SecondsToMilestone = (long)(node.LatestMilestoneTransaction.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds; //TODO param
+                transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + 7;
+                transaction.SecondsToMilestone = 5 * 60; //TODO param
             }
             else //look for a candidate milestone in storage for older transactions
             {

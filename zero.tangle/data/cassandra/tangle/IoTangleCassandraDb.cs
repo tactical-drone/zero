@@ -524,7 +524,7 @@ namespace zero.tangle.data.cassandra.tangle
             {
                 var timeDiff = (long) (milestoneTransaction.GetAttachmentTime().DateTime() -
                                        milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds;
-                if (timeDiff <= 0 || milestoneLessTransaction.SecondsToMilestone > 0 && milestoneLessTransaction.SecondsToMilestone < timeDiff)
+                if (timeDiff <= 0 || milestoneLessTransaction.SecondsToMilestone > 0 && milestoneLessTransaction.SecondsToMilestone < timeDiff + 5 * 60)
                 {
                     processedTx++;
                     continue;                    
