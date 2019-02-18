@@ -1,4 +1,5 @@
 ﻿using System.Runtime.Serialization;
+using System.Threading;
 using zero.core.data.providers.cassandra;
 
 namespace zero.tangle.data.cassandra.tangle.luts
@@ -17,14 +18,24 @@ namespace zero.tangle.data.cassandra.tangle.luts
         public sbyte Pow { get; set; }
         public long Timestamp { get; set; }
         public long SecondsToMilestone { get; set; }
-        public long MilestoneIndexEstimate { get; set; }
+
+        public long MilestoneIndexEstimate
+        {
+            get => Interlocked.Read(ref _milestoneIndexEstimate);
+            set => Volatile.Write(ref _milestoneIndexEstimate, value);
+        }
         public bool IsMilestone { get; set; }
-        public long Depth { get; set; }
+
+        public long Depth
+        {
+            get => Interlocked.Read(ref _depth);
+            set => Volatile.Write(ref _depth, value);
+        }
 
         //Graph walking variables
-        [IgnoreDataMember]
-        public bool Walked { get; set; }
-        [IgnoreDataMember]
-        public bool Loaded { get; set; }
+        [IgnoreDataMember] public volatile bool Walked;
+        [IgnoreDataMember] public volatile bool Loaded;
+        [IgnoreDataMember] private long _depth;
+        [IgnoreDataMember] private long _milestoneIndexEstimate;        
     }
 }
