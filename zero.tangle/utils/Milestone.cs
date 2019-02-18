@@ -249,7 +249,8 @@ namespace zero.tangle.utils
                 {
                     try
                     {
-                        Parallel.ForEach(transactions, _parallelOptions, transaction =>
+                        //Parallel.ForEach(transactions, _parallelOptions, transaction =>
+                        foreach (var transaction in transactions)                        
                         {
                             Interlocked.Increment(ref scans);
                             //if (transaction.MilestoneIndexEstimate < 1 || transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate)
@@ -275,7 +276,8 @@ namespace zero.tangle.utils
                                     }                                        
                                 }                                
                             }
-                        });
+                        }
+                        //);
                     }
                     catch (Exception e)
                     {
