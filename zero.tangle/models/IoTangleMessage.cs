@@ -28,7 +28,7 @@ namespace zero.tangle.models
     /// Specializes a generic <see cref="IoMessage{TProducer}"/> into a specific one for the tangle. This class contains details of how a message is to be 
     /// extracted from <see cref="IoMessage{TProducer}"/>
     /// </summary>
-    public sealed class IoTangleMessage<TBlob> : IoMessage<IoTangleMessage<TBlob>>        
+    public sealed class IoTangleMessage<TKey> : IoMessage<IoTangleMessage<TKey>>        
     {
         /// <summary>
         /// Constructs buffers that hold tangle message information
@@ -36,14 +36,14 @@ namespace zero.tangle.models
         /// <param name="jobDescription">A description of the job needed to do the work</param>
         /// <param name="workDescription">A description of the work that needs to be done</param>
         /// <param name="producer">The upstream producer where messages are coming from</param>
-        public IoTangleMessage(string jobDescription, string workDescription, IoProducer<IoTangleMessage<TBlob>> producer):base(jobDescription, workDescription, producer)
+        public IoTangleMessage(string jobDescription, string workDescription, IoProducer<IoTangleMessage<TKey>> producer):base(jobDescription, workDescription, producer)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _entangled = Entangled<TBlob>.Default;            
+            _entangled = Entangled<TKey>.Default;            
 
             //Set some tangle specific protocol constants
-            DatumSize = Codec.MessageSize + ((Producer is IoTcpClient<IoTangleMessage<TBlob>>) ? Codec.MessageCrcSize : 0);
+            DatumSize = Codec.MessageSize + ((Producer is IoTcpClient<IoTangleMessage<TKey>>) ? Codec.MessageCrcSize : 0);
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
@@ -54,14 +54,14 @@ namespace zero.tangle.models
             //forward to node services
             if (!Producer.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
-                _nodeServicesProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
+                _nodeServicesProxy = new IoTangleTransactionProducer<TKey>($"{nameof(_nodeServicesProxy)}", parm_forward_queue_length);
                 if (!Producer.ObjectStorage.TryAdd(nameof(_nodeServicesProxy), _nodeServicesProxy))
                 {
-                    _nodeServicesProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
+                    _nodeServicesProxy = (IoTangleTransactionProducer<TKey>)Producer.ObjectStorage[nameof(_nodeServicesProxy)];
                 }
             }
 
-            NodeServicesArbiter = producer.CreateDownstreamArbiter(nameof(IoNodeServices<TBlob>), _nodeServicesProxy, userData => new IoTangleTransaction<TBlob>(_nodeServicesProxy));            
+            NodeServicesArbiter = producer.GetDownstreamArbiter(nameof(IoNodeServices<TKey>), _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy));            
 
 
             NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0; 
@@ -70,14 +70,14 @@ namespace zero.tangle.models
             //forward to neighbor
             if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
             {
-                _neighborProxy = new IoTangleTransactionProducer<TBlob>($"{nameof(_neighborProxy)}", parm_forward_queue_length);
+                _neighborProxy = new IoTangleTransactionProducer<TKey>($"{nameof(_neighborProxy)}", parm_forward_queue_length);
                 if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
                 {
-                    _neighborProxy = (IoTangleTransactionProducer<TBlob>)Producer.ObjectStorage[nameof(_neighborProxy)];
+                    _neighborProxy = (IoTangleTransactionProducer<TKey>)Producer.ObjectStorage[nameof(_neighborProxy)];
                 }
             }
 
-            NeighborServicesArbiter = producer.CreateDownstreamArbiter(nameof(IoNeighbor<IoTangleTransaction<TBlob>>), _neighborProxy, userData => new IoTangleTransaction<TBlob>(_neighborProxy, -1 /*We block to control congestion*/));                        
+            NeighborServicesArbiter = producer.GetDownstreamArbiter(nameof(TanglePeer<IoTangleTransaction<TKey>>), _neighborProxy, userData => new IoTangleTransaction<TKey>(_neighborProxy, -1 /*We block to control congestion*/));                        
             NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborServicesArbiter.parm_producer_start_retry_time = 0;
         }
@@ -90,7 +90,7 @@ namespace zero.tangle.models
         /// <summary>
         /// The entangled libs
         /// </summary>
-        private readonly IIoEntangled<TBlob> _entangled;
+        private readonly IIoEntangled<TKey> _entangled;
 
         /// <summary>
         /// Used to store one datum's worth of decoded trits
@@ -110,22 +110,22 @@ namespace zero.tangle.models
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleTransactionProducer<TBlob> _nodeServicesProxy;
+        private static IoTangleTransactionProducer<TKey> _nodeServicesProxy;
 
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleTransactionProducer<TBlob> _neighborProxy;
+        private static IoTangleTransactionProducer<TKey> _neighborProxy;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TBlob>> NodeServicesArbiter;
+        public IoForward<IoTangleTransaction<TKey>> NodeServicesArbiter;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TBlob>> NeighborServicesArbiter;
+        public IoForward<IoTangleTransaction<TKey>> NeighborServicesArbiter;
 
         /// <summary>
         /// Crc checker
@@ -167,7 +167,7 @@ namespace zero.tangle.models
         /// </summary>
         private async Task<State> ProcessProtocolMessage() //TODO error cases
         {
-            var newInteropTransactions = new List<IIoTransactionModel<TBlob>>();
+            var newInteropTransactions = new List<IIoTransactionModel<TKey>>();
             var s = new Stopwatch();
             s.Start();
             
@@ -197,11 +197,11 @@ namespace zero.tangle.models
                             continue;
                         }
                             
-                        var interopTx = (IIoTransactionModel<TBlob>)_entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
+                        var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
                         interopTx.Uri = Producer.SourceUri;
 
                         //check for pow
-                        if (interopTx.Pow < TanglePeer<TBlob>.MWM && interopTx.Pow > -TanglePeer<TBlob>.MWM)
+                        if (interopTx.Pow < TanglePeer<TKey>.MWM && interopTx.Pow > -TanglePeer<TKey>.MWM)
                         {                                                           
                             ProcessState = State.NoPow;                            
 
@@ -211,7 +211,7 @@ namespace zero.tangle.models
                                 try
                                 {
                                     _logger.Trace($"Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
-                                                  $"imported = `{((IoTangleMessage<TBlob>)Previous).DatumFragmentLength}', " +
+                                                  $"imported = `{((IoTangleMessage<TKey>)Previous).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
                                                   $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
                                                   $"BytesLeftToProcess = `{BytesLeftToProcess}', " +
@@ -294,12 +294,12 @@ namespace zero.tangle.models
             return ProcessState;
         }
 
-        private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
             await _nodeServicesProxy.ProduceAsync(source =>
             {                
-                ((IoTangleTransactionProducer<TBlob>) source).TxQueue.TryAdd(newInteropTransactions);
+                ((IoTangleTransactionProducer<TKey>) source).TxQueue.TryAdd(newInteropTransactions);
                 return Task.FromResult(true);
             });
 
@@ -310,15 +310,15 @@ namespace zero.tangle.models
             }
         }
 
-        private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TBlob>> newInteropTransactions)
+        private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
             await _neighborProxy.ProduceAsync(source =>
             {
                 if (_neighborProxy.Arbiter.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.Add(newInteropTransactions);
+                    ((IoTangleTransactionProducer<TKey>)source).TxQueue.Add(newInteropTransactions);
                 else
-                    ((IoTangleTransactionProducer<TBlob>)source).TxQueue.TryAdd(newInteropTransactions);
+                    ((IoTangleTransactionProducer<TKey>)source).TxQueue.TryAdd(newInteropTransactions);
 
                 return Task.FromResult(true);
             });
@@ -433,7 +433,7 @@ namespace zero.tangle.models
         {
             if (Previous?.StillHasUnprocessedFragments ?? false)
             {
-                var previousJobFragment = (IoMessage<IoTangleMessage<TBlob>>)Previous;
+                var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)Previous;
                 try
                 {
                     var bytesToTransfer = Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
@@ -551,7 +551,7 @@ namespace zero.tangle.models
                                             break;
                                         }
 
-                                        if (Id == 0 && Producer is IoTcpClient<IoTangleMessage<TBlob>>)
+                                        if (Id == 0 && Producer is IoTcpClient<IoTangleMessage<TKey>>)
                                         {                                                                  
                                             _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                             BufferOffset += 10;

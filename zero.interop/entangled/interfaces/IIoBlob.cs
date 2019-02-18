@@ -6,6 +6,6 @@ namespace zero.interop.entangled.interfaces
 {
     public interface IIoBlob
     {
-        ReadOnlyMemory<byte> Blob { get; set; }
+        ReadOnlyMemory<byte> key { get; set; }
     }
 }

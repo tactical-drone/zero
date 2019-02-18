@@ -5,12 +5,12 @@ using zero.core.data.providers.cassandra;
 
 namespace zero.tangle.data.cassandra.tangle.luts
 {
-    public class IoMilestoneTransaction<TBlob> : IoCassandraPartitionedLut
+    public class IoMilestoneTransaction<TKey> : IoCassandraPartitionedLut
     {
         public override long PartitionSize => 600000;
-        public TBlob Hash { get; set; }
-        public TBlob Bundle { get; set; }
-        public TBlob ObsoleteTag { get; set; }
+        public TKey Hash { get; set; }
+        public TKey Bundle { get; set; }
+        public TKey ObsoleteTag { get; set; }
         public long Timestamp { get; set; }        
         public long MilestoneIndex { get; set; }
     }

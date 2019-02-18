@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -8,6 +9,7 @@ using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.tangle.data.redis.configurations.tangle;
+using zero.tangle.utils;
 
 namespace zero.tangle
 {
@@ -15,21 +17,26 @@ namespace zero.tangle
     /// Tangle Node type
     /// </summary>
     /// <typeparam name="TJob">Message job types</typeparam>
-    /// <typeparam name="TBlob">Type of the blob field</typeparam>
-    public class TangleNode<TJob,TBlob>:IoNode<TJob> 
+    /// <typeparam name="TKey">Type of the key field</typeparam>
+    public class TangleNode<TJob,TKey>:IoNode<TJob> 
         where TJob : IIoWorker
     {        
         public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            _logger = LogManager.GetCurrentClassLogger();            
+            Milestones = new Milestone<TKey>(Spinners.Token);
         }
 
         private readonly Logger _logger;
 
+        private readonly CancellationTokenSource Spinners = new CancellationTokenSource();
+
         /// <summary>
         /// The latest milestone seen
         /// </summary>
-        public IIoTransactionModel<TBlob> LatestMilestoneTransaction { get; set; }
+        public IIoTransactionModel<TKey> LatestMilestoneTransaction { get; set; }
+
+        public Milestone<TKey> Milestones { get; protected set; }
 
         [IoParameter]
         public string parm_coo_address = "KPWCHICGJZXKE9GSUDXZYUAPLHAKAHYHDXNPHENTERYMMBQOPSQIDENXKLKCEYCPVTZQLEEJVYJZV9BWU";
@@ -38,11 +45,11 @@ namespace zero.tangle
         /// Start listener and connect back to any new connections
         /// </summary>
         /// <returns>Task</returns>
-        protected override Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
+        protected override async Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
         {            
             //PeerConnected += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
 
-            return base.SpawnListenerAsync(async ioNeighbor =>
+            await base.SpawnListenerAsync(async ioNeighbor =>
             {
                 await ConnectBackAsync(ioNeighbor);
 

@@ -13,7 +13,7 @@ using zero.interop.utils;
 namespace zero.tangle.entangled.common.model.native
 {
     /// <summary>
-    /// A native C# model decoder used for mocking <see cref="IIoModelDecoder{TBlob}"/>
+    /// A native C# model decoder used for mocking <see cref="IIoModelDecoder{TKey}"/>
     /// </summary>
     internal class TangleNetDecoder : IIoModelDecoder<string>
     {
@@ -77,7 +77,7 @@ namespace zero.tangle.entangled.common.model.native
             Entangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);
 
             var proposedHash = new Hash(Encoding.ASCII.GetString((byte[])(Array)tryteHashByteBuffer)).Value;
-            IoPow<string>.Compute((IIoTransactionModel<string>) interopTransaction, Encoding.UTF8.GetString(interopTransaction.HashBuffer.Span) , proposedHash);
+            Pow<string>.Compute((IIoTransactionModel<string>) interopTransaction, Encoding.UTF8.GetString(interopTransaction.HashBuffer.Span) , proposedHash);
 
             return interopTransaction;            
         }

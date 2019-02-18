@@ -6,8 +6,8 @@ using zero.interop.entangled.interfaces;
 
 namespace zero.interop.entangled.common.model.interop
 {
-    public class IoInteropBlob : IIoBlob
+    public class IoInteropkey : IIoBlob
     {
-        public ReadOnlyMemory<byte> Blob { get; set; }
+        public ReadOnlyMemory<byte> key { get; set; }
     }
 }

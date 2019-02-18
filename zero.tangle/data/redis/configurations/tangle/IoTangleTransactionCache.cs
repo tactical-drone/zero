@@ -13,16 +13,16 @@ using zero.tangle.entangled.common.model;
 
 namespace zero.tangle.data.redis.configurations.tangle
 {
-    public class IoTangleTransactionCache<TBlob>: IoRedisBase, IIoDataSource<bool>    
+    public class IoTangleTransactionCache<TKey>: IoRedisBase, IIoDataSource<bool>    
     {
 
-        private static volatile IoTangleTransactionCache<TBlob> _default = new IoTangleTransactionCache<TBlob>();
+        private static volatile IoTangleTransactionCache<TKey> _default = new IoTangleTransactionCache<TKey>();
         /// <summary>
         /// Returns single connection
         /// </summary>
         /// <returns></returns>
 
-        public static async Task<IoTangleTransactionCache<TBlob>> Default()
+        public static async Task<IoTangleTransactionCache<TKey>> Default()
         {
             if(!_default.IsConnected)            
                 await _default.ConnectAsync(new []{IoNodeAddress.Create("tcp://10.0.75.1:6379") }.ToList()); //TODO config
@@ -38,11 +38,11 @@ namespace zero.tangle.data.redis.configurations.tangle
         public Task<bool> PutAsync<TTransaction>(TTransaction transaction, object userData = null)
             where TTransaction : class, IIoTransactionModelInterface
         {
-            var tangleTransaction = (IIoTransactionModel<TBlob>) transaction;
+            var tangleTransaction = (IIoTransactionModel<TKey>) transaction;
             return _db.StringSetAsync(Encoding.UTF8.GetString(tangleTransaction.HashBuffer.Span), tangleTransaction.AsBlob().AsArray());
         }
 
-        public async Task<TTransaction> GetAsync<TTransaction,TBlobF>(TBlobF key)
+        public async Task<TTransaction> GetAsync<TTransaction,TKeyF>(TKeyF key)
             where TTransaction : class, IIoTransactionModelInterface
         {
             RedisValue val;
@@ -61,7 +61,7 @@ namespace zero.tangle.data.redis.configurations.tangle
             } as TTransaction;
         }
 
-        public Task<bool> TransactionExistsAsync<TBlob>(TBlob key)
+        public Task<bool> TransactionExistsAsync<TKeyF>(TKeyF key)
         {
             throw new NotImplementedException();
         }

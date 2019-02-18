@@ -11,11 +11,11 @@ using zero.tangle.entangled.common.model.native;
 namespace zero.tangle.entangled
 {
     /// <summary>
-    /// Implements contract <see cref="IIoEntangled{TBlob}"/> depending on whether we are running in <see cref="Optimized"/> mode or not.
+    /// Implements contract <see cref="IIoEntangled{TKey}"/> depending on whether we are running in <see cref="Optimized"/> mode or not.
     /// If we are not running optimized Tangle.net is used to mock interop functionality.
     /// </summary>
-    /// <typeparam name="TBlob"></typeparam>
-    public class Entangled<TBlob> : IIoEntangled<TBlob>
+    /// <typeparam name="TKey"></typeparam>
+    public class Entangled<TKey> : IIoEntangled<TKey>
     {
         static Entangled()
         {
@@ -23,11 +23,11 @@ namespace zero.tangle.entangled
         }
 
         private static Logger _logger;
-        private static IIoEntangled<TBlob> _default;
+        private static IIoEntangled<TKey> _default;
 
         public static bool Optimized => Environment.OSVersion.Platform == PlatformID.Unix;
 
-        public static IIoEntangled<TBlob> Default
+        public static IIoEntangled<TKey> Default
         {
             get
             {
@@ -40,18 +40,18 @@ namespace zero.tangle.entangled
                     var rootFolder = AppContext.BaseDirectory;
                     if (File.Exists(Path.Combine(rootFolder, "libinterop.so")))
                     {
-                        _default = (IIoEntangled<TBlob>) new EntangledInterop();
+                        _default = (IIoEntangled<TKey>) new EntangledInterop();
                         _logger.Info("Using entangled interop!");
                     }
                     else
                     {
                         _logger.Warn($"`{Path.Combine(rootFolder, "libinterop.so")}' not found, falling back to native decoders");
-                        _default = new Entangled<TBlob>();
+                        _default = new Entangled<TKey>();
                     }
                 }
                 else //fallback to Tangle.Net
                 {                    
-                    _default = new Entangled<TBlob>();
+                    _default = new Entangled<TKey>();
                     _logger.Warn("Interop with entangled is not supported in windows, falling back to native decoders");
                 }
 
@@ -60,6 +60,6 @@ namespace zero.tangle.entangled
         } 
 
         public IIoTrinary Ternary { get; } = new IoNativeTrinary();
-        public IIoModelDecoder<TBlob> ModelDecoder { get; } = (IIoModelDecoder<TBlob>) new TangleNetDecoder();
+        public IIoModelDecoder<TKey> ModelDecoder { get; } = (IIoModelDecoder<TKey>) new TangleNetDecoder();
     }
 }

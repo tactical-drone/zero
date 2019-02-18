@@ -168,7 +168,7 @@ namespace zero.core.patterns.bushes
         /// <param name="producer">The producer of the source arbiter</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        public abstract IoForward<TFJob> CreateDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> jobMalloc = null) 
+        public abstract IoForward<TFJob> GetDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> jobMalloc = null) 
             where TFJob : IoConsumable<TFJob>, IIoWorker;
 
         /// <summary>

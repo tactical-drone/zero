@@ -17,7 +17,7 @@ namespace zero.interop.entangled.common.model.interop
             {
                 IoTransaction.transaction_deserialize_from_trits(out var memMap, flexTrits);
 
-                return transform(memMap);                                
+                return transform(memMap);               
             }
         }
     }

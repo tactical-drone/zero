@@ -7,19 +7,19 @@ namespace zero.core.models
     /// <summary>
     /// The transaction model contract used throughout the system
     /// </summary>    
-    public interface IIoTransactionModel<TBlob> : IIoTransactionModelInterface
+    public interface IIoTransactionModel<TKey> : IIoTransactionModelInterface
     {
         [IgnoreDataMember]
         ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
 
         [DataMember]
-        TBlob SignatureOrMessage { get; set; }
+        TKey SignatureOrMessage { get; set; }
 
         [IgnoreDataMember]
         ReadOnlyMemory<byte> AddressBuffer { get; set; }
 
         [DataMember]
-        TBlob Address { get; set; }
+        TKey Address { get; set; }
 
         [DataMember]
         long Value { get; set; }
@@ -28,7 +28,7 @@ namespace zero.core.models
         ReadOnlyMemory<byte> ObsoleteTagBuffer { get; set; }
 
         [DataMember]
-        TBlob ObsoleteTag { get; set; }
+        TKey ObsoleteTag { get; set; }
 
         [DataMember]
         long Timestamp { get; set; }
@@ -43,25 +43,25 @@ namespace zero.core.models
         ReadOnlyMemory<byte> BundleBuffer { get; set; }
 
         [DataMember]
-        TBlob Bundle { get; set; }
+        TKey Bundle { get; set; }
     
         [IgnoreDataMember]
         ReadOnlyMemory<byte> TrunkBuffer { get; set; }
 
         [DataMember]
-        TBlob Trunk { get; set; }
+        TKey Trunk { get; set; }
 
         [IgnoreDataMember]
         ReadOnlyMemory<byte> BranchBuffer { get; set; }
 
         [DataMember]
-        TBlob Branch { get; set; }
+        TKey Branch { get; set; }
 
         [IgnoreDataMember]
         ReadOnlyMemory<byte> TagBuffer { get; set; }
 
         [DataMember]
-        TBlob Tag { get; set; }
+        TKey Tag { get; set; }
 
         [DataMember]
         long AttachmentTimestamp { get; set; }
@@ -76,16 +76,16 @@ namespace zero.core.models
         ReadOnlyMemory<byte> NonceBuffer { get; set; }
 
         [DataMember]
-        TBlob Nonce { get; set; }
+        TKey Nonce { get; set; }
     
         [IgnoreDataMember]
         ReadOnlyMemory<byte> HashBuffer { get; set; }
 
         [DataMember]
-        TBlob Hash { get; set; }
+        TKey Hash { get; set; }
 
         [DataMember]
-        TBlob Snapshot { get; set; }
+        TKey Snapshot { get; set; }
 
         [DataMember]
         long MilestoneIndexEstimate { get; set; }
@@ -115,7 +115,7 @@ namespace zero.core.models
         long SecondsToMilestone { get; set; }
 
         [IgnoreDataMember]
-        IIoTransactionModel<TBlob> MilestoneEstimateTransaction { get; set; }
+        IIoTransactionModel<TKey> MilestoneEstimateTransaction { get; set; }
         
         string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
     

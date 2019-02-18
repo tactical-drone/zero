@@ -71,7 +71,7 @@ namespace zero.core.network.ip
         /// <param name="producer">The downstream producer</param>
         /// <param name="jobMalloc">Allocates jobs</param>
         /// <returns><see cref="IoForward{TJob}"/> worker</returns>
-        public override IoForward<TFJob> CreateDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
+        public override IoForward<TFJob> GetDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
             if (!IoForward.ContainsKey(id))

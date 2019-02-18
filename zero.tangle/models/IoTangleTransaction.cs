@@ -11,14 +11,14 @@ namespace zero.tangle.models
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleTransaction<TBlob> : IoConsumable<IoTangleTransaction<TBlob>> 
+    public class IoTangleTransaction<TKey> : IoConsumable<IoTangleTransaction<TKey>> 
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTangleTransaction{TBlob}"/> class.
+        /// Initializes a new instance of the <see cref="IoTangleTransaction{TKey}"/> class.
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
         /// <param name="waitForConsumerTimeout">The time we wait for the producer before reporting it</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TBlob>> source, int waitForConsumerTimeout = 0) : base("forward", $"tangle transaction from: `{source.Description}'", source)
+        public IoTangleTransaction(IoProducer<IoTangleTransaction<TKey>> source, int waitForConsumerTimeout = 0) : base("forward", $"tangle transaction from: `{source.Description}'", source)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;            
             _logger = LogManager.GetCurrentClassLogger();            
@@ -29,7 +29,7 @@ namespace zero.tangle.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IIoTransactionModel<TBlob>> Transactions;
+        public List<IIoTransactionModel<TKey>> Transactions;
 
         /// <summary>
         /// How long to wait the consumer before logging it
@@ -65,7 +65,7 @@ namespace zero.tangle.models
                     return false;
                 }
                 
-                Transactions = ((IoTangleTransactionProducer<TBlob>)Producer).TxQueue.Take();
+                Transactions = ((IoTangleTransactionProducer<TKey>)Producer).TxQueue.Take();
 
                 ProcessState = State.Produced;
 

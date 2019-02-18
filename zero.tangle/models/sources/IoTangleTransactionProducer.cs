@@ -11,18 +11,18 @@ using zero.interop.entangled.common.model.interop;
 namespace zero.tangle.models.sources
 {
     /// <summary>
-    /// A producer that serves <see cref="IoTangleTransaction{TBlob}"/>
+    /// A producer that serves <see cref="IoTangleTransaction{TKey}"/>
     /// </summary>
     /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
     /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransactionProducer<TBlob> : IoProducer<IoTangleTransaction<TBlob>>, IIoProducer 
+    public sealed class IoTangleTransactionProducer<TKey> : IoProducer<IoTangleTransaction<TKey>>, IIoProducer 
     {
         public IoTangleTransactionProducer(string destDescription, int bufferSize):base(bufferSize)//TODO config
         {
             //Saves forwarding producer, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
             _destDescription = destDescription;
-            TxQueue = new BlockingCollection<List<IIoTransactionModel<TBlob>>>(bufferSize);
+            TxQueue = new BlockingCollection<List<IIoTransactionModel<TKey>>>(bufferSize);
         }
 
         /// <summary>
@@ -33,7 +33,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public BlockingCollection<List<IIoTransactionModel<TBlob>>> TxQueue;
+        public BlockingCollection<List<IIoTransactionModel<TKey>>> TxQueue;
 
         /// <summary>
         /// Describe the destination producer
@@ -48,7 +48,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Produce {nameof(IoTangleTransaction<TBlob>)}: `{Upstream.Description}' -> `{_destDescription}'";
+        public override string Description => $"Produce {nameof(IoTangleTransaction<TKey>)}: `{Upstream.Description}' -> `{_destDescription}'";
 
         /// <summary>
         /// The original source URI
@@ -64,7 +64,7 @@ namespace zero.tangle.models.sources
         public override bool IsOperational => Upstream.IsOperational;        
 
         /// <inheritdoc />        
-        public override IoForward<TFJob> CreateDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
+        public override IoForward<TFJob> GetDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
             throw new NotImplementedException();
@@ -115,7 +115,7 @@ namespace zero.tangle.models.sources
             Upstream = producer;            
         }
 
-        public override void SetArbiter(IoProducerConsumer<IoTangleTransaction<TBlob>> arbiter)
+        public override void SetArbiter(IoProducerConsumer<IoTangleTransaction<TKey>> arbiter)
         {
             Arbiter = arbiter;
         }

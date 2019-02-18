@@ -29,16 +29,16 @@ namespace zero.core.data.contracts
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        Task<TTransaction> GetAsync<TTransaction, TBlobF>(TBlobF key)
+        Task<TTransaction> GetAsync<TTransaction, TKeyF>(TKeyF key)
             where TTransaction : class, IIoTransactionModelInterface;
 
         /// <summary>
         /// Checks if a transaction has been loaded.
         /// </summary>
-        /// <typeparam name="TBlob"></typeparam>
+        /// <typeparam name="TKey"></typeparam>
         /// <param name="key"></param>
         /// <returns></returns>
-        Task<bool> TransactionExistsAsync<TBlob>(TBlob key);
+        Task<bool> TransactionExistsAsync<TKey>(TKey key);
         
         /// <summary>
         /// Execute a batch

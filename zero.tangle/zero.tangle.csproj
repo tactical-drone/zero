@@ -8,7 +8,6 @@
     <Folder Include="data\redis\" />
     <Folder Include="entangled\common\model\native\" />
     <Folder Include="models\" />
-    <Folder Include="utils\" />
   </ItemGroup>
 
   <ItemGroup>

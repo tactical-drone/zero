@@ -19,8 +19,8 @@ namespace zero.core.data.providers.cassandra
     /// <summary>
     /// Based to support different transaction models
     /// </summary>
-    /// <typeparam name="TBlob">Blob type</typeparam>
-    public abstract class IoCassandraBase<TBlob> : IoConfigurable
+    /// <typeparam name="TKey">key type</typeparam>
+    public abstract class IoCassandraBase<TKey> : IoConfigurable
     {
         protected IoCassandraBase(IIoCassandraKeySpace keySpaceConfiguration)
         {

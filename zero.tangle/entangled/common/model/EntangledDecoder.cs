@@ -63,7 +63,7 @@ namespace zero.tangle.entangled.common.model
                 };
 
                 //Check pow
-                IoPow<byte[]>.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
+                Pow<byte[]>.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
 
                 interopTransaction.HashBuffer = IoMarshalledTransaction.Trim(memMap.hash);
 
