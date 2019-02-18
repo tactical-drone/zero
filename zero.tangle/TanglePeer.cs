@@ -100,7 +100,7 @@ namespace zero.tangle
                             await LoadTransactionsAsync(transaction, dataSource, batch, transactionArbiter);
 #pragma warning disable 4014
                             if(transaction.IsMilestoneTransaction)
-                                ((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones);
+                                Task.Factory.StartNew(()=>((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones),TaskCreationOptions.LongRunning);
 #pragma warning restore 4014
                         });
                     }
