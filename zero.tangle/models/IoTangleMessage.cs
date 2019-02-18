@@ -250,7 +250,7 @@ namespace zero.tangle.models
                             {
                                 stopwatch.Stop();
                                 ProcessState = State.FastDup;                                
-                                _logger.Trace($"({Id}) Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                //_logger.Trace($"({Id}) Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
                         }

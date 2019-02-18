@@ -9,10 +9,13 @@ namespace zero.core.misc
     {        
         public static DateTimeOffset DateTime(this long timestamp)
         {
-            if (timestamp <= 253402300799)
+            if (timestamp <= 253402300799 && timestamp >= -62135596800)
                 return DateTimeOffset.FromUnixTimeSeconds(timestamp);
             else
-                return DateTimeOffset.FromUnixTimeMilliseconds(timestamp);
+            {                
+                return DateTimeOffset.FromUnixTimeMilliseconds(timestamp);                
+            }
+                
         }
 
         public static long NormalizeDateTime(this long timestamp)

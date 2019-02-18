@@ -80,6 +80,7 @@ namespace zero.tangle.utils
                         if (transaction.IsMilestone)
                         {
                             currentMilestone = transaction;
+                            depth = 0;
                         }
 
                         //walk the tree
@@ -151,7 +152,7 @@ namespace zero.tangle.utils
                 }
                 else
                 {
-                    _logger.Warn($"Unable to load nearest milestone for t = `{((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds()}'");
+                    //_logger.Trace($"Unable to load nearest milestone for t = `{((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds()}'");
                 }
             }
 
@@ -174,16 +175,18 @@ namespace zero.tangle.utils
                 try
                 {
                     if (relaxMilestone != null)
-                        _logger.Trace($"Attached milestone: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                    {
+                        //_logger.Trace($"Attached milestone: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                    }                        
                     else
                     {
                         try
                         {
-                            _logger.Trace($"Milestone not found: `{transaction.Timestamp}' = `{transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                            //_logger.Trace($"Milestone not found: `{transaction.Timestamp}' = `{transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
                         }
                         catch
                         {
-                            _logger.Trace($"Milestone not found: `{transaction.Timestamp}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                            //_logger.Trace($"Milestone not found: `{transaction.Timestamp}', t = `{stopwatch.ElapsedMilliseconds}ms'");
                         }
                         return;
                     }
