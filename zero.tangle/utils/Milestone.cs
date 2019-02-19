@@ -53,7 +53,10 @@ namespace zero.tangle.utils
         /// </summary>
         protected long AveMilestoneSeconds { get; set; } = 120;
 
-        private readonly Poisson _yield = new Poisson(0.1);
+        /// <summary>
+        /// Countermeasures for worst case scenarios
+        /// </summary>
+        private readonly Poisson _yield = new Poisson(1.0/ Environment.ProcessorCount);
 
         /// <summary>
         /// Walks a tree of <see cref="IoApprovedTransaction{TKey}"/> executing <paramref name="relaxTransaction"/> if needed
