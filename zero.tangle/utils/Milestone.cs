@@ -56,7 +56,7 @@ namespace zero.tangle.utils
         /// <summary>
         /// Countermeasures for worst case scenarios
         /// </summary>
-        private readonly Poisson _yield = new Poisson(1.0/ Environment.ProcessorCount);
+        private readonly Poisson _yield = new Poisson(1.0/ Math.Min(Environment.ProcessorCount, 2));
 
         /// <summary>
         /// Walks a tree of <see cref="IoApprovedTransaction{TKey}"/> executing <paramref name="relaxTransaction"/> if needed
