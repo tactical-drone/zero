@@ -79,7 +79,7 @@ namespace zero.tangle.utils
         private void Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, ConcurrentBag<IoApprovedTransaction<TKey>> transactions, IoApprovedTransaction<TKey> currentMilestone,
             Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long> relaxTransaction, long depth = 0)
         {
-            Parallel.ForEach(transactions, depth == 0? _parallelNone:_parallelOptions, transaction =>
+            Parallel.ForEach(transactions, depth == 0? _parallelOptions:_parallelNone, transaction =>
             {
                 var locked = true;
                 try
