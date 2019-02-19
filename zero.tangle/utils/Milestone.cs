@@ -55,7 +55,7 @@ namespace zero.tangle.utils
         /// <summary>
         /// All new transactions guess this milestone offset from current should confirm them //TODO what is this should?
         /// </summary>
-        protected long InitialMilestoneDepthEstimate { get; set; } = 5;
+        protected long InitialMilestoneDepthEstimate { get; set; } = 10;
 
         /// <summary>
         /// The expected time between issued milestone //TODO adjust from data
@@ -76,12 +76,13 @@ namespace zero.tangle.utils
         /// <param name="currentMilestone">Current milestone</param>
         /// <param name="relaxTransaction">The relax step</param>
         /// <param name="depth">The current depth</param>
-        private void Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, ConcurrentBag<IoApprovedTransaction<TKey>> transactions, IoApprovedTransaction<TKey> currentMilestone,
-            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long> relaxTransaction, long depth = 0)
+        private long Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, ConcurrentBag<IoApprovedTransaction<TKey>> transactions, IoApprovedTransaction<TKey> currentMilestone,
+            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long> relaxTransaction, long stackDepth = 0, long depth = 0)
         {
             Parallel.ForEach(transactions, depth == 0? _parallelOptions:_parallelNone, transaction =>
             {
                 var locked = true;
+                var currentDepth = depth;
                 try
                 {                    
                     if(_yield.Sample() > 0)
@@ -100,17 +101,16 @@ namespace zero.tangle.utils
                         if (transaction.IsMilestone)
                         {
                             nextMilestone = transaction;
-                            depth = 0;
+                            currentDepth = 0;
                         }
 
                         //walk the tree
                         if (tree.TryGetValue(transaction.Hash, out var children))
                         {
                             if (children.Any())
-                            {
-                                depth++;
-                                relaxTransaction(children, nextMilestone, depth);
-                                Walker(tree, children, nextMilestone, relaxTransaction, depth);
+                            {                                         
+                                relaxTransaction(children, nextMilestone, currentDepth + 1);
+                                stackDepth = Math.Max((int)Walker(tree, children, nextMilestone, relaxTransaction, stackDepth + 1, currentDepth + 1), stackDepth);
                             }
                         }                                                
                     }
@@ -125,6 +125,8 @@ namespace zero.tangle.utils
                         Monitor.Exit(transaction);
                 }
             });
+
+            return stackDepth;
         }
 
         /// <summary>
@@ -262,11 +264,11 @@ namespace zero.tangle.utils
 
             long loads = 0;
             long scans = 0;
-
+            long totalStack = 0;
             //Relax transaction milestones
             if (tree.ContainsKey(rootMilestone.Hash))
             {
-                Walker(tree, tree[rootMilestone.Hash], tree[rootMilestone.Hash].First(),
+                totalStack = Walker(tree, tree[rootMilestone.Hash], tree[rootMilestone.Hash].First(),
   (transactions, currentMilestone, depth) =>
                 {
                     try
@@ -310,7 +312,7 @@ namespace zero.tangle.utils
 
             stopwatch.Stop();
 
-            _logger.Debug($"Relax transaction milestones: t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D}/sps");
+            _logger.Debug($"Relax transaction milestones: s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D}/sps");
 
             return relaxedTransactions;
         }
