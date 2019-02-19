@@ -94,11 +94,12 @@ namespace zero.tangle.utils
                     {
                         Monitor.Exit(transaction);
                         locked = false;
-                                                
+
+                        var nextMilestone = currentMilestone;
                         //set your milestone
                         if (transaction.IsMilestone)
                         {
-                            currentMilestone = transaction;
+                            nextMilestone = transaction;
                             depth = 0;
                         }
 
@@ -108,8 +109,8 @@ namespace zero.tangle.utils
                             if (children.Any())
                             {
                                 depth++;
-                                relaxTransaction(children, currentMilestone, depth);
-                                Walker(tree, children, currentMilestone, relaxTransaction, depth);
+                                relaxTransaction(children, nextMilestone, depth);
+                                Walker(tree, children, nextMilestone, relaxTransaction, depth);
                             }
                         }                                                
                     }
