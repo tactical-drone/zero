@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MathNet.Numerics.Distributions;
 using NLog;
 using zero.core.misc;
 using zero.core.models;
@@ -52,6 +53,8 @@ namespace zero.tangle.utils
         /// </summary>
         protected long AveMilestoneSeconds { get; set; } = 120;
 
+        private readonly Poisson _yield = new Poisson(0.1);
+
         /// <summary>
         /// Walks a tree of <see cref="IoApprovedTransaction{TKey}"/> executing <paramref name="relaxTransaction"/> if needed
         /// </summary>
@@ -67,7 +70,10 @@ namespace zero.tangle.utils
             {
                 var locked = true;
                 try
-                {
+                {                    
+                    if(_yield.Sample() > 0)
+                        Thread.Sleep(_yield.Sample());
+
                     Monitor.Enter(transaction);
                     if (transaction.Walked == false && (transaction.Walked = true) ||
                         transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate
@@ -75,7 +81,7 @@ namespace zero.tangle.utils
                     {
                         Monitor.Exit(transaction);
                         locked = false;
-                        
+                                                
                         //set your milestone
                         if (transaction.IsMilestone)
                         {
@@ -245,45 +251,49 @@ namespace zero.tangle.utils
 
             //Relax transaction milestones
             if (tree.ContainsKey(rootMilestone.Hash))
-                Walker(tree, tree[rootMilestone.Hash], tree[rootMilestone.Hash].First(), (transactions, currentMilestone, depth) =>
+            {
+                Walker(tree, tree[rootMilestone.Hash], tree[rootMilestone.Hash].First(),
+  (transactions, currentMilestone, depth) =>
                 {
                     try
                     {
-                        //Parallel.ForEach(transactions, _parallelOptions, transaction =>
-                        foreach (var transaction in transactions)                        
+                        foreach (var transaction in transactions)
                         {
                             Interlocked.Increment(ref scans);
-                            //if (transaction.MilestoneIndexEstimate < 1 || transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate)
-                            {                                
+                            {
                                 lock (transaction)
-                                {                                    
+                                {
                                     if (transaction.Depth > depth) //TODO Do we want shortest path?
                                     {
                                         if (!transaction.IsMilestone)
                                         {
-                                            transaction.MilestoneIndexEstimate = currentMilestone.MilestoneIndexEstimate;
+                                            transaction.MilestoneIndexEstimate =
+                                                currentMilestone.MilestoneIndexEstimate;
                                         }
 
-                                        transaction.SecondsToMilestone = (long)(currentMilestone.Timestamp.DateTime() - transaction.Timestamp.DateTime()).TotalSeconds;
+                                        transaction.SecondsToMilestone =
+                                            (long) (currentMilestone.Timestamp.DateTime() -
+                                                    transaction.Timestamp.DateTime()).TotalSeconds;
                                         transaction.Depth = depth;
 
                                         Interlocked.Increment(ref loads);
                                         if (!transaction.Loaded)
                                         {
                                             relaxedTransactions.Add(transaction);
-                                            transaction.Loaded = true;                                            
-                                        }                                        
-                                    }                                        
-                                }                                
+                                            transaction.Loaded = true;
+                                        }
+                                    }
+                                }
                             }
                         }
-                        //);
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e,"Walker relax: ");
-                    }                    
+                        _logger.Error(e, "Walker relax: ");
+                    }
                 });
+            }
+
             stopwatch.Stop();
 
             _logger.Debug($"Relax transaction milestones: t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D}/sps");
