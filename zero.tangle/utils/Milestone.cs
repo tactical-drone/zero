@@ -32,6 +32,13 @@ namespace zero.tangle.utils
                 MaxDegreeOfParallelism = degree,
                 CancellationToken = cancel
             };
+
+            _parallelNone = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 1,
+                CancellationToken = cancel
+            };
+
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -42,6 +49,8 @@ namespace zero.tangle.utils
 
         //Parallel options
         private readonly ParallelOptions _parallelOptions;
+
+        private readonly ParallelOptions _parallelNone;
 
         /// <summary>
         /// All new transactions guess this milestone offset from current should confirm them //TODO what is this should?
@@ -56,7 +65,8 @@ namespace zero.tangle.utils
         /// <summary>
         /// Countermeasures for worst case scenarios
         /// </summary>
-        private readonly Poisson _yield = new Poisson(1.0/ Math.Min(Environment.ProcessorCount, 2));
+        private readonly Poisson _yield = new Poisson(1.0/ (Math.Min(Environment.ProcessorCount, 2) * 16));
+        //private readonly Poisson _yield = new Poisson(1.0 / 32.0);
 
         /// <summary>
         /// Walks a tree of <see cref="IoApprovedTransaction{TKey}"/> executing <paramref name="relaxTransaction"/> if needed
@@ -69,7 +79,7 @@ namespace zero.tangle.utils
         private void Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, ConcurrentBag<IoApprovedTransaction<TKey>> transactions, IoApprovedTransaction<TKey> currentMilestone,
             Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long> relaxTransaction, long depth = 0)
         {
-            Parallel.ForEach(transactions, _parallelOptions, transaction =>
+            Parallel.ForEach(transactions, depth == 0? _parallelNone:_parallelOptions, transaction =>
             {
                 var locked = true;
                 try
