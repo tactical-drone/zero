@@ -273,13 +273,13 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = tangleTransaction.Branch,
                 Pow = tangleTransaction.Pow,
                 Verifier = tangleTransaction.Hash,
-                TrunkBranch = tangleTransaction.Branch,
+                TrunkBranch = tangleTransaction.Trunk,
                 Balance = 0,
                 Timestamp = tangleTransaction.GetAttachmentTime(),
                 SecondsToMilestone = tangleTransaction.SecondsToMilestone,
                 MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate,
                 IsMilestone = tangleTransaction.IsMilestoneTransaction,
-                Depth = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue
+                Depth = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue                
             };
 
             var verifiedTrunkTransaction = new IoApprovedTransaction<TKey>
@@ -288,13 +288,13 @@ namespace zero.tangle.data.cassandra.tangle
                 Hash = tangleTransaction.Trunk,
                 Pow = tangleTransaction.Pow,
                 Verifier = tangleTransaction.Hash,
-                TrunkBranch = tangleTransaction.Trunk,
+                TrunkBranch = tangleTransaction.Branch,
                 Balance = 0,
                 Timestamp = tangleTransaction.GetAttachmentTime(),
                 SecondsToMilestone = tangleTransaction.SecondsToMilestone,
                 MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate,
                 IsMilestone = tangleTransaction.IsMilestoneTransaction,
-                Depth = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue
+                Depth = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue                
             };
 
             var milestoneTransaction = new IoMilestoneTransaction<TKey>
@@ -503,7 +503,7 @@ namespace zero.tangle.data.cassandra.tangle
                     var rows = await base.ExecuteAsync(batch);
                     stopwatch.Stop();
                     if(rows.Any())
-                        _logger.Info($"Relaxed `{rows.GetRows().First().GetValue<long>("count")}' [zero]milestone estimates to `{milestoneTransaction.GetMilestoneIndex()}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                        _logger.Info($"Relaxed `{rows.GetRows().First().GetValue<long>("count")}' [zero]milestone estimates to `{milestoneTransaction.GetMilestoneIndex()}', t = `{stopwatch.ElapsedMilliseconds:D}ms'");
                     batchSize = 0;                    
                 }
             }
@@ -558,7 +558,7 @@ namespace zero.tangle.data.cassandra.tangle
             }
             loadTime.Stop();
             totalTime.Stop();
-            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates to `{milestoneTransaction.GetMilestoneIndex()}', scan = `{scanTime.ElapsedMilliseconds}ms', load = `{loadTime.ElapsedMilliseconds}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):F1}/rps', [t = `{totalTime.ElapsedMilliseconds:F1}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):F1}/rps']");           
+            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', scan = `{scanTime.ElapsedMilliseconds:D}ms', load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D}/rps', [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D}/rps']");           
         }
                 
         /// <summary>

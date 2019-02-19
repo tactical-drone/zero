@@ -32,10 +32,17 @@ namespace zero.tangle.data.cassandra.tangle.luts
             set => Volatile.Write(ref _depth, value);
         }
 
+        public long TotalDepth
+        {
+            get => Interlocked.Read(ref _totalDepth);
+            set => Volatile.Write(ref _totalDepth, value);
+        }
+
         //Graph walking variables
         [IgnoreDataMember] public volatile bool Walked;
         [IgnoreDataMember] public volatile bool Loaded;
-        [IgnoreDataMember] private long _depth;
+        [IgnoreDataMember] private long _depth = long.MaxValue;
+        [IgnoreDataMember] private long _totalDepth = long.MaxValue;
         [IgnoreDataMember] private long _milestoneIndexEstimate;        
     }
 }
