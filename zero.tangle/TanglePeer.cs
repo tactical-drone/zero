@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
 using NLog;
+using zero.core.conf;
 using zero.core.core;
 using zero.core.data.contracts;
 using zero.core.misc;
@@ -41,7 +42,13 @@ namespace zero.tangle
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;        
+        private readonly Logger _logger;
+
+        [IoParameter]
+        /// <summary>
+        /// The time to wait for milestone transactions to settle
+        /// </summary>
+        private int parm_relax_start_delay_ms = 10000;
 
         /// <summary>
         /// Minimum difficulty
@@ -52,9 +59,7 @@ namespace zero.tangle
         /// Tcp read ahead
         /// </summary>
         public const int TcpReadAhead = 50;
-
         
-
         /// <summary>
         /// Start processors for this neighbor
         /// </summary>
@@ -100,7 +105,13 @@ namespace zero.tangle
                             await LoadTransactionsAsync(transaction, dataSource, batch, transactionArbiter);
 #pragma warning disable 4014
                             if(transaction.IsMilestoneTransaction)
-                                Task.Factory.StartNew(()=>((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones),TaskCreationOptions.LongRunning);
+                                Task.Factory.StartNew(()=>
+                                {
+                                    Thread.Sleep(parm_relax_start_delay_ms);
+                                    return ((IoTangleCassandraDb<TKey>) dataSource)
+                                            .RelaxTransactionMilestoneEstimates(transaction,
+                                                ((TangleNode<IoTangleMessage<TKey>, TKey>) _node).Milestones);
+                                },TaskCreationOptions.LongRunning);
 #pragma warning restore 4014
                         });
                     }

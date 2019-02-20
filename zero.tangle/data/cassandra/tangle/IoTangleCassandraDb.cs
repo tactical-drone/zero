@@ -558,7 +558,7 @@ namespace zero.tangle.data.cassandra.tangle
             }
             loadTime.Stop();
             totalTime.Stop();
-            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', scan = `{scanTime.ElapsedMilliseconds:D}ms', load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D}/rps', [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D}/rps']");           
+            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");           
         }
                 
         /// <summary>
