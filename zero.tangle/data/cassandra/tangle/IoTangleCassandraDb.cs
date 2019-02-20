@@ -558,8 +558,9 @@ namespace zero.tangle.data.cassandra.tangle
             }
             loadTime.Stop();
             totalTime.Stop();
-            var confimed = ioApprovedTransactions.Where(t => t.MilestoneIndexEstimate > 0).Sum(c=>1);
-            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', cr = `{confimed*100/ioApprovedTransactions.Length:D}%', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");
+            var confirmed = ioApprovedTransactions.Where(t => t.MilestoneIndexEstimate > 0).Sum(c=>1);
+            var latency = ioApprovedTransactions.Where(t => t.MilestoneIndexEstimate > 0).Average(c => c.ConfirmationTime);
+            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', l = `{latency/60:F} min', cr = `{confirmed*100/ioApprovedTransactions.Length:D}%', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");
             return relaxedTransactions.Any();
         }
                 

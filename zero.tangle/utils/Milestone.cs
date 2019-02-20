@@ -270,6 +270,7 @@ namespace zero.tangle.utils
             long scans = 0;            
             long totalStack = 0;
             long aveConfTime = 0;
+            long aveConfTimeCount = 0;
             //Relax transaction milestones
             if (tree.ContainsKey(rootMilestone.Hash))
             {
@@ -299,7 +300,7 @@ namespace zero.tangle.utils
                                         if (transaction.ConfirmationTime == 0)
                                         {
                                             aveConfTime += transaction.ConfirmationTime = (long)(DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
-                                            aveConfTime /= 2;
+                                            aveConfTimeCount++;
                                         }
                                             
 
@@ -331,7 +332,7 @@ namespace zero.tangle.utils
 
             stopwatch.Stop();
 
-            _logger.Debug($"Relax transactions: ct = `{(aveConfTime)/60.0:F} min', s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
+            _logger.Debug($"Relax transactions: ct = `{(aveConfTime/Math.Max(aveConfTimeCount,1))/60.0:F} min', s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
 
             return relaxedTransactions;
         }
