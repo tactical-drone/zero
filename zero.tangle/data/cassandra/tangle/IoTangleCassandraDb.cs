@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
@@ -515,7 +516,7 @@ namespace zero.tangle.data.cassandra.tangle
         /// <param name="milestoneTransaction"></param>
         /// <param name="milestones"></param>
         /// <returns></returns>
-        public async Task RelaxTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones)
+        public async Task<bool> RelaxTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones)
         {
             var totalTime = Stopwatch.StartNew();
             var scanTime = Stopwatch.StartNew();
@@ -532,11 +533,10 @@ namespace zero.tangle.data.cassandra.tangle
             if (!ioApprovedTransactions?.Any()??true)
             {
                 _logger.Trace($"No transactions found to relax at milestone = `{milestoneTransaction.GetAttachmentTime().DateTime()}'");
-                return;
+                return false;
             }
-
-            //var relaxedTransactions = RelaxMilestones(ioApprovedTransactions, milestoneTransaction);
-            var relaxedTransactions = milestones.Relax(ioApprovedTransactions, milestoneTransaction);
+            
+            var relaxedTransactions = milestones.Relax(ioApprovedTransactions, milestoneTransaction);            
 
             var loadTime = Stopwatch.StartNew();
             foreach (var milestoneLessTransaction in relaxedTransactions)
@@ -559,6 +559,7 @@ namespace zero.tangle.data.cassandra.tangle
             loadTime.Stop();
             totalTime.Stop();
             _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");           
+            return relaxedTransactions.Any();
         }
                 
         /// <summary>

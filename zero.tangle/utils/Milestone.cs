@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MathNet.Numerics;
 using MathNet.Numerics.Distributions;
 using NLog;
 using zero.core.misc;
@@ -66,20 +68,20 @@ namespace zero.tangle.utils
         /// Countermeasures for worst case scenarios
         /// </summary>
         private readonly Poisson _yield = new Poisson(1.0/ (Math.Min(Environment.ProcessorCount, 2) * 16));
-        
+
 
         /// <summary>
         /// Walks a tree of <see cref="IoApprovedTransaction{TKey}"/> executing <paramref name="relaxTransaction"/> if needed
         /// </summary>
         /// <param name="tree">The tree</param>
-        /// <param name="transactions">Transactions to be walked</param>
         /// <param name="currentMilestone">Current milestone</param>
+        /// <param name="entryPoint"></param>
         /// <param name="relaxTransaction">The relax step</param>
         /// <param name="depth">The current depth</param>
-        private long Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, IoApprovedTransaction<TKey> entrypoint, 
+        private long Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, TKey entryPoint, 
             Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long, long> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone = null, long stackDepth = 0, long depth = 0)
         {                        
-            if (tree.TryGetValue(entrypoint.Hash, out var transactions))
+            if (tree.TryGetValue(entryPoint, out var transactions))
             {
                 relaxTransaction(transactions, currentMilestone, depth + 1, stackDepth + 1);
 
@@ -108,7 +110,16 @@ namespace zero.tangle.utils
                                 currentDepth = 0;
                             }
 
-                            Volatile.Write(ref stackDepth, Math.Max((int)Walker(tree, transaction, relaxTransaction, nextMilestone, Interlocked.Read(ref stackDepth) + 1, currentDepth + 1), Interlocked.Read(ref stackDepth)));
+                            try
+                            {
+                                Volatile.Write(ref stackDepth, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, Interlocked.Read(ref stackDepth) + 1, currentDepth + 1), Interlocked.Read(ref stackDepth)));
+                            }
+                            catch (KeyNotFoundException) { }
+                            catch (Exception e)
+                            {
+                                _logger.Error(e,"Walk:");
+                                throw;
+                            }
                                                                                               
                         }
                     }
@@ -268,7 +279,7 @@ namespace zero.tangle.utils
             if (tree.ContainsKey(rootMilestone.Hash))
             {
                 var entryPoint = tree[rootMilestone.Hash].First();
-                totalStack = Walker(tree, entryPoint,
+                totalStack = Walker(tree, entryPoint.Verifier,
   (transactions, currentMilestone, depth, totalDepth) =>
                 {
                     try
@@ -314,6 +325,10 @@ namespace zero.tangle.utils
                         _logger.Error(e, "Walker relax: ");
                     }
                 }, tree[rootMilestone.Hash].First());
+            }
+            else
+            {
+                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.Hash}]");
             }
 
             stopwatch.Stop();

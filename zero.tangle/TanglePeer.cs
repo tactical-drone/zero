@@ -50,6 +50,12 @@ namespace zero.tangle
         /// </summary>
         private int parm_relax_start_delay_ms = 10000;
 
+        [IoParameter]
+        /// <summary>
+        /// The number of retries on no relaxation
+        /// </summary>
+        private int parm_milestone_profiler_max_retry = 4;
+
         /// <summary>
         /// Minimum difficulty
         /// </summary>
@@ -105,12 +111,16 @@ namespace zero.tangle
                             await LoadTransactionsAsync(transaction, dataSource, batch, transactionArbiter);
 #pragma warning disable 4014
                             if(transaction.IsMilestoneTransaction)
-                                Task.Factory.StartNew(()=>
-                                {
-                                    Thread.Sleep(parm_relax_start_delay_ms);
-                                    return ((IoTangleCassandraDb<TKey>) dataSource)
-                                            .RelaxTransactionMilestoneEstimates(transaction,
-                                                ((TangleNode<IoTangleMessage<TKey>, TKey>) _node).Milestones);
+                                Task.Factory.StartNew(async ()=>
+                                {                                    
+                                    //retry maybe some rootish transactions were still incoming
+                                    var retries = 0;
+                                    var maxRetries = parm_milestone_profiler_max_retry;
+                                    while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>) dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>) _node).Milestones))
+                                    {
+                                        retries++;
+                                        Thread.Sleep(parm_relax_start_delay_ms);                                        
+                                    }
                                 },TaskCreationOptions.LongRunning);
 #pragma warning restore 4014
                         });
