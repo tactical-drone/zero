@@ -17,7 +17,7 @@ namespace zero.tangle.data.cassandra.tangle.luts
         public long Balance { get; set; }
         public sbyte Pow { get; set; }
         public long Timestamp { get; set; }
-        public long SecondsToMilestone { get; set; }
+        public long ConfirmationTime { get; set; }
 
         public long MilestoneIndexEstimate
         {

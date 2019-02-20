@@ -110,7 +110,7 @@ namespace zero.tangle.entangled.common.model
         public string Uri { get; set; }
         public short Size { get; set; }
         public bool IsMilestoneTransaction { get; set; }
-        public long SecondsToMilestone { get; set; }
+        public long ConfirmationTime { get; set; }
         public IIoTransactionModel<byte[]> MilestoneEstimateTransaction { get; set; }
 
         public ReadOnlyMemory<byte> Blob { get; set; }

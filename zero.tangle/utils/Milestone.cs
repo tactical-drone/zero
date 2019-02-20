@@ -111,17 +111,7 @@ namespace zero.tangle.utils
                                 currentDepth = 0;
                             }
 
-                            try
-                            {
-                                Volatile.Write(ref stackDepth, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, Interlocked.Read(ref stackDepth) + 1, currentDepth + 1), Interlocked.Read(ref stackDepth)));
-                            }
-                            catch (KeyNotFoundException) { }
-                            catch (Exception e)
-                            {
-                                _logger.Error(e,"Walk:");
-                                throw;
-                            }
-                                                                                              
+                            Volatile.Write(ref stackDepth, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStackDepth, currentDepth + 1), Interlocked.Read(ref stackDepth)));
                         }
                     }
                     catch(Exception e)
@@ -135,8 +125,10 @@ namespace zero.tangle.utils
                     }
                 });
             }
+            else
+                return stackDepth;
 
-            return stackDepth;
+            return stackDepth + 1;
         }
 
         /// <summary>
@@ -155,7 +147,7 @@ namespace zero.tangle.utils
                 || node.LatestMilestoneTransaction != null && transaction.AddressBuffer.AsArray().SequenceEqual(node.LatestMilestoneTransaction.AddressBuffer.AsArray())
                )
             {
-                transaction.SecondsToMilestone = 0;
+                transaction.ConfirmationTime = 0;
                 transaction.IsMilestoneTransaction = true;
                 transaction.MilestoneEstimateTransaction = transaction;
                 transaction.MilestoneIndexEstimate = transaction.GetMilestoneIndex();
@@ -196,7 +188,8 @@ namespace zero.tangle.utils
             if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp)
             {
                 transaction.MilestoneIndexEstimate = node.LatestMilestoneTransaction.GetMilestoneIndex() + InitialMilestoneDepthEstimate;
-                transaction.SecondsToMilestone = InitialMilestoneDepthEstimate * AveMilestoneSeconds;
+                //transaction.SecondsToMilestone = InitialMilestoneDepthEstimate * AveMilestoneSeconds;
+                transaction.ConfirmationTime = 0;
             }
             else //look for a candidate milestone in storage for older transactions //TODO make this better for a dup?
             {
@@ -227,7 +220,8 @@ namespace zero.tangle.utils
                     if (secondsToMilestone > InitialMilestoneDepthEstimate * AveMilestoneSeconds)
                     {
                         transaction.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex();
-                        transaction.SecondsToMilestone = (long)(relaxMilestone.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds;
+                        //transaction.SecondsToMilestone = (long)(relaxMilestone.GetAttachmentTime().DateTime() - transaction.GetAttachmentTime().DateTime()).TotalSeconds;
+                        transaction.ConfirmationTime = 0;
                     }
                 }
                 catch (Exception e)
@@ -272,11 +266,10 @@ namespace zero.tangle.utils
 
             stopwatch.Restart();
 
-            long loads = 0;
-            long aveDeltaDepth = 0;
-            long scans = 0;
-            long dagFail = 0;
+            long loads = 0;            
+            long scans = 0;            
             long totalStack = 0;
+            long aveConfTime = 0;
             //Relax transaction milestones
             if (tree.ContainsKey(rootMilestone.Hash))
             {
@@ -303,7 +296,13 @@ namespace zero.tangle.utils
                                         //transaction.SecondsToMilestone =
                                         //    (long) (currentMilestone.Timestamp.DateTime() -
                                         //            transaction.Timestamp.DateTime()).TotalSeconds;
-                                        transaction.SecondsToMilestone = (long) (DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
+                                        if (transaction.ConfirmationTime == 0)
+                                        {
+                                            aveConfTime += transaction.ConfirmationTime = (long)(DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
+                                            aveConfTime /= 2;
+                                        }
+                                            
+
                                         transaction.Depth = depth;
                                         transaction.TotalDepth = totalDepth;
 
@@ -313,8 +312,9 @@ namespace zero.tangle.utils
                                             relaxedTransactions.Add(transaction);
                                             transaction.Loaded = true;
                                         }
-                                    }
+                                    }                                    
                                 }
+                                
                             }
                         }
                     }
@@ -331,7 +331,7 @@ namespace zero.tangle.utils
 
             stopwatch.Stop();
 
-            _logger.Debug($"Relax transactions: s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{dagFail}({aveDeltaDepth/(double)dagFail:D})/{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
+            _logger.Debug($"Relax transactions: ct = `{(aveConfTime)/60.0:F} min', s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
 
             return relaxedTransactions;
         }

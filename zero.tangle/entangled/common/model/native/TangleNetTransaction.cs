@@ -131,7 +131,7 @@ namespace zero.tangle.entangled.common.model.native
         public ReadOnlyMemory<byte> Blob { get; set; }
 
         public bool IsMilestoneTransaction { get; set; }
-        public long SecondsToMilestone { get; set; }
+        public long ConfirmationTime { get; set; }
         public IIoTransactionModel<string> MilestoneEstimateTransaction { get; set; }
 
         public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)

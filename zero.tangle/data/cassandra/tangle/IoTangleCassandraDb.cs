@@ -199,7 +199,7 @@ namespace zero.tangle.data.cassandra.tangle
             //_relaxZeroTransactionMilestoneEstimate = _session.Prepare($"update {_approvees.Name} set {nameof(IoApprovedTransaction<TKey>.MilestoneIndexEstimate)}=?, {nameof(IoApprovedTransaction<TKey>.SecondsToMilestone)}=? where {nameof(IoApprovedTransaction<TKey>.Partition)} in ? and  {nameof(IoApprovedTransaction<TKey>.Timestamp)} = ? and {nameof(IoApprovedTransaction<TKey>.Hash)} = ?");
             _relaxZeroTransactionMilestoneEstimate = _session.Prepare($"update {_approvees.Name} " +
                                                                       $"set {nameof(IoApprovedTransaction<TKey>.MilestoneIndexEstimate)}=?, " +
-                                                                      $"{nameof(IoApprovedTransaction<TKey>.SecondsToMilestone)}=? , " +
+                                                                      $"{nameof(IoApprovedTransaction<TKey>.ConfirmationTime)}=? , " +
                                                                       $"{nameof(IoApprovedTransaction<TKey>.Pow)}=? , " +
                                                                       $"{nameof(IoApprovedTransaction<TKey>.Verifier)}=? , " + //TODO why do I need to spec these?
                                                                       $"{nameof(IoApprovedTransaction<TKey>.IsMilestone)}=? , " +
@@ -277,7 +277,7 @@ namespace zero.tangle.data.cassandra.tangle
                 TrunkBranch = tangleTransaction.Trunk,
                 Balance = 0,
                 Timestamp = tangleTransaction.GetAttachmentTime(),
-                SecondsToMilestone = tangleTransaction.SecondsToMilestone,
+                ConfirmationTime = tangleTransaction.ConfirmationTime,
                 MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate,
                 IsMilestone = tangleTransaction.IsMilestoneTransaction,
                 Depth = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue                
@@ -292,7 +292,7 @@ namespace zero.tangle.data.cassandra.tangle
                 TrunkBranch = tangleTransaction.Branch,
                 Balance = 0,
                 Timestamp = tangleTransaction.GetAttachmentTime(),
-                SecondsToMilestone = tangleTransaction.SecondsToMilestone,
+                ConfirmationTime = tangleTransaction.ConfirmationTime,
                 MilestoneIndexEstimate = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate,
                 IsMilestone = tangleTransaction.IsMilestoneTransaction,
                 Depth = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue                
@@ -558,7 +558,8 @@ namespace zero.tangle.data.cassandra.tangle
             }
             loadTime.Stop();
             totalTime.Stop();
-            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");           
+            var confimed = ioApprovedTransactions.Where(t => t.MilestoneIndexEstimate > 0).Sum(c=>1);
+            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', cr = `{confimed*100/ioApprovedTransactions.Length:D}%', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");
             return relaxedTransactions.Any();
         }
                 

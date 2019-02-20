@@ -169,7 +169,7 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.Balance)
                         .Column(c => c.Pow)
                         .Column(c => c.Timestamp)
-                        .Column(c => c.SecondsToMilestone)
+                        .Column(c => c.ConfirmationTime)
                         .Column(c => c.MilestoneIndexEstimate)
                         .Column(c => c.IsMilestone)
                         .Column(c => c.Depth)

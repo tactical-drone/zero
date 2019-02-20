@@ -112,7 +112,7 @@ namespace zero.core.models
         bool IsMilestoneTransaction { get; set; }
 
         [IgnoreDataMember]
-        long SecondsToMilestone { get; set; }
+        long ConfirmationTime { get; set; }
 
         [IgnoreDataMember]
         IIoTransactionModel<TKey> MilestoneEstimateTransaction { get; set; }
