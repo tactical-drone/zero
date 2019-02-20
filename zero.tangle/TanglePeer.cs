@@ -105,21 +105,25 @@ namespace zero.tangle
                 {
                     try
                     {
-                        await ProcessTransactions(dataSource, batch, transactionArbiter,
+                        await ProcessTransactions(dataSource, batch, transactionArbiter,                        
                         async (transaction, forward, arg) =>
                         {
                             await LoadTransactionsAsync(transaction, dataSource, batch, transactionArbiter);
 #pragma warning disable 4014
+                            //Process milestone transactions
                             if(transaction.IsMilestoneTransaction)
                                 Task.Factory.StartNew(async ()=>
-                                {                                    
+                                {
+                                    var startTime = DateTime.Now;                                    
                                     //retry maybe some rootish transactions were still incoming
                                     var retries = 0;
                                     var maxRetries = parm_milestone_profiler_max_retry;
                                     while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>) dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>) _node).Milestones))
-                                    {
+                                    {                                                                    
                                         retries++;
                                         Thread.Sleep(parm_relax_start_delay_ms);                                        
+                                        if((DateTime.Now - startTime).TotalSeconds > ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones.AveMilestoneSeconds * 0.9)
+                                            break;
                                     }
                                 },TaskCreationOptions.LongRunning);
 #pragma warning restore 4014

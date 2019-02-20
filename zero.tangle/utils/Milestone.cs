@@ -62,7 +62,7 @@ namespace zero.tangle.utils
         /// <summary>
         /// The expected time between issued milestone //TODO adjust from data
         /// </summary>
-        protected long AveMilestoneSeconds { get; set; } = 120;
+        public long AveMilestoneSeconds { get; protected set; } = 120;
 
         /// <summary>
         /// Countermeasures for worst case scenarios
@@ -97,7 +97,8 @@ namespace zero.tangle.utils
 
                         Monitor.Enter(transaction);
                         if (transaction.Walked == false && (transaction.Walked = true) ||                        
-                            transaction.Depth > depth && transaction.TotalDepth >= entryStackDepth + 1)
+                            transaction.Depth > depth ||
+                            transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate)
                         {
                             Monitor.Exit(transaction);
                             locked = false;
@@ -272,6 +273,7 @@ namespace zero.tangle.utils
             stopwatch.Restart();
 
             long loads = 0;
+            long aveDeltaDepth = 0;
             long scans = 0;
             long dagFail = 0;
             long totalStack = 0;
@@ -290,22 +292,18 @@ namespace zero.tangle.utils
                             {
                                 lock (transaction)
                                 {
-                                    if (transaction.Depth > depth )//&& transaction.TotalDepth >= totalDepth) //TODO Do we want shortest path?
+                                    if (transaction.Depth > depth||
+                                        transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate)
                                     {
-                                        if (transaction.TotalDepth < totalDepth)
-                                        {
-                                            dagFail++;
-                                            continue;                                            
-                                        }
-
                                         if (!transaction.IsMilestone)
                                         {
                                             transaction.MilestoneIndexEstimate = currentMilestone.MilestoneIndexEstimate;
                                         }
 
-                                        transaction.SecondsToMilestone =
-                                            (long) (currentMilestone.Timestamp.DateTime() -
-                                                    transaction.Timestamp.DateTime()).TotalSeconds;
+                                        //transaction.SecondsToMilestone =
+                                        //    (long) (currentMilestone.Timestamp.DateTime() -
+                                        //            transaction.Timestamp.DateTime()).TotalSeconds;
+                                        transaction.SecondsToMilestone = (long) (DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
                                         transaction.Depth = depth;
                                         transaction.TotalDepth = totalDepth;
 
@@ -333,7 +331,7 @@ namespace zero.tangle.utils
 
             stopwatch.Stop();
 
-            _logger.Debug($"Relax transactions: s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{dagFail}/{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
+            _logger.Debug($"Relax transactions: s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{dagFail}({aveDeltaDepth/(double)dagFail:D})/{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
 
             return relaxedTransactions;
         }
