@@ -188,12 +188,16 @@ namespace zero.tangle.models
                     try
                     {
                         s.Restart();
+                        if (ProcessState == State.RSync)
+                            ProcessState = State.Consuming;
+
                         var requiredSync = !localSync && RequiredSync();
                         if (!Producer.Synced)
                             return ProcessState;
                         else if (requiredSync)
                         {
-                            i = 0;                            
+                            i = 0;
+                            ProcessState = State.RSync;
                             continue;
                         }
                             
@@ -348,8 +352,7 @@ namespace zero.tangle.models
                 ProcessState = State.Syncing;
 
                 for (var i = 0; i < DatumCount; i++)
-                {
-                    requiredSync |= requiredSync;
+                {                    
                     var bytesProcessed = 0;
                     var synced = false;
                     while (bytesProcessed < DatumSize)
@@ -482,8 +485,6 @@ namespace zero.tangle.models
         /// <returns>The resulting status</returns>
         public override async Task<State> ProduceAsync()
         {
-            ProcessState = State.Producing;
-            
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf

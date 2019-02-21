@@ -59,6 +59,7 @@ namespace zero.core.patterns.bushes
             Finished,            
             Error,
             Syncing,
+            RSync,
             ProduceErr,
             ConsumeErr,
             DbError,
@@ -127,11 +128,17 @@ namespace zero.core.patterns.bushes
             }
             else
             {
-                if (value != State.Producing && value != State.Undefined)
+                if (value != State.Undefined)
                 {
-                    _logger.Fatal($"({Id}) Fatal error: First state transition history's first transition should be `{State.Producing}', but is `{value}'");
+                    _logger.Fatal($"({Id}) First state transition history's first transition should be `{State.Undefined}', but is `{value}'");
                     PrintStateHistory();
                 }
+            }
+
+            if(CurrentState?.State == State.Finished)
+            {
+                _logger.Fatal($"({Id}) Cannot transition from `{State.Finished}' to `{value}'");
+                PrintStateHistory();
             }
 
             //Allocate memory for a new current state

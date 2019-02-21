@@ -43,8 +43,7 @@ namespace zero.tangle.models
         /// The state to indicated failure or success
         /// </returns>
         public override async Task<State> ProduceAsync()
-        {
-            ProcessState = State.Producing;
+        {            
             await Producer.ProduceAsync(async producer =>
             {
                 if (Producer.ProducerBarrier == null)

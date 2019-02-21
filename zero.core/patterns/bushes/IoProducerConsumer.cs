@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
@@ -227,8 +228,8 @@ namespace zero.core.patterns.bushes
 
                         //Fetch a job from TProducer. Did we get one?
                         _previousJobFragment.TryRemove(nextJob.Id - 1,  out var prevJobFragment);
-                        nextJob.Previous = prevJobFragment;                        
-                        
+                        nextJob.Previous = prevJobFragment;
+                        nextJob.ProcessState = IoProducible<TJob>.State.Producing;
                         if (await nextJob.ProduceAsync() < IoProducible<TJob>.State.Error)
                         {                            
                             //TODO Double check this hack
@@ -258,8 +259,16 @@ namespace zero.core.patterns.bushes
 
                             //Enqueue the job for the consumer
                             nextJob.ProcessState = IoProducible<TJob>.State.Queued;
-                            jobSafeReleased = true;
-                            _queue.Enqueue(nextJob);
+                            
+                            //if (!_queue.Contains(nextJob))
+                            {
+                                jobSafeReleased = true;
+                                _queue.Enqueue(nextJob);
+                            }                                
+                            //else
+                            //{
+                            //    _logger.Fatal($"({nextJob.Id}) is already queued!");   
+                            //}                            
                             
                             //Signal to the consumer that there is work to do
                             try
@@ -285,10 +294,12 @@ namespace zero.core.patterns.bushes
                                 _logger.Debug($"Producer `{PrimaryProducerDescription}' is shutting down");
                                 return false;
                             }
-
-                            //Free resources
+                            
                             jobSafeReleased = true;
-                            Free(nextJob);                                                        
+                            if (nextJob.Previous != null)
+                                _previousJobFragment.TryAdd(nextJob.Previous.Id + 1, (IoConsumable<TJob>) nextJob.Previous);
+
+                            JobHeap.Return(nextJob);                            
                         }
                     }
                     else
@@ -332,9 +343,18 @@ namespace zero.core.patterns.bushes
         }
 
         private void Free(IoConsumable<TJob> curJob)
-        {
-            if(curJob.Previous != null)
-                JobHeap.Return((IoConsumable<TJob>) curJob.Previous);                        
+        {            
+            if (curJob.Previous != null)
+            {
+                //if (_queue.Contains(curJob.Previous))
+                //{
+                //    _logger.Fatal($"Cannot remove job id = `{curJob.Previous.Id}' that is still queued!");
+                //    return;
+                //}
+
+                JobHeap.Return((IoConsumable<TJob>)curJob.Previous);
+            }
+                
         }
        
         /// <summary>
