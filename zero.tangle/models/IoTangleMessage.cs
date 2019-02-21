@@ -47,7 +47,7 @@ namespace zero.tangle.models
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
-            DatumProvisionLengthMax = DatumSize;
+            DatumProvisionLengthMax = DatumSize - 1;
             DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
@@ -173,7 +173,7 @@ namespace zero.tangle.models
             
             try
             {
-                if (!Producer.Synced && !Sync())
+                if (!Producer.Synced && RequiredSync() && !Producer.Synced)
                 {
                     return ProcessState;
                 }
@@ -188,7 +188,7 @@ namespace zero.tangle.models
                     try
                     {
                         s.Restart();
-                        var requiredSync = !localSync && Sync();
+                        var requiredSync = !localSync && RequiredSync();
                         if (!Producer.Synced)
                             return ProcessState;
                         else if (requiredSync)
@@ -334,7 +334,7 @@ namespace zero.tangle.models
         /// Attempts to synchronize with the protocol byte stream
         /// </summary>
         /// <returns>True if synced achieved, false otherwise</returns>
-        private bool Sync()
+        private bool RequiredSync()
         {            
             var offset = 0;
             var stopwatch = new Stopwatch();

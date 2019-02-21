@@ -395,6 +395,7 @@ namespace zero.core.patterns.bushes
                 //A job was produced. Dequeue it and process
                 if (_queue.TryDequeue(out var curJob))
                 {
+                    curJob.ProcessState = IoProducible<TJob>.State.Dequeued;
                     curJob.ProcessState = IoProducible<TJob>.State.Consuming;
                     try
                     {

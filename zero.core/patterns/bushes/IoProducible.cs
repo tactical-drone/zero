@@ -49,6 +49,7 @@ namespace zero.core.patterns.bushes
             Produced,
             ProStarting,
             Queued,
+            Dequeued,
             Consuming,
             Forwarded,            
             Consumed,
