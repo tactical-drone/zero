@@ -79,17 +79,19 @@ namespace zero.tangle.utils
         /// <param name="relaxTransaction">The relax step</param>
         /// <param name="depth">The current depth</param>
         private long Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, TKey entryPoint, 
-            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long, long> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone = null, long stackDepth = 0, long depth = 0)
+            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long, long> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone = null, long stack = 0, long depth = 0)
         {                        
             if (tree.TryGetValue(entryPoint, out var transactions))
             {
-                relaxTransaction(transactions, currentMilestone, depth + 1, stackDepth + 1);
+                relaxTransaction(transactions, currentMilestone, depth + 1, stack + 1);
+
+                var entryDepth = depth;
+                var entryStack = stack;
 
                 Parallel.ForEach(transactions, depth == 0? _parallelOptions:_parallelNone, transaction =>
                 {
                     var locked = true;
-                    var currentDepth = depth;
-                    var entryStackDepth = stackDepth;
+                    
                     try
                     {                    
                         if(_yield.Sample() > 0)
@@ -103,20 +105,21 @@ namespace zero.tangle.utils
                             Monitor.Exit(transaction);
                             locked = false;
 
-                            var nextMilestone = currentMilestone;
-                            //set your milestone
+                            //relax milestone
+                            var nextMilestone = currentMilestone;                            
                             if (transaction.IsMilestone)
                             {
                                 nextMilestone = transaction;
-                                currentDepth = 0;
+                                entryDepth = 0;
                             }
 
-                            Volatile.Write(ref stackDepth, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStackDepth, currentDepth + 1), Interlocked.Read(ref stackDepth)));
+                            //relax transactions
+                            Volatile.Write(ref stack, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack, entryDepth + 1), Interlocked.Read(ref stack)));
                         }
                     }
                     catch(Exception e)
                     {
-                        _logger.Error(e,$"Walker> m = `{currentMilestone.MilestoneIndexEstimate}', h = [{transaction.Hash}] , s = `{stackDepth}', d = `{depth}' :");
+                        _logger.Error(e,$"Walker> m = `{currentMilestone.MilestoneIndexEstimate}', h = [{transaction.Hash}] , s = `{stack}', d = `{depth}' :");
                     }
                     finally
                     {
@@ -126,9 +129,9 @@ namespace zero.tangle.utils
                 });
             }
             else
-                return stackDepth;
+                return stack;
 
-            return stackDepth + 1;
+            return stack + 1;
         }
 
         /// <summary>

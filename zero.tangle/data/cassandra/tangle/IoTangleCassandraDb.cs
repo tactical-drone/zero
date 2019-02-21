@@ -543,7 +543,7 @@ namespace zero.tangle.data.cassandra.tangle
             {
                 processedTx++;
 
-                batch.Add(_relaxZeroTransactionMilestoneEstimate.Bind(milestoneTransaction.MilestoneIndexEstimate, (long)(milestoneTransaction.GetAttachmentTime().DateTime() - milestoneLessTransaction.Timestamp.DateTime()).TotalSeconds,
+                batch.Add(_relaxZeroTransactionMilestoneEstimate.Bind(milestoneTransaction.MilestoneIndexEstimate, milestoneLessTransaction.ConfirmationTime,
                     milestoneLessTransaction.Pow, milestoneLessTransaction.Verifier, milestoneLessTransaction.IsMilestone, milestoneLessTransaction.Depth,
                     _approveePartitioner.GetPartition(milestoneLessTransaction.Timestamp), milestoneLessTransaction.Timestamp, milestoneLessTransaction.Hash));
 
