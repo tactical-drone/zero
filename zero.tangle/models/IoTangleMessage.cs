@@ -47,9 +47,9 @@ namespace zero.tangle.models
             
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
-            DatumProvisionLengthMax = BufferSize * parm_datums_per_buffer;
+            DatumProvisionLengthMax = DatumSize;
             DatumProvisionLength = DatumProvisionLengthMax;
-            Buffer = new sbyte[BufferSize + DatumProvisionLength];
+            Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
             //forward to node services
             if (!Producer.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
@@ -436,15 +436,14 @@ namespace zero.tangle.models
                 var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)Previous;
                 try
                 {
-                    var bytesToTransfer = Math.Min(previousJobFragment.DatumFragmentLength, DatumProvisionLength);
-                    var remainingBytes =  Math.Abs(Math.Min(DatumProvisionLength - previousJobFragment.DatumFragmentLength , 0));
+                    var bytesToTransfer = previousJobFragment.DatumFragmentLength;                    
                     BufferOffset -= bytesToTransfer;                    
                     DatumProvisionLength -= bytesToTransfer;
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
                     StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
-                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset + remainingBytes, Buffer, BufferOffset, bytesToTransfer);
+                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
                 }
                 catch (Exception e) // we de-synced 
                 {
