@@ -330,7 +330,7 @@ namespace zero.tangle.utils
             }
             else
             {
-                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.Hash}]");
+                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsTrytes(rootMilestone.HashBuffer)}] - `{rootMilestone.GetAttachmentTime().DateTime()}'");
             }
 
             stopwatch.Stop();
