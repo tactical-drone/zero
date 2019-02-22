@@ -243,7 +243,7 @@ namespace zero.tangle.utils
             var relaxedTransactions = new ConcurrentBag<IoApprovedTransaction<TKey>>();
 
             //Prepare the tree
-            ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree = Entangled<TKey>.Optimized ? new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>() : new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>((IEqualityComparer<TKey>) new IoByteArrayComparer());
+            ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree = Entangled<TKey>.Optimized ? new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>((IEqualityComparer<TKey>)new IoByteArrayComparer()) : new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>();
 
             var stopwatch = Stopwatch.StartNew();
 
@@ -329,8 +329,7 @@ namespace zero.tangle.utils
             }
             else
             {
-                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsKeyString(rootMilestone.HashBuffer)}] - `{rootMilestone.GetAttachmentTime().DateTime()}'");
-                tree.Keys.ToList().ForEach(k => Console.WriteLine("0x"+BitConverter.ToString(k as byte[]).Replace("-","").ToLower()));
+                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsKeyString(rootMilestone.HashBuffer)}] - `{rootMilestone.GetAttachmentTime().DateTime()}'");                
             }
 
             stopwatch.Stop();
