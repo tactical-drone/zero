@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Org.BouncyCastle.Crypto.Paddings;
 using zero.interop.entangled.common.trinary;
@@ -67,10 +68,14 @@ namespace zero.interop.entangled.common.model.interop
             for (var i = buffer.Length; i-- > 0;)
             {
                 if (buffer[i] != 0)
-                {                    
-                    var trimmed = i == buffer.Length - 1 ? buffer : MemoryMarshal.CreateFromPinnedArray(buffer, 0, i + 2);
+                {
+                    var trimmed = i == buffer.Length - 1 ? buffer : buffer.AsMemory().Slice(0, i + 1);
 
-                    if (trimmed.Length != 0) return trimmed;
+                    if (trimmed.Length != 0)
+                    {                      
+                        //Console.WriteLine($"{BitConverter.ToString(buffer).Replace("-", "").ToLower()} ====> {BitConverter.ToString(trimmed.ToArray()).Replace("-", "").ToLower()} ");
+                        return trimmed.ToArray(); //We have to copy or because we cannot go back to a pure byte[] with a correct length value
+                    }
                     if (nullSet == 9)
                         return null;
 

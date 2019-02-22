@@ -22,18 +22,18 @@ namespace zero.tangle.entangled.common.model
         }
 
         private Logger _logger;
-        public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
+        public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }        
         public byte[] SignatureOrMessage
         {
             get => SignatureOrMessageBuffer.AsArray();
-            set => SignatureOrMessageBuffer = new ReadOnlyMemory<byte>(value);
+            set => SignatureOrMessageBuffer = value;
         }
 
         public ReadOnlyMemory<byte> AddressBuffer { get; set; }
         public byte[] Address
         {
             get => AddressBuffer.AsArray();
-            set => AddressBuffer = new ReadOnlyMemory<byte>(value);
+            set => AddressBuffer = value;
         }
 
         public long Value { get; set; }
@@ -51,28 +51,28 @@ namespace zero.tangle.entangled.common.model
         public byte[] Bundle
         {
             get => BundleBuffer.AsArray();
-            set => BundleBuffer = new ReadOnlyMemory<byte>(value);
+            set => BundleBuffer = value;
         }
 
         public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
         public byte[] Trunk
         {
             get => TrunkBuffer.AsArray();
-            set => TrunkBuffer = new ReadOnlyMemory<byte>(value);
+            set => TrunkBuffer = value;
         }
 
         public ReadOnlyMemory<byte> BranchBuffer { get; set; }
         public byte[] Branch
         {
             get => BranchBuffer.AsArray();
-            set => BranchBuffer = new ReadOnlyMemory<byte>(value);
+            set => BranchBuffer = value;
         }
 
         public ReadOnlyMemory<byte> TagBuffer { get; set; }
         public byte[] Tag
         {
             get => TagBuffer.AsArray();            
-            set => TagBuffer = new ReadOnlyMemory<byte>(value);
+            set => TagBuffer = value;
         }
 
         public long AttachmentTimestamp { get; set; }
@@ -82,14 +82,14 @@ namespace zero.tangle.entangled.common.model
         public byte[] Nonce
         {
             get => NonceBuffer.AsArray();
-            set => NonceBuffer = new ReadOnlyMemory<byte>(value);
+            set => NonceBuffer = value;
         }
 
         public ReadOnlyMemory<byte> HashBuffer { get; set; }
         public byte[] Hash
         {
             get => HashBuffer.AsArray();
-            set => HashBuffer = new ReadOnlyMemory<byte>(value);
+            set => HashBuffer = value;
         }
 
         public byte[] Snapshot { get; set; }
@@ -136,7 +136,7 @@ namespace zero.tangle.entangled.common.model
 
         public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
-            return "0x" + BitConverter.ToString(HashBuffer.AsArray()).Replace("-", "").ToLower();            
+            return "0x" + BitConverter.ToString(field.AsArray()).Replace("-", "").ToLower();            
         }
 
         public ReadOnlyMemory<byte> AsBlob()
