@@ -118,7 +118,9 @@ namespace zero.core.models
         IIoTransactionModel<TKey> MilestoneEstimateTransaction { get; set; }
         
         string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
-    
+
+        string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
+
         ReadOnlyMemory<byte> AsBlob();
         long GetMilestoneIndex();
 

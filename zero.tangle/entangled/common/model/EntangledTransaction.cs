@@ -134,6 +134,11 @@ namespace zero.tangle.entangled.common.model
             return Encoding.ASCII.GetString((byte[])(Array)trytes);
         }
 
+        public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
+        {
+            return "0x" + BitConverter.ToString(HashBuffer.AsArray()).Replace("-", "").ToLower();            
+        }
+
         public ReadOnlyMemory<byte> AsBlob()
         {
             return Blob;
@@ -158,7 +163,7 @@ namespace zero.tangle.entangled.common.model
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unable to parse milestone index from ObsoleteTag = `{AsTrytes(ObsoleteTagBuffer)}' [{AsTrytes(HashBuffer)}]:");
+                _logger.Error(e, $"Unable to parse milestone index from ObsoleteTag = `{AsTrytes(ObsoleteTagBuffer)}' [{AsKeyString(HashBuffer)}]:");
                 _milestoneIndex = 0;
             }
 

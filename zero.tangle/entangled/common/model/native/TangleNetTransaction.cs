@@ -139,6 +139,11 @@ namespace zero.tangle.entangled.common.model.native
             return Encoding.UTF8.GetString(field.Span);
         }
 
+        public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
+        {
+            return AsTrytes(field, fixedLenTritsToConvert);
+        }
+
         public ReadOnlyMemory<byte> AsBlob()
         {
             return Blob;

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MathNet.Numerics;
 using MathNet.Numerics.Distributions;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using zero.core.misc;
 using zero.core.models;
@@ -161,9 +162,7 @@ namespace zero.tangle.utils
                     node.LatestMilestoneTransaction = transaction;
 
                     var timeDiff = DateTime.Now - transaction.Timestamp.DateTime();
-                    _logger.Info(Entangled<TKey>.Optimized
-                        ? $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsTrytes(transaction.HashBuffer)}]"
-                        : $"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Hash}]");
+                    _logger.Info($"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsKeyString(transaction.HashBuffer)}]");
                 }
             }
             //Load from the DB if we don't have one ready
@@ -174,9 +173,7 @@ namespace zero.tangle.utils
                 if (node.LatestMilestoneTransaction != null)
                 {
                     var timeDiff = DateTime.Now - node.LatestMilestoneTransaction.Timestamp.DateTime();
-                    _logger.Debug(Entangled<TKey>.Optimized
-                        ? $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.AsTrytes(node.LatestMilestoneTransaction.HashBuffer)}]"
-                        : $"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.Hash}]");
+                    _logger.Debug($"Loaded latest milestoneIndex = `{node.LatestMilestoneTransaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{node.LatestMilestoneTransaction.AsKeyString(node.LatestMilestoneTransaction.HashBuffer)}]");
                 }
                 else
                 {
@@ -243,10 +240,11 @@ namespace zero.tangle.utils
         /// <returns>A list of all transactions that were relaxed</returns>
         public ConcurrentBag<IoApprovedTransaction<TKey>> Relax(IoApprovedTransaction<TKey>[] ioApprovedTransactions, IIoTransactionModel<TKey> rootMilestone)
         {
-            var relaxedTransactions = new ConcurrentBag<IoApprovedTransaction<TKey>>();            
+            var relaxedTransactions = new ConcurrentBag<IoApprovedTransaction<TKey>>();
 
             //Prepare the tree
-            var tree = new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>();
+            ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree = Entangled<TKey>.Optimized ? new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>() : new ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>>((IEqualityComparer<TKey>) new IoByteArrayComparer());
+
             var stopwatch = Stopwatch.StartNew();
 
             try
@@ -276,9 +274,9 @@ namespace zero.tangle.utils
             long aveConfTime = 0;
             long aveConfTimeCount = 0;
             //Relax transaction milestones
-            if (tree.ContainsKey(rootMilestone.Hash))
+            if (tree.TryGetValue(rootMilestone.Hash, out var children))
             {
-                var entryPoint = tree[rootMilestone.Hash].First();
+                var entryPoint = children.First();
                 totalStack = Walker(tree, entryPoint.Verifier,
   (transactions, currentMilestone, depth, totalDepth) =>
                 {
@@ -331,7 +329,8 @@ namespace zero.tangle.utils
             }
             else
             {
-                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsTrytes(rootMilestone.HashBuffer)}]({Convert.ToBase64String(rootMilestone.HashBuffer.AsArray(), Base64FormattingOptions.None)}) - `{rootMilestone.GetAttachmentTime().DateTime()}'");
+                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsKeyString(rootMilestone.HashBuffer)}] - `{rootMilestone.GetAttachmentTime().DateTime()}'");
+                tree.Keys.ToList().ForEach(k => Console.WriteLine("0x"+BitConverter.ToString(k as byte[]).Replace("-","").ToLower()));
             }
 
             stopwatch.Stop();

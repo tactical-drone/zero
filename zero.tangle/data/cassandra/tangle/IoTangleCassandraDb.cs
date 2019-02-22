@@ -232,8 +232,8 @@ namespace zero.tangle.data.cassandra.tangle
                     _logger.Trace($"value = `{tangleTransaction.Value}'");
                     _logger.Trace($"pow = `{tangleTransaction.Pow}'");
                     _logger.Trace($"time = `{tangleTransaction.Timestamp}'");
-                    _logger.Trace($"bundle = `{tangleTransaction.AsTrytes(tangleTransaction.BundleBuffer)}'");
-                    _logger.Trace($"address = `{tangleTransaction.AsTrytes(tangleTransaction.AddressBuffer)}'");
+                    _logger.Trace($"bundle = `{tangleTransaction.AsKeyString(tangleTransaction.BundleBuffer)}'");
+                    _logger.Trace($"address = `{tangleTransaction.AsKeyString(tangleTransaction.AddressBuffer)}'");
                 }
                 catch
                 {

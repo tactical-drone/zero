@@ -192,7 +192,7 @@ namespace zero.tangle
                 if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
                 {
                     stopwatch.Stop();
-                    _logger.Warn($"Slow duplicate tx dropped: [{transaction.AsTrytes(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
+                    _logger.Warn($"Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
                     consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.SlowDup;
                     return;
                 }

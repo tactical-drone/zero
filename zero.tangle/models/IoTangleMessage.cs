@@ -266,7 +266,7 @@ namespace zero.tangle.models
                         if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
                             ValueTpsCounter.Tick();
-                            _logger.Info($"({Id}) {interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
+                            _logger.Info($"({Id}) {interopTx.AsKeyString(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS).PadRight(IoTransaction.NUM_TRYTES_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
                         }                                                
                     }

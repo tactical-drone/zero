@@ -106,8 +106,8 @@ namespace zero.interop.utils
             {
                 Console.WriteLine("--------------------------------------------------------------------------------------------------------------");                
                 
-                Console.WriteLine($"computed  = `{transaction.AsTrytes(computedHash)}'[{computedHash.Length}] --> {transaction.Pow}");
-                Console.WriteLine($"Requested = `{transaction.AsTrytes((byte[])(Array)proposedHash)}'[{proposedHash.Length}] --> {transaction.ReqPow}");
+                Console.WriteLine($"computed  = `{transaction.AsKeyString(computedHash)}'[{computedHash.Length}] --> {transaction.Pow}");
+                Console.WriteLine($"Requested = `{transaction.AsKeyString((byte[])(Array)proposedHash)}'[{proposedHash.Length}] --> {transaction.ReqPow}");
             }
         }
 
