@@ -78,12 +78,7 @@ namespace zero.tangle
         {            
             //TangleNode<TJob> node = (TangleNode<TJob>) sender;
             //TODO fix
-            var connectBackAddress = IoNodeAddress.Create(
-<<<<<<< HEAD
-                $"tcp://{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).ListenerAddress.Port}");
-=======
-                $"tcp://{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).ListenerAddress.Port - 3}");
->>>>>>> milestone: added linux interop support
+            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).ListenerAddress.Port}");
 #pragma warning disable 4014
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
