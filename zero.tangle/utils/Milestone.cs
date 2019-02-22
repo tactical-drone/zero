@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MathNet.Numerics;
@@ -330,7 +331,7 @@ namespace zero.tangle.utils
             }
             else
             {
-                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsTrytes(rootMilestone.HashBuffer)}] - `{rootMilestone.GetAttachmentTime().DateTime()}'");
+                _logger.Warn($"Could not find milestone entrypoint for m = `{rootMilestone.MilestoneIndexEstimate}', [{rootMilestone.AsTrytes(rootMilestone.HashBuffer)}]({Convert.ToBase64String(rootMilestone.HashBuffer.AsArray(), Base64FormattingOptions.None)}) - `{rootMilestone.GetAttachmentTime().DateTime()}'");
             }
 
             stopwatch.Stop();
