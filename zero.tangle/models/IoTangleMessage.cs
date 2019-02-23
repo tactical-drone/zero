@@ -6,15 +6,12 @@ using System.Text;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.core;
 using zero.core.misc;
 using zero.core.models;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.interop.entangled;
 using zero.interop.entangled.common.model;
-using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
 using zero.tangle.api.controllers.generic;
@@ -147,7 +144,7 @@ namespace zero.tangle.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 10;
+        public int parm_datums_per_buffer = 250;
 
         /// <summary>
         /// The time a consumer will wait for a producer to release it before aborting in ms
@@ -160,7 +157,7 @@ namespace zero.tangle.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length = 10;
+        public int parm_forward_queue_length = 4;
 
         /// <summary>
         /// Processes a iri datum

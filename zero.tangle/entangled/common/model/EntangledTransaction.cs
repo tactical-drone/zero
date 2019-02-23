@@ -140,7 +140,7 @@ namespace zero.tangle.entangled.common.model
 
         public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
-            return "0x" + BitConverter.ToString(field.AsArray()).Replace("-", "").ToLower().PadRight(101);            
+            return "0x" + BitConverter.ToString(field.AsArray()).Replace("-", "").ToLower().PadRight(98, '0');
         }
 
         public ReadOnlyMemory<byte> Trimmed(byte[] field, byte nullSet = 9)
