@@ -108,11 +108,11 @@ namespace zero.tangle
                             await LoadTransactionAsync(transaction, dataSource, batch, transactionArbiter);
 #pragma warning disable 4014
                             //Process milestone transactions
-                            if(transaction.IsMilestoneTransaction)
+                            if (transaction.IsMilestoneTransaction)
                             {
                                 _logger.Trace($"{batch.TraceDescription} Relaxing tx milestones to [{transaction.AsKeyString(transaction.HashBuffer)}] [THREADSTART]");
                                 Task.Factory.StartNew(async () =>
-                                {                                    
+                                {
                                     var startTime = DateTime.Now;
                                     //retry maybe some rootish transactions were still incoming
                                     var retries = 0;
@@ -180,7 +180,7 @@ namespace zero.tangle
             transactions.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.Consumed;
 
             stopwatch.Stop();
-            _logger.Trace($"{transactions.TraceDescription} Processed `{tangleTransactions.Length}' transactions: t = `{stopwatch.ElapsedMilliseconds:D}', `{tangleTransactions.Length*1000/stopwatch.ElapsedMilliseconds:D} t/s'");
+            _logger.Trace($"{transactions.TraceDescription} Processed `{tangleTransactions.Length}' transactions: t = `{stopwatch.ElapsedMilliseconds:D}', `{tangleTransactions.Length*1000/(stopwatch.ElapsedMilliseconds+1):D} t/s'");
         }
 
         /// <summary>
@@ -198,16 +198,19 @@ namespace zero.tangle
             RowSet putResult = null;
             try
             {
-                //drop duplicates                
-                var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Producer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
+                //drop duplicates fast if redis is present supported
+                if(transactionArbiter.Producer.Upstream.RecentlyProcessed != null)
                 {
-                    stopwatch.Stop();
-                    _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
-                    consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.SlowDup;
-                    return;
+                    var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Producer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                    if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
+                    {
+                        stopwatch.Stop();
+                        _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
+                        consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.SlowDup;
+                        return;
+                    }
                 }
-                
+                                
                 // Update milestone mechanics
                 await ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones.UpdateIndexAsync((TangleNode<IoTangleMessage<TKey>, TKey>)_node, (IoTangleCassandraDb<TKey>)dataSource, transaction);
                 
@@ -229,8 +232,9 @@ namespace zero.tangle
                 {
                     transactionArbiter.IsArbitrating = false;
                     consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.DbError;
-                    await transactionArbiter.Producer.Upstream.RecentlyProcessed.DeleteKeyAsync(
-                        transaction.AsTrytes(transaction.HashBuffer));
+
+                    if(transactionArbiter.Producer.Upstream.RecentlyProcessed != null)
+                        await transactionArbiter.Producer.Upstream.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
                 }                
             }            
         }               

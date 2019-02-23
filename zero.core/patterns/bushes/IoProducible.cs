@@ -50,8 +50,7 @@ namespace zero.core.patterns.bushes
             ProStarting,
             Queued,
             Dequeued,
-            Consuming,
-            Forwarded,            
+            Consuming,            
             Consumed,
             ConInlined,
             Accept,
@@ -197,22 +196,21 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
-                if (CurrentState?.State == value)
-                {                    
-                    Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
-                    return;
-                }
-                
                 //Update the previous state's exit time
                 if (CurrentState != null)
                 {
                     if (CurrentState.State == State.Finished)
                     {
-                        PrintStateHistory();
+                        //PrintStateHistory();
                         throw new Exception($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
                     }
-                        
 
+                    if (CurrentState.State == value)
+                    {
+                        Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
+                        return;
+                    }
+                    
                     CurrentState.ExitTime = DateTime.Now;
                     
                     Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
@@ -222,7 +220,7 @@ namespace zero.core.patterns.bushes
                 {
                     if (value != State.Undefined)
                     {
-                        PrintStateHistory();
+                        //PrintStateHistory();
                         throw new Exception($"{TraceDescription} First state transition history's first transition should be `{State.Undefined}', but is `{value}'");                        
                     }
                 }                                
@@ -255,7 +253,7 @@ namespace zero.core.patterns.bushes
                 //terminate
                 if (value == State.Accept || value == State.Reject)
                 {                    
-                    CurrentState.State = State.Finished;
+                    ProcessState = State.Finished;
                 }                
             }
         }        

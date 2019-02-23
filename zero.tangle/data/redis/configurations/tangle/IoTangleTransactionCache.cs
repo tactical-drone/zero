@@ -7,7 +7,6 @@ using zero.core.data.contracts;
 using zero.core.data.providers.redis;
 using zero.core.models;
 using zero.core.network.ip;
-using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
 using zero.tangle.entangled.common.model;
 

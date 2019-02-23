@@ -3,16 +3,12 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MathNet.Numerics;
 using MathNet.Numerics.Distributions;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using zero.core.misc;
 using zero.core.models;
-using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.data.cassandra.tangle.luts;
@@ -163,7 +159,7 @@ namespace zero.tangle.utils
                     node.LatestMilestoneTransaction = transaction;
 
                     var timeDiff = DateTime.Now - transaction.Timestamp.DateTime();
-                    _logger.Info($"[{transaction.Timestamp.DateTime()}]: New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.AsKeyString(transaction.HashBuffer)}]");
+                    _logger.Info($"{transaction.AsTrytes(transaction.HashBuffer)} : New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Timestamp.DateTime().UtcDateTime}]");
                 }
             }
             //Load from the DB if we don't have one ready
@@ -178,7 +174,7 @@ namespace zero.tangle.utils
                 }
                 else
                 {
-                    //_logger.Trace($"Unable to load nearest milestone for t = `{((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds()}'");
+                    _logger.Trace($"Unable to load nearest milestone for t = `{((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds()}'");
                 }
             }
 
@@ -234,7 +230,7 @@ namespace zero.tangle.utils
                 }
                 catch (Exception e)
                 {
-                    _logger.Trace($"Cannot find milestone for invalid date: `{transaction.Timestamp.DateTime()}'");
+                    _logger.Trace($"Cannot find milestone for invalid date: `{transaction.Timestamp}'");
                 }
             }
         }
@@ -312,7 +308,6 @@ namespace zero.tangle.utils
                                             aveConfTimeCount++;
                                         }
                                             
-
                                         transaction.Depth = depth;
                                         transaction.TotalDepth = totalDepth;
 

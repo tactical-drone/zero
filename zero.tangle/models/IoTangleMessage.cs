@@ -244,9 +244,7 @@ namespace zero.tangle.models
                         //Cheap dup checker
                         if (Producer.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
                         {
-                            var stopwatch = new Stopwatch();
-                            stopwatch.Restart();
-                            
+                            var stopwatch = Stopwatch.StartNew();                                                        
                             if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)))
                             {
                                 stopwatch.Stop();

@@ -164,8 +164,8 @@ namespace zero.tangle.data.cassandra.tangle
             _logger.Trace("Ensured schema!");
 
             //Wait for the config to take hold //TODO hack
-            if(wasConfigured)
-                await Task.Delay(2000);
+            //if(wasConfigured)
+            //    Thread.Sleep(2000);
 
             IsConfigured = true;            
 
@@ -518,8 +518,6 @@ namespace zero.tangle.data.cassandra.tangle
         /// <returns></returns>
         public async Task<bool> RelaxTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones, string traceDescription)
         {
-            //_logger.Trace($"{traceDescription} Relaxin tx milestones to [{milestoneTransaction.AsKeyString(milestoneTransaction.HashBuffer)}] [ENTER]");
-
             var totalTime = Stopwatch.StartNew();
             var scanTime = Stopwatch.StartNew();
             var transactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TKey>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.GetAttachmentTime())));

@@ -30,9 +30,7 @@ namespace zero.tangle.data.redis.configurations.tangle
             _default.parm_redis_tangle_tx_hash_cache_url.Split(',').ToList().ForEach(address=>hosts.Add(IoNodeAddress.Create(address)));
 
             if (!_default.IsConnected)
-#pragma warning disable 4014
-                _default.ConnectAsync(hosts);
-#pragma warning restore 4014
+                await _default.ConnectAsync(hosts);
 
             return _default;
         }
