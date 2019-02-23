@@ -1,11 +1,15 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Text;
 using NLog;
 using zero.core.models;
 using zero.interop.entangled;
+using zero.interop.entangled.common.model;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.trinary;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
+using zero.tangle.models;
 
 // ReSharper disable InconsistentNaming
 
@@ -136,12 +140,37 @@ namespace zero.tangle.entangled.common.model
 
         public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
-            return "0x" + BitConverter.ToString(field.AsArray()).Replace("-", "").ToLower();            
+            return "0x" + BitConverter.ToString(field.AsArray()).Replace("-", "").ToLower().PadRight(101);            
+        }
+
+        public ReadOnlyMemory<byte> Trimmed(byte[] field, byte nullSet = 9)
+        {
+            return IoMarshalledTransaction.Trim(field, nullSet);
         }
 
         public ReadOnlyMemory<byte> AsBlob()
         {
             return Blob;
+        }
+
+        public void PopulateTotalSize()
+        {
+            Size = (short)(SignatureOrMessageBuffer.Length 
+                   + AddressBuffer.Length 
+                   + Marshal.SizeOf(Value)
+                   + ObsoleteTagBuffer.Length
+                   + Marshal.SizeOf(Timestamp)
+                   + Marshal.SizeOf(CurrentIndex)
+                   + Marshal.SizeOf(LastIndex)
+                   + BundleBuffer.Length
+                   + TrunkBuffer.Length
+                   + BranchBuffer.Length
+                   + TagBuffer.Length
+                   + Marshal.SizeOf(AttachmentTimestamp)
+                   + Marshal.SizeOf(AttachmentTimestampLower)
+                   + Marshal.SizeOf(AttachmentTimestampUpper)
+                   + NonceBuffer.Length
+                   + HashBuffer.Length);
         }
 
         private long _milestoneIndex = -1;

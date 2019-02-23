@@ -121,7 +121,12 @@ namespace zero.core.models
 
         string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
 
+        ReadOnlyMemory<byte> Trimmed(TKey field, byte nullSet = 9);
+
         ReadOnlyMemory<byte> AsBlob();
+
+        void PopulateTotalSize();
+
         long GetMilestoneIndex();
 
         long GetAttachmentTime();

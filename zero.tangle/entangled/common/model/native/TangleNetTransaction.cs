@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Text;
 using Cassandra.Mapping.Attributes;
 using NLog;
 using zero.core.models;
 using zero.interop.entangled;
+using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.utils;
 
 namespace zero.tangle.entangled.common.model.native
 {
@@ -141,12 +144,37 @@ namespace zero.tangle.entangled.common.model.native
 
         public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
         {
-            return AsTrytes(field, fixedLenTritsToConvert);
+            return AsTrytes(field, fixedLenTritsToConvert).PadRight(IoTransaction.NUM_TRYTES_ADDRESS);
+        }
+
+        public ReadOnlyMemory<byte> Trimmed(string field, byte _)
+        {
+            return Encoding.UTF8.GetBytes(field.TrimEnd('9'));
         }
 
         public ReadOnlyMemory<byte> AsBlob()
         {
             return Blob;
+        }
+
+        public void PopulateTotalSize()
+        {
+            Size = (short)(SignatureOrMessageBuffer.Length
+                           + AddressBuffer.Length
+                           + Marshal.SizeOf(Value)
+                           + ObsoleteTagBuffer.Length
+                           + Marshal.SizeOf(Timestamp)
+                           + Marshal.SizeOf(CurrentIndex)
+                           + Marshal.SizeOf(LastIndex)
+                           + BundleBuffer.Length
+                           + TrunkBuffer.Length
+                           + BranchBuffer.Length
+                           + TagBuffer.Length
+                           + Marshal.SizeOf(AttachmentTimestamp)
+                           + Marshal.SizeOf(AttachmentTimestampLower)
+                           + Marshal.SizeOf(AttachmentTimestampUpper)
+                           + NonceBuffer.Length
+                           + HashBuffer.Length);
         }
 
         private long _milestoneIndex = -1;

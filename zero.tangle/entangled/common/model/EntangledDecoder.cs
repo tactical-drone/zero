@@ -58,9 +58,11 @@ namespace zero.tangle.entangled.common.model
                     AttachmentTimestamp = memMap.attachment_timestamp.NormalizeDateTime(),
                     AttachmentTimestampLower = memMap.attachment_timestamp_lower.NormalizeDateTime(),
                     AttachmentTimestampUpper = memMap.attachment_timestamp_upper.NormalizeDateTime(),
-                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),
-                    Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check
+                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),                    
+                    Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check                                       
                 };
+
+                interopTransaction.PopulateTotalSize();
 
                 //Check pow
                 Pow<byte[]>.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);

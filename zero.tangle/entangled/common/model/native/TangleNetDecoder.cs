@@ -27,17 +27,13 @@ namespace zero.tangle.entangled.common.model.native
             Entangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, 0, tryteBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION);
 
             var tx = IoMockTransaction.FromTrytes(new TransactionTrytes(Encoding.UTF8.GetString(new ReadOnlySpan<byte>((byte[])(Array)tryteBuffer))));
-
-            var obsoleteTag = tx.ObsoleteTag.Value.TrimEnd('9');
-            if (string.IsNullOrEmpty(obsoleteTag))            
-                obsoleteTag = "";
-            
+                        
             var interopTransaction = new TangleNetTransaction
             {
                 SignatureOrMessageBuffer = Encoding.UTF8.GetBytes(tx.Fragment.Value.Trim('9')),
                 AddressBuffer = Encoding.UTF8.GetBytes(tx.Address.Value),
                 Value = tx.Value,
-                ObsoleteTagBuffer = Encoding.UTF8.GetBytes(obsoleteTag.AsMemory().ToArray()),
+                ObsoleteTagBuffer = Encoding.UTF8.GetBytes(tx.ObsoleteTag.Value.AsMemory().ToArray()),
                 Timestamp = tx.Timestamp.NormalizeDateTime(),
                 CurrentIndex = tx.CurrentIndex,
                 LastIndex = tx.LastIndex,
@@ -53,25 +49,10 @@ namespace zero.tangle.entangled.common.model.native
                 Snapshot = tx.Snapshot,
                 MilestoneIndexEstimate = tx.SnapshotIndex,
                 Solid = tx.Solid,
-                Blob = ((byte[])(Array)tryteBuffer),
-
+                Blob = ((byte[])(Array)tryteBuffer)
             };
-            interopTransaction.Size = (short) (interopTransaction.SignatureOrMessageBuffer.Length
-                                               + interopTransaction.AddressBuffer.Length
-                                               + sizeof(long)
-                                               + interopTransaction.ObsoleteTagBuffer.Length
-                                               + sizeof(long)
-                                               + sizeof(long)
-                                               + sizeof(long)
-                                               + interopTransaction.BundleBuffer.Length
-                                               + interopTransaction.TrunkBuffer.Length
-                                               + interopTransaction.BranchBuffer.Length
-                                               + interopTransaction.TagBuffer.Length
-                                               + sizeof(long)
-                                               + sizeof(long)
-                                               + sizeof(long)
-                                               + interopTransaction.NonceBuffer.Length
-                                               + interopTransaction.HashBuffer.Length);
+
+            interopTransaction.PopulateTotalSize();
 
             //check pow
             Entangled<string>.Default.Ternary.GetTrytesFromTrits(tritBuffer, IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + 1, tryteHashByteBuffer, IoTransaction.NUM_TRITS_HASH - 9);

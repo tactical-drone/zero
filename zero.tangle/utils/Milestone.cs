@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using zero.core.misc;
 using zero.core.models;
+using zero.interop.entangled.common.model.interop;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.data.cassandra.tangle.luts;
@@ -184,6 +185,12 @@ namespace zero.tangle.utils
             //If this is a milestone transaction there is nothing more to be done
             if (transaction.IsMilestoneTransaction)
                 return;
+            else //we don't need the full obsolete tag anymore
+            {
+                var preStrippedSize = transaction.ObsoleteTagBuffer.Length;
+                transaction.ObsoleteTagBuffer = transaction.Trimmed(transaction.ObsoleteTag);
+                transaction.Size -= (short)(preStrippedSize - transaction.ObsoleteTagBuffer.Length);
+            }
 
             //set transaction milestone estimate if the transaction is newer than newest milestone seen
             if (node.LatestMilestoneTransaction != null && node.LatestMilestoneTransaction.Timestamp <= transaction.Timestamp)
