@@ -48,7 +48,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Description of this producer
         /// </summary>
-        public override string Description => $"Produce {nameof(IoTangleTransaction<TKey>)}: `{Upstream.Description}' -> `{_destDescription}'";
+        public override string Description => $"{_destDescription}";
 
         /// <summary>
         /// The original source URI

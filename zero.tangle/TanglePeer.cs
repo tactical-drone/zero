@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
@@ -14,9 +13,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
-using zero.tangle.entangled;
 using zero.tangle.models;
-using zero.tangle.utils;
 using Logger = NLog.Logger;
 
 namespace zero.tangle
@@ -88,15 +85,15 @@ namespace zero.tangle
         /// <returns></returns>
         private async Task ProcessTransactionsAsync(IIoDataSource<RowSet> dataSource)
         {
-            var transactionArbiter = PrimaryProducer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
+            var transactionArbiter = Producer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
 
-            _logger.Debug($"Starting persistence for `{PrimaryProducerDescription}'");
+            _logger.Debug($"Starting persistence for `{Description}'");
             while (!Spinners.IsCancellationRequested)
             {
                 if (transactionArbiter == null)
                 {
                     _logger.Warn("Waiting for transaction stream to spin up...");
-                    transactionArbiter = PrimaryProducer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
+                    transactionArbiter = Producer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
                     await Task.Delay(2000);//TODO config
                     continue;
                 }
@@ -108,24 +105,28 @@ namespace zero.tangle
                         await ProcessTransactions(dataSource, batch, transactionArbiter,                        
                         async (transaction, forward, arg) =>
                         {
-                            await LoadTransactionsAsync(transaction, dataSource, batch, transactionArbiter);
+                            await LoadTransactionAsync(transaction, dataSource, batch, transactionArbiter);
 #pragma warning disable 4014
                             //Process milestone transactions
                             if(transaction.IsMilestoneTransaction)
-                                Task.Factory.StartNew(async ()=>
-                                {
-                                    var startTime = DateTime.Now;                                    
+                            {
+                                _logger.Trace($"{batch.TraceDescription} Relaxing tx milestones to [{transaction.AsKeyString(transaction.HashBuffer)}] [THREADSTART]");
+                                Task.Factory.StartNew(async () =>
+                                {                                    
+                                    var startTime = DateTime.Now;
                                     //retry maybe some rootish transactions were still incoming
                                     var retries = 0;
                                     var maxRetries = parm_milestone_profiler_max_retry;
-                                    while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>) dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>) _node).Milestones))
-                                    {                                                                    
+                                    _logger.Trace($"{batch.TraceDescription} Relaxing tx milestones to [{transaction.AsKeyString(transaction.HashBuffer)}] [RETRY {retries}]");
+                                    while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones, batch.TraceDescription))
+                                    {
                                         retries++;
-                                        Thread.Sleep(parm_relax_start_delay_ms);                                        
-                                        if((DateTime.Now - startTime).TotalSeconds > ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones.AveMilestoneSeconds * 0.9)
+                                        Task.Delay(parm_relax_start_delay_ms);
+                                        if ((DateTime.Now - startTime).TotalSeconds > ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones.AveMilestoneSeconds * 0.9)
                                             break;
                                     }
-                                },TaskCreationOptions.LongRunning);
+                                }, TaskCreationOptions.LongRunning);
+                            }
 #pragma warning restore 4014
                         });
                     }
@@ -136,17 +137,25 @@ namespace zero.tangle
                     }
                 });
 
-                if (!transactionArbiter.PrimaryProducer.IsOperational)
+                if (!transactionArbiter.Producer.IsOperational)
                     break;
             }
 
-            _logger.Debug($"Shutting down persistence for `{PrimaryProducerDescription}'");
+            _logger.Debug($"Shutting down persistence for `{Description}'");
         }
 
+        /// <summary>
+        /// Processes all transactions
+        /// </summary>
+        /// <param name="dataSource">A data source used for processing</param>
+        /// <param name="transactions">The transactions that need processing</param>
+        /// <param name="transactionArbiter">The arbiter</param>
+        /// <param name="processCallback">The process callback</param>
+        /// <returns></returns>
         private async Task ProcessTransactions(IIoDataSource<RowSet> dataSource,
             IoConsumable<IoTangleTransaction<TKey>> transactions,
             IoForward<IoTangleTransaction<TKey>> transactionArbiter, 
-            Func<IIoTransactionModel<TKey>, IoForward<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> process)
+            Func<IIoTransactionModel<TKey>, IoForward<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> processCallback)
         {
             if (transactions == null)
                 return;
@@ -155,22 +164,23 @@ namespace zero.tangle
             
             var tangleTransactions = ((IoTangleTransaction<TKey>)transactions).Transactions.ToArray();
 
+            _logger.Trace($"{transactions.TraceDescription} Processing `{tangleTransactions.Length}' transactions...");
             foreach (var transaction in tangleTransactions)
             {
                 try
                 {
-                    await process(transaction, transactionArbiter, dataSource);
+                    await processCallback(transaction, transactionArbiter, dataSource);
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, "Processing transactions failed: ");
+                    _logger.Error(e, $"{transactions.TraceDescription} Processing transactions failed: ");
                 }
             }
 
             transactions.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.Consumed;
 
             stopwatch.Stop();
-            //_logger.Trace($"Processed c = `{tangleTransactions.Length}', t = `{stopwatch.ElapsedMilliseconds:D}'");            
+            _logger.Trace($"{transactions.TraceDescription} Processed `{tangleTransactions.Length}' transactions: t = `{stopwatch.ElapsedMilliseconds:D}', `{tangleTransactions.Length*1000/stopwatch.ElapsedMilliseconds:D} t/s'");
         }
 
         /// <summary>
@@ -181,35 +191,36 @@ namespace zero.tangle
         /// <param name="consumer">The consumer used to signal events</param>
         /// <param name="transactionArbiter">The arbiter</param>
         /// <returns></returns>
-        private async Task LoadTransactionsAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoConsumable<IoTangleTransaction<TKey>> consumer, IoForward<IoTangleTransaction<TKey>> transactionArbiter)
+        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoConsumable<IoTangleTransaction<TKey>> consumer, IoForward<IoTangleTransaction<TKey>> transactionArbiter)
         {
             var stopwatch = Stopwatch.StartNew();
+            //_logger.Trace($"{consumer.TraceDescription} Loading transaction [ENTER]");
             RowSet putResult = null;
             try
             {
-                //drop duplicates
-                var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                //drop duplicates                
+                var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Producer.Upstream.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
                 if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
                 {
                     stopwatch.Stop();
-                    _logger.Warn($"Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
+                    _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
                     consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.SlowDup;
                     return;
                 }
-
+                
                 // Update milestone mechanics
                 await ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones.UpdateIndexAsync((TangleNode<IoTangleMessage<TKey>, TKey>)_node, (IoTangleCassandraDb<TKey>)dataSource, transaction);
-
+                
                 //Load the transaction
                 putResult = await dataSource.PutAsync(transaction);
 
                 //indicate that loading is happening
                 if (!transactionArbiter.IsArbitrating)
-                    transactionArbiter.IsArbitrating = true;
+                    transactionArbiter.IsArbitrating = true;                
             }
             catch (Exception e)
             {
-                _logger.Fatal(e, $"`{nameof(dataSource.PutAsync)}' should never throw exceptions. BUG!");
+                _logger.Fatal(e, $"{consumer.TraceDescription} `{nameof(dataSource.PutAsync)}' should never throw exceptions. BUG!");
                 transactionArbiter.IsArbitrating = false;
             }
             finally
@@ -218,9 +229,9 @@ namespace zero.tangle
                 {
                     transactionArbiter.IsArbitrating = false;
                     consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.DbError;
-                    await transactionArbiter.PrimaryProducer.Upstream.RecentlyProcessed.DeleteKeyAsync(
+                    await transactionArbiter.Producer.Upstream.RecentlyProcessed.DeleteKeyAsync(
                         transaction.AsTrytes(transaction.HashBuffer));
-                }
+                }                
             }            
         }               
     }

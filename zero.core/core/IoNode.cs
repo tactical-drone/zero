@@ -122,7 +122,7 @@ namespace zero.core.core
                 {
                     cancelRegistration.Dispose();
                     PeerDisconnected?.Invoke(this, newNeighbor);
-                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out var _);
+                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).Producer.Key, out var _);
                 };
 
                 // Add new neighbor
@@ -142,14 +142,14 @@ namespace zero.core.core
 
                 //Start the producer consumer on the neighbor scheduler
                 try
-                {
+                {                    
 #pragma warning disable 4014
                     Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
 #pragma warning restore 4014
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.PrimaryProducer.Description}' processing thread returned with errors:");
+                    _logger.Error(e, $"Neighbor `{newNeighbor.Producer.Description}' processing thread returned with errors:");
                 }
             }, parm_tcp_readahead);
         }
@@ -177,16 +177,16 @@ namespace zero.core.core
                         var neighbor = newNeighbor = _mallocNeighbor(this, newClient);
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (Neighbors.TryAdd(newNeighbor.PrimaryProducer.Key, newNeighbor))
+                        if (Neighbors.TryAdd(newNeighbor.Producer.Key, newNeighbor))
                         {
                             neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
                             newNeighbor.Closed += (s, e) =>
                             {
-                                if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s).PrimaryProducer.Key, out _))
+                                if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s).Producer.Key, out _))
                                 {
-                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.PrimaryProducer.Key}'");
+                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.Producer.Key}'");
                                 }
                             };
                             
@@ -262,9 +262,9 @@ namespace zero.core.core
             if (_whiteList.TryRemove(address.ToString(), out var ioNodeAddress))
             {
                 var keys = new List<string>();
-                Neighbors.Values.Where(n=>n.PrimaryProducer.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
+                Neighbors.Values.Where(n=>n.Producer.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
                 {                    
-                    keys.Add(n.PrimaryProducer.Key);
+                    keys.Add(n.Producer.Key);
                 });
 
                 Neighbors[address.ToString()].Close();

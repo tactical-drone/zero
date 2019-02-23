@@ -165,9 +165,8 @@ namespace zero.tangle.models
         private async Task<State> ProcessProtocolMessage() //TODO error cases
         {
             var newInteropTransactions = new List<IIoTransactionModel<TKey>>();
-            var s = new Stopwatch();
-            s.Start();
-            
+            var s = Stopwatch.StartNew();
+            var t = Stopwatch.StartNew();
             try
             {
                 if (!Producer.Synced && RequiredSync() && !Producer.Synced)
@@ -180,6 +179,7 @@ namespace zero.tangle.models
                 var syncFailureThreshold = 2;
                 var curSyncFailureCount = syncFailureThreshold;
                 
+                _logger.Trace($"{TraceDescription} Processing {DatumCount} messages...");
                 for (var i = 0; i < DatumCount; i++)
                 {                    
                     try
@@ -211,7 +211,7 @@ namespace zero.tangle.models
                             {
                                 try
                                 {
-                                    _logger.Trace($"Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
+                                    _logger.Trace($"{TraceDescription} Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
                                                   $"imported = `{((IoTangleMessage<TKey>)Previous).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
                                                   $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
@@ -251,7 +251,7 @@ namespace zero.tangle.models
                             {
                                 stopwatch.Stop();
                                 ProcessState = State.FastDup;                                
-                                //_logger.Trace($"({Id}) Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
+                                _logger.Trace($"{TraceDescription} Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
                         }
@@ -263,7 +263,7 @@ namespace zero.tangle.models
                         if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
                             ValueTpsCounter.Tick();
-                            _logger.Info($"({Id}) {interopTx.AsKeyString(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
+                            _logger.Info($"{interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
                         }                                                
                     }
@@ -290,6 +290,8 @@ namespace zero.tangle.models
             {
                 if (ProcessState != State.Consumed && ProcessState != State.Syncing)
                     ProcessState = State.ConsumeErr;
+                t.Stop();
+                _logger.Trace($"{TraceDescription} Deserializing `{DatumCount}' messages took `{t.ElapsedMilliseconds}ms', `{DatumCount*1000/(t.ElapsedMilliseconds+1)} m/s'");
             }
 
             return ProcessState;
@@ -307,7 +309,7 @@ namespace zero.tangle.models
             //forward transactions
             if (!await NodeServicesArbiter.ProduceAsync(Producer.Spinners.Token, sleepOnConsumerLag: false))
             {
-                _logger.Warn($"Failed to forward to `{NodeServicesArbiter.PrimaryProducer.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{NodeServicesArbiter.Producer.Description}'");
             }
         }
 
@@ -327,7 +329,7 @@ namespace zero.tangle.models
             //forward transactions
             if (!await NeighborServicesArbiter.ProduceAsync(Producer.Spinners.Token))
             {
-                _logger.Warn($"Failed to forward to `{NeighborServicesArbiter.PrimaryProducer.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{NeighborServicesArbiter.Producer.Description}'");
             }
         }
 
@@ -345,7 +347,7 @@ namespace zero.tangle.models
             if (!Producer.Synced)
             {                
                 
-                _logger.Debug($"({Id}) Synchronizing `{Producer.Description}'...");
+                _logger.Debug($"{TraceDescription} Synchronizing `{Producer.Description}'...");
                 ProcessState = State.Syncing;
 
                 for (var i = 0; i < DatumCount; i++)
@@ -371,7 +373,7 @@ namespace zero.tangle.models
                                 }
                                 catch (Exception)
                                 {
-                                    _logger.Error($"({Id}) length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
+                                    _logger.Error($"{TraceDescription} length = `{Buffer.Length}', msgSize = `{Codec.MessageSize}', j = `{j}', t = {BufferOffset + Codec.MessageSize + j}");
                                     synced = false;
                                     break;
                                 }
@@ -387,14 +389,14 @@ namespace zero.tangle.models
                             else
                             {
                                 stopwatch.Stop();
-                                _logger.Trace($"({Id}) Synchronized stream `{Producer.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
+                                _logger.Trace($"{TraceDescription} Synchronized stream `{Producer.Description}', crc32 = `{crc}', offset = `{offset}, time = `{stopwatch.ElapsedMilliseconds}ms', cps = `{offset/(stopwatch.ElapsedMilliseconds+1)}'");
                                 Producer.Synced = synced = true;
                                 break;
                             }
                         }
                         catch (Exception e)
                         {
-                            _logger.Error(e, $"({Id}) Error while trying to sync BufferOffset = `{BufferOffset}', DatumCount = `{DatumCount}', DatumFragmentLength = `{DatumFragmentLength}' , BytesLeftToProcess = `{BytesLeftToProcess}', BytesRead = `{BytesRead}'");                            
+                            _logger.Error(e, $"{TraceDescription} Error while trying to sync BufferOffset = `{BufferOffset}', DatumCount = `{DatumCount}', DatumFragmentLength = `{DatumFragmentLength}' , BytesLeftToProcess = `{BytesLeftToProcess}', BytesRead = `{BytesRead}'");                            
                         }
                     }
                     
@@ -419,7 +421,7 @@ namespace zero.tangle.models
             
             if (!Producer.Synced)
             {
-                _logger.Warn($"({Id}) Unable to sync stream `{Producer.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
+                _logger.Warn($"{TraceDescription} Unable to sync stream `{Producer.Description}', scanned = `{offset}', time = `{stopwatch.ElapsedMilliseconds}ms'");
             }
             else if(Producer.Synced)
             {
@@ -447,7 +449,7 @@ namespace zero.tangle.models
                 }
                 catch (Exception e) // we de-synced 
                 {
-                    _logger.Warn(e, "We desynced!:");
+                    _logger.Warn(e, $"{TraceDescription} We desynced!:");
 
                     Producer.Synced = false;
                     DatumCount = 0;
@@ -469,10 +471,7 @@ namespace zero.tangle.models
         {
             TransferPreviousBits();
             
-            return await ProcessProtocolMessage();
-
-            //_logger.Info($"Processed `{message.DatumCount}' datums, remainder = `{message.DatumFragmentLength}', message.BytesRead = `{message.BytesRead}'," +
-            //             $" prevJob.BytesLeftToProcess =`{previousJobFragment?.BytesLeftToProcess}'");            
+            return await ProcessProtocolMessage(); 
         }
 
         /// <inheritdoc />
@@ -500,7 +499,7 @@ namespace zero.tangle.models
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"`{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                            _logger.Warn($"{TraceDescription} `{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
                                          $"CB = `{Producer.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
@@ -533,7 +532,7 @@ namespace zero.tangle.models
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
                                         Producer.Spinners.Cancel();
                                         Producer.Close();
-                                        _logger.Error(rx.Exception?.InnerException, $"ReadAsync from stream `{ProductionDescription}' returned with errors:");
+                                        _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream `{ProductionDescription}' returned with errors:");
                                         break;
                                     //Success
                                     case TaskStatus.RanToCompletion:
@@ -550,7 +549,7 @@ namespace zero.tangle.models
 
                                         if (Id == 0 && Producer is IoTcpClient<IoTangleMessage<TKey>>)
                                         {                                                                  
-                                            _logger.Info($"Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
+                                            _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
                                             BufferOffset += 10;
                                             bytesRead -= 10;
                                             if (BytesLeftToProcess == 0)
@@ -570,7 +569,7 @@ namespace zero.tangle.models
 
                                         ProcessState = State.Produced;
 
-                                        //_logger.Trace($"({Id}) RX=> fragment=`{previousJobFragment?.DatumFragmentLength ?? 0}', read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
+                                        _logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
 
                                         break;
                                     default:
@@ -594,12 +593,12 @@ namespace zero.tangle.models
 
                 if (!sourceTaskSuccess)
                 {
-                    _logger.Trace($"Failed to source job from `{Producer.Description}' for `{ProductionDescription}'");
+                    _logger.Trace($"{TraceDescription} Failed to source job from `{Producer.Description}' for `{ProductionDescription}'");
                 }
             }
             catch (Exception e)
             {
-                _logger.Warn(e, $"Producing job `{ProductionDescription}' returned with errors:");
+                _logger.Warn(e, $"{TraceDescription} Producing job `{ProductionDescription}' returned with errors:");
             }
             finally
             {

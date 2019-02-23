@@ -209,17 +209,17 @@ namespace zero.tangle.utils
                 {
                     if (relaxMilestone != null)
                     {
-                        //_logger.Trace($"Attached milestone: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                        _logger.Trace($"Estimated milestone for [{transaction.AsKeyString(transaction.HashBuffer)}]: `{relaxMilestone.MilestoneIndexEstimate = relaxMilestone.GetMilestoneIndex()}', dt = `{relaxMilestone.Timestamp.DateTime().DateTime - transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
                     }                        
                     else
                     {
                         try
                         {
-                            //_logger.Trace($"Milestone not found: `{transaction.Timestamp}' = `{transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                            _logger.Trace($"Milestone not found [{transaction.AsKeyString(transaction.HashBuffer)}]: `{transaction.Timestamp}' = `{transaction.Timestamp.DateTime().DateTime}', t = `{stopwatch.ElapsedMilliseconds}ms'");
                         }
                         catch
                         {
-                            //_logger.Trace($"Milestone not found: `{transaction.Timestamp}', t = `{stopwatch.ElapsedMilliseconds}ms'");
+                            _logger.Trace($"Milestone not found [{transaction.AsKeyString(transaction.HashBuffer)}]: `{transaction.Timestamp}', t = `{stopwatch.ElapsedMilliseconds}ms'");
                         }
                         return;
                     }

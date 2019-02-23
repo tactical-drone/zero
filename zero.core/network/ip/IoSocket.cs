@@ -220,7 +220,7 @@ namespace zero.core.network.ip
                 _closed = true;
             }
 
-            _logger.Debug($"Closing connection to `{RemoteAddress}'");
+            _logger.Debug($"Closing connection to `{RemoteAddress?.ToString()??LocalIpAndPort}'");
 
             //This has to be at the top or we might recurse
             _cancellationTokenRegistration.Dispose();

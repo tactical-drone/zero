@@ -62,7 +62,7 @@ namespace zero.tangle
                         case TaskStatus.Faulted:
                             break;
                         case TaskStatus.RanToCompletion:
-                            ioNeighbor.PrimaryProducer.RecentlyProcessed = r.Result;
+                            ioNeighbor.Producer.RecentlyProcessed = r.Result;
                             break;
                     }
                 });
@@ -78,7 +78,7 @@ namespace zero.tangle
         {            
             //TangleNode<TJob> node = (TangleNode<TJob>) sender;
             //TODO fix
-            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).ListenerAddress.Port}");
+            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.Producer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.Producer).ListenerAddress.Port}");
 #pragma warning disable 4014
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
@@ -89,14 +89,14 @@ namespace zero.tangle
                     {
                         if (newNeighbor.Result != null)
                         {
-                            ((IoNetClient<TJob>) ioNeighbor.PrimaryProducer).Disconnected += (s, e) =>
+                            ((IoNetClient<TJob>) ioNeighbor.Producer).Disconnected += (s, e) =>
                             {
                                 newNeighbor.Result.Close();
                             };
 
-                            if (newNeighbor.Result.PrimaryProducer.IsOperational)
+                            if (newNeighbor.Result.Producer.IsOperational)
 
-                                await newNeighbor.Result.PrimaryProducer.ProduceAsync(client =>
+                                await newNeighbor.Result.Producer.ProduceAsync(client =>
                                 {
                                     //TODO
                                     ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,

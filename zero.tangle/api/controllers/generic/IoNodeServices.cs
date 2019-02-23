@@ -115,7 +115,7 @@ namespace zero.tangle.api.controllers.generic
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.PrimaryProducer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
+                        var relaySource = n.Producer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
 
                         if (relaySource != null)
                         {
@@ -170,7 +170,7 @@ namespace zero.tangle.api.controllers.generic
                             freeBufferSpace = relaySource.JobHeap.FreeCapacity();
                         }
                         else
-                            _logger.Warn($"Waiting for multicast producer `{n.PrimaryProducer.Description}' to initialize...");
+                            _logger.Warn($"Waiting for multicast producer `{n.Producer.Description}' to initialize...");
                     });
                 return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
             }

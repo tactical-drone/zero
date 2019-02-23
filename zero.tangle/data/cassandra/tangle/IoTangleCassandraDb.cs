@@ -516,8 +516,10 @@ namespace zero.tangle.data.cassandra.tangle
         /// <param name="milestoneTransaction"></param>
         /// <param name="milestones"></param>
         /// <returns></returns>
-        public async Task<bool> RelaxTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones)
+        public async Task<bool> RelaxTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones, string traceDescription)
         {
+            //_logger.Trace($"{traceDescription} Relaxin tx milestones to [{milestoneTransaction.AsKeyString(milestoneTransaction.HashBuffer)}] [ENTER]");
+
             var totalTime = Stopwatch.StartNew();
             var scanTime = Stopwatch.StartNew();
             var transactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TKey>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.GetAttachmentTime())));
@@ -532,7 +534,7 @@ namespace zero.tangle.data.cassandra.tangle
             var ioApprovedTransactions = transactions?.ToArray();
             if (!ioApprovedTransactions?.Any()??true)
             {
-                _logger.Trace($"No transactions found to relax at milestone = `{milestoneTransaction.GetAttachmentTime().DateTime()}'");
+                _logger.Trace($"{traceDescription} No transactions found to relax at milestone = `{milestoneTransaction.GetAttachmentTime().DateTime()}'");
                 return false;
             }
             
@@ -560,7 +562,9 @@ namespace zero.tangle.data.cassandra.tangle
             totalTime.Stop();
             var confirmed = ioApprovedTransactions.Where(t => t.MilestoneIndexEstimate > 0).Sum(c=>1);
             var latency = ioApprovedTransactions.Where(t => t.MilestoneIndexEstimate > 0).Average(c => c.ConfirmationTime);
-            _logger.Info($"Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', l = `{latency/60:F} min', cr = `{confirmed*100/ioApprovedTransactions.Length:D}%', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds+1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']");
+            var logStr = $"{traceDescription} Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', l = `{latency / 60:F} min', cr = `{confirmed * 100 / ioApprovedTransactions.Length:D}%', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds + 1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']";
+            _logger.Trace(logStr);
+            _logger.Info(logStr.Substring(traceDescription.Length + 1));
             return relaxedTransactions.Any();
         }
                 

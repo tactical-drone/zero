@@ -87,6 +87,11 @@ namespace zero.core.patterns.bushes
         public virtual string ProductionDescription => WorkDescription;
 
         /// <summary>
+        /// A description of the job and work
+        /// </summary>
+        public virtual string TraceDescription => $"{ProductionDescription}|{Id}#  ";
+
+        /// <summary>
         /// The ultimate source of workload
         /// </summary>
         public IoProducer<TJob> Producer { get; }
@@ -111,55 +116,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
         public abstract Task<State> ProduceAsync();
-
-        /// <summary>
-        /// Update state history
-        /// </summary>
-        /// <param name="value">The new state value</param>
-        public void UpdateStateTransitionHistory(State value)
-        {
-            //Update the previous state's exit time
-            if (CurrentState != null)
-            {
-                CurrentState.ExitTime = DateTime.Now;
-
-                Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
-                Interlocked.Add(ref Producer.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));                
-            }
-            else
-            {
-                if (value != State.Undefined)
-                {
-                    _logger.Fatal($"({Id}) First state transition history's first transition should be `{State.Undefined}', but is `{value}'");
-                    PrintStateHistory();
-                }
-            }
-
-            if(CurrentState?.State == State.Finished)
-            {
-                _logger.Fatal($"({Id}) Cannot transition from `{State.Finished}' to `{value}'");
-                PrintStateHistory();
-            }
-
-            //Allocate memory for a new current state
-            var prevState = CurrentState;
-            var newState = new IoWorkStateTransition<TJob> { Previous = prevState };
-            CurrentState = newState;
-
-            //Configure the current state
-            if (prevState != null)
-                prevState.Next = CurrentState;
-            
-            CurrentState.State = value;
-
-            //Timestamps
-            CurrentState.EnterTime = CurrentState.ExitTime = DateTime.Now;
-
-            //Update the state transition history
-            if(prevState != null)
-                StateTransitionHistory[(int)prevState.State] = newState;
-        }
-
+        
         /// <summary>
         /// Initializes this instance for reuse from the heap
         /// </summary>
@@ -241,24 +198,65 @@ namespace zero.core.patterns.bushes
             set
             {
                 if (CurrentState?.State == value)
-                {
+                {                    
                     Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
                     return;
                 }
-                    
-                //Update timestamps
-                UpdateStateTransitionHistory(value);
+                
+                //Update the previous state's exit time
+                if (CurrentState != null)
+                {
+                    if (CurrentState.State == State.Finished)
+                    {
+                        PrintStateHistory();
+                        throw new Exception($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
+                    }
+                        
 
+                    CurrentState.ExitTime = DateTime.Now;
+                    
+                    Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
+                    Interlocked.Add(ref Producer.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
+                }
+                else
+                {
+                    if (value != State.Undefined)
+                    {
+                        PrintStateHistory();
+                        throw new Exception($"{TraceDescription} First state transition history's first transition should be `{State.Undefined}', but is `{value}'");                        
+                    }
+                }                                
+                
+                //Allocate memory for a new current state
+                var prevState = CurrentState;
+                var newState = new IoWorkStateTransition<TJob>
+                {
+                    Previous = prevState,
+                    State = value,
+                    EnterTime = DateTime.Now,
+                    ExitTime = DateTime.Now
+                };
+
+                CurrentState = newState;
+
+                //Configure the current state
+                if (prevState != null)
+                {                    
+                    prevState.Next = CurrentState;                    
+                    StateTransitionHistory[(int)prevState.State] = CurrentState;
+                }
+                
                 //generate a unique id
                 if (value == State.Undefined)
                 {
                     Id = Interlocked.Read(ref Producer.Counters[(int)State.Undefined]);
                 }
 
+                //terminate
                 if (value == State.Accept || value == State.Reject)
-                {
-                    ProcessState = State.Finished;
-                }
+                {                    
+                    CurrentState.State = State.Finished;
+                }                
             }
         }        
     }

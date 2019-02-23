@@ -18,7 +18,7 @@ namespace zero.tangle.models
         /// </summary>
         /// <param name="source">The producer of these jobs</param>
         /// <param name="waitForConsumerTimeout">The time we wait for the producer before reporting it</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TKey>> source, int waitForConsumerTimeout = 0) : base("forward", $"tangle transaction from: `{source.Description}'", source)
+        public IoTangleTransaction(IoProducer<IoTangleTransaction<TKey>> source, int waitForConsumerTimeout = 0) : base("forward", $"{nameof(IoTangleTransaction<TKey>)}", source)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;            
             _logger = LogManager.GetCurrentClassLogger();            

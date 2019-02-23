@@ -26,7 +26,7 @@ namespace zero.core.core
         {
             _logger = LogManager.GetCurrentClassLogger();
             _node = node;
-            Spinners.Token.Register(() => PrimaryProducer?.Close());
+            Spinners.Token.Register(() => Producer?.Close());
         }
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace zero.core.core
                 _closed = true;
             }
             
-            _logger.Info($"Closing neighbor `{PrimaryProducerDescription}'");
+            _logger.Info($"Closing neighbor `{Description}'");
 
             OnClosed();
             
