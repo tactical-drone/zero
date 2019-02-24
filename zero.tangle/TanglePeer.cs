@@ -121,7 +121,8 @@ namespace zero.tangle
                                     while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones, batch.TraceDescription))
                                     {
                                         retries++;
-                                        Task.Delay(parm_relax_start_delay_ms);
+                                        //Task.Delay(parm_relax_start_delay_ms);
+                                        Thread.Sleep(parm_relax_start_delay_ms);
                                         if ((DateTime.Now - startTime).TotalSeconds > ((TangleNode<IoTangleMessage<TKey>, TKey>)_node).Milestones.AveMilestoneSeconds * 0.9)
                                             break;
                                     }
