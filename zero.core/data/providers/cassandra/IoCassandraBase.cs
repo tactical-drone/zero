@@ -3,15 +3,12 @@ using System.Collections;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
-using Microsoft.AspNetCore.Mvc;
 using NLog;
-using Org.BouncyCastle.Asn1.X9;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.network.ip;
 using Logger = NLog.Logger;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace zero.core.data.providers.cassandra
@@ -141,7 +138,7 @@ namespace zero.core.data.providers.cassandra
         }
 
         public async Task<bool> EnsureDatabaseAsync()
-        {
+        {            
             if (IsConnected && IsConfigured)
                 return true;
 

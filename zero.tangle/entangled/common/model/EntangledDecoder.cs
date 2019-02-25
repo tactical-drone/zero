@@ -40,34 +40,36 @@ namespace zero.tangle.entangled.common.model
         /// <returns>The deserialized transaction</returns>
         public  IIoTransactionModelInterface GetTransaction(sbyte[] flexTritBuffer, int buffOffset, sbyte[] tritBuffer = null)
         {
-            return IoMarshalTransactionDecoder.Deserialize(flexTritBuffer, buffOffset, memMap =>
+            return IoMarshalTransactionDecoder.Deserialize(flexTritBuffer, buffOffset, true,memMap =>
             {
                 var interopTransaction = new EntangledTransaction
                 {
-                    SignatureOrMessageBuffer = IoMarshalledTransaction.Trim(memMap.signature_or_message),
-                    AddressBuffer = IoMarshalledTransaction.Trim(memMap.address, 0),
-                    Value = memMap.value,
-                    ObsoleteTagBuffer = memMap.obsolete_tag,//IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
-                    Timestamp = memMap.timestamp.NormalizeDateTime(),
-                    CurrentIndex = memMap.current_index,
-                    LastIndex = memMap.last_index,
-                    BundleBuffer = memMap.bundle,
-                    TrunkBuffer = IoMarshalledTransaction.Trim(memMap.trunk),
-                    BranchBuffer = IoMarshalledTransaction.Trim(memMap.branch),
-                    TagBuffer = IoMarshalledTransaction.Trim(memMap.tag, 0),
-                    AttachmentTimestamp = memMap.attachment_timestamp.NormalizeDateTime(),
-                    AttachmentTimestampLower = memMap.attachment_timestamp_lower.NormalizeDateTime(),
-                    AttachmentTimestampUpper = memMap.attachment_timestamp_upper.NormalizeDateTime(),
-                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.nonce),                    
+                    SignatureOrMessageBuffer = IoMarshalledTransaction.Trim(memMap.data.signature_or_message),
+                    AddressBuffer = IoMarshalledTransaction.Trim(memMap.essence.address, 0),
+                    Value = memMap.essence.value,
+                    ObsoleteTagBuffer = memMap.essence.obsolete_tag,//IoMarshalledTransaction.Trim(memMap.obsolete_tag, 1),
+                    Timestamp = memMap.essence.timestamp.NormalizeDateTime(),
+                    CurrentIndex = memMap.essence.current_index,
+                    LastIndex = memMap.essence.last_index,
+                    BundleBuffer = memMap.essence.bundle,
+                    TrunkBuffer = IoMarshalledTransaction.Trim(memMap.attachments.trunk),
+                    BranchBuffer = IoMarshalledTransaction.Trim(memMap.attachments.branch),
+                    TagBuffer = IoMarshalledTransaction.Trim(memMap.attachments.tag, 0),
+                    AttachmentTimestamp = memMap.attachments.attachment_timestamp.NormalizeDateTime(),
+                    AttachmentTimestampLower = memMap.attachments.attachment_timestamp_lower.NormalizeDateTime(),
+                    AttachmentTimestampUpper = memMap.attachments.attachment_timestamp_upper.NormalizeDateTime(),
+                    NonceBuffer = IoMarshalledTransaction.Trim(memMap.attachments.nonce),                    
+                    //skip hash for now
                     Blob = new ReadOnlyMemory<byte>((byte[])(Array)flexTritBuffer).Slice(buffOffset, Codec.MessageSize) //TODO double check                                       
                 };
 
                 interopTransaction.PopulateTotalSize();
 
                 //Check pow
-                Pow<byte[]>.ComputeFromBytes(interopTransaction, memMap.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
-
-                interopTransaction.HashBuffer = IoMarshalledTransaction.Trim(memMap.hash);
+                Pow<byte[]>.ComputeFromBytes(interopTransaction, memMap.consensus.hash, flexTritBuffer, buffOffset + Codec.TransactionSize);
+                
+                //pow first, then trim
+                interopTransaction.HashBuffer = IoMarshalledTransaction.Trim(memMap.consensus.hash);
 
                 return interopTransaction;
             });                                

@@ -81,11 +81,11 @@ namespace zero.tangle.entangled.common.model.native
             set => TagBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp))]
+        [Column(nameof(IoMarshalledTransaction.attachments.attachment_timestamp))]
         public long AttachmentTimestamp { get; set; }
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_lower))]
+        [Column(nameof(IoMarshalledTransaction.attachments.attachment_timestamp_lower))]
         public long AttachmentTimestampLower { get; set; }
-        [Column(nameof(IoMarshalledTransaction.attachment_timestamp_upper))]
+        [Column(nameof(IoMarshalledTransaction.attachments.attachment_timestamp_upper))]
         public long AttachmentTimestampUpper { get; set; }
         public ReadOnlyMemory<byte> NonceBuffer { get; set; }
         public string Nonce
