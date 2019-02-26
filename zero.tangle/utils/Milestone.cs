@@ -97,7 +97,8 @@ namespace zero.tangle.utils
                             Thread.Sleep(_yield.Sample());
 
                         Monitor.Enter(transaction);
-                        if (transaction.Walked == false && (transaction.Walked = true) ||                        
+                        if (transaction.Walked == false && (transaction.Walked = true) ||
+                            transaction.Milestone < 1 ||
                             transaction.Height > depth &&
                             transaction.Milestone > currentMilestone.Milestone)
                         {
@@ -288,9 +289,8 @@ namespace zero.tangle.utils
                             Interlocked.Increment(ref scans);                            
                             lock (transaction)
                             {
-                                if (transaction.Height > depth && transaction.Milestone > currentMilestone.Milestone)
-                                {
-                                    
+                                if (transaction.Milestone < 1 || transaction.Height > depth && transaction.Milestone > currentMilestone.Milestone)
+                                {                                    
                                     if (transaction.IsMilestone)
                                     {
                                         //coo consensus
