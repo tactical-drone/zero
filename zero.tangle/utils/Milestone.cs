@@ -98,8 +98,8 @@ namespace zero.tangle.utils
 
                         Monitor.Enter(transaction);
                         if (transaction.Walked == false && (transaction.Walked = true) ||                                                        
-                            transaction.Height > depth ||
-                            transaction.Milestone > currentMilestone.Milestone)
+                            transaction.Height > depth &&
+                            (transaction.IsMilestone || transaction.Milestone < 1 || transaction.Milestone > currentMilestone.Milestone))
                         {
                             Monitor.Exit(transaction);
                             locked = false;
@@ -288,7 +288,7 @@ namespace zero.tangle.utils
                             Interlocked.Increment(ref scans);                            
                             lock (transaction)
                             {
-                                if (transaction.Height > depth || transaction.Milestone > currentMilestone.Milestone)
+                                if (transaction.Height > depth && (transaction.IsMilestone || transaction.Milestone < 1  || transaction.Milestone > currentMilestone.Milestone))
                                 {                                    
                                     if (transaction.IsMilestone)
                                     {
