@@ -490,11 +490,10 @@ namespace zero.core.patterns.bushes
                         {                            
                             if ((curJob.Id % parm_stats_mod_count == 0))
                             {
-
-                                _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
-                                _logger.Trace($"`{Description}' consumer job heap = [[{JobHeap.CacheSize()}/{JobHeap.FreeCapacity()}/{JobHeap.MaxSize}]]");
+                                _logger.Debug("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                _logger.Debug($"`{Description}' {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                 curJob.Producer.PrintCounters();
-                                _logger.Trace("--------------------------------------------------------------------------------------------------------------------------------------------");
+                                _logger.Debug("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                             }
 
                             Free(curJob);

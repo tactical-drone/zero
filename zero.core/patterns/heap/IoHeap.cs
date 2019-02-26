@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime;
 using System.Threading;
 using NLog;
+using zero.core.misc;
 
 namespace zero.core.patterns.heap
 {
@@ -47,6 +48,11 @@ namespace zero.core.patterns.heap
         /// The number of outstanding references
         /// </summary>
         public long ReferenceCount; //TODO refactor
+
+        /// <summary>
+        /// Jobs per second
+        /// </summary>
+        public IoFpsCounter IoFpsCounter { get; } = new IoFpsCounter();
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
@@ -117,6 +123,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         public void Return(T item)
         {
+            IoFpsCounter.Tick();
             _buffer.Add(item);
             Interlocked.Add(ref ReferenceCount, -1);
         }

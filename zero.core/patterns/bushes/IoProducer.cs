@@ -193,14 +193,14 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoProducible<TJob>.State.Undefined ) //&& i < (int)IoProduceble<TJob>.State.Finished)
+                if (i > (int)IoProducible<TJob>.State.Undefined  && i < (int)IoProducible<TJob>.State.Finished)
                 {
                     heading.Append($"{((IoProducible<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }
 
-            _logger.Trace($"`{Description}' Counters: {heading}{str}");
+            _logger.Debug($"`{Description}' Counters: {heading}{str}");
         }
 
         /// <summary>
