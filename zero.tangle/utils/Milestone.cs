@@ -85,7 +85,7 @@ namespace zero.tangle.utils
                 relaxTransaction(transactions, currentMilestone, depth + 1, stack + 1);
 
                 var entryDepth = depth;
-                var entryStack = stack;
+                var entryStack = stack;                
 
                 Parallel.ForEach(transactions, depth == 0? _parallelOptions:_parallelNone, transaction =>
                 {
@@ -98,8 +98,8 @@ namespace zero.tangle.utils
 
                         Monitor.Enter(transaction);
                         if (transaction.Walked == false && (transaction.Walked = true) ||                        
-                            transaction.Depth > depth ||
-                            transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate)
+                            transaction.Height > depth &&
+                            transaction.Milestone > currentMilestone.Milestone)
                         {
                             Monitor.Exit(transaction);
                             locked = false;
@@ -107,18 +107,18 @@ namespace zero.tangle.utils
                             //relax milestone
                             var nextMilestone = currentMilestone;                            
                             if (transaction.IsMilestone)
-                            {
-                                nextMilestone = transaction;
+                            {                                
+                                nextMilestone = transaction;                                
                                 entryDepth = 0;
                             }
 
                             //relax transactions
-                            Volatile.Write(ref stack, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack, entryDepth + 1), Interlocked.Read(ref stack)));
+                            Volatile.Write(ref stack, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack + 1, entryDepth + 1), Interlocked.Read(ref stack)));
                         }
                     }
                     catch(Exception e)
                     {
-                        _logger.Error(e,$"Walker> m = `{currentMilestone.MilestoneIndexEstimate}', h = [{transaction.Hash}] , s = `{stack}', d = `{depth}' :");
+                        _logger.Error(e,$"Walker> m = `{currentMilestone.Milestone}', h = [{transaction.Hash}] , s = `{stack}', d = `{depth}' :");
                     }
                     finally
                     {
@@ -126,11 +126,9 @@ namespace zero.tangle.utils
                             Monitor.Exit(transaction);
                     }
                 });
-            }
-            else
-                return stack;
+            }            
 
-            return stack + 1;
+            return stack;
         }
 
         /// <summary>
@@ -271,7 +269,7 @@ namespace zero.tangle.utils
 
             stopwatch.Restart();
 
-            long loads = 0;            
+            long hits = 0;            
             long scans = 0;            
             long totalStack = 0;
             long aveConfTime = 0;
@@ -287,40 +285,46 @@ namespace zero.tangle.utils
                     {
                         foreach (var transaction in transactions)
                         {
-                            Interlocked.Increment(ref scans);
+                            Interlocked.Increment(ref scans);                            
+                            lock (transaction)
                             {
-                                lock (transaction)
+                                if (transaction.Height > depth && transaction.Milestone > currentMilestone.Milestone)
                                 {
-                                    if (transaction.Depth > depth||
-                                        transaction.MilestoneIndexEstimate > currentMilestone.MilestoneIndexEstimate)
+                                    
+                                    if (transaction.IsMilestone)
                                     {
-                                        if (!transaction.IsMilestone)
+                                        //coo consensus
+                                        if (transaction.Milestone == currentMilestone.Milestone - 1)
                                         {
-                                            transaction.MilestoneIndexEstimate = currentMilestone.MilestoneIndexEstimate;
-                                        }
-
-                                        //transaction.SecondsToMilestone =
-                                        //    (long) (currentMilestone.Timestamp.DateTime() -
-                                        //            transaction.Timestamp.DateTime()).TotalSeconds;
-                                        if (transaction.ConfirmationTime == 0)
-                                        {
-                                            aveConfTime += transaction.ConfirmationTime = (long)(DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
-                                            aveConfTimeCount++;
-                                        }
-                                            
+                                            transaction.Depth = depth;
+                                        }                                        
+                                    }
+                                    else //milestone consensus
+                                    {
+                                        transaction.Milestone = currentMilestone.Milestone;
                                         transaction.Depth = depth;
-                                        transaction.TotalDepth = totalDepth;
+                                    }
+                                         
+                                    //scanned
+                                    transaction.Height = depth;
+                                    
+                                    //confirmation time
+                                    if (transaction.ConfirmationTime == 0)
+                                    {
+                                        aveConfTime += transaction.ConfirmationTime = (long)(DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
+                                        aveConfTimeCount++;
+                                    }
+                                       
+                                    //load                                    
+                                    if (!transaction.Loaded && transaction.HasChanges)
+                                    {
+                                        relaxedTransactions.Add(transaction);
+                                        transaction.Loaded = true;
+                                    }
 
-                                        Interlocked.Increment(ref loads);
-                                        if (!transaction.Loaded)
-                                        {
-                                            relaxedTransactions.Add(transaction);
-                                            transaction.Loaded = true;
-                                        }
-                                    }                                    
-                                }
-                                
-                            }
+                                    Interlocked.Increment(ref hits);
+                                }                                    
+                            }                                                            
                         }
                     }
                     catch (Exception e)
@@ -336,7 +340,7 @@ namespace zero.tangle.utils
 
             stopwatch.Stop();
 
-            _logger.Debug($"Relax transactions: ct = `{(aveConfTime/Math.Max(aveConfTimeCount,1))/60.0:F} min', s = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{loads}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
+            _logger.Debug($"Relax transactions: ct = `{(aveConfTime/Math.Max(aveConfTimeCount,1))/60.0:F} min', d = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{hits}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
 
             return relaxedTransactions;
         }

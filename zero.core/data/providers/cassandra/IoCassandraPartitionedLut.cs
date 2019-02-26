@@ -15,6 +15,10 @@ namespace zero.core.data.providers.cassandra
         }
         public abstract long PartitionSize { get; }
 
+        public volatile bool HasChanges;
+
+        public volatile bool Loaded;
+
         public long GetPartition(long value)
         {
             return (long) Math.Truncate(value / (double) PartitionSize) * PartitionSize;
@@ -23,7 +27,7 @@ namespace zero.core.data.providers.cassandra
         public long[] GetPartitionSet(long value)
         {
             var partition = GetPartition(value);
-            return new[] { partition - 2 * PartitionSize, partition - PartitionSize, partition, partition + PartitionSize};
+            return new[] { partition - PartitionSize, partition, partition + PartitionSize};
         }
     }
 }

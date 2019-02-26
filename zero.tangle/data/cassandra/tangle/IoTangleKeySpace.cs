@@ -170,12 +170,14 @@ namespace zero.tangle.data.cassandra.tangle
                         .Column(c => c.Pow)
                         .Column(c => c.Timestamp)
                         .Column(c => c.ConfirmationTime)
-                        .Column(c => c.MilestoneIndexEstimate)
-                        .Column(c => c.IsMilestone)
-                        .Column(c => c.Depth)
+                        .Column(c => c.Milestone)
+                        .Column(c => c.IsMilestone)                        
+                        .Column(c => c.Depth)                        
                         .PartitionKey(c => c.Partition)
                         .ClusteringKey(c => c.Timestamp, SortOrder.Descending)                        
-                        .ClusteringKey(c => c.Hash));
+                        .ClusteringKey(c => c.Hash)
+
+                        .ClusteringKey(c => c.Verifier));
                 return verifiedTransaction;
             }
         }
