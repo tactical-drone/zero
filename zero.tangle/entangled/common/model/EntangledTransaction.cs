@@ -2,8 +2,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using NLog;
-using zero.core.models;
-using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.trinary;
@@ -114,38 +112,36 @@ namespace zero.tangle.entangled.common.model
         public string Uri { get; set; }
         public short Size { get; set; }
         public bool IsMilestoneTransaction { get; set; }
-        public long ConfirmationTime { get; set; }
+        public int ConfirmationTime { get; set; }
         public IIoTransactionModel<byte[]> MilestoneEstimateTransaction { get; set; }
 
         public ReadOnlyMemory<byte> Blob { get; set; }
 
         public string Key { get; set; }
 
-        public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
+        public string AsTrytes(ReadOnlyMemory<byte> field, int maxFlexTritsToConvert = IoTransaction.NUM_TRITS_HASH, int tryteLen = IoTransaction.NUM_TRYTES_HASH)
         {
             if (field.Length == 0)
                 return string.Empty;
 
-            var tritsToConvert = IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length;
-            tritsToConvert += -tritsToConvert % Codec.TritsPerTryte;
-            tritsToConvert = fixedLenTritsToConvert == 0 ? tritsToConvert : fixedLenTritsToConvert;
-
+            var tritsToConvert = Math.Min(IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length, maxFlexTritsToConvert);
             var trytesToConvert = tritsToConvert / Codec.TritsPerTryte;
+            tritsToConvert = trytesToConvert * Codec.TritsPerTryte;
 
             var trytes = new sbyte[trytesToConvert];
             //Console.Write($"[{trytes.Length},{tritsToConvert}]");
-            Entangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, tritsToConvert, tritsToConvert);            
-            return Encoding.ASCII.GetString((byte[])(Array)trytes);
+            Entangled<byte[]>.Default.Ternary.GetTrytesFromFlexTrits(trytes, trytes.Length, (sbyte[])(Array)field.ToArray(), 0, IoFlexTrit.NUM_TRITS_PER_FLEX_TRIT * field.Length, tritsToConvert);            
+            return Encoding.ASCII.GetString((byte[])(Array)trytes);//.PadRight(tryteLen, '0');
         }
 
-        public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
+        public string AsKeyString(ReadOnlyMemory<byte> field, int maxFlexTritsToConvert = IoTransaction.NUM_TRITS_HASH, int tryteLen = IoTransaction.NUM_TRYTES_HASH)
         {
             return "0x" + BitConverter.ToString(field.AsArray()).Replace("-", "").ToLower().PadRight(98, '0');
         }
 
-        public ReadOnlyMemory<byte> Trimmed(byte[] field, byte nullSet = 9)
+        public byte[] Trimmed(byte[] field, byte nullSet = 9)
         {
-            return IoMarshalledTransaction.Trim(field, nullSet);
+            return IoMarshalledTransaction.Trim(field, nullSet).AsArray();
         }
 
         public ReadOnlyMemory<byte> AsBlob()
@@ -192,7 +188,7 @@ namespace zero.tangle.entangled.common.model
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unable to parse milestone index from ObsoleteTag = `{AsTrytes(ObsoleteTagBuffer)}' [{AsKeyString(HashBuffer)}]:");
+                _logger.Error(e, $"Unable to parse milestone index from ObsoleteTag = `{AsTrytes(ObsoleteTagBuffer, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRYTES_OBSOLETE_TAG)}' [{AsKeyString(HashBuffer)}]:");
                 _milestoneIndex = 0;
             }
 

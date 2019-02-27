@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Linq;
-using System.Runtime.InteropServices;
-using zero.core.models;
 using zero.interop.entangled.common.model;
-using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.mock;
+using zero.tangle.models;
 
 namespace zero.interop.utils
 {

@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Runtime.Serialization;
+using zero.core.models;
+using zero.interop.entangled.common.model;
 
 // ReSharper disable InconsistentNaming
-namespace zero.core.models
+namespace zero.tangle.models
 {
     /// <summary>
     /// The transaction model contract used throughout the system
@@ -112,16 +114,16 @@ namespace zero.core.models
         bool IsMilestoneTransaction { get; set; }
 
         [IgnoreDataMember]
-        long ConfirmationTime { get; set; }
+        int ConfirmationTime { get; set; }
 
         [IgnoreDataMember]
         IIoTransactionModel<TKey> MilestoneEstimateTransaction { get; set; }
         
-        string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
+        string AsTrytes(ReadOnlyMemory<byte> field, int maxFlexTritsToConvert = IoTransaction.NUM_TRITS_HASH, int tryteLen = IoTransaction.NUM_TRYTES_HASH);
 
-        string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0);
+        string AsKeyString(ReadOnlyMemory<byte> field, int maxFlexTritsToConvert = IoTransaction.NUM_TRITS_HASH, int tryteLen = IoTransaction.NUM_TRYTES_HASH);
 
-        ReadOnlyMemory<byte> Trimmed(TKey field, byte nullSet = 9);
+        TKey Trimmed(TKey field, byte nullSet = 9);
 
         ReadOnlyMemory<byte> AsBlob();
 

@@ -9,6 +9,7 @@ using zero.core.models;
 using zero.core.network.ip;
 using zero.interop.utils;
 using zero.tangle.entangled.common.model;
+using zero.tangle.models;
 
 namespace zero.tangle.data.redis.configurations.tangle
 {

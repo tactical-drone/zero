@@ -1,7 +1,7 @@
 ﻿using Cassandra.Mapping;
 using zero.core.data.providers.cassandra;
-using zero.core.models;
 using zero.tangle.data.cassandra.tangle.luts;
+using zero.tangle.models;
 
 namespace zero.tangle.data.cassandra.tangle
 {

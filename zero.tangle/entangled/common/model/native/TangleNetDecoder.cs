@@ -3,12 +3,12 @@ using System.Text;
 using Tangle.Net.Entity;
 using zero.core.misc;
 using zero.core.models;
-using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
 using zero.interop.entangled.mock;
 using zero.interop.utils;
+using zero.tangle.models;
 
 namespace zero.tangle.entangled.common.model.native
 {
@@ -45,10 +45,7 @@ namespace zero.tangle.entangled.common.model.native
                 AttachmentTimestampLower = tx.AttachmentTimestampLowerBound.NormalizeDateTime(),
                 AttachmentTimestampUpper = tx.AttachmentTimestampUpperBound.NormalizeDateTime(),                
                 NonceBuffer = Encoding.UTF8.GetBytes(tx.Nonce.Value.Trim('9').AsMemory().ToArray()),
-                HashBuffer = Encoding.UTF8.GetBytes(tx.Hash.Value.AsMemory().ToArray()),
-                Snapshot = tx.Snapshot,
-                MilestoneIndexEstimate = tx.SnapshotIndex,
-                Solid = tx.Solid,
+                HashBuffer = Encoding.UTF8.GetBytes(tx.Hash.Value.AsMemory().ToArray()),                
                 Blob = ((byte[])(Array)tryteBuffer)
             };
 

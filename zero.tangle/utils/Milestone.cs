@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using MathNet.Numerics.Distributions;
 using NLog;
 using zero.core.misc;
-using zero.core.models;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.data.cassandra.tangle.luts;
@@ -76,9 +75,10 @@ namespace zero.tangle.utils
         /// <param name="currentMilestone">Current milestone</param>
         /// <param name="entryPoint"></param>
         /// <param name="relaxTransaction">The relax step</param>
-        /// <param name="depth">The current depth</param>
-        private long Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, TKey entryPoint, 
-            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, long, long> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone = null, long stack = 0, long depth = 0)
+        /// <param name="stack">Keeps track of current stack depth</param>
+        /// <param name="depth">The current depth being relaxed</param>
+        private int Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, TKey entryPoint, 
+            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, int, int> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone = null, int stack = 0, int depth = 0)
         {                        
             if (tree.TryGetValue(entryPoint, out var transactions))
             {
@@ -92,10 +92,10 @@ namespace zero.tangle.utils
                     var locked = true;
                     
                     try
-                    {                    
-                        if(_yield.Sample() > 0)
+                    {
+                        if (_yield.Sample() > 0)
                             Thread.Sleep(_yield.Sample());
-
+                                                    
                         Monitor.Enter(transaction);
                         if (transaction.Walked == false && (transaction.Walked = true) ||                                                        
                             transaction.Height > depth &&
@@ -113,7 +113,7 @@ namespace zero.tangle.utils
                             }
 
                             //relax transactions
-                            Volatile.Write(ref stack, Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack + 1, entryDepth + 1), Interlocked.Read(ref stack)));
+                            stack = Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack + 1, entryDepth + 1), stack);
                         }
                     }
                     catch(Exception e)
@@ -152,12 +152,12 @@ namespace zero.tangle.utils
                 transaction.MilestoneEstimateTransaction = transaction;
                 transaction.MilestoneIndexEstimate = transaction.GetMilestoneIndex();
 
-                if (transaction.Timestamp > (node.LatestMilestoneTransaction?.Timestamp ?? 0))
+                if (transaction.GetAttachmentTime() > (node.LatestMilestoneTransaction?.GetAttachmentTime() ?? 0))
                 {
                     node.LatestMilestoneTransaction = transaction;
 
-                    var timeDiff = DateTime.Now - transaction.Timestamp.DateTime();
-                    _logger.Info($"{transaction.AsTrytes(transaction.HashBuffer)} : New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.Timestamp.DateTime().UtcDateTime}]");
+                    var timeDiff = DateTime.Now - transaction.GetAttachmentTime().DateTime();
+                    _logger.Info($"{transaction.AsTrytes(transaction.HashBuffer)} : New milestoneIndex = `{transaction.GetMilestoneIndex()}', dt = `{timeDiff}': [{transaction.GetAttachmentTime().DateTime().ToLocalTime()}]");
                 }
             }
             //Load from the DB if we don't have one ready
@@ -182,7 +182,7 @@ namespace zero.tangle.utils
             else //we don't need the full obsolete tag anymore
             {
                 var preStrippedSize = transaction.ObsoleteTagBuffer.Length;
-                transaction.ObsoleteTagBuffer = transaction.Trimmed(transaction.ObsoleteTag);
+                transaction.ObsoleteTag = transaction.Trimmed(transaction.ObsoleteTag);
                 transaction.Size -= (short)(preStrippedSize - transaction.ObsoleteTagBuffer.Length);
             }
 
@@ -310,7 +310,7 @@ namespace zero.tangle.utils
                                     //confirmation time
                                     if (transaction.ConfirmationTime == 0)
                                     {
-                                        aveConfTime += transaction.ConfirmationTime = (long)(DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
+                                        aveConfTime += transaction.ConfirmationTime = (int) (DateTime.UtcNow - transaction.Timestamp.DateTime()).TotalSeconds;
                                         aveConfTimeCount++;
                                     }
                                        

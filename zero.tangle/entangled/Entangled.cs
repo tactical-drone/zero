@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using NLog;
-using zero.interop.entangled;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.common.trinary.native;

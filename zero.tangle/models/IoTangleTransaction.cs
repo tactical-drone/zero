@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.models;
 using zero.core.patterns.bushes;
 using zero.tangle.models.sources;
 

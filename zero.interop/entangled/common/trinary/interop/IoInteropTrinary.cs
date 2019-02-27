@@ -1,5 +1,4 @@
-﻿using zero.interop.entangled.common.model;
-using zero.interop.entangled.common.trinary.interop;
+﻿using zero.interop.entangled.common.trinary.interop;
 
 namespace zero.interop.entangled.common.trinary.abstraction
 {

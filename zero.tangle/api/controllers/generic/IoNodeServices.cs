@@ -12,10 +12,9 @@ using NLog.Targets;
 using zero.core.api;
 using zero.core.api.models;
 using zero.core.core;
-using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.common.model;
 using zero.tangle.api.interfaces;
 using zero.tangle.models;
 
@@ -140,7 +139,7 @@ namespace zero.tangle.api.controllers.generic
                                     {
                                         foreach (var t in msg.Transactions)
                                         {
-                                            var tagStr = t.AsTrytes(t.TagBuffer);
+                                            var tagStr = t.AsTrytes(t.TagBuffer, IoTransaction.NUM_TRITS_OBSOLETE_TAG, IoTransaction.NUM_TRYTES_OBSOLETE_TAG);
 
                                             if (tagQuery == null)
                                                 transactions.Add(t);

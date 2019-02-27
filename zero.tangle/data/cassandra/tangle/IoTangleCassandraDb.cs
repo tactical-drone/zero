@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
@@ -18,6 +17,7 @@ using zero.tangle.data.cassandra.tangle.luts;
 using zero.tangle.entangled;
 using zero.tangle.entangled.common.model;
 using zero.tangle.entangled.common.model.native;
+using zero.tangle.models;
 using zero.tangle.utils;
 using Logger = NLog.Logger;
 
@@ -240,7 +240,10 @@ namespace zero.tangle.data.cassandra.tangle
 
                 return null;
             }
-                                        
+
+            //Trim the hash before load
+            
+
             var executeBatch = userData == null;
 
             var bundledHash = new IoBundledHash<TKey>
@@ -278,7 +281,7 @@ namespace zero.tangle.data.cassandra.tangle
                 ConfirmationTime = tangleTransaction.ConfirmationTime,
                 Milestone = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate,
                 IsMilestone = tangleTransaction.IsMilestoneTransaction,
-                Height = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue                
+                Height = tangleTransaction.IsMilestoneTransaction ? 0 : int.MaxValue                
             };
 
             var verifiedTrunkTransaction = new IoApprovedTransaction<TKey>
@@ -293,7 +296,7 @@ namespace zero.tangle.data.cassandra.tangle
                 ConfirmationTime = tangleTransaction.ConfirmationTime,
                 Milestone = tangleTransaction.IsMilestoneTransaction ? tangleTransaction.MilestoneIndexEstimate : -tangleTransaction.MilestoneIndexEstimate,
                 IsMilestone = tangleTransaction.IsMilestoneTransaction,
-                Height = tangleTransaction.IsMilestoneTransaction ? 0 : long.MaxValue                
+                Height = tangleTransaction.IsMilestoneTransaction ? 0 : int.MaxValue                
             };
 
             var milestoneTransaction = new IoMilestoneTransaction<TKey>
@@ -318,7 +321,7 @@ namespace zero.tangle.data.cassandra.tangle
                     double quality;
                     try
                     {
-                        quality = IoMarketDataClient.Quality + (DateTime.Now - (tangleTransaction.Timestamp.ToString().Length > 11? DateTimeOffset.FromUnixTimeMilliseconds(tangleTransaction.Timestamp): DateTimeOffset.FromUnixTimeSeconds(tangleTransaction.Timestamp))).TotalMinutes;
+                        quality = IoMarketDataClient.Quality + (DateTime.Now - (tangleTransaction.GetAttachmentTime().ToString().Length > 11? DateTimeOffset.FromUnixTimeMilliseconds(tangleTransaction.Timestamp): DateTimeOffset.FromUnixTimeSeconds(tangleTransaction.GetAttachmentTime()))).TotalMinutes;
 
                         if (quality > short.MaxValue)
                             quality = short.MaxValue;

@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
-using zero.core.models;
 using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -261,7 +260,7 @@ namespace zero.tangle.models
                         if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
                             ValueTpsCounter.Tick();
-                            _logger.Info($"{interopTx.AsTrytes(interopTx.AddressBuffer, IoTransaction.NUM_TRITS_ADDRESS)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
+                            _logger.Info($"{interopTx.AsTrytes(interopTx.AddressBuffer)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
                         }                                                
                     }

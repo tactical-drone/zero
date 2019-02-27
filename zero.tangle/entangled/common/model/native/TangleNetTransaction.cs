@@ -4,10 +4,10 @@ using System.Text;
 using Cassandra.Mapping.Attributes;
 using NLog;
 using zero.core.models;
-using zero.interop.entangled;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
-using zero.interop.utils;
+using zero.interop.entangled.common.trinary;
+using zero.tangle.models;
 
 namespace zero.tangle.entangled.common.model.native
 {
@@ -29,12 +29,16 @@ namespace zero.tangle.entangled.common.model.native
             set => SignatureOrMessageBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
+        public string RawSignatureOrMessage { get; set; }
+
         public ReadOnlyMemory<byte> AddressBuffer { get; set; }
         public string Address
         {
             get => Encoding.UTF8.GetString(AddressBuffer.Span);
             set => AddressBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
+
+        public string RawAddress { get; set; }
 
         public ReadOnlyMemory<byte> SignatureOrMessageBuffer { get; set; }
         
@@ -46,6 +50,8 @@ namespace zero.tangle.entangled.common.model.native
             get => Encoding.UTF8.GetString(ObsoleteTagBuffer.Span);
             set => ObsoleteTagBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
+
+        public string RawObsoleteTag { get; set; }
 
         public long Timestamp { get; set; }
         
@@ -60,12 +66,16 @@ namespace zero.tangle.entangled.common.model.native
             set => BundleBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
+        public string RawBundle { get; set; }
+
         public ReadOnlyMemory<byte> TrunkBuffer { get; set; }
         public string Trunk
         {
             get => Encoding.UTF8.GetString(TrunkBuffer.Span);
             set => TrunkBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
+
+        public string RawTrunk { get; set; }
 
         public ReadOnlyMemory<byte> BranchBuffer { get; set; }
         public string Branch
@@ -74,12 +84,16 @@ namespace zero.tangle.entangled.common.model.native
             set => BranchBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
+        public string RawBranch { get; set; }
+
         public ReadOnlyMemory<byte> TagBuffer { get; set; }
         public string Tag
         {
             get => Encoding.UTF8.GetString(TagBuffer.Span);
             set => TagBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
+
+        public string RawTag { get; set; }
 
         [Column(nameof(IoMarshalledTransaction.attachments.attachment_timestamp))]
         public long AttachmentTimestamp { get; set; }
@@ -94,12 +108,16 @@ namespace zero.tangle.entangled.common.model.native
             set => NonceBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
 
+        public string RawNonce { get; set; }
+
         public ReadOnlyMemory<byte> HashBuffer { get; set; }
         public string Hash
         {
             get => Encoding.UTF8.GetString(HashBuffer.Span);
             set => HashBuffer = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(value));
         }
+
+        public string RawHash { get; set; }
 
         [Ignore]
         public string Snapshot { get; set; }
@@ -134,22 +152,22 @@ namespace zero.tangle.entangled.common.model.native
         public ReadOnlyMemory<byte> Blob { get; set; }
 
         public bool IsMilestoneTransaction { get; set; }
-        public long ConfirmationTime { get; set; }
+        public int ConfirmationTime { get; set; }
         public IIoTransactionModel<string> MilestoneEstimateTransaction { get; set; }
 
-        public string AsTrytes(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
+        public string AsTrytes(ReadOnlyMemory<byte> field, int maxFlexTritsToConvert = IoFlexTrit.FLEX_TRIT_SIZE_243, int tryteLen = IoTransaction.NUM_TRYTES_HASH)
         {
-            return Encoding.UTF8.GetString(field.Span);
+            return Encoding.UTF8.GetString(field.Span).PadRight(tryteLen, '9');
         }
 
-        public string AsKeyString(ReadOnlyMemory<byte> field, int fixedLenTritsToConvert = 0)
+        public string AsKeyString(ReadOnlyMemory<byte> field, int maxFlexTritsToConvert = IoFlexTrit.FLEX_TRIT_SIZE_243, int tryteLen = IoTransaction.NUM_TRYTES_HASH)
         {
-            return AsTrytes(field, fixedLenTritsToConvert).PadRight(IoTransaction.NUM_TRYTES_ADDRESS);
+            return AsTrytes(field, maxFlexTritsToConvert, tryteLen);
         }
 
-        public ReadOnlyMemory<byte> Trimmed(string field, byte _)
+        public string Trimmed(string field, byte _)
         {
-            return Encoding.UTF8.GetBytes(field.TrimEnd('9'));
+            return field.TrimEnd('9');
         }
 
         public ReadOnlyMemory<byte> AsBlob()

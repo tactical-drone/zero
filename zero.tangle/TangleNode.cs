@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.core;
-using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.tangle.data.redis.configurations.tangle;
+using zero.tangle.models;
 using zero.tangle.utils;
 
 namespace zero.tangle

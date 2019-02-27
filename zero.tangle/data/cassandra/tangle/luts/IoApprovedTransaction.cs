@@ -1,5 +1,4 @@
-﻿using System.Runtime.Serialization;
-using System.Threading;
+﻿using System.Threading;
 using zero.core.data.providers.cassandra;
 
 namespace zero.tangle.data.cassandra.tangle.luts
@@ -18,8 +17,8 @@ namespace zero.tangle.data.cassandra.tangle.luts
         public sbyte Pow { get; set; }
         public long Timestamp { get; set; }
 
-        long _confirmationTime;
-        public long ConfirmationTime
+        int _confirmationTime;
+        public int ConfirmationTime
         {
             get => _confirmationTime;
             set
@@ -41,25 +40,12 @@ namespace zero.tangle.data.cassandra.tangle.luts
                 HasChanges = true;
             }
         }
-        
+
         public bool IsMilestone { get; set; }
 
-        private long _height = long.MaxValue;
-        public long Height
-        {
-            get => Volatile.Read(ref _height);
-            set => Volatile.Write(ref _height, value);
-        }
-
-        
-        private long _depth = 0;
-        public long Depth
-        {
-            get => Volatile.Read(ref _depth);
-            set => Volatile.Write(ref _depth, value);
-        }
-
         //Graph meta
+        public volatile int Height = int.MaxValue;
+        public volatile int Depth = 0;        
         public volatile bool Walked;        
     }
 }
