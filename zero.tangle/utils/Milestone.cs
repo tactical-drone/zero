@@ -60,7 +60,7 @@ namespace zero.tangle.utils
         /// <summary>
         /// The expected time between issued milestone //TODO adjust from data
         /// </summary>
-        public long AveMilestoneSeconds { get; protected set; } = 120;
+        public long AveMilestoneSeconds { get; protected set; } = 180;
 
         /// <summary>
         /// Countermeasures for worst case scenarios

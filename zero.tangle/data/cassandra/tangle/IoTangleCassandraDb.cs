@@ -568,7 +568,7 @@ namespace zero.tangle.data.cassandra.tangle
             var logStr = $"{traceDescription} Relaxed `{loadedTx}/{ioApprovedTransactions.Length}' milestones estimates from `{milestoneTransaction.GetMilestoneIndex()}', l = `{latency / 60:F} min', cr = `{confirmed * 100 / ioApprovedTransactions.Length:D}%', scan = `{scanTime.ElapsedMilliseconds:D}ms', [load = `{loadTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (loadTime.ElapsedMilliseconds + 1):D} r/s'], [t = `{totalTime.ElapsedMilliseconds:D}ms', `{loadedTx * 1000 / (totalTime.ElapsedMilliseconds + 1):D} r/s']";
             _logger.Trace(logStr);
             _logger.Info(logStr.Substring(traceDescription.Length + 1));
-            return relaxedTransactions.Any();
+            return relaxedTransactions.Count > 2;
         }
                 
         /// <summary>
