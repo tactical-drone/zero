@@ -9,7 +9,7 @@ namespace zero.tangle.data.cassandra.tangle.luts
     /// <typeparam name="TKey">Type of key field</typeparam>
     public class IoApprovedTransaction<TKey>:IoCassandraPartitionedLut
     {
-        public override long PartitionSize => 200000;
+        public override long PartitionSize => 500000;
         public TKey Hash { get; set; }
         public TKey Verifier { get; set; }
         public TKey TrunkBranch { get; set; }
