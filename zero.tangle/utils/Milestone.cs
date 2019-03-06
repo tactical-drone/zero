@@ -275,6 +275,7 @@ namespace zero.tangle.utils
             int aveConfTime = 0;
             int aveConfTimeCount = 0;
             int milestonesCrossed = 0;
+            ConcurrentDictionary<long, object> milestoneCrossedRecord = new ConcurrentDictionary<long, object>();
             //Relax transaction milestones
             if (tree.TryGetValue(rootMilestone.Hash, out var children))
             {
@@ -299,8 +300,11 @@ namespace zero.tangle.utils
                                             transaction.Depth = depth;
                                         }
 
-                                        if(!transaction.Walked)
+                                        if (!transaction.Walked && milestoneCrossedRecord.TryAdd(transaction.Milestone, null))
+                                        {
                                             milestonesCrossed++;
+                                        }
+                                            
                                     }
                                     else //milestone consensus
                                     {
