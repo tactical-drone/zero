@@ -299,7 +299,8 @@ namespace zero.tangle.utils
                                             transaction.Depth = depth;
                                         }
 
-                                        milestonesCrossed++;
+                                        if(!transaction.Walked)
+                                            milestonesCrossed++;
                                     }
                                     else //milestone consensus
                                     {
