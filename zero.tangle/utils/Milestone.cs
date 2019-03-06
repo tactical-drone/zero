@@ -269,11 +269,12 @@ namespace zero.tangle.utils
 
             stopwatch.Restart();
 
-            long hits = 0;            
-            long scans = 0;            
-            long totalStack = 0;
-            long aveConfTime = 0;
-            long aveConfTimeCount = 0;
+            int hits = 0;            
+            int scans = 0;            
+            int totalStack = 0;
+            int aveConfTime = 0;
+            int aveConfTimeCount = 0;
+            int milestonesCrossed = 0;
             //Relax transaction milestones
             if (tree.TryGetValue(rootMilestone.Hash, out var children))
             {
@@ -296,7 +297,9 @@ namespace zero.tangle.utils
                                         if (transaction.Milestone == currentMilestone.Milestone - 1)
                                         {
                                             transaction.Depth = depth;
-                                        }                                        
+                                        }
+
+                                        milestonesCrossed++;
                                     }
                                     else //milestone consensus
                                     {
@@ -339,7 +342,7 @@ namespace zero.tangle.utils
 
             stopwatch.Stop();
 
-            _logger.Debug($"Relax transactions: ct = `{(aveConfTime/Math.Max(aveConfTimeCount,1))/60.0:F} min', d = `{totalStack}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{hits}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
+            _logger.Debug($"Relax transactions: ct = `{(aveConfTime/Math.Max(aveConfTimeCount,1))/60.0:F} min', d = `{totalStack}', mx = `{milestonesCrossed}', t = `{stopwatch.ElapsedMilliseconds}ms', c = `{hits}/{scans}', {scans * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} s/t");
 
             return relaxedTransactions;
         }
