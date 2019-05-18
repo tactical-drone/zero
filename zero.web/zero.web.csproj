@@ -4,8 +4,9 @@
     <TargetFramework>netcoreapp3.0</TargetFramework>    
     <TypeScriptToolsVersion>Latest</TypeScriptToolsVersion>
     <typescriptcompileblocked>true</typescriptcompileblocked>       
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <LangVersion>latest</LangVersion>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>    
+    <!--<LangVersion>latest</LangVersion>-->
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
