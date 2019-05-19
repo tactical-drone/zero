@@ -30,12 +30,12 @@ Optionally start cassandra and redis hosts and you will gain data loading that y
 
 ## Requirements
 
-Requires **3.0.100-preview-010184** to be installed
+Requires **3.0.100-preview5** to be installed
 - Windows
   - https://dotnet.microsoft.com/download/dotnet-core/3.0
 - Linux
   - Binaries
-    - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview2-linux-x64-binaries
+    - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview5-linux-x64-binaries
     - Extract the tarball to some folder and set it in path
   - apt-get (ubuntu 18.04) (not supported yet for sdk-3.0, use above manual binary extraction)
     - `wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb`
@@ -45,7 +45,7 @@ Requires **3.0.100-preview-010184** to be installed
     - `sudo apt-get install dotnet-sdk-3.0`
 
 - Windows
-  - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview2-windows-x64-installer
+  - https://dotnet.microsoft.com/download/thank-you/dotnet-sdk-3.0.100-preview5-windows-x64-installer
 
 ## Building and running
 
