@@ -296,15 +296,11 @@ namespace zero.tangle.utils
                                     {
                                         //coo consensus
                                         if (transaction.Milestone == currentMilestone.Milestone - 1)
-                                        {
-                                            currentMilestone.Depth = depth + transaction.Depth;
-                                        }
+                                            currentMilestone.Depth = depth;
 
                                         //log stats
                                         if (!transaction.Walked && milestoneCrossedRecord.TryAdd(transaction.Milestone, null))
-                                        {
                                             milestonesCrossed++;
-                                        }
                                     }
                                     else //milestone consensus
                                     {
