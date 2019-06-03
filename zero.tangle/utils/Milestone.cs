@@ -78,55 +78,55 @@ namespace zero.tangle.utils
         /// <param name="stack">Keeps track of current stack depth</param>
         /// <param name="depth">The current depth being relaxed</param>
         private int Walker(ConcurrentDictionary<TKey, ConcurrentBag<IoApprovedTransaction<TKey>>> tree, TKey entryPoint, 
-            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, int, int> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone = null, int stack = 0, int depth = 0)
-        {                        
-            if (tree.TryGetValue(entryPoint, out var transactions))
+            Action<ConcurrentBag<IoApprovedTransaction<TKey>>, IoApprovedTransaction<TKey>, int, int> relaxTransaction, IoApprovedTransaction<TKey> currentMilestone, int stack = 0, int depth = 0)
+        {
+            //terminate
+            if (!tree.TryGetValue(entryPoint, out var transactions)) return stack;
+
+            relaxTransaction(transactions, currentMilestone, depth + 1, stack + 1);
+
+            var entryDepth = depth;
+            var entryStack = stack;                
+
+            Parallel.ForEach(transactions, depth == 0? _parallelOptions:_parallelNone, transaction =>
             {
-                relaxTransaction(transactions, currentMilestone, depth + 1, stack + 1);
-
-                var entryDepth = depth;
-                var entryStack = stack;                
-
-                Parallel.ForEach(transactions, depth == 0? _parallelOptions:_parallelNone, transaction =>
-                {
-                    var locked = true;
+                var locked = true;
                     
-                    try
-                    {
-                        if (_yield.Sample() > 0)
-                            Thread.Sleep(_yield.Sample());
+                try
+                {
+                    if (_yield.Sample() > 0)
+                        Thread.Sleep(_yield.Sample());
                                                     
-                        Monitor.Enter(transaction);
-                        if (transaction.Walked == false && (transaction.Walked = true) ||                                                        
-                            transaction.Height > depth &&
-                            (transaction.IsMilestone || transaction.Milestone < 1 || transaction.Milestone > currentMilestone.Milestone))
-                        {
-                            Monitor.Exit(transaction);
-                            locked = false;
+                    Monitor.Enter(transaction);
+                    if (transaction.Walked == false && (transaction.Walked = true) ||                                                        
+                        transaction.Height > depth &&
+                        (transaction.IsMilestone || transaction.Milestone < 1 || transaction.Milestone > currentMilestone.Milestone))
+                    {
+                        Monitor.Exit(transaction);
+                        locked = false;
 
-                            //relax milestone
-                            var nextMilestone = currentMilestone;                            
-                            if (transaction.IsMilestone)
-                            {                                
-                                nextMilestone = transaction;                                
-                                entryDepth = 0;
-                            }
-
-                            //relax transactions
-                            stack = Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack + 1, entryDepth + 1), stack);
+                        //relax milestone
+                        var nextMilestone = currentMilestone;                            
+                        if (transaction.IsMilestone)
+                        {                                
+                            nextMilestone = transaction;
+                            entryDepth = 0;
                         }
+
+                        //relax transactions
+                        stack = Math.Max((int)Walker(tree, transaction.Hash, relaxTransaction, nextMilestone, entryStack + 1, entryDepth + 1), stack);
                     }
-                    catch(Exception e)
-                    {
-                        _logger.Error(e,$"Walker> m = `{currentMilestone.Milestone}', h = [{transaction.Hash}] , s = `{stack}', d = `{depth}' :");
-                    }
-                    finally
-                    {
-                        if (locked)
-                            Monitor.Exit(transaction);
-                    }
-                });
-            }            
+                }
+                catch(Exception e)
+                {
+                    _logger.Error(e,$"Walker> m = `{currentMilestone.Milestone}', h = [{transaction.Hash}] , s = `{stack}', d = `{depth}' :");
+                }
+                finally
+                {
+                    if (locked)
+                        Monitor.Exit(transaction);
+                }
+            });
 
             return stack;
         }
@@ -297,14 +297,14 @@ namespace zero.tangle.utils
                                         //coo consensus
                                         if (transaction.Milestone == currentMilestone.Milestone - 1)
                                         {
-                                            transaction.Depth = depth;
+                                            currentMilestone.Depth = depth + transaction.Depth;
                                         }
 
+                                        //log stats
                                         if (!transaction.Walked && milestoneCrossedRecord.TryAdd(transaction.Milestone, null))
                                         {
                                             milestonesCrossed++;
                                         }
-                                            
                                     }
                                     else //milestone consensus
                                     {
