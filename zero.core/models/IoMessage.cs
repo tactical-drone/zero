@@ -3,7 +3,7 @@ using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 
-namespace zero.core.models.generic
+namespace zero.core.models
 {
     /// <inheritdoc />
     /// <summary>

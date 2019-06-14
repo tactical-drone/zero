@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
-using zero.core.models.generic;
+using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.interop.entangled.common.model;
@@ -251,9 +251,9 @@ namespace zero.tangle.models
                                 _logger.Trace($"{TraceDescription} Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
-                        }
-
-                            //Add tx to be processed
+                        } 
+                        
+                        //Add tx to be processed
                         newInteropTransactions.Add(interopTx);
 
                         TotalTpsCounter.Tick();

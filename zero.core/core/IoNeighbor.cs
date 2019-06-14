@@ -1,6 +1,5 @@
 ﻿using System;
 using NLog;
-using zero.core.models.generic;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
