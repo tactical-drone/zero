@@ -48,8 +48,8 @@ namespace zero.api
             });
 
             services.AddMvc()
-                .SetCompatibilityVersion(CompatibilityVersion.Version_3_0).AddMvcOptions(options=>
-                    options.EnableEndpointRouting = false);
+                .SetCompatibilityVersion(CompatibilityVersion.Version_3_0)
+                .AddMvcOptions(options=>options.EnableEndpointRouting = false);
             //.AddApplicationPart(typeof(IIoNodeController).GetTypeInfo().Assembly);
 
             //.AddJsonOptions(opts =>
