@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using zero.tangle.api.controllers.bootstrap;
 using zero.tangle.api.controllers.services;
 
@@ -47,7 +48,8 @@ namespace zero.api
             });
 
             services.AddMvc()
-                .SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
+                .SetCompatibilityVersion(CompatibilityVersion.Version_3_0).AddMvcOptions(options=>
+                    options.EnableEndpointRouting = false);
             //.AddApplicationPart(typeof(IIoNodeController).GetTypeInfo().Assembly);
 
             //.AddJsonOptions(opts =>
@@ -62,10 +64,11 @@ namespace zero.api
             services.AddSingleton(new IoBootstrapController());
             services.AddSingleton(new IoInteropServicesController());
             services.AddSingleton(new IoNativeServicesController());
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
