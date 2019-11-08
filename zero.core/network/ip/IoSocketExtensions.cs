@@ -6,7 +6,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// Some useful extensions when working with sockets
     /// </summary>
-    public static class IoSocketExtentions
+    public static class IoSocketExtensions
     {
         /// <summary>
         /// Returns the local address from a socket
@@ -15,7 +15,7 @@ namespace zero.core.network.ip
         /// <returns>The local address</returns>
         public static IPAddress LocalAddress(this Socket socket)
         {
-            return ((IPEndPoint)socket.LocalEndPoint).Address;
+            return ((IPEndPoint)socket?.LocalEndPoint)?.Address??IPAddress.Any;
         }
 
         /// <summary>
@@ -25,7 +25,7 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public static int LocalPort(this Socket socket)
         {
-            return ((IPEndPoint)socket.LocalEndPoint).Port;
+            return ((IPEndPoint)socket?.LocalEndPoint)?.Port??0;
         }
 
         /// <summary>
