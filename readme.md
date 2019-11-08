@@ -67,11 +67,13 @@ Most commands must be executed from the root folder **`~/../zero$`**:
    2. **`~/../zero$`** `dotnet build`
 2. Entangled
    1. Clone the repo
-   2. Switch to branch `dotnet-interop`
-   3. **`~/../entangled$`** `bazel build //common:interop`
-   4. Configure the location of entangled inside the file `fetch-interop-libs.sh` using the var `$ENTANGLED_DIR`
-   5. Run **`~/../zero$`** `./fetch-interop-libs.sh`
-   6. After this there should be a file called libinterop.so
+   2. **`~/../zero$`** `git submodule init`
+   3. **`~/../zero$`** `git submodule update`
+   4. Switch to branch `dotnet-interop`
+   5. **`~/../entangled$`** `bazel build //common:interop`
+   6. Configure the location of entangled inside the file `fetch-interop-libs.sh` using the var `$ENTANGLED_DIR`
+   7. Run **`~/../zero$`** `./fetch-interop-libs.sh`
+   8. After this there should be a file called libinterop.so
 3. Running (**TCP connects supported only**, UDP is not supported because of crc offload is broken on windows)
    1. Edit **`~/../zero/zero.sync/Program.cs`** and insert appropriate listen IP (config is on it's way)
       - **Warning**: Make sure *zero* listening port and *iri* listening port matches. This is a limitation currently that will  be fixed soon
