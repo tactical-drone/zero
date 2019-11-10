@@ -32,9 +32,6 @@
   </ItemGroup>
 
   <ItemGroup>    
-    <Reference Include="Microsoft.AspNetCore.Mvc.Abstractions">
-      <HintPath>..\..\..\..\..\..\Program Files\dotnet\packs\Microsoft.AspNetCore.App.Ref\3.0.0\ref\netcoreapp3.0\Microsoft.AspNetCore.Mvc.Abstractions.dll</HintPath>
-    </Reference>    
     <Reference Include="NLog">
       <HintPath>..\..\..\..\.nuget\packages\nlog\4.5.0-rc03\lib\netstandard2.0\NLog.dll</HintPath>
     </Reference>    
@@ -46,6 +43,10 @@
 
   <ItemGroup>
     <Folder Include="api\commands\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>
