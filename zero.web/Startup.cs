@@ -60,16 +60,15 @@ namespace zero.web
                 app.UseDeveloperExceptionPage();
                 //app.UseDatabaseErrorPage();
 
+                //app.UseSpa(config =>
+                //{
+                //    config.UseProxyToSpaDevelopmentServer("http://localhost:5000");
+                //});
+
                 app.UseWebpackDevMiddleware(new WebpackDevMiddlewareOptions
                 {
                     HotModuleReplacement = true,
                     ConfigFile = "webpack.netcore.config.js",
-                    HotModuleReplacementClientOptions = new Dictionary<string, string> { { "reload", "true" } },
-                    //EnvParam = new
-                    //{
-                    //    production = false,
-                    //    analyze = true
-                    //}
                 });
             }
             else
