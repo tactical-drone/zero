@@ -1,4 +1,4 @@
-image: mcr.microsoft.com/dotnet/core/aspnet:3.0
+image: dotnet/core/sdk
 
 stages:
   - build
