@@ -45,9 +45,24 @@ namespace zero.core.network.ip
         /// </summary>
         private EndPoint _udpRemoteEndpointInfo;
 
-        public override IoNodeAddress RemoteAddress { get; protected set; }
+        //public override IoNodeAddress RemoteAddress { get; protected set; }
 
         public override string Key => RemoteAddress?.IpAndPort ?? LocalIpAndPort;
+
+        //public override string Key
+        //{
+        //    get
+        //    {
+        //        if (RemoteAddress == null)
+        //        {
+        //            Console.WriteLine("still null");
+        //            return LocalIpAndPort;
+        //        }
+                    
+
+        //        return RemoteAddress.IpAndPort;
+        //    }
+        //}
 
         /// <inheritdoc />
         /// <summary>
@@ -58,6 +73,9 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> callback)
         {
+
+            Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+
             if (!await base.ListenAsync(address, callback))
                 return false;
 
@@ -82,27 +100,27 @@ namespace zero.core.network.ip
         /// <summary>
         /// Send UDP packet
         /// </summary>
-        /// <param name="getBytes">The buffer containing the data</param>
+        /// <param name="buffer">The buffer containing the data</param>
         /// <param name="offset">Start offset into the buffer</param>
         /// <param name="length">The length of the data</param>
         /// <returns></returns>
-        public override async Task<int> SendAsync(byte[] getBytes, int offset, int length)
+        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, object userdata)
         {
             //TODO HACKS! Remove
-            if (!IsConnectingSocket)
-                return 0;
-            await Socket.SendToAsync(getBytes, SocketFlags.None, ListenerAddress.IpEndPoint).ContinueWith(
+            //if (!IsConnectingSocket)
+            //    return 0;
+            await Socket.SendToAsync(buffer, SocketFlags.None, (EndPoint) userdata).ContinueWith(
                 t =>
                 {
                     switch (t.Status)
                     {
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Sending to udp://{RemoteIpAndPort} failed");
+                            _logger.Error(t.Exception, $"Sending to udp://{userdata} failed");
                             Close();
                             break;
                         case TaskStatus.RanToCompletion:
-                            _logger.Trace($"Sent {length} bytes to udp://{RemoteIpAndPort}");
+                            _logger.Trace($"Sent {length} bytes to udp://{userdata}");
                             break;
                     }
                 }, Spinners.Token);
@@ -122,13 +140,13 @@ namespace zero.core.network.ip
             try
             {
                 var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
-                    Socket.EndReceive).HandleCancellation(Spinners.Token);
+                    result => Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo)).HandleCancellation(Spinners.Token);
 
-                if (RemoteAddress == null)
-                {
-                    var address = IoNodeAddress.CreateFromEndpoint(_udpRemoteEndpointInfo);                    
-                    RemoteAddress = address;
-                }                    
+                    if (RemoteAddress == null)
+                        RemoteAddress = IoNodeAddress.CreateFromEndpoint(_udpRemoteEndpointInfo);
+                    else
+                        RemoteAddress.Update($"udp://{_udpRemoteEndpointInfo}");
+                    
                 return readAsync;
             }
             catch (Exception e)
@@ -146,6 +164,11 @@ namespace zero.core.network.ip
         public override bool IsConnected()
         {
             return ListenerAddress.IpEndPoint != null || _udpRemoteEndpointInfo != null;
+        }
+
+        public override object ExtraData()
+        {
+            return _udpRemoteEndpointInfo;
         }
     }
 }

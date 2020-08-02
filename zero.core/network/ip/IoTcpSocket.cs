@@ -39,7 +39,7 @@ namespace zero.core.network.ip
         /// </summary>
         private readonly Logger _logger;
 
-        public sealed override IoNodeAddress RemoteAddress { get; protected set; }
+        //public sealed override IoNodeAddress RemoteAddress { get; protected set; }
 
         /// <summary>
         /// Starts a TCP listener
@@ -152,16 +152,16 @@ namespace zero.core.network.ip
         /// <summary>
         /// Sends data over TCP async
         /// </summary>
-        /// <param name="getBytes">The buffer containing the data</param>
+        /// <param name="buffer">The buffer containing the data</param>
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="length">The length of the data to be sent</param>
         /// <returns>The amount of bytes sent</returns>
-        public override async Task<int> SendAsync(byte[] getBytes, int offset, int length)
+        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, object userdata = null)
         {
             try
             {
                 var task = Task.Factory
-                    .FromAsync<int>(Socket.BeginSend(getBytes, offset, length, SocketFlags.None, null, null),
+                    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null),
                         Socket.EndSend).HandleCancellation(Spinners.Token);                
                 await task.ContinueWith(t =>
                 {
@@ -227,6 +227,11 @@ namespace zero.core.network.ip
         public override bool IsConnected()
         {
             return (Socket?.IsBound??false) && (Socket?.Connected??false);
+        }
+
+        public override object ExtraData()
+        {
+            throw new NotImplementedException();
         }
     }
 }

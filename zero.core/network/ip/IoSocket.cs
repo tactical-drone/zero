@@ -67,7 +67,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The original node address this socket is supposed to work with
         /// </summary>
-        public abstract IoNodeAddress RemoteAddress { get; protected set; }
+        public IoNodeAddress RemoteAddress { get; protected set; }
 
         /// <summary>
         /// An indication that this socket is a listening socket
@@ -255,11 +255,11 @@ namespace zero.core.network.ip
         /// <summary>
         /// Send bytes to remote socket
         /// </summary>
-        /// <param name="getBytes">The array if bytes to send</param>
+        /// <param name="buffer">The array if bytes to send</param>
         /// <param name="offset">Start at offset</param>
         /// <param name="length">The number of bytes to send</param>
         /// <returns></returns>
-        public abstract Task<int> SendAsync(byte[] getBytes, int offset, int length);
+        public abstract Task<int> SendAsync(byte[] buffer, int offset, int length, object userdata = null);
 
         /// <summary>
         /// Reads a message from the socket
@@ -275,5 +275,12 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         public abstract bool IsConnected();
+
+
+        /// <summary>
+        /// Extra data made available to specific uses
+        /// </summary>
+        /// <returns>Some data</returns>
+        public abstract object ExtraData();
     }
 }

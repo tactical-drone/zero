@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -117,9 +118,15 @@ namespace zero.core.network.ip
         protected IoNetSocket IoSocket;
 
         /// <summary>
+        /// Access to the underlying socket abstraction
+        /// </summary>
+        public IoNetSocket Socket => IoSocket;
+
+        /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
         public string AddressString => ListenerAddress.ResolvedIpAndPort;
+
 
         /// <summary>
         /// Transmit timeout in ms

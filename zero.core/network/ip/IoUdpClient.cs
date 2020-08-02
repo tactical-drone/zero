@@ -7,7 +7,7 @@ namespace zero.core.network.ip
     /// The UDP flavor of <see cref="IoNetClient{TJob}"/>
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetClient{TJob}" />
-    class IoUdpClient<TJob> : IoNetClient<TJob>
+    public class IoUdpClient<TJob> : IoNetClient<TJob>
         where TJob : IIoWorker
         
     {

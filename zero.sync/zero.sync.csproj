@@ -6,6 +6,10 @@
     <LangVersion>latest</LangVersion>    
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Remove="console-example-internal.log" />
     <None Remove="nlog.config" />

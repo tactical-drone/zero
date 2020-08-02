@@ -4,16 +4,27 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>TRACE;GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="models\protobuf\autopeering\**" />
+    <EmbeddedResource Remove="models\protobuf\autopeering\**" />
+    <None Remove="models\protobuf\autopeering\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="models\protobuf\" />
+    <Folder Include="models\protobuf\google\" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="protobuf-net" Version="3.0.29" />
+    <PackageReference Include="BouncyCastle.NetCore" Version="1.8.6" />
+    <PackageReference Include="Google.Protobuf" Version="3.12.4" />
   </ItemGroup>
 
 </Project>

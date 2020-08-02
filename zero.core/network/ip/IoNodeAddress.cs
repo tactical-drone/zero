@@ -18,30 +18,14 @@ namespace zero.core.network.ip
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
         public IoNodeAddress(string url)
         {
-            try
-            {
-                Url = url;
-
-                var uriAndIpAndPort = Url.Split(":");
-                var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
-
-                Port = int.Parse(uriAndIpAndPort[2]);
-                HostStr = StripIpFromUrlString(uriAndIp);                
-            }
-            catch (Exception e)
-            {
-                Validated = false;
-                ValidationErrorString = $"Unable to parse {url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
-                return;
-            }
-
+            Init(url);
             _logger = LogManager.GetCurrentClassLogger();
         }
 
         private Logger _logger;
 
         [DataMember]
-        public string Url { get; }
+        public string Url { get; set; }
 
         [DataMember]
         public string Key => $"{HostStr}:{Port}";
@@ -105,6 +89,32 @@ namespace zero.core.network.ip
 
         [IgnoreDataMember]
         public string ResolvedIpAndPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
+
+
+        /// <summary>
+        /// Initializes the data from a url string
+        /// </summary>
+        /// <param name="url">The url</param>
+        private void Init(string url)
+        {
+            try
+            {
+                Url = url;
+
+                var uriAndIpAndPort = Url.Split(":");
+                var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
+
+                Port = int.Parse(uriAndIpAndPort[2]);
+                HostStr = StripIpFromUrlString(uriAndIp);
+
+                Validated = true;
+            }
+            catch (Exception e)
+            {
+                Validated = false;
+                ValidationErrorString = $"Unable to parse {url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
+            }
+        }
         
         /// <summary>
         /// Creates a new node address descriptor
@@ -117,6 +127,12 @@ namespace zero.core.network.ip
             var address = new IoNodeAddress(url);
             address.Validate(); //TODO move this closer to where it is needed
             return address;
+        }
+
+        public IoNodeAddress Update(string url)
+        {
+            Init(url);
+            return this;
         }
 
         /// <summary>

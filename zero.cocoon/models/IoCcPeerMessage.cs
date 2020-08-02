@@ -6,18 +6,21 @@ using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+
 using System.Text;
 using System.Threading.Tasks;
+using Google.Protobuf;
 using NLog;
 using Proto;
-using ProtoBuf;
+
+using zero.cocoon.identity;
 using zero.core.conf;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using Ping = Proto.Ping;
 
-[module: CompatibilityLevel(CompatibilityLevel.Level300)]
 
 namespace zero.cocoon.models
 {
@@ -66,6 +69,11 @@ namespace zero.cocoon.models
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
+
+        /// <summary>
+        /// Userdata in the producer
+        /// </summary>
+        protected volatile object ProducerUserData;
 
         public enum MessageTypes
         {
@@ -136,6 +144,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.RanToCompletion:
                                         var bytesRead = rx.Result;
                                         BytesRead = bytesRead;
+                                        ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
                                         //Set how many datums we have available to process
                                         DatumCount = BytesLeftToProcess / DatumSize;
@@ -214,30 +223,89 @@ namespace zero.cocoon.models
 
         }
 
+        private static Dictionary<int, Type> MsgTypes = new Dictionary<int, Type> { { 10, typeof(Ping) } };
+        private static SHA256 SHA256 = SHA256.Create();
+
+        static IoCcIdentity Id = IoCcIdentity.Generate();
+
         public override async Task<State> ConsumeAsync()
         {
             //TransferPreviousBits();
 
+            
             try
             {
                 for (var i = 0; i <= DatumCount; i++)
                 {
 
-                    var packet = Serializer.Deserialize<Packet>(((byte[]) (Array) Buffer).AsSpan().Slice(BufferOffset, BytesLeftToProcess));
+                    //var packet = Serializer.Deserialize<Packet>(((byte[]) (Array) Buffer).AsSpan().Slice(BufferOffset, BytesLeftToProcess));
+                    var packet = Packet.Parser.ParseFrom(((byte[]) (Array) Buffer).AsSpan().Slice(BufferOffset, BytesLeftToProcess).ToArray());
 
                     if (packet.Data != null)
                     {
                         var messageType = (MessageTypes) packet.Data[0];
                         _logger.Debug(
-                            $"Got peering message type `({messageType}){Enum.GetName(typeof(MessageTypes), messageType)}, bytesread = {BytesRead}");
+                            $"Got peering message type `({messageType}){Enum.GetName(typeof(MessageTypes), messageType)}, bytesread = {BytesRead}, from {Producer}");
+
+
 
                         switch (messageType)
                         {
                             case MessageTypes.Ping:
-                                var ping = Serializer.Deserialize<Ping>(packet.Data.AsSpan().Slice(1,packet.Data.Length - 1));
+                                //var ping = Serializer.Deserialize<Ping>(packet.Data.Span.Slice(1,packet.Data.Length - 1));
+                                var ping = Ping.Parser.ParseFrom(packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray());
+
                                 if (ping != null)
                                 {
-                                    _logger.Debug($"PING: {ping.SrcAddr}:{ping.SrcPort} - {ping.DstAddr} networkId = {ping.NetworkId}, time = {DateTimeOffset.FromUnixTimeSeconds(ping.Timestamp)}, version = {ping.Version}");
+                                    _logger.Debug($"PING: {ping.SrcAddr}:{ping.SrcPort} - {ping.DstAddr} networkId = {ping.NetworkId}, time = {DateTimeOffset.FromUnixTimeSeconds(ping.Timestamp)}, version = {ping.Version}, udp_source = {ProducerUserData}");
+
+                                    var pong = new Pong
+                                    {
+                                        ReqHash = ByteString.CopyFrom(SHA256.ComputeHash(packet.Data.ToByteArray())),
+                                        //DstAddr = $"{ping.DstAddr}:{ping.SrcPort}",
+                                        DstAddr = $"{ping.DstAddr}",
+                                        Services = new ServiceMap
+                                        {
+                                            Map = { {"peering", new NetworkAddress{Network = ping.DstAddr, Port = 14627}},
+                                                { "gossip", new NetworkAddress { Network = ping.DstAddr, Port = 14666 } },
+                                                { "fpc", new NetworkAddress { Network = ping.DstAddr, Port = 10895 } }
+                                            }
+                                        }
+                                    };
+
+                                    
+
+                                    var sendBuffer = new byte[508];
+                                    var sendBuffer2 = new byte[508];
+                                    var pongStream = new MemoryStream(sendBuffer);
+                                    var packetStream = new MemoryStream(sendBuffer2);
+
+                                    pongStream.WriteByte((byte) MessageTypes.Pong);
+                                    pong.WriteTo(pongStream);
+                                    
+                                    //Serializer.Serialize(pongStream, pong);
+
+                                    //pongStream.Flush();
+                                    var bufferSize = pongStream.Position;
+                                    //pongStream.Seek(0, SeekOrigin.Begin);
+
+                                    var responsePacket = new Packet
+                                    {
+                                        Data = ByteString.CopyFrom(sendBuffer, 0, (int)bufferSize),
+                                        PublicKey = ByteString.CopyFrom(Id.PublicKey)
+                                    };
+
+                                    responsePacket.Signature = ByteString.CopyFrom(Id.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
+
+                                    //Serializer.Serialize(packetStream, responsePacket);
+                                    //Serializer.SerializeWithLengthPrefix(packetStream, packet, PrefixStyle.Fixed32);
+                                    var data = responsePacket.ToByteArray();
+
+                                    //packetStream.Flush();
+                                    //bufferSize = packetStream.Position;
+
+                                    var sent = await ((IoUdpClient<IoCcPeerMessage<TKey>>) Producer).Socket.SendAsync(data, 0, (int)data.Length, ProducerUserData);
+                                    _logger.Debug($"PONG: Sent {sent} bytes");
                                 }
 
                                 break;

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using NLog;
+using zero.cocoon.identity;
 using zero.cocoon.models;
 using zero.core.core;
 using zero.core.network.ip;
@@ -22,6 +23,8 @@ namespace zero.cocoon.autopeer
         private readonly Logger _logger;
 
         public const int TcpReadAhead = 50;
+
+        public IoCcIdentity Identity { get; protected set; } = IoCcIdentity.Generate();
 
     }
 }
