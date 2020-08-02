@@ -66,6 +66,8 @@ namespace zero.core.core
         /// </summary>
         private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
 
+        protected CancellationToken CancellationToken => _spinners.Token;
+
         /// <summary>
         /// On Connected
         /// </summary>
@@ -219,10 +221,10 @@ namespace zero.core.core
         /// </summary>
         public async Task StartAsync()
         {
-            _logger.Info("Unimatrix Zero");
+            _logger.Info($"Unimatrix Zero - {ToString()}");
             try
             {
-                await SpawnListenerAsync().ContinueWith(_=> _logger.Info("You will be assimilated!"));
+                await SpawnListenerAsync().ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()}"), CancellationToken);
             }
             catch (Exception e)
             {

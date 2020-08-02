@@ -228,7 +228,7 @@ namespace zero.tangle.utils
                 }
                 catch (Exception e)
                 {
-                    _logger.Trace($"Cannot find milestone for invalid date: `{transaction.Timestamp}'");
+                    _logger.Trace(e,$"Cannot find milestone for invalid date: `{transaction.Timestamp}'");
                 }
             }
         }

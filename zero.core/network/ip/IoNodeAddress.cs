@@ -201,6 +201,14 @@ namespace zero.core.network.ip
         {
             try
             {
+                if (HostStr == "0.0.0.0")
+                {
+                    IpEndPoint = new IPEndPoint(0, Port);
+                    DnsResolutionChanged = false;
+                    DnsValidated = true;
+                    return;
+                }
+                
                 var resolvedIpAddress = Dns.GetHostAddresses(HostStr)[0];
                 if (!IpEndPoint?.Address.Equals(resolvedIpAddress) ?? false)
                 {

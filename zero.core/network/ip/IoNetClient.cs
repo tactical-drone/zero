@@ -104,7 +104,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => $"{IoSocket?.RemoteAddress.ToString()??ListenerAddress.ToString()}";
+        public override string Description => $"{IoSocket?.RemoteAddress?.ToString()??ListenerAddress.ToString()}";
 
         /// <summary>
         /// A description of this client source. Currently the remote address

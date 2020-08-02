@@ -57,7 +57,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Keys this socket
         /// </summary>
-        public string Key => RemoteAddress.Key;
+        public virtual string Key => RemoteAddress.Key;
 
         /// <summary>
         /// The original node address this socket is supposed to work with
@@ -177,6 +177,7 @@ namespace zero.core.network.ip
             try
             {
                 Socket.Bind(ListenerAddress.IpEndPoint);
+                _logger.Debug($"Bound port `{ListenerAddress}'");
             }
             catch (Exception e)
             {

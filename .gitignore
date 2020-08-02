@@ -262,3 +262,4 @@ __pycache__/
 /zero.api/internal-nlog.txt
 /zero.web/Views/Shared/_Layout.cshtml
 /zero.web/.cache-loader
+*.DotSettings

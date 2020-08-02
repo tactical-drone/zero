@@ -237,16 +237,16 @@ namespace zero.core.patterns.bushes
                             {                            
                                 //TODO Double check this hack
                                 //Basically to handle this weird double connection business on the TCP iri side
-                                if (nextJob.ProcessState == IoProducible<TJob>.State.ProStarting)
-                                {
-                                    nextJob.ProcessState = IoProducible<TJob>.State.Produced;
+                                //if (nextJob.ProcessState == IoProducible<TJob>.State.ProStarting)
+                                //{
+                                //    nextJob.ProcessState = IoProducible<TJob>.State.Produced;
 
-                                    if (sleepOnConsumerLag && nextJob.Producer.Synced)
-                                        await Task.Delay(parm_producer_start_retry_time, cancellationToken);
+                                //    if (sleepOnConsumerLag && nextJob.Producer.Synced)
+                                //        await Task.Delay(parm_producer_start_retry_time, cancellationToken);
 
-                                    Producer.ProducerBarrier.Release(1);
-                                    return true;
-                                }
+                                //    Producer.ProducerBarrier.Release(1);
+                                //    return true;
+                                //}
                             
                                 _previousJobFragment.TryAdd(nextJob.Id, nextJob);
 

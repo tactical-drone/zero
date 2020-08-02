@@ -47,6 +47,8 @@ namespace zero.core.network.ip
 
         public override IoNodeAddress RemoteAddress { get; protected set; }
 
+        public override string Key => RemoteAddress?.IpAndPort ?? LocalIpAndPort;
+
         /// <inheritdoc />
         /// <summary>
         /// Listen for UDP traffic
@@ -65,7 +67,7 @@ namespace zero.core.network.ip
                 callback(this);
 
                 // Prepare UDP connection orientated things                
-                _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 0);
+                _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
             }
             catch (Exception e)
             {
