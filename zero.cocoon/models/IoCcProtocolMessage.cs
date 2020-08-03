@@ -1,40 +1,30 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Google.Protobuf;
 using NLog;
+using zero.cocoon.models.sources;
 using zero.core.patterns.bushes;
-using zero.tangle.models.sources;
 
-namespace zero.tangle.models
+namespace zero.cocoon.models
 {
-    /// <summary>
-    /// Stores meta data used when consuming jobs of this kind
-    /// </summary>    
-    /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleTransaction<TKey> : IoConsumable<IoTangleTransaction<TKey>> 
+    class IoCcProtocolMessage<TKey> : IoConsumable<IoCcProtocolMessage<TKey>>
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="IoTangleTransaction{TKey}"/> class.
-        /// </summary>
-        /// <param name="source">The producer of these jobs</param>
-        /// <param name="waitForConsumerTimeout">The time we wait for the producer before reporting it</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TKey>> source, int waitForConsumerTimeout = 0) 
-            : base("forward", $"{nameof(IoTangleTransaction<TKey>)}", source)
+        public IoCcProtocolMessage(IoProducer<IoCcProtocolMessage<TKey>> source, int waitForConsumerTimeout = 0)
+            : base("forward", $"{nameof(IoCcProtocolMessage<TKey>)}", source)
         {
-            _waitForConsumerTimeout = waitForConsumerTimeout;            
-            _logger = LogManager.GetCurrentClassLogger();            
+            _waitForConsumerTimeout = waitForConsumerTimeout;
+            _logger = LogManager.GetCurrentClassLogger();
         }
 
+
         private readonly Logger _logger;
+        private readonly int _waitForConsumerTimeout;
 
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<IIoTransactionModel<TKey>> Transactions;
-
-        /// <summary>
-        /// How long to wait the consumer before logging it
-        /// </summary>
-        private readonly int _waitForConsumerTimeout;
+        public List<Tuple<IMessage,object>> Messages;
 
         /// <summary>
         /// Callback the generates the next job
@@ -43,13 +33,13 @@ namespace zero.tangle.models
         /// The state to indicated failure or success
         /// </returns>
         public override async Task<State> ProduceAsync()
-        {            
+        {
             await Producer.ProduceAsync(async producer =>
             {
                 if (Producer.ProducerBarrier == null)
                 {
                     ProcessState = State.ProdCancel;
-                    return false;                    
+                    return false;
                 }
 
                 if (!await Producer.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Producer.Spinners.Token))
@@ -63,8 +53,8 @@ namespace zero.tangle.models
                     ProcessState = State.ProdCancel;
                     return false;
                 }
-                
-                Transactions = ((IoTangleTransactionProducer<TKey>)Producer).TxQueue.Take();
+
+                Messages = ((IoCcProtocol<TKey>)Producer).TxQueue.Take();
 
                 ProcessState = State.Produced;
 
@@ -87,5 +77,5 @@ namespace zero.tangle.models
             ProcessState = State.ConInlined;
             return Task.FromResult(ProcessState);
         }
-    }    
+    }
 }

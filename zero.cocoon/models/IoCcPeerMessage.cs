@@ -1,24 +1,14 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-
-using System.Text;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
 using Proto;
-using RestSharp.Extensions;
+using zero.cocoon.autopeer;
 using zero.cocoon.identity;
+using zero.cocoon.models.sources;
 using zero.core.conf;
 using zero.core.models;
 using zero.core.network.ip;
@@ -28,7 +18,7 @@ using Ping = Proto.Ping;
 
 namespace zero.cocoon.models
 {
-    public class IoCcPeerMessage<TKey> : IoMessage<IoCcPeerMessage<TKey>>
+    class IoCcPeerMessage<TKey> : IoMessage<IoCcPeerMessage<TKey>>
     {
         public IoCcPeerMessage(string jobDescription, string workDescription, IoProducer<IoCcPeerMessage<TKey>> producer) : base(jobDescription, workDescription, producer)
         {
@@ -41,12 +31,36 @@ namespace zero.cocoon.models
             DatumProvisionLengthMax = DatumSize - 1;
             DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+
+            //forward to peer
+            if (!Producer.ObjectStorage.ContainsKey(nameof(_peerChannel)))
+            {
+                _peerChannel = new IoCcProtocol<TKey>($"{nameof(_peerChannel)}", parm_forward_queue_length);
+                if (!Producer.ObjectStorage.TryAdd(nameof(_peerChannel), _peerChannel))
+                {
+                    _peerChannel = (IoCcProtocol<TKey>)Producer.ObjectStorage[nameof(_peerChannel)];
+                }
+            }
+
+            PeerChannel = producer.GetDownstreamArbiter(nameof(IoCcNeighbor<IoCcProtocolMessage<TKey>>), _peerChannel, userData => new IoCcProtocolMessage<TKey>(_peerChannel, -1 /*We block to control congestion*/));
+            PeerChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+            PeerChannel.parm_producer_start_retry_time = 0;
         }
 
         /// <summary>
         /// logger
         /// </summary>
         private readonly Logger _logger;
+
+        /// <summary>
+        /// The decoded tangle transaction
+        /// </summary>
+        private static IoCcProtocol<TKey> _peerChannel;
+
+        /// <summary>
+        /// The transaction broadcaster
+        /// </summary>
+        public IoForward<IoCcProtocolMessage<TKey>> PeerChannel;
 
         /// <summary>
         /// Used to control how long we wait for the producer before we report it
@@ -59,6 +73,12 @@ namespace zero.cocoon.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting    
+
+        /// <summary>
+        /// The amount of items that can be ready for production before blocking
+        /// </summary>
+        [IoParameter]
+        public int parm_forward_queue_length = 4;
 
 
         /// <summary>
@@ -228,39 +248,39 @@ namespace zero.cocoon.models
 
         }
 
-        private static Dictionary<int, Type> MsgTypes = new Dictionary<int, Type> { { 10, typeof(Ping) } };
-        private static SHA256 SHA256 = SHA256.Create();
-
-        static IoCcIdentity Id = IoCcIdentity.Generate();
+        static IoCcIdentity CcId = IoCcIdentity.Generate();
 
         public override async Task<State> ConsumeAsync()
         {
             //TransferPreviousBits();
-
+            
             var stream = ByteStream;
             try
             {
                 var verified = false;
+                _msgBatch = new List<Tuple<IMessage, object>>();
                 for (var i = 0; i <= DatumCount; i++)
                 {
                     var packet = Packet.Parser.ParseFrom(stream);
 
+
                     if (packet.Data != null)
                     {
+
                         var packetMsgRaw = packet.Data.ToByteArray(); //TODO remove copy
 
                         if (packet.Signature != null)
                         {
-                            verified = Id.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.ToByteArray(), 0, packet.Signature.ToByteArray(), 0);
+                            verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.ToByteArray(), 0, packet.Signature.ToByteArray(), 0);
                         }
 
                         var messageType = (MessageTypes)packet.Data[0];
-                        _logger.Debug($"Got {(verified?"signed":"un-signed")} peering message type - {messageType}, bytesread = {BytesRead}, from {Producer}");
+                        _logger.Debug($"Got {(verified ? "signed" : "un-signed")} peering message type - {messageType}, bytesread = {BytesRead}, from {Producer}");
 
                         switch (messageType)
                         {
                             case MessageTypes.Ping:
-                                await ProcessPingMsg(packet, packetMsgRaw);
+                                ProcessPingMsgAsync(packet, packetMsgRaw);
                                 break;
 
                             case MessageTypes.Pong:
@@ -268,7 +288,7 @@ namespace zero.cocoon.models
                                 break;
 
                             case MessageTypes.DiscoveryRequest:
-                                await ProcessDiscoveryRequest(packet, packetMsgRaw);
+                                ProcessDiscoveryRequest(packet, packetMsgRaw);
                                 break;
                             case MessageTypes.DiscoveryResponse:
                                 break;
@@ -294,10 +314,35 @@ namespace zero.cocoon.models
                 //BufferOffset += Math.Min(BytesLeftToProcess, DatumSize);
             }
 
+            if (_msgBatch.Count > 0)
+            {
+                await ForwardToPeerAsync(_msgBatch);
+            }
+
             return ProcessState = State.Consumed;
         }
 
-        private async Task ProcessDiscoveryRequest(Packet packet, byte[] packetMsgRaw)
+        private async Task ForwardToPeerAsync(List<Tuple<IMessage,object>> newInteropTransactions)
+        {
+            //cog the source
+            await _peerChannel.ProduceAsync(source =>
+            {
+                if (_peerChannel.Arbiter.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
+                    ((IoCcProtocol<TKey>)source).TxQueue.Add(newInteropTransactions);
+                else
+                    ((IoCcProtocol<TKey>)source).TxQueue.TryAdd(newInteropTransactions);
+
+                return Task.FromResult(true);
+            }).ConfigureAwait(false);
+
+            //forward transactions
+            if (!await PeerChannel.ProduceAsync(Producer.Spinners.Token).ConfigureAwait(false))
+            {
+                _logger.Warn($"{TraceDescription} Failed to forward to `{PeerChannel.Producer.Description}'");
+            }
+        }
+
+        private void ProcessDiscoveryRequest(Packet packet, byte[] packetMsgRaw)
         {
             try
             {
@@ -308,32 +353,7 @@ namespace zero.cocoon.models
                 {
                     _logger.Debug($"{nameof(DiscoveryRequest)}: {DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)}");
 
-                    var response = new DiscoveryResponse
-                    {
-                        ReqHash = ByteString.CopyFrom(SHA256.ComputeHash(packetMsgRaw)),
-                        Peers = { }
-                    };
-
-                    using var poolMem = MemoryPool<byte>.Shared.Rent(response.CalculateSize() + 1);
-                    MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-                    var heapStream = new MemoryStream(heapMem.Array);
-                    heapStream.WriteByte((byte)MessageTypes.DiscoveryResponse);
-                    response.WriteTo(heapStream);
-
-                    var responsePacket = new Packet
-                    {
-                        Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                        PublicKey = ByteString.CopyFrom(Id.PublicKey)
-                    };
-
-                    responsePacket.Signature =
-                        ByteString.CopyFrom(Id.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
-
-                    var pongMsgRaw = responsePacket.ToByteArray();
-
-                    var sent = await ((IoUdpClient<IoCcPeerMessage<TKey>>)Producer).Socket.SendAsync(pongMsgRaw, 0,
-                        pongMsgRaw.Length, ProducerUserData);
-                    _logger.Debug($"{nameof(DiscoveryResponse)}: Sent {sent} bytes");
+                    _msgBatch.Add(Tuple.Create((IMessage)request,ProducerUserData));
                 }
             }
             catch (Exception e)
@@ -342,7 +362,9 @@ namespace zero.cocoon.models
             }
         }
 
-        private async Task ProcessPingMsg(Packet packet, byte[] packetMsgRaw)
+        List<Tuple<IMessage, object>> _msgBatch = new List<Tuple<IMessage, object>>();
+
+        private void ProcessPingMsgAsync(Packet packet, byte[] packetMsgRaw)
         {
             try
             {
@@ -354,41 +376,7 @@ namespace zero.cocoon.models
                     _logger.Debug(
                         $"{nameof(Ping)}: {ping.SrcAddr}:{ping.SrcPort} - {ping.DstAddr} networkId = {ping.NetworkId}, time = {DateTimeOffset.FromUnixTimeSeconds(ping.Timestamp)}, version = {ping.Version}, udp_source = {ProducerUserData}");
 
-                    var pong = new Pong
-                    {
-                        ReqHash = ByteString.CopyFrom(SHA256.ComputeHash(packetMsgRaw)),
-                        DstAddr = $"{ping.DstAddr}:{ping.SrcPort}",
-                        Services = new ServiceMap
-                        {
-                            Map =
-                            {
-                                {"peering", new NetworkAddress {Network = ping.DstAddr, Port = 14627}},
-                                {"gossip", new NetworkAddress {Network = ping.DstAddr, Port = 14666}},
-                                {"fpc", new NetworkAddress {Network = ping.DstAddr, Port = 10895}}
-                            }
-                        }
-                    };
-
-                    using var poolMem = MemoryPool<byte>.Shared.Rent(pong.CalculateSize() + 1);
-                    MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-                    var heapStream = new MemoryStream(heapMem.Array);
-                    heapStream.WriteByte((byte)MessageTypes.Pong);
-                    pong.WriteTo(heapStream);
-
-                    var responsePacket = new Packet
-                    {
-                        Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                        PublicKey = ByteString.CopyFrom(Id.PublicKey)
-                    };
-
-                    responsePacket.Signature =
-                        ByteString.CopyFrom(Id.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
-
-                    var pongMsgRaw = responsePacket.ToByteArray();
-
-                    var sent = await ((IoUdpClient<IoCcPeerMessage<TKey>>)Producer).Socket.SendAsync(pongMsgRaw, 0,
-                        pongMsgRaw.Length, ProducerUserData);
-                    _logger.Debug($"PONG: Sent {sent} bytes");
+                    _msgBatch.Add(Tuple.Create((IMessage)ping, ProducerUserData));
                 }
             }
             catch (Exception e)
