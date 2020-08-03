@@ -1,4 +1,8 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
@@ -33,6 +37,24 @@ namespace zero.core.models
         /// A buffer to receive the message in
         /// </summary>
         public sbyte[] Buffer;
+
+
+        /// <summary>
+        /// A <see cref="byte"/> span of the input buffer
+        /// </summary>
+        public ReadOnlySpan<byte> BufferSpan => ByteBuffer.AsSpan();
+
+
+        /// <summary>
+        /// A byte array cast of the buffer
+        /// </summary>
+        public byte[] ByteBuffer => (byte[]) (Array) Buffer;
+
+
+        /// <summary>
+        /// Stream access to the input
+        /// </summary>
+        public Stream ByteStream => new MemoryStream(ByteBuffer, BufferOffset, BytesRead);
         
         /// <summary>
         /// The number of bytes read into the buffer

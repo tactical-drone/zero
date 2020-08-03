@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Base58Check;
 using MathNet.Numerics;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.Encoders;
@@ -49,6 +50,11 @@ namespace zero.cocoon.identity
             var sigBuf = new byte[Ed25519.SignatureSize];
             Ed25519.Sign(SecretKey, 0, buffer, offset, len, sigBuf, 0);
             return sigBuf;
+        }
+
+        public bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
+        {
+            return Ed25519.Verify(signature, sigOffset, pubKey, 0, msg, offset, len);
         }
     }
 }
