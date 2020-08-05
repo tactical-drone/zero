@@ -5,19 +5,20 @@ using System.Text;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
+using Proto;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models.sources
 {
-    class IoCcProtocol<TKey> : IoProducer<IoCcProtocolMessage<TKey>>, IIoProducer
+    class IoCcProtocolBuffer : IoProducer<IoCcProtocolMessage>, IIoProducer
     {
-        public IoCcProtocol(string destDescription, int bufferSize) : base(bufferSize)//TODO config
+        public IoCcProtocolBuffer(string chanDesc, int bufferSize) : base(bufferSize)//TODO config
         {
-            //Saves forwarding producer, to leech some values from it            
+            //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
-            _destDescription = destDescription;
-            TxQueue = new BlockingCollection<List<Tuple<IMessage,object>>>(bufferSize);
+            _chanDesc = chanDesc;
+            MessageQueue = new BlockingCollection<List<Tuple<IMessage, object, Packet>>>(bufferSize);
         }
 
         /// <summary>
@@ -28,27 +29,27 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public BlockingCollection<List<Tuple<IMessage,object>>> TxQueue;
+        public BlockingCollection<List<Tuple<IMessage, object, Packet>>> MessageQueue;
 
         /// <summary>
-        /// Describe the destination producer
+        /// Describe the channel
         /// </summary>
-        private readonly string _destDescription;
+        private readonly string _chanDesc;
 
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => Upstream.Key;
+        public override string Key => this != ChannelProducer ? $"{ChannelProducer.Key}":$"{Description}";
 
         /// <summary>
-        /// Description of this producer
+        /// Description of upstream channel
         /// </summary>
-        public override string Description => $"{_destDescription}";
+        public override string Description => $"{_chanDesc}";
 
         /// <summary>
         /// The original source URI
         /// </summary>
-        public override string SourceUri => Upstream.SourceUri;
+        public override string SourceUri => this!=ChannelProducer? ChannelProducer?.SourceUri : $"chan://{GetType().Name}";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -56,11 +57,16 @@ namespace zero.cocoon.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => Upstream.IsOperational;
+        public override bool IsOperational => this == ChannelProducer || (ChannelProducer?.IsOperational??false);
 
         /// <inheritdoc />        
-        public override IoForward<TFJob> GetDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
+        public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override IoChannel<TFJob> GetChannel<TFJob>(string id)
         {
             throw new NotImplementedException();
         }
@@ -71,7 +77,7 @@ namespace zero.cocoon.models.sources
         /// <exception cref="NotImplementedException"></exception>
         public override void Close()
         {
-            TxQueue.Dispose();
+            MessageQueue.Dispose();
         }
 
         /// <summary>
@@ -102,17 +108,6 @@ namespace zero.cocoon.models.sources
                 _logger.Error(e, $"Producer `{Description}' callback failed:");
                 return false;
             }
-        }
-
-        /// <inheritdoc />        
-        public override void ConfigureUpstream(IIoProducer producer)
-        {
-            Upstream = producer;
-        }
-
-        public override void SetArbiter(IoProducerConsumer<IoCcProtocolMessage<TKey>> arbiter)
-        {
-            Arbiter = arbiter;
         }
     }
 }

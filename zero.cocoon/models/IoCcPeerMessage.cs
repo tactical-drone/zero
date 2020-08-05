@@ -18,9 +18,9 @@ using Ping = Proto.Ping;
 
 namespace zero.cocoon.models
 {
-    class IoCcPeerMessage<TKey> : IoMessage<IoCcPeerMessage<TKey>>
+    class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
     {
-        public IoCcPeerMessage(string jobDescription, string workDescription, IoProducer<IoCcPeerMessage<TKey>> producer) : base(jobDescription, workDescription, producer)
+        public IoCcPeerMessage(string jobDescription, string workDescription, IoProducer<IoCcPeerMessage> producer) : base(jobDescription, workDescription, producer)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -32,19 +32,17 @@ namespace zero.cocoon.models
             DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
-            //forward to peer
-            if (!Producer.ObjectStorage.ContainsKey(nameof(_peerChannel)))
+            IoCcProtocolBuffer protocol = null;
+            //forward to neighbor
+            if (!Producer.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
-                _peerChannel = new IoCcProtocol<TKey>($"{nameof(_peerChannel)}", parm_forward_queue_length);
-                if (!Producer.ObjectStorage.TryAdd(nameof(_peerChannel), _peerChannel))
-                {
-                    _peerChannel = (IoCcProtocol<TKey>)Producer.ObjectStorage[nameof(_peerChannel)];
-                }
+                protocol = new IoCcProtocolBuffer($"{Producer.Description}/{nameof(IoCcPeerMessage)}", parm_forward_queue_length);
+                Producer.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
             }
 
-            PeerChannel = producer.GetDownstreamArbiter(nameof(IoCcNeighbor<IoCcProtocolMessage<TKey>>), _peerChannel, userData => new IoCcProtocolMessage<TKey>(_peerChannel, -1 /*We block to control congestion*/));
-            PeerChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
-            PeerChannel.parm_producer_start_retry_time = 0;
+            ProtocolChannel = Producer.AttachProducer(nameof(IoCcNeighbor), protocol, userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+            ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+            ProtocolChannel.parm_producer_start_retry_time = 0;
         }
 
         /// <summary>
@@ -55,12 +53,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoCcProtocol<TKey> _peerChannel;
+        //private static IoCcProtocolBuffer _protocolBuffer;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoCcProtocolMessage<TKey>> PeerChannel;
+        public IoChannel<IoCcProtocolMessage> ProtocolChannel;
 
         /// <summary>
         /// Used to control how long we wait for the producer before we report it
@@ -221,7 +219,7 @@ namespace zero.cocoon.models
         {
             if (Previous?.StillHasUnprocessedFragments ?? false)
             {
-                var previousJobFragment = (IoMessage<IoCcPeerMessage<TKey>>)Previous;
+                var previousJobFragment = (IoMessage<IoCcPeerMessage>)Previous;
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
@@ -253,50 +251,57 @@ namespace zero.cocoon.models
         public override async Task<State> ConsumeAsync()
         {
             //TransferPreviousBits();
-            
+
+            if (BytesRead == 0)
+                return ProcessState = State.ConInvalid;
+
             var stream = ByteStream;
             try
             {
                 var verified = false;
-                _msgBatch = new List<Tuple<IMessage, object>>();
+                _protocolMsgBatch = new List<Tuple<IMessage, object, Packet>>();
                 for (var i = 0; i <= DatumCount; i++)
                 {
                     var packet = Packet.Parser.ParseFrom(stream);
 
 
-                    if (packet.Data != null)
+                    if (packet.Data != null && packet.Data.Length > 0)
                     {
 
                         var packetMsgRaw = packet.Data.ToByteArray(); //TODO remove copy
 
-                        if (packet.Signature != null)
+                        if (packet.Signature != null || packet.Signature?.Length != 0)
                         {
                             verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.ToByteArray(), 0, packet.Signature.ToByteArray(), 0);
                         }
 
-                        var messageType = (MessageTypes)packet.Data[0];
-                        _logger.Debug($"Got {(verified ? "signed" : "un-signed")} peering message type - {messageType}, bytesread = {BytesRead}, from {Producer}");
+                        var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
+                        packet.Type = packet.Data[0];
+                        _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Producer.Description}'");
+
+                        //Don't process unsigned or unknown messages
+                        if(!verified || messageType == null)
+                            continue;
 
                         switch (messageType)
                         {
-                            case MessageTypes.Ping:
-                                ProcessPingMsgAsync(packet, packetMsgRaw);
+                            case nameof(MessageTypes.Ping):
+                                ProcessRequest<Ping>(packet, packetMsgRaw);
                                 break;
-
-                            case MessageTypes.Pong:
-
+                            case nameof(MessageTypes.Pong):
+                                ProcessRequest<Pong>(packet, packetMsgRaw);
                                 break;
-
-                            case MessageTypes.DiscoveryRequest:
-                                ProcessDiscoveryRequest(packet, packetMsgRaw);
+                            case nameof(MessageTypes.DiscoveryRequest):
+                                ProcessRequest<DiscoveryRequest>(packet, packetMsgRaw);
                                 break;
-                            case MessageTypes.DiscoveryResponse:
+                            case nameof(MessageTypes.DiscoveryResponse):
                                 break;
-                            case MessageTypes.PeeringRequest:
+                            case nameof(MessageTypes.PeeringRequest):
+                                ProcessRequest<PeeringRequest>(packet, packetMsgRaw);
                                 break;
-                            case MessageTypes.PeeringResponse:
+                            case nameof(MessageTypes.PeeringResponse):
                                 break;
-                            case MessageTypes.PeeringDrop:
+                            case nameof(MessageTypes.PeeringDrop):
                                 break;
                             default:
                                 _logger.Debug($"Unknown auto peer msg type = {Buffer[BufferOffset - 1]}");
@@ -314,75 +319,56 @@ namespace zero.cocoon.models
                 //BufferOffset += Math.Min(BytesLeftToProcess, DatumSize);
             }
 
-            if (_msgBatch.Count > 0)
+            if (_protocolMsgBatch.Count > 0)
             {
-                await ForwardToPeerAsync(_msgBatch);
+                await ForwardToNeighborAsync(_protocolMsgBatch);
             }
 
             return ProcessState = State.Consumed;
         }
 
-        private async Task ForwardToPeerAsync(List<Tuple<IMessage,object>> newInteropTransactions)
+        private void ProcessRequest<T>(Packet packet, byte[] packetMsgRaw)
+        where T : IMessage<T>, new()
+        {
+            try
+            {
+                var parser = new MessageParser<T>(() => new T());
+                var requestRaw = packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray();
+                var request = parser.ParseFrom(requestRaw);
+
+                if (request != null)
+                {
+                    _logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
+
+                    _protocolMsgBatch.Add(Tuple.Create((IMessage)request, ProducerUserData, packet));
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"Unable to parse request type {typeof(T).Name} from {Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}, size = {packet.Data.Length}");
+            }
+        }
+
+        private async Task ForwardToNeighborAsync(List<Tuple<IMessage, object, Packet>> newInteropTransactions)
         {
             //cog the source
-            await _peerChannel.ProduceAsync(source =>
+            await ProtocolChannel.Producer.ProduceAsync(source =>
             {
-                if (_peerChannel.Arbiter.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                    ((IoCcProtocol<TKey>)source).TxQueue.Add(newInteropTransactions);
+                if (ProtocolChannel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
+                    ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(newInteropTransactions);
                 else
-                    ((IoCcProtocol<TKey>)source).TxQueue.TryAdd(newInteropTransactions);
+                    ((IoCcProtocolBuffer)source).MessageQueue.Add(newInteropTransactions);
 
                 return Task.FromResult(true);
             }).ConfigureAwait(false);
 
             //forward transactions
-            if (!await PeerChannel.ProduceAsync(Producer.Spinners.Token).ConfigureAwait(false))
+            if (!await ProtocolChannel.ProduceAsync(Producer.Spinners.Token).ConfigureAwait(false))
             {
-                _logger.Warn($"{TraceDescription} Failed to forward to `{PeerChannel.Producer.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Producer.Description}'");
             }
         }
 
-        private void ProcessDiscoveryRequest(Packet packet, byte[] packetMsgRaw)
-        {
-            try
-            {
-                var requestRaw = packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray();
-                var request = DiscoveryRequest.Parser.ParseFrom(requestRaw);
-
-                if (request != null)
-                {
-                    _logger.Debug($"{nameof(DiscoveryRequest)}: {DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)}");
-
-                    _msgBatch.Add(Tuple.Create((IMessage)request,ProducerUserData));
-                }
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, "Unable to parse discovery request message");
-            }
-        }
-
-        List<Tuple<IMessage, object>> _msgBatch = new List<Tuple<IMessage, object>>();
-
-        private void ProcessPingMsgAsync(Packet packet, byte[] packetMsgRaw)
-        {
-            try
-            {
-                var pingMsgRaw = packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray();
-                var ping = Ping.Parser.ParseFrom(pingMsgRaw);
-
-                if (ping != null)
-                {
-                    _logger.Debug(
-                        $"{nameof(Ping)}: {ping.SrcAddr}:{ping.SrcPort} - {ping.DstAddr} networkId = {ping.NetworkId}, time = {DateTimeOffset.FromUnixTimeSeconds(ping.Timestamp)}, version = {ping.Version}, udp_source = {ProducerUserData}");
-
-                    _msgBatch.Add(Tuple.Create((IMessage)ping, ProducerUserData));
-                }
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, "Unable to parse peering message");
-            }
-        }
+        List<Tuple<IMessage, object, Packet>> _protocolMsgBatch = new List<Tuple<IMessage, object, Packet>>();
     }
 }

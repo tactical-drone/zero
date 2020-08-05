@@ -21,6 +21,34 @@ namespace zero.cocoon.identity
         private static string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
         private static string PubKey = "8PJmW2W74rJbFasdSTNaDLhGXyJC29EeyBN1Fmq3yQ2j";
 
+        public string IdString()
+        {
+            return Base58CheckEncoding.EncodePlain(Id.AsSpan().Slice(0, 8).ToArray());
+        }
+
+        public string PkString()
+        {
+            return Base58CheckEncoding.EncodePlain(PublicKey);
+        }
+
+        public static IoCcIdentity FromPK(string pk)
+        {
+            var pkBuf = Encoding.ASCII.GetBytes(pk);
+            return new IoCcIdentity
+            {
+                PublicKey = pkBuf,
+                Id = Sha256.ComputeHash(pkBuf.AsSpan().Slice(0,8).ToArray())
+            };
+        }
+
+        public static IoCcIdentity FromPK(ReadOnlySpan<byte> pk)
+        {
+            return new IoCcIdentity
+            {
+                PublicKey = pk.ToArray(),
+                Id = Sha256.ComputeHash(pk.Slice(0, 8).ToArray())
+            };
+        }
 
         public static IoCcIdentity Generate()
         {

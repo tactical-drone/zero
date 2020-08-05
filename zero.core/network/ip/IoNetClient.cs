@@ -29,7 +29,7 @@ namespace zero.core.network.ip
         /// Constructor for incoming connections used by the listener
         /// </summary>
         /// <param name="remote">The remote socket</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         protected IoNetClient(IoSocket remote,int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
@@ -42,7 +42,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="listenerAddress">The address associated with this network client</param>
         /// <param name="arbiter">The job arbitrator</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         protected IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
         {
             ListenerAddress = listenerAddress;
@@ -65,33 +65,42 @@ namespace zero.core.network.ip
         public IoNodeAddress RemoteAddress => IoSocket.RemoteAddress;
 
         /// <summary>
-        /// Configure a downstream producer
+        /// Creates a new channel from id
         /// </summary>
-        /// <typeparam name="TFJob">The id of the downstream producer</typeparam>
-        /// <param name="id">The id of the downstream producer</param>
-        /// <param name="producer">The downstream producer</param>
+        /// <typeparam name="TFJob">The type of items this channel carries</typeparam>
+        /// <param name="id">The id of the channel</param>
+        /// <param name="channelProducer">The upstream channel when creating a new channel</param>
         /// <param name="jobMalloc">Allocates jobs</param>
-        /// <returns><see cref="IoForward{TJob}"/> worker</returns>
-        public override IoForward<TFJob> GetDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null,
+        /// <returns><see cref="IoChannel{TJob}"/>The created channel</returns>
+        public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null,
             Func<object, IoConsumable<TFJob>> jobMalloc = null)
         {
-            if (!IoForward.ContainsKey(id))
+            if (!IoChannels.ContainsKey(id))
             {
-                if (producer == null || jobMalloc == null)
+                if (channelProducer == null || jobMalloc == null)
                 {
-                    _logger.Warn($"Waiting for the multicast producer of `{Description}' to initialize...");
+                    _logger.Warn($"Waiting for the channel producer of `{Description}' to initialize... ??");
                     return null;
                 }
 
                 lock (this)
                 {
-                    IoForward.TryAdd(id, new IoForward<TFJob>(Description, producer, jobMalloc));                    
-                    producer.ConfigureUpstream(this);
-                    producer.SetArbiter((IoProducerConsumer<TFJob>)IoForward[id]);
+                    IoChannels.TryAdd(id, new IoChannel<TFJob>($"CHANNEL: ({channelProducer.GetType().Name}) -> ({typeof(TFJob).Name})", channelProducer, jobMalloc));
                 }                
             }
                
-            return (IoForward<TFJob>) IoForward[id];
+            return (IoChannel<TFJob>) IoChannels[id];
+        }
+
+        public override IoChannel<TFJob> GetChannel<TFJob>(string id)
+        {
+            try
+            {
+                return (IoChannel<TFJob>)IoChannels[id];
+            }
+            catch { }
+
+            return null;
         }
 
         /// <summary>
@@ -105,7 +114,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => $"{IoSocket?.RemoteAddress?.ToString()??ListenerAddress.ToString()}";
+        public override string Description => $"<{GetType().Name}>({IoSocket?.RemoteAddress?.ToString()??ListenerAddress.ToString()})";
 
         /// <summary>
         /// A description of this client source. Currently the remote address
@@ -249,16 +258,6 @@ namespace zero.core.network.ip
                 _logger.Error(e,$"Producer `{Description}' callback failed:");
                 return false;
             }
-        }
-
-        public override void ConfigureUpstream(IIoProducer producer)
-        {
-            Upstream = producer;            
-        }
-
-        public override void SetArbiter(IoProducerConsumer<TJob> arbiter)
-        {
-            Arbiter = arbiter;
         }
 
         /// <summary>

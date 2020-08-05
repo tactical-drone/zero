@@ -101,7 +101,8 @@ namespace zero.core.network.ip
             {
                 _logger.Warn($"Cancelling existing connection attemp to `{address}'");
                 _connectionAttempts[address.Key].Spinners.Cancel();
-                _connectionAttempts.TryRemove(address.Key, out _);
+                await Task.Delay(500);
+                return await ConnectAsync(address, ioNetClient);
             }
 
             try

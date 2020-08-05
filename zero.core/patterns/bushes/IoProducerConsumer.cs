@@ -25,11 +25,11 @@ namespace zero.core.patterns.bushes
         /// Constructor
         /// </summary>
         /// <param name="description">A description of the progress</param>
-        /// <param name="source">The source of the work to be done</param>
+        /// <param name="producer">The source of the work to be done</param>
         /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
-        protected IoProducerConsumer(string description, IoProducer<TJob> source, Func<object, IoConsumable<TJob>> mallocMessage)
+        protected IoProducerConsumer(string description, IoProducer<TJob> producer, Func<object, IoConsumable<TJob>> mallocMessage)
         {
-            ConfigureProducer(description, source, mallocMessage);
+            ConfigureProducer(description, producer, mallocMessage);
 
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -69,7 +69,7 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// The source of the messages
+        /// The source of the work
         /// </summary>
         public IoProducer<TJob> Producer;
 
@@ -96,7 +96,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A description of this producer consumer
         /// </summary>
-        protected string Description;
+        public string Description { get; protected set; }
 
         /// <summary>
         /// logger

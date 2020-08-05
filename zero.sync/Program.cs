@@ -20,7 +20,7 @@ namespace zero.sync
             LogManager.LoadConfiguration("nlog.config");
 
             //Tangle("tcp://192.168.1.2:15600");
-            CoCoon("tcp://0.0.0.0:14666");
+            CoCoon("tcp://0.0.0.0:14667");
         }
 
         private static void Tangle(string listenerAddress)
@@ -29,7 +29,7 @@ namespace zero.sync
             if (Entangled<string>.Optimized)
             {
                 var tangleNode = new TangleNode<IoTangleMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress),
-                    (node, ioNetClient) =>
+                    (node, ioNetClient, extraData) =>
                         new TanglePeer<byte[]>((TangleNode<IoTangleMessage<byte[]>, byte[]>)node, ioNetClient),
                     TanglePeer<byte[]>.TcpReadAhead);
 
@@ -43,7 +43,7 @@ namespace zero.sync
             else
             {
                 var tangleNode = new TangleNode<IoTangleMessage<string>, string>(IoNodeAddress.Create(listenerAddress),
-                    (node, ioNetClient) =>
+                    (node, ioNetClient, extraData) =>
                         new TanglePeer<string>((TangleNode<IoTangleMessage<string>, string>)node, ioNetClient),
                     TanglePeer<string>.TcpReadAhead);
 
@@ -60,7 +60,7 @@ namespace zero.sync
         {
 
             var cocoon = new IoCcNode<IoCcGossipMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress),
-                (node, ioNetClient) => new IoCcPeer<byte[]>((IoCcNode<IoCcGossipMessage<byte[]>, byte[]>)node, ioNetClient),
+                (node, ioNetClient, extraData) => new IoCcPeer<byte[]>((IoCcNode<IoCcGossipMessage<byte[]>, byte[]>)node, ioNetClient),
                 TanglePeer<byte[]>.TcpReadAhead);
 
 #pragma warning disable 4014

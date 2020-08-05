@@ -10,10 +10,10 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.autopeer
 {
-    class IoPeerDiscovery<TJob, TKey> : IoNode<TJob>
+    class IoPeerDiscovery<TJob> : IoNode<TJob>
         where TJob : IIoWorker
     {
-        public IoPeerDiscovery(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
+        public IoPeerDiscovery(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

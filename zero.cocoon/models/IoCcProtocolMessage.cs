@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
+using Org.BouncyCastle.Bcpg;
 using zero.cocoon.models.sources;
 using zero.core.patterns.bushes;
 
 namespace zero.cocoon.models
 {
-    class IoCcProtocolMessage<TKey> : IoConsumable<IoCcProtocolMessage<TKey>>
+    class IoCcProtocolMessage : IoConsumable<IoCcProtocolMessage>
     {
-        public IoCcProtocolMessage(IoProducer<IoCcProtocolMessage<TKey>> source, int waitForConsumerTimeout = 0)
-            : base("forward", $"{nameof(IoCcProtocolMessage<TKey>)}", source)
+        public IoCcProtocolMessage(IoProducer<IoCcProtocolMessage> source, int waitForConsumerTimeout = 0)
+            : base("channel", $"{nameof(IoCcProtocolMessage)}", source)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
             _logger = LogManager.GetCurrentClassLogger();
@@ -24,7 +25,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<Tuple<IMessage,object>> Messages;
+        public List<Tuple<IMessage,object, Proto.Packet>> Messages;
 
         /// <summary>
         /// Callback the generates the next job
@@ -54,10 +55,17 @@ namespace zero.cocoon.models
                     return false;
                 }
 
-                Messages = ((IoCcProtocol<TKey>)Producer).TxQueue.Take();
-
-                ProcessState = State.Produced;
-
+                //if (((IoCcProtocolBuffer) Producer).MessageQueue.Count > 0)
+                {
+                    Messages = ((IoCcProtocolBuffer)Producer).MessageQueue.Take(Producer.Spinners.Token);
+                    ProcessState = State.Produced;
+                }
+                //else
+                //{
+                //    Messages = null;
+                //    ProcessState = State.ProduceTo;
+                //}
+                
                 return true;
             });
 

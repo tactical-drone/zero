@@ -21,7 +21,7 @@ namespace zero.tangle
     public class TangleNode<TJob,TKey>:IoNode<TJob> 
         where TJob : IIoWorker
     {        
-        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
+        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();            
             Milestones = new Milestone<TKey>(Spinners.Token);

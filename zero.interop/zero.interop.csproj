@@ -10,6 +10,11 @@
     <DefineConstants>TRACE;FLEX_TRIT_ENCODING_5_TRITS_PER_BYTE</DefineConstants>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>TRACE;FLEX_TRIT_ENCODING_5_TRITS_PER_BYTE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="NLog" Version="4.7.3" />
   </ItemGroup>

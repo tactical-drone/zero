@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks;
 using NLog;
+using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
@@ -46,6 +47,6 @@ namespace zero.core.network.ip
         {
             IoSocket = new IoTcpSocket(Spinners.Token);
             return await base.ConnectAsync();
-        }        
+        }
     }
 }

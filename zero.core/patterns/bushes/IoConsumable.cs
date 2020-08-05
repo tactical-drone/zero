@@ -31,7 +31,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The overall description of the work that needs to be done and the job that is doing it
         /// </summary>
-        public override string ProductionDescription => $"{Producer.Upstream?.Description} {Producer.Description} {JobDescription} {WorkDescription}";
+        public override string ProductionDescription => $"{Producer.ChannelProducer?.Description} {Producer.Description} {JobDescription} {WorkDescription}";
 
         /// <summary>
         /// Consumes the job

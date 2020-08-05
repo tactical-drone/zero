@@ -3,7 +3,9 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using MathNet.Numerics;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
@@ -46,19 +48,19 @@ namespace zero.core.patterns.bushes
         public CancellationTokenSource Spinners;
 
         /// <summary>
-        /// The producer consumer instance that arbitrates work done
+        /// The forwarding channel
         /// </summary>
-        public IoProducerConsumer<TJob> Arbiter { get; protected set; }
+        public IoChannel<TJob> Channel { get; protected set; }
 
         /// <summary>
-        /// A dictionary of downstream producers
+        /// The upstream producer (useful)
         /// </summary>
-        protected ConcurrentDictionary<string, IIoForward> IoForward = new ConcurrentDictionary<string, IIoForward>();
+        public IIoProducer ChannelProducer => Channel?.Producer;
 
         /// <summary>
-        /// The upstream producer
+        /// A dictionary of downstream channels
         /// </summary>
-        public IIoProducer Upstream { get; protected set; }
+        protected ConcurrentDictionary<string, IIoChannel> IoChannels = new ConcurrentDictionary<string, IIoChannel>();
 
         /// <summary>
         /// Keys this instance.
@@ -161,14 +163,24 @@ namespace zero.core.patterns.bushes
         protected long parm_event_min_ave_display = 0;
 
         /// <summary>
-        /// Creates a new downstream arbiter
+        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.
+        /// This function helps set up a channel using the supplied producer. Channels are cached when created. Channels are associated with producers. 
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
-        /// <param name="id">The arbiter id</param>
-        /// <param name="producer">The producer of the source arbiter</param>
+        /// <param name="id">The channel id</param>
+        /// <param name="channelProducer">The producer of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        public abstract IoForward<TFJob> GetDownstreamArbiter<TFJob>(string id, IoProducer<TFJob> producer = null, Func<object, IoConsumable<TFJob>> jobMalloc = null) 
+        public abstract IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null, Func<object, IoConsumable<TFJob>> jobMalloc = null) 
+            where TFJob : IoConsumable<TFJob>, IIoWorker;
+
+        /// <summary>
+        /// Gets a channel with a certain Id
+        /// </summary>
+        /// <typeparam name="TFJob">The type that the channel speaks</typeparam>
+        /// <param name="id">The id of the channel</param>
+        /// <returns>The channel</returns>
+        public abstract IoChannel<TFJob> GetChannel<TFJob>(string id)
             where TFJob : IoConsumable<TFJob>, IIoWorker;
 
         /// <summary>
@@ -216,15 +228,13 @@ namespace zero.core.patterns.bushes
         public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);
 
         /// <summary>
-        /// Configure an upstream producer
-        /// </summary>        
-        /// <param name="producer">The upstream producer</param>        
-        public abstract void ConfigureUpstream(IIoProducer producer);
-
-        /// <summary>
-        /// Set the arbiter that arbitrates jobs
+        /// Associate a channel with this producer
         /// </summary>
-        /// <param name="arbiter">The arbiter</param>
-        public abstract void SetArbiter(IoProducerConsumer<TJob> arbiter);
+        /// <param name="channel">The channel to add</param>
+        public virtual void SetUpstreamChannel(IoChannel<TJob> channel)
+        {
+            Channel = channel;
+            _logger.Debug($"Setting input channel: from = `{Description}', to = `{channel.Description}'");
+        }
     }
 }

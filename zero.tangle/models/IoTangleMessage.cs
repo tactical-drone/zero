@@ -57,23 +57,23 @@ namespace zero.tangle.models
                 }
             }
 
-            NodeServicesArbiter = producer.GetDownstreamArbiter(nameof(IoNodeServices<TKey>), _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy));            
+            NodeServicesArbiter = Producer.AttachProducer(nameof(IoNodeServices<TKey>), _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy));            
 
 
             NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0; 
             NodeServicesArbiter.parm_producer_start_retry_time = 0;
 
             //forward to neighbor
-            if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProxy)))
+            if (!Producer.ObjectStorage.ContainsKey(nameof(_neighborProducer)))
             {
-                _neighborProxy = new IoTangleTransactionProducer<TKey>($"{nameof(_neighborProxy)}", parm_forward_queue_length);
-                if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProxy), _neighborProxy))
+                _neighborProducer = new IoTangleTransactionProducer<TKey>($"{nameof(_neighborProducer)}", parm_forward_queue_length);
+                if (!Producer.ObjectStorage.TryAdd(nameof(_neighborProducer), _neighborProducer))
                 {
-                    _neighborProxy = (IoTangleTransactionProducer<TKey>)Producer.ObjectStorage[nameof(_neighborProxy)];
+                    _neighborProducer = (IoTangleTransactionProducer<TKey>)Producer.ObjectStorage[nameof(_neighborProducer)];
                 }
             }
 
-            NeighborServicesArbiter = producer.GetDownstreamArbiter(nameof(TanglePeer<IoTangleTransaction<TKey>>), _neighborProxy, userData => new IoTangleTransaction<TKey>(_neighborProxy, -1 /*We block to control congestion*/));                        
+            NeighborServicesArbiter = producer.AttachProducer(nameof(TanglePeer<IoTangleTransaction<TKey>>), _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/));                        
             NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborServicesArbiter.parm_producer_start_retry_time = 0;
         }
@@ -111,17 +111,17 @@ namespace zero.tangle.models
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        private static IoTangleTransactionProducer<TKey> _neighborProxy;
+        private static IoTangleTransactionProducer<TKey> _neighborProducer;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TKey>> NodeServicesArbiter;
+        public IoChannel<IoTangleTransaction<TKey>> NodeServicesArbiter;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoForward<IoTangleTransaction<TKey>> NeighborServicesArbiter;
+        public IoChannel<IoTangleTransaction<TKey>> NeighborServicesArbiter;
 
         /// <summary>
         /// Crc checker
@@ -313,9 +313,9 @@ namespace zero.tangle.models
         private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _neighborProxy.ProduceAsync(source =>
+            await _neighborProducer.ProduceAsync(source =>
             {
-                if (_neighborProxy.Arbiter.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
+                if (_neighborProducer.Channel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
                     ((IoTangleTransactionProducer<TKey>)source).TxQueue.Add(newInteropTransactions);
                 else
                     ((IoTangleTransactionProducer<TKey>)source).TxQueue.TryAdd(newInteropTransactions);

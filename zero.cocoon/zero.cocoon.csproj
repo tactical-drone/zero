@@ -8,6 +8,10 @@
     <DefineConstants>TRACE;GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE</DefineConstants>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>TRACE;GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Remove="models\protobuf\autopeering\**" />
     <EmbeddedResource Remove="models\protobuf\autopeering\**" />

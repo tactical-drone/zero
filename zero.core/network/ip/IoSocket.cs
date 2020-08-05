@@ -205,7 +205,7 @@ namespace zero.core.network.ip
 
             IsConnectingSocket = true;
 
-            ListenerAddress = address;
+            RemoteAddress = address;
 
             return true;
         }

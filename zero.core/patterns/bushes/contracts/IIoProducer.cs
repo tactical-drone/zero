@@ -11,12 +11,12 @@ namespace zero.core.patterns.bushes.contracts
         string Key { get; }
 
         /// <summary>
-        /// Description used as a key
+        /// Description of the producer
         /// </summary>
         string Description { get; }
 
         /// <summary>
-        /// Description used as a key
+        /// Source URI
         /// </summary>
         string SourceUri { get; }
 

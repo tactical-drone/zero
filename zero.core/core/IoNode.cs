@@ -22,7 +22,7 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object , IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
         {
             _address = address;
             _mallocNeighbor = mallocNeighbor;
@@ -44,12 +44,14 @@ namespace zero.core.core
         /// <summary>
         /// Used to allocate peers when connections are made
         /// </summary>
-        private readonly Func<IoNode<TJob>, IoNetClient<TJob>, IoNeighbor<TJob>> _mallocNeighbor;
+        private readonly Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> _mallocNeighbor;
 
         /// <summary>
         /// The wrapper for <see cref="IoNetServer"/>
         /// </summary>
         private IoNetServer<TJob> _netServer;
+
+        public IoNetServer<TJob> Server => _netServer;
 
         /// <summary>
         /// All the neighbors connected to this node
@@ -105,7 +107,7 @@ namespace zero.core.core
 
             await _netServer.StartListenerAsync(remoteClient =>
             {
-                var newNeighbor = _mallocNeighbor(this, remoteClient);
+                var newNeighbor = _mallocNeighbor(this, remoteClient, null);
 
                 // Register close hooks
                 var cancelRegistration = _spinners.Token.Register(() =>
@@ -160,10 +162,12 @@ namespace zero.core.core
         /// Make sure a connection stays up
         /// </summary>        
         /// <param name="address">The remote node address</param>
+        /// <param name="key">optional key to use as id</param>
+        /// <param name="extraData">Any extra data you want to send to the neighbor constructor</param>
         /// <param name="retry">Retry on failure</param>
         /// <param name="retryTimeoutMs">Retry timeout in ms</param>
         /// <returns>The async task</returns>
-        public async Task<IoNeighbor<TJob>> SpawnConnectionAsync(IoNodeAddress address, bool retry = false, int retryTimeoutMs = 10000)
+        public async Task<IoNeighbor<TJob>> SpawnConnectionAsync(IoNodeAddress address, object extraData = null, bool retry = false, int retryTimeoutMs = 10000)
         {
             IoNeighbor<TJob> newNeighbor = null;
             bool connectedAtLeastOnce = false;
@@ -176,26 +180,30 @@ namespace zero.core.core
 
                     if (newClient != null && newClient.IsOperational)
                     {
-                        var neighbor = newNeighbor = _mallocNeighbor(this, newClient);
+                        var neighbor = newNeighbor = _mallocNeighbor(this, newClient, extraData);
+                        
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
-                        if (Neighbors.TryAdd(newNeighbor.Producer.Key, newNeighbor))
+                        if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                         {
                             neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
                             newNeighbor.Closed += (s, e) =>
                             {
-                                if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s).Producer.Key, out _))
+                                if (!Neighbors.TryRemove(newNeighbor.Id, out _))
                                 {
-                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.Producer.Key}'");
+                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.Id}'");
                                 }
                             };
                             
+                            _logger.Info($"Added {newNeighbor.Id}");
+
                             return newNeighbor;
                         }
                         else //strange case
                         {
+                            _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
                             newNeighbor.Close();
                             newNeighbor = null;
                         }

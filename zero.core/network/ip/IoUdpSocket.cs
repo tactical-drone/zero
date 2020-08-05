@@ -143,7 +143,7 @@ namespace zero.core.network.ip
                     result => Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo)).HandleCancellation(Spinners.Token);
 
                     if (RemoteAddress == null)
-                        RemoteAddress = IoNodeAddress.CreateFromEndpoint(_udpRemoteEndpointInfo);
+                        RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
                     else
                         RemoteAddress.Update($"udp://{_udpRemoteEndpointInfo}");
                     
@@ -163,7 +163,7 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return ListenerAddress.IpEndPoint != null || _udpRemoteEndpointInfo != null;
+            return ListenerAddress?.IpEndPoint != null || _udpRemoteEndpointInfo != null || RemoteAddress != null;
         }
 
         public override object ExtraData()

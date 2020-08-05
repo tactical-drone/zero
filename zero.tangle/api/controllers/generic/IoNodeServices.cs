@@ -66,7 +66,7 @@ namespace zero.tangle.api.controllers.generic
             if (!address.Validated)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TKey>>(address, (node, ioNetClient) => new TanglePeer<TKey>((TangleNode<IoTangleMessage<TKey>, TKey>) node, ioNetClient), TanglePeer<TKey>.TcpReadAhead)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TKey>>(address, (node, ioNetClient, extraData) => new TanglePeer<TKey>((TangleNode<IoTangleMessage<TKey>, TKey>) node, ioNetClient), TanglePeer<TKey>.TcpReadAhead)))
             {
                 var errStr = $"Cannot create node `${address.Url}', a node with that id already exists";
                 _logger.Warn(errStr);
@@ -114,7 +114,7 @@ namespace zero.tangle.api.controllers.generic
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.Producer.GetDownstreamArbiter<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
+                        var relaySource = n.Producer.AttachProducer<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
 
                         if (relaySource != null)
                         {

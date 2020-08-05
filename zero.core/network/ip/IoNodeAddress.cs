@@ -259,9 +259,11 @@ namespace zero.core.network.ip
             }            
         }
 
-        public static IoNodeAddress CreateFromEndpoint(EndPoint udpRemoteEndpointInfo)
+        public static IoNodeAddress CreateFromEndpoint(string protocol, EndPoint udpRemoteEndpointInfo)
         {
-            return new IoNodeAddress($"udp://{((IPEndPoint)udpRemoteEndpointInfo).Address}:{((IPEndPoint)udpRemoteEndpointInfo).Port}");
+            var retval = new IoNodeAddress($"{protocol}://{((IPEndPoint)udpRemoteEndpointInfo).Address}:{((IPEndPoint)udpRemoteEndpointInfo).Port}");
+            retval.IpEndPoint = (IPEndPoint) udpRemoteEndpointInfo;
+            return retval;
         }
     }
 }

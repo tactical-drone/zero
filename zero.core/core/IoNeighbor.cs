@@ -24,7 +24,7 @@ namespace zero.core.core
             : base($"{node.GetType().Name} neighbor: `{ioNetClient.Description}'", ioNetClient, mallocMessage)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            _node = node;
+            Node = node;
             Spinners.Token.Register(() => Producer?.Close());
         }
 
@@ -33,9 +33,16 @@ namespace zero.core.core
         /// </summary>
         private readonly Logger _logger;
 
-        protected IoNode<TJob> _node;
+        /// <summary>
+        /// The node this neighbor belongs to
+        /// </summary>
+        protected IoNode<TJob> Node;
 
+        /// <summary>
+        /// If closed
+        /// </summary>
         private bool _closed = false;
+
         /// <summary>
         /// Called when this neighbor is closed
         /// </summary>
@@ -65,6 +72,12 @@ namespace zero.core.core
         public virtual void OnClosed()
         {
             Closed?.Invoke(this, EventArgs.Empty);
-        }               
+        }
+
+        /// <summary>
+        /// The Id of this neighbor
+        /// </summary>
+        /// <returns></returns>
+        public virtual string Id => "N/A";
     }
 }
