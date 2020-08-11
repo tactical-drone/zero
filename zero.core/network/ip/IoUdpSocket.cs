@@ -151,18 +151,22 @@ namespace zero.core.network.ip
             //TODO HACKS! Remove
             try
             {
-                if (Socket.IsBound)
+                if (Socket?.IsBound??false)
                 {
                     var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
                         result =>
                         {
                             try
                             {
-                                return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+                                if(Socket!= null && Socket.IsBound)
+                                    return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+                                else
+                                    return 0;
                             }
                             catch (Exception e)
                             {
                                 _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
+                                Close();
                                 return 0;
                             }
                         }).HandleCancellation(Spinners.Token);
@@ -176,6 +180,7 @@ namespace zero.core.network.ip
                 }
                 else
                 {
+                    await Task.Delay(1000);//TODO
                     return 0;
                 }
                     

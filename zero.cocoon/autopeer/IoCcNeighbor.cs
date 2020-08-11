@@ -390,7 +390,9 @@ namespace zero.cocoon.autopeer
                 //TODO Optimize
                 if (!Node.Neighbors.ContainsKey($"{Base58Check.Base58CheckEncoding.EncodePlain(identity.Id.AsSpan().Slice(0, 8).ToArray())}|{Base58Check.Base58CheckEncoding.EncodePlain(identity.PublicKey)}@udp://{extraData}"))
                 {
+                    //TODO Fix this mess
                     await SendPingMsgAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
+                    await SendPingMsgAsync(IoNodeAddress.Create($"udp://{ping.SrcAddr}:{ping.SrcPort}"));
                 }
             }
             else
