@@ -9,7 +9,7 @@ using zero.core.patterns.bushes;
 
 namespace zero.cocoon.models
 {
-    class IoCcProtocolMessage : IoConsumable<IoCcProtocolMessage>
+    public class IoCcProtocolMessage : IoConsumable<IoCcProtocolMessage>
     {
         public IoCcProtocolMessage(IoProducer<IoCcProtocolMessage> source, int waitForConsumerTimeout = 0)
             : base("channel", $"{nameof(IoCcProtocolMessage)}", source)

@@ -18,7 +18,7 @@ using Ping = Proto.Ping;
 
 namespace zero.cocoon.models
 {
-    class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
+    public class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
     {
         public IoCcPeerMessage(string jobDescription, string workDescription, IoProducer<IoCcPeerMessage> producer) : base(jobDescription, workDescription, producer)
         {

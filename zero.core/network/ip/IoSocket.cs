@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,12 +73,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// An indication that this socket is a listening socket
         /// </summary>
-        protected bool IsListeningSocket = false;
+        public bool IsListeningSocket { get; protected set; } = false;
 
         /// <summary>
         /// An indication that this socket is a connecting socket
         /// </summary>
-        protected bool IsConnectingSocket = false;
+        public bool IsConnectingSocket { get; protected set; } = false;
 
         /// <summary>
         /// Cancellation sources.
@@ -174,18 +175,28 @@ namespace zero.core.network.ip
 
             ListenerAddress = address;
 
-            try
+            if (ListenerAddress.Validated)
             {
-                Socket.Bind(ListenerAddress.IpEndPoint);
-                _logger.Debug($"Bound port `{ListenerAddress}'");
+                try
+                {
+                    Socket.Bind(ListenerAddress.IpEndPoint);
+                    _logger.Debug($"Bound port `{ListenerAddress}'");
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"Unable to bind socket at `{ListenerAddress}':");
+                    return Task.FromResult(false);
+                }
+
+                return Task.FromResult(true);
             }
-            catch (Exception e)
+            else
             {
-                _logger.Error(e, $"Unable to bind socket at `{ListenerAddress}':");
+                _logger.Fatal($"Unable to create listener at: {ListenerAddress?.Url??LocalAddress??"N/A"}. Socket is invalid! ({ListenerAddress.ValidationErrorString})");
                 return Task.FromResult(false);
             }
+                
 
-            return Task.FromResult(true);
         }
 
         /// <summary>
@@ -258,8 +269,9 @@ namespace zero.core.network.ip
         /// <param name="buffer">The array if bytes to send</param>
         /// <param name="offset">Start at offset</param>
         /// <param name="length">The number of bytes to send</param>
+        /// <param name="endPoint">endpoint when required by the socket</param>
         /// <returns></returns>
-        public abstract Task<int> SendAsync(byte[] buffer, int offset, int length, object userdata = null);
+        public abstract Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null);
 
         /// <summary>
         /// Reads a message from the socket

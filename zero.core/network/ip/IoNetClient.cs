@@ -41,7 +41,6 @@ namespace zero.core.network.ip
         /// Constructor for connecting
         /// </summary>
         /// <param name="listenerAddress">The address associated with this network client</param>
-        /// <param name="arbiter">The job arbitrator</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         protected IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
         {
@@ -119,7 +118,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client source. Currently the remote address
         /// </summary>
-        public override string SourceUri => $"{IoSocket.ListenerAddress.ProtocolDesc}{IoSocket.RemoteIpAndPort}";
+        public override string SourceUri => $"{IoSocket.RemoteAddress}";
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
@@ -134,7 +133,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => ListenerAddress.ResolvedIpAndPort;
+        public string AddressString => $"{ListenerAddress.Url}";
 
 
         /// <summary>

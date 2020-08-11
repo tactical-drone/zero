@@ -42,7 +42,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The listening address of this server
         /// </summary>
-        protected readonly IoNodeAddress ListeningAddress;
+        public IoNodeAddress ListeningAddress { get; protected set; }
 
         /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped

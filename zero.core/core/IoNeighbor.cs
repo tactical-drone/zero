@@ -59,7 +59,7 @@ namespace zero.core.core
                 _closed = true;
             }
             
-            _logger.Info($"Closing neighbor `{Description}'");
+            _logger.Info($"Closing neighbor `{Description}', Id = {Id}");
 
             OnClosed();
             

@@ -73,12 +73,12 @@ namespace zero.core.core
         /// <summary>
         /// On Connected
         /// </summary>
-        public EventHandler<IoNeighbor<TJob>> PeerConnected;
+        public EventHandler<IoNeighbor<TJob>> ConnectedEvent;
 
         /// <summary>
         /// 
         /// </summary>
-        public EventHandler<IoNeighbor<TJob>> PeerDisconnected;
+        public EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
 
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace zero.core.core
                 newNeighbor.Closed += (s, e) =>
                 {
                     cancelRegistration.Dispose();
-                    PeerDisconnected?.Invoke(this, newNeighbor);
+                    DisconnectedEvent?.Invoke(this, newNeighbor);
                     Neighbors.TryRemove(((IoNeighbor<TJob>)s).Producer.Key, out var _);
                 };
 
@@ -137,7 +137,7 @@ namespace zero.core.core
                 }
 
                 //New peer connection event
-                PeerConnected?.Invoke(this, newNeighbor);
+                ConnectedEvent?.Invoke(this, newNeighbor);
 
                 //super class specific mutations
                 connectionReceivedAction?.Invoke(newNeighbor);
@@ -162,7 +162,6 @@ namespace zero.core.core
         /// Make sure a connection stays up
         /// </summary>        
         /// <param name="address">The remote node address</param>
-        /// <param name="key">optional key to use as id</param>
         /// <param name="extraData">Any extra data you want to send to the neighbor constructor</param>
         /// <param name="retry">Retry on failure</param>
         /// <param name="retryTimeoutMs">Retry timeout in ms</param>
@@ -184,6 +183,13 @@ namespace zero.core.core
                         
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
+                        //TODO does this make sense?
+                        if (Neighbors.ContainsKey(newNeighbor.Id))
+                        {
+                            var n = Neighbors[neighbor.Id];
+                            n.Close();
+                        }
+
                         if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                         {
                             neighbor.parm_producer_start_retry_time = 60000;
@@ -199,6 +205,8 @@ namespace zero.core.core
                             
                             _logger.Info($"Added {newNeighbor.Id}");
 
+                            ConnectedEvent(this, newNeighbor);
+
                             return newNeighbor;
                         }
                         else //strange case
@@ -209,6 +217,10 @@ namespace zero.core.core
                         }
 
                         connectedAtLeastOnce = true;
+                    }
+                    else
+                    {
+                        _logger.Error($"Failed to connect to: {address}, {address.ValidationErrorString}");
                     }
                 }
                 else

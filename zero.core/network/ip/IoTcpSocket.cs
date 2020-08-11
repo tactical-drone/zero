@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -155,8 +156,9 @@ namespace zero.core.network.ip
         /// <param name="buffer">The buffer containing the data</param>
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="length">The length of the data to be sent</param>
+        /// <param name="endPoint">not used</param>
         /// <returns>The amount of bytes sent</returns>
-        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, object userdata = null)
+        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
         {
             try
             {

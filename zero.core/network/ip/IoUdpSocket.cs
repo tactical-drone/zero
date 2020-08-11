@@ -21,6 +21,7 @@ namespace zero.core.network.ip
         public IoUdpSocket(CancellationToken cancellationToken) : base(SocketType.Dgram, ProtocolType.Udp, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
         }
 
         /// <inheritdoc />
@@ -58,11 +59,13 @@ namespace zero.core.network.ip
         //            Console.WriteLine("still null");
         //            return LocalIpAndPort;
         //        }
-                    
+
 
         //        return RemoteAddress.IpAndPort;
         //    }
         //}
+
+        public const int SIO_UDP_CONNRESET = -1744830452;
 
         /// <inheritdoc />
         /// <summary>
@@ -73,8 +76,13 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> callback)
         {
-
+            
             Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+            Socket.IOControl(
+                (IOControlCode)SIO_UDP_CONNRESET,
+                new byte[] { 0, 0, 0, 0 },
+                null
+            );
 
             if (!await base.ListenAsync(address, callback))
                 return false;
@@ -104,23 +112,29 @@ namespace zero.core.network.ip
         /// <param name="offset">Start offset into the buffer</param>
         /// <param name="length">The length of the data</param>
         /// <returns></returns>
-        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, object userdata)
+        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
         {
             //TODO HACKS! Remove
             //if (!IsConnectingSocket)
             //    return 0;
-            await Socket.SendToAsync(buffer, SocketFlags.None, (EndPoint) userdata).ContinueWith(
+            if (endPoint == null)
+            {
+                _logger.Fatal("No endpoint supplied!");
+                return 0;
+            }
+            
+            await Socket.SendToAsync(buffer, SocketFlags.None, (EndPoint)endPoint).ContinueWith(
                 t =>
                 {
                     switch (t.Status)
                     {
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Sending to udp://{userdata} failed");
+                            _logger.Error(t.Exception, $"Sending to udp://{endPoint} failed");
                             Close();
                             break;
                         case TaskStatus.RanToCompletion:
-                            _logger.Trace($"Sent {length} bytes to udp://{userdata}");
+                            _logger.Trace($"Sent {length} bytes to udp://{endPoint} from {Socket.LocalPort()}");
                             break;
                     }
                 }, Spinners.Token);
@@ -135,19 +149,36 @@ namespace zero.core.network.ip
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
         {
             //TODO HACKS! Remove
-            if (!IsListeningSocket)
-                return 0;
             try
             {
-                var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
-                    result => Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo)).HandleCancellation(Spinners.Token);
+                if (Socket.IsBound)
+                {
+                    var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
+                        result =>
+                        {
+                            try
+                            {
+                                return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
+                                return 0;
+                            }
+                        }).HandleCancellation(Spinners.Token);
 
                     if (RemoteAddress == null)
                         RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
                     else
                         RemoteAddress.Update($"udp://{_udpRemoteEndpointInfo}");
+
+                    return readAsync;
+                }
+                else
+                {
+                    return 0;
+                }
                     
-                return readAsync;
             }
             catch (Exception e)
             {

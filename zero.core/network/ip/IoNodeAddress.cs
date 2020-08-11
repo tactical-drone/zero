@@ -27,8 +27,10 @@ namespace zero.core.network.ip
         [DataMember]
         public string Url { get; set; }
 
+        public string UrlNoPort => $"{Url.Split(":")[0]}{Url.Split(":")[1]}";
+
         [DataMember]
-        public string Key => $"{HostStr}:{Port}";
+        public string Key => $"{ProtocolDesc}{HostStr}:{Port}";
 
         [DataMember]
         public IPAddress ResolvedIpAddress { get; protected set; }
@@ -99,10 +101,17 @@ namespace zero.core.network.ip
         {
             try
             {
+                Validated = false;
+
+                if (string.IsNullOrEmpty(url))
+                    return;
+
                 Url = url;
 
                 var uriAndIpAndPort = Url.Split(":");
                 var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
+
+                ProtocolDesc = $"{uriAndIpAndPort[0]}://";
 
                 Port = int.Parse(uriAndIpAndPort[2]);
                 HostStr = StripIpFromUrlString(uriAndIp);
@@ -111,7 +120,6 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                Validated = false;
                 ValidationErrorString = $"Unable to parse {url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
             }
         }
@@ -187,22 +195,29 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (string.IsNullOrEmpty(HostStr))
+                Validated = false;
+
+                if (!string.IsNullOrEmpty(Url))
                 {
-                    var uriAndIpAndPort = Url.Split(":");
-                    var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
+                    try
+                    {
+                        var uriAndIpAndPort = Url.Split(":");
+                        var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
 
-                    Port = int.Parse(uriAndIpAndPort[2]);
-                    HostStr = StripIpFromUrlString(uriAndIp);
+                        Port = int.Parse(uriAndIpAndPort[2]);
+                        HostStr = StripIpFromUrlString(uriAndIp);
+
+                        Validated = true;
+                    }
+                    catch (Exception e)
+                    {
+                        Validated = false;
+                    }
                 }
-
-                Validated = true;
-
                 Resolve();
             }
             catch (Exception e)
             {
-                Validated = false;
                 ValidationErrorString = $"Unable to parse {Url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
                 return false;
             }
@@ -217,6 +232,9 @@ namespace zero.core.network.ip
         {
             try
             {
+                if(!Validated)
+                    return;
+
                 if (HostStr == "0.0.0.0")
                 {
                     IpEndPoint = new IPEndPoint(0, Port);

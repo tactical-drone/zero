@@ -20,7 +20,7 @@ namespace zero.sync
             LogManager.LoadConfiguration("nlog.config");
 
             //Tangle("tcp://192.168.1.2:15600");
-            CoCoon("tcp://0.0.0.0:14667");
+            CoCoon("tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null);
         }
 
         private static void Tangle(string listenerAddress)
@@ -56,11 +56,11 @@ namespace zero.sync
             }
         }
 
-        private static void CoCoon(string listenerAddress)
+        private static void CoCoon(string gossipAddress, string peerAddress, string fpcAddress)
         {
 
-            var cocoon = new IoCcNode<IoCcGossipMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress),
-                (node, ioNetClient, extraData) => new IoCcPeer<byte[]>((IoCcNode<IoCcGossipMessage<byte[]>, byte[]>)node, ioNetClient),
+            var cocoon = new IoCcNode(IoNodeAddress.Create(gossipAddress), IoNodeAddress.Create(peerAddress), IoNodeAddress.Create(fpcAddress),
+                (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, null, ioNetClient),
                 TanglePeer<byte[]>.TcpReadAhead);
 
 #pragma warning disable 4014

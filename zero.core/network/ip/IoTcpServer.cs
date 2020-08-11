@@ -66,6 +66,8 @@ namespace zero.core.network.ip
         /// <returns>The tcp client object managing this socket connection</returns>
         public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
         {
+            if (!address.Validated)
+                return null;
             var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
             return await base.ConnectAsync(address, ioTcpclient);
         }

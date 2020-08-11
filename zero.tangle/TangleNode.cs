@@ -47,7 +47,7 @@ namespace zero.tangle
         /// <returns>Task</returns>
         protected override async Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
         {            
-            //PeerConnected += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
+            //ConnectedEvent += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
 
             await base.SpawnListenerAsync(async ioNeighbor =>
             {
