@@ -34,17 +34,17 @@ namespace zero.core.network.ip
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            ListenerAddress = remote.ListenerAddress;                        
+            ListeningAddress = remote.ListenerAddress;                        
         }
 
         /// <summary>
         /// Constructor for connecting
         /// </summary>
-        /// <param name="listenerAddress">The address associated with this network client</param>
+        /// <param name="listeningAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
-        protected IoNetClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoNodeAddress listeningAddress, int readAheadBufferSize) : base(readAheadBufferSize)
         {
-            ListenerAddress = listenerAddress;
+            ListeningAddress = listeningAddress;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -56,7 +56,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The remote address associated with this client
         /// </summary>
-        public readonly IoNodeAddress ListenerAddress;
+        public readonly IoNodeAddress ListeningAddress;
 
         /// <summary>
         /// The client remote address
@@ -113,7 +113,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => $"<{GetType().Name}>({IoSocket?.RemoteAddress?.ToString()??ListenerAddress.ToString()})";
+        public override string Description => $"<{GetType().Name}>({IoSocket?.RemoteAddress?.ToString()??ListeningAddress.ToString()})";
 
         /// <summary>
         /// A description of this client source. Currently the remote address
@@ -133,7 +133,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => $"{ListenerAddress.Url}";
+        public string AddressString => $"{ListeningAddress.Url}";
 
 
         /// <summary>
@@ -198,9 +198,9 @@ namespace zero.core.network.ip
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async Task<bool> ConnectAsync()
         {            
-            var connectAsyncTask = IoSocket.ConnectAsync(ListenerAddress);            
+            var connectAsyncTask = IoSocket.ConnectAsync(ListeningAddress);            
 
-            _logger.Debug($"Connecting to `{ListenerAddress}'");
+            _logger.Debug($"Connecting to `{ListeningAddress}'");
             
             return await connectAsyncTask.ContinueWith(t =>
             {

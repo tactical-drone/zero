@@ -108,15 +108,7 @@ namespace zero.core.network.ip
 
                 Url = url;
 
-                var uriAndIpAndPort = Url.Split(":");
-                var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
-
-                ProtocolDesc = $"{uriAndIpAndPort[0]}://";
-
-                Port = int.Parse(uriAndIpAndPort[2]);
-                HostStr = StripIpFromUrlString(uriAndIp);
-
-                Validated = true;
+                Validate();
             }
             catch (Exception e)
             {
@@ -199,20 +191,15 @@ namespace zero.core.network.ip
 
                 if (!string.IsNullOrEmpty(Url))
                 {
-                    try
-                    {
-                        var uriAndIpAndPort = Url.Split(":");
-                        var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
+                    var uriAndIpAndPort = Url.Split(":");
+                    var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
 
-                        Port = int.Parse(uriAndIpAndPort[2]);
-                        HostStr = StripIpFromUrlString(uriAndIp);
+                    ProtocolDesc = $"{uriAndIpAndPort[0]}://";
 
-                        Validated = true;
-                    }
-                    catch (Exception e)
-                    {
-                        Validated = false;
-                    }
+                    Port = int.Parse(uriAndIpAndPort[2]);
+                    HostStr = StripIpFromUrlString(uriAndIp);
+
+                    Validated = true;
                 }
                 Resolve();
             }

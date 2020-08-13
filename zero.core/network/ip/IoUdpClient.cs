@@ -23,9 +23,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpClient{TJob}"/> class.
         /// </summary>
-        /// <param name="listenerAddress">The address associated with this network client</param>
+        /// <param name="localAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        public IoUdpClient(IoNodeAddress listenerAddress, int readAheadBufferSize) : base(listenerAddress, readAheadBufferSize)
+        public IoUdpClient(IoNodeAddress localAddress, int readAheadBufferSize) : base(localAddress, readAheadBufferSize)
         {
         }
 

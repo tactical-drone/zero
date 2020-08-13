@@ -20,7 +20,7 @@ namespace zero.sync
             LogManager.LoadConfiguration("nlog.config");
 
             //Tangle("tcp://192.168.1.2:15600");
-            CoCoon("tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null);
+            CoCoon("tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627");
         }
 
         private static void Tangle(string listenerAddress)
@@ -56,10 +56,10 @@ namespace zero.sync
             }
         }
 
-        private static void CoCoon(string gossipAddress, string peerAddress, string fpcAddress)
+        private static void CoCoon(string gossipAddress, string peerAddress, string fpcAddress, string extAddress)
         {
 
-            var cocoon = new IoCcNode(IoNodeAddress.Create(gossipAddress), IoNodeAddress.Create(peerAddress), IoNodeAddress.Create(fpcAddress),
+            var cocoon = new IoCcNode(IoNodeAddress.Create(gossipAddress), IoNodeAddress.Create(peerAddress), IoNodeAddress.Create(fpcAddress), IoNodeAddress.Create(extAddress),
                 (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, null, ioNetClient),
                 TanglePeer<byte[]>.TcpReadAhead);
 

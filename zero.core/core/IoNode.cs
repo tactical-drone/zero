@@ -25,7 +25,7 @@ namespace zero.core.core
         public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object , IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
         {
             _address = address;
-            _mallocNeighbor = mallocNeighbor;
+            MallocNeighbor = mallocNeighbor;
             parm_tcp_readahead = tcpReadAhead;            
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
@@ -44,7 +44,7 @@ namespace zero.core.core
         /// <summary>
         /// Used to allocate peers when connections are made
         /// </summary>
-        private readonly Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> _mallocNeighbor;
+        public Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> MallocNeighbor { get; protected set; }
 
         /// <summary>
         /// The wrapper for <see cref="IoNetServer"/>
@@ -107,7 +107,7 @@ namespace zero.core.core
 
             await _netServer.StartListenerAsync(remoteClient =>
             {
-                var newNeighbor = _mallocNeighbor(this, remoteClient, null);
+                var newNeighbor = MallocNeighbor(this, remoteClient, null);
 
                 // Register close hooks
                 var cancelRegistration = _spinners.Token.Register(() =>
@@ -133,7 +133,7 @@ namespace zero.core.core
                 if (!Neighbors.TryAdd(remoteClient.Key, newNeighbor))
                 {
                     newNeighbor.Close();
-                    _logger.Warn($"Neighbor `{remoteClient.ListenerAddress}' already connected. Possible spoof investigate!");
+                    _logger.Warn($"Neighbor `{remoteClient.ListeningAddress}' already connected. Possible spoof investigate!");
                 }
 
                 //New peer connection event
@@ -179,7 +179,7 @@ namespace zero.core.core
 
                     if (newClient != null && newClient.IsOperational)
                     {
-                        var neighbor = newNeighbor = _mallocNeighbor(this, newClient, extraData);
+                        var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
                         
                         _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 

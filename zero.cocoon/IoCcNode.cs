@@ -15,12 +15,13 @@ namespace zero.cocoon
 {
     public class IoCcNode:IoNode<IoCcGossipMessage>
     {
-        public IoCcNode(IoNodeAddress gossipAddress, IoNodeAddress peerAddress, IoNodeAddress fpcAddress, Func<IoNode<IoCcGossipMessage>, IoNetClient<IoCcGossipMessage>, object, IoNeighbor<IoCcGossipMessage>> mallocNeighbor, int tcpReadAhead) : base(gossipAddress, mallocNeighbor, tcpReadAhead)
+        public IoCcNode(IoNodeAddress gossipAddress, IoNodeAddress peerAddress, IoNodeAddress fpcAddress, IoNodeAddress extAddress, Func<IoNode<IoCcGossipMessage>, IoNetClient<IoCcGossipMessage>, object, IoNeighbor<IoCcGossipMessage>> mallocNeighbor, int tcpReadAhead) : base(gossipAddress, mallocNeighbor, tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
             _peerAddress = peerAddress;
             _fpcAddress = fpcAddress;
+            ExtAddress = extAddress;
             _autoPeering = new IoCcNeighborDiscovery(this, _peerAddress, 
                 (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery) node, client, extraData), IoCcNeighbor.TcpReadAhead);
 
@@ -37,6 +38,8 @@ namespace zero.cocoon
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
         private readonly IoNodeAddress _fpcAddress;
+
+        public IoNodeAddress ExtAddress { get; protected set; }
 
         public IoCcNeighborDiscovery DiscoveryService => (IoCcNeighborDiscovery) _autoPeering;
         public IoCcService Services { get; set; } = new IoCcService();
