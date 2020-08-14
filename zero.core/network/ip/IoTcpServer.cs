@@ -11,7 +11,7 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
     public class IoTcpServer<TJob> : IoNetServer<TJob>
-        where TJob : IIoWorker
+        where TJob : IIoJob
         
     {
         /// <summary>

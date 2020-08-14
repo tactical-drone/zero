@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -11,13 +12,12 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models.sources
 {
-    class IoCcProtocolBuffer : IoProducer<IoCcProtocolMessage>, IIoProducer
+    sealed class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>, IIoSource
     {
-        public IoCcProtocolBuffer(string chanDesc, int bufferSize) : base(bufferSize)//TODO config
+        public IoCcProtocolBuffer(int bufferSize) : base(bufferSize)//TODO config
         {
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
-            _chanDesc = chanDesc;
             MessageQueue = new BlockingCollection<List<Tuple<IMessage, object, Packet>>>(bufferSize);
         }
 
@@ -32,24 +32,20 @@ namespace zero.cocoon.models.sources
         public BlockingCollection<List<Tuple<IMessage, object, Packet>>> MessageQueue;
 
         /// <summary>
-        /// Describe the channel
-        /// </summary>
-        private readonly string _chanDesc;
-
-        /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => this != ChannelProducer ? $"{ChannelProducer.Key}":$"{Description}";
+        public override string Key => this != ChannelSource ? $"{ChannelSource.Key}":$"{SourceUri}";
 
         /// <summary>
         /// Description of upstream channel
         /// </summary>
-        public override string Description => $"{_chanDesc}";
+        public override string Description => $"{MessageQueue.Select(m=>m.Count > 0? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
+        //public override string Description => Key;
 
         /// <summary>
         /// The original source URI
         /// </summary>
-        public override string SourceUri => this!=ChannelProducer? ChannelProducer?.SourceUri : $"chan://{GetType().Name}";
+        public override string SourceUri => this!=ChannelSource? ChannelSource?.SourceUri : $"chan://{GetType().Name}";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -57,19 +53,7 @@ namespace zero.cocoon.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => this == ChannelProducer || (ChannelProducer?.IsOperational??false);
-
-        /// <inheritdoc />        
-        public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null,
-            Func<object, IoConsumable<TFJob>> jobMalloc = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override IoChannel<TFJob> GetChannel<TFJob>(string id)
-        {
-            throw new NotImplementedException();
-        }
+        public override bool IsOperational => this == ChannelSource || (ChannelSource?.IsOperational??false);
 
         /// <summary>
         /// Closes this source
@@ -85,7 +69,7 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="callback">The callback.</param>
         /// <returns>The async task</returns>        
-        public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
+        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> callback)
         {
             try
             {
@@ -105,7 +89,7 @@ namespace zero.cocoon.models.sources
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Producer `{Description}' callback failed:");
+                _logger.Error(e, $"Source `{Description}' callback failed:");
                 return false;
             }
         }

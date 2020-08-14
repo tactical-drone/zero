@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
+using Tangle.Net.Repository.Responses;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models;
@@ -41,6 +42,8 @@ namespace zero.cocoon
 
         public IoNodeAddress ExtAddress { get; protected set; }
 
+        [IoParameter] public bool UdpTunnelSupport = true;
+
         public IoCcNeighborDiscovery DiscoveryService => (IoCcNeighborDiscovery) _autoPeering;
         public IoCcService Services { get; set; } = new IoCcService();
 
@@ -78,7 +81,7 @@ namespace zero.cocoon
             //    peer.SpawnProcessingAsync(CancellationToken);
             //}
 
-            if (!((IoUdpClient<IoCcPeerMessage>)neighbor.Producer).Socket.IsListeningSocket && !((IoUdpClient<IoCcPeerMessage>)neighbor.Producer).Socket.IsConnectingSocket &&
+            if (!((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsListeningSocket && !((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsConnectingSocket &&
                 Neighbors.Count < parm_max_outbound &&
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.peering))

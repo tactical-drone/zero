@@ -9,10 +9,10 @@ using zero.core.patterns.bushes;
 
 namespace zero.cocoon.models
 {
-    public class IoCcProtocolMessage : IoConsumable<IoCcProtocolMessage>
+    public class IoCcProtocolMessage : IoLoad<IoCcProtocolMessage>
     {
-        public IoCcProtocolMessage(IoProducer<IoCcProtocolMessage> source, int waitForConsumerTimeout = 0)
-            : base("channel", $"{nameof(IoCcProtocolMessage)}", source)
+        public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = 0)
+            : base("channel", $"{nameof(IoCcProtocolMessage)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
             _logger = LogManager.GetCurrentClassLogger();
@@ -35,29 +35,29 @@ namespace zero.cocoon.models
         /// </returns>
         public override async Task<State> ProduceAsync()
         {
-            await Producer.ProduceAsync(async producer =>
+            await Source.ProduceAsync(async producer =>
             {
-                if (Producer.ProducerBarrier == null)
+                if (Source.ProducerBarrier == null)
                 {
                     ProcessState = State.ProdCancel;
                     return false;
                 }
 
-                if (!await Producer.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Producer.Spinners.Token))
+                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Source.Spinners.Token))
                 {
-                    ProcessState = !Producer.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = !Source.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
-                if (Producer.Spinners.IsCancellationRequested)
+                if (Source.Spinners.IsCancellationRequested)
                 {
                     ProcessState = State.ProdCancel;
                     return false;
                 }
 
-                //if (((IoCcProtocolBuffer) Producer).MessageQueue.Count > 0)
+                //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
                 {
-                    Messages = ((IoCcProtocolBuffer)Producer).MessageQueue.Take(Producer.Spinners.Token);
+                    Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(Source.Spinners.Token);
                     ProcessState = State.Produced;
                 }
                 //else
@@ -69,7 +69,7 @@ namespace zero.cocoon.models
                 return true;
             });
 
-            //If the producer gave us nothing, mark this production to be skipped            
+            //If the originatingSource gave us nothing, mark this production to be skipped            
             return ProcessState;
         }
 

@@ -13,14 +13,14 @@ namespace zero.core.models
     /// <summary>
     /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
-    public abstract class IoMessage<TJob> : IoConsumable<TJob>        
-        where TJob : IIoWorker 
+    public abstract class IoMessage<TJob> : IoLoad<TJob>        
+        where TJob : IIoJob 
         
     {
         /// <summary>
         /// Initializes the buffer size to fill
         /// </summary>
-        protected IoMessage(string jobDescription, string workDescription, IoProducer<TJob> producer) : base(jobDescription, workDescription, producer)
+        protected IoMessage(string loadDescription, string jobDescription, IoSource<TJob> source) : base(loadDescription, jobDescription, source)
         {
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             //SettingChangedEvent += (sender, pair) =>
@@ -116,7 +116,7 @@ namespace zero.core.models
         /// <returns></returns>
         public async Task<bool> WasProcessedRecentlyAsync(string key)
         {            
-            return await Producer.RecentlyProcessed.KeyExistsAsync(key);            
+            return await Source.RecentlyProcessed.KeyExistsAsync(key);            
         }
     }
 }

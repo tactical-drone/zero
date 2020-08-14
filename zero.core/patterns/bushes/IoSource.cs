@@ -14,22 +14,22 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used by <see cref="IoProducerConsumer{TJob}"/> as a source of work of type <see cref="TJob"/>
+    /// Used by <see cref="IoZero{TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoProducer<TJob> : IoConfigurable, IIoProducer where TJob : IIoWorker
+    public abstract class IoSource<TJob> : IoConfigurable, IIoSource where TJob : IIoJob
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProducer(int readAheadBufferSize = 2)
-        {            
-            ReadAheadBufferSize = readAheadBufferSize;            
+        protected IoSource(int readAheadBufferSize = 2) //TODO
+        {
+            ReadAheadBufferSize = readAheadBufferSize;
             ConsumerBarrier = new SemaphoreSlim(0);
             ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
             ConsumeAheadBarrier = new SemaphoreSlim(1);
             ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
-            Spinners = new CancellationTokenSource();            
+            Spinners = new CancellationTokenSource();
         }
 
         /// <summary>
@@ -45,7 +45,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Used to signal shutdown
         /// </summary>
-        public CancellationTokenSource Spinners;
+        public CancellationTokenSource Spinners { get; protected set; }
 
         /// <summary>
         /// The forwarding channel
@@ -53,9 +53,9 @@ namespace zero.core.patterns.bushes
         public IoChannel<TJob> Channel { get; protected set; }
 
         /// <summary>
-        /// The upstream producer (useful)
+        /// The upstream source (useful)
         /// </summary>
-        public IIoProducer ChannelProducer => Channel?.Producer;
+        public IIoSource ChannelSource => Channel?.Source;
 
         /// <summary>
         /// A dictionary of downstream channels
@@ -79,17 +79,17 @@ namespace zero.core.patterns.bushes
         public abstract string SourceUri { get; }
 
         /// <summary>
-        /// Counters for <see cref="IoProducible{TJob}.State"/>
+        /// Counters for <see cref="IoJob{TJob}.State"/>
         /// </summary>
-        public long[] Counters { get; set; } = new long[Enum.GetNames(typeof(IoProducible<>.State)).Length];
+        public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.State)).Length];
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
-        public long[] ServiceTimes { get; set; } = new long[Enum.GetNames(typeof(IoProducible<>.State)).Length];
+        public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.State)).Length];
 
         /// <summary>
-        /// The producer semaphore
+        /// The source semaphore
         /// </summary>
         public SemaphoreSlim ConsumerBarrier { get; protected set; }
 
@@ -112,17 +112,22 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
-        public bool BlockOnConsumeAheadBarrier = false;
+        public bool BlockOnConsumeAheadBarrier { get; protected set; } = false;
 
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
-        public bool BlockOnProduceAheadBarrier = false;
+        public bool BlockOnProduceAheadBarrier { get; protected set; } = false;
+
+        ref long IIoSource.NextProducerId()
+        {
+            return ref _nextProducerId;
+        }
 
         /// <summary>
         /// Makes available normalized storage for all downstream usages
         /// </summary>
-        public ConcurrentDictionary<string, object> ObjectStorage = new ConcurrentDictionary<string, object>();
+        public ConcurrentDictionary<string, object> ObjectStorage { get; protected set; } = new ConcurrentDictionary<string, object>();
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -143,36 +148,60 @@ namespace zero.core.patterns.bushes
         public IIoDupChecker RecentlyProcessed { get; set; }
 
         /// <summary>
-        /// Which producer job is next in line
+        /// Which source job is next in line
         /// </summary>
-        public long NextProducerId;
+        public long NextProducerId { get; protected set; }
 
         /// <summary>
-        /// Gets a value indicating whether this <see cref="IoProducer{TJob}"/> is synced.
+        /// Gets a value indicating whether this <see cref="IoSource{TJob}"/> is synced.
         /// </summary>
         /// <value>
         ///   <c>true</c> if synced; otherwise, <c>false</c>.
         /// </value>
-        public volatile bool Synced;
+        public bool Synced { get; set; }
 
-        /// <summary>
+            /// <summary>
         /// <see cref="PrintCounters"/> only prints events that took longer that this value in microseconds
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected long parm_event_min_ave_display = 0;
 
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private long _nextProducerId;
+        
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.
-        /// This function helps set up a channel using the supplied producer. Channels are cached when created. Channels are associated with producers. 
+        /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
-        /// <param name="channelProducer">The producer of this channel, if new</param>
+        /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        public abstract IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null, Func<object, IoConsumable<TFJob>> jobMalloc = null) 
-            where TFJob : IoConsumable<TFJob>, IIoWorker;
+        public IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
+            Func<object, IoLoad<TFJob>> jobMalloc = null)
+        where TFJob : IIoJob
+        {
+            if (!IoChannels.ContainsKey(id))
+            {
+                if (channelSource == null || jobMalloc == null)
+                {
+                    _logger.Warn($"Waiting for the channel source of `{Description}' to initialize... ??");
+                    return null;
+                }
+
+                lock (this)
+                {
+                    IoChannels.TryAdd(id, new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc));
+                }
+            }
+
+            return (IoChannel<TFJob>)IoChannels[id];
+        }
 
         /// <summary>
         /// Gets a channel with a certain Id
@@ -180,8 +209,17 @@ namespace zero.core.patterns.bushes
         /// <typeparam name="TFJob">The type that the channel speaks</typeparam>
         /// <param name="id">The id of the channel</param>
         /// <returns>The channel</returns>
-        public abstract IoChannel<TFJob> GetChannel<TFJob>(string id)
-            where TFJob : IoConsumable<TFJob>, IIoWorker;
+        public IoChannel<TFJob> GetChannel<TFJob>(string id)
+            where TFJob : IoLoad<TFJob>, IIoJob
+        {
+            try
+            {
+                return (IoChannel<TFJob>)IoChannels[id];
+            }
+            catch { }
+
+            return null;
+        }
 
         /// <summary>
         /// Print counters
@@ -196,7 +234,7 @@ namespace zero.core.patterns.bushes
 
             var padding = IoWorkStateTransition<TJob>.StateStrPadding;
 
-            for (var i = 0; i < IoProducible<TJob>.StateMapSize; i++)
+            for (var i = 0; i < IoJob<TJob>.StateMapSize; i++)
             {
 
                 var count = Interlocked.Read(ref Counters[i]);
@@ -205,9 +243,9 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoProducible<TJob>.State.Undefined  && i < (int)IoProducible<TJob>.State.Finished)
+                if (i > (int)IoJob<TJob>.State.Undefined  && i < (int)IoJob<TJob>.State.Finished)
                 {
-                    heading.Append($"{((IoProducible<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                    heading.Append($"{((IoJob<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }
@@ -225,10 +263,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="func">The function.</param>
         /// <returns></returns>
-        public abstract Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> func);
+        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
 
         /// <summary>
-        /// Associate a channel with this producer
+        /// Associate a channel with this source
         /// </summary>
         /// <param name="channel">The channel to add</param>
         public virtual void SetUpstreamChannel(IoChannel<TJob> channel)

@@ -9,8 +9,8 @@ namespace zero.core.network.ip
     /// Marks the more generic <see cref="IoSocket"/> for use in our abstraction
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoSocket" />
-    /// <seealso cref="IIoProducer" />
-    public abstract class IoNetSocket : IoSocket, IIoProducer
+    /// <seealso cref="IIoSource" />
+    public abstract class IoNetSocket : IoSocket, IIoSourceBase
     {
         protected IoNetSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken) : base(socketType, protocolType, cancellationToken)
         {

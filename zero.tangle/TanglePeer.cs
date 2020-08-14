@@ -66,7 +66,7 @@ namespace zero.tangle
         /// Start processors for this neighbor
         /// </summary>
         /// <param name="cancellationToken">The cancellation token</param>
-        /// <param name="spawnProducer">Spawns a producer thread</param>
+        /// <param name="spawnProducer">Spawns a source thread</param>
         /// <returns></returns>
         public override async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
@@ -84,7 +84,7 @@ namespace zero.tangle
         /// <returns></returns>
         private async Task ProcessTransactionsAsync(IIoDataSource<RowSet> dataSource)
         {
-            var transactionArbiter = Producer.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
+            var transactionArbiter = Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
 
             _logger.Debug($"Starting persistence for `{Description}'");
             while (!Spinners.IsCancellationRequested)
@@ -92,7 +92,7 @@ namespace zero.tangle
                 if (transactionArbiter == null)
                 {
                     _logger.Warn("Waiting for transaction stream to spin up...");
-                    transactionArbiter = Producer.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
+                    transactionArbiter = Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
                     await Task.Delay(2000);//TODO config
                     continue;
                 }
@@ -132,12 +132,12 @@ namespace zero.tangle
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState != IoProducible<IoTangleTransaction<TKey>>.State.Consumed)
-                            batch.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.ConsumeErr;
+                        if (batch != null && batch.ProcessState != IoJob<IoTangleTransaction<TKey>>.State.Consumed)
+                            batch.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.ConsumeErr;
                     }
                 });
 
-                if (!transactionArbiter.Producer.IsOperational)
+                if (!transactionArbiter.Source.IsOperational)
                     break;
             }
 
@@ -153,7 +153,7 @@ namespace zero.tangle
         /// <param name="processCallback">The process callback</param>
         /// <returns></returns>
         private async Task ProcessTransactions(IIoDataSource<RowSet> dataSource,
-            IoConsumable<IoTangleTransaction<TKey>> transactions,
+            IoLoad<IoTangleTransaction<TKey>> transactions,
             IoChannel<IoTangleTransaction<TKey>> transactionArbiter, 
             Func<IIoTransactionModel<TKey>, IoChannel<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> processCallback)
         {
@@ -177,7 +177,7 @@ namespace zero.tangle
                 }
             }
 
-            transactions.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.Consumed;
+            transactions.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.Consumed;
 
             stopwatch.Stop();
             _logger.Trace($"{transactions.TraceDescription} Processed `{tangleTransactions.Length}' transactions: t = `{stopwatch.ElapsedMilliseconds:D}', `{tangleTransactions.Length*1000/(stopwatch.ElapsedMilliseconds+1):D} t/s'");
@@ -191,7 +191,7 @@ namespace zero.tangle
         /// <param name="consumer">The consumer used to signal events</param>
         /// <param name="transactionArbiter">The arbiter</param>
         /// <returns></returns>
-        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoConsumable<IoTangleTransaction<TKey>> consumer, IoChannel<IoTangleTransaction<TKey>> transactionArbiter)
+        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoLoad<IoTangleTransaction<TKey>> consumer, IoChannel<IoTangleTransaction<TKey>> transactionArbiter)
         {
             var stopwatch = Stopwatch.StartNew();
             //_logger.Trace($"{consumer.TraceDescription} Loading transaction [ENTER]");
@@ -199,14 +199,14 @@ namespace zero.tangle
             try
             {
                 //drop duplicates fast if redis is present supported
-                if(transactionArbiter.Producer.ChannelProducer.RecentlyProcessed != null)
+                if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
                 {
-                    var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Producer.ChannelProducer.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                    var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Source.ChannelSource.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
                     if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
                     {
                         stopwatch.Stop();
                         _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
-                        consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.SlowDup;
+                        consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.SlowDup;
                         return;
                     }
                 }
@@ -228,13 +228,13 @@ namespace zero.tangle
             }
             finally
             {
-                if (putResult == null && consumer.ProcessState != IoProducible<IoTangleTransaction<TKey>>.State.SlowDup)
+                if (putResult == null && consumer.ProcessState != IoJob<IoTangleTransaction<TKey>>.State.SlowDup)
                 {
                     transactionArbiter.IsArbitrating = false;
-                    consumer.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.DbError;
+                    consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.DbError;
 
-                    if(transactionArbiter.Producer.ChannelProducer.RecentlyProcessed != null)
-                        await transactionArbiter.Producer.ChannelProducer.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
+                    if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
+                        await transactionArbiter.Source.ChannelSource.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
                 }                
             }            
         }               

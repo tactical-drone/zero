@@ -10,7 +10,7 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TJob">The type of job produced</typeparam>
     public class IoWorkStateTransition<TJob> : IIoHeapItem
-        where TJob : IIoWorker
+        where TJob : IIoJob
         
     {
         /// <summary>
@@ -26,7 +26,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The represented state
         /// </summary>
-        public volatile IoProducible<TJob>.State State;
+        public volatile IoJob<TJob>.State State;
 
         /// <summary>
         /// Timestamped when this state was entered
@@ -61,14 +61,14 @@ namespace zero.core.patterns.bushes
         {
             ExitTime = EnterTime = DateTime.Now;
             Previous = Next = null;
-            State = IoProducible<TJob>.State.Undefined;
+            State = IoJob<TJob>.State.Undefined;
             return this;
         }
 
         /// <summary>
         /// Calculates the max state string length used for log formatting purposes
         /// </summary>
-        public static readonly int StateStrPadding = Enum.GetNames(typeof(IoProducible<>.State)).ToList().Select(s => s.Length).Max();
+        public static readonly int StateStrPadding = Enum.GetNames(typeof(IoJob<>.State)).ToList().Select(s => s.Length).Max();
 
         /// <summary>
         /// Pads the current state string and returns it
@@ -82,7 +82,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The default state string padded
         /// </summary>
-        public string DefaultPadded => IoProducible<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
+        public string DefaultPadded => IoJob<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
 
         public override string ToString()
         {

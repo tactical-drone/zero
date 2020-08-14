@@ -10,7 +10,7 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="IoNetClient{TJob}" />
     public class IoTcpClient<TJob> : IoNetClient<TJob>
-        where TJob : IIoWorker
+        where TJob : IIoJob
         
     {
         /// <summary>
@@ -27,14 +27,14 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        /// <param name="readAheadBufferSize">The amount of socket reads the source is allowed to lead the consumer</param>
         public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket)remote, readAheadBufferSize) { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="localAddress">The address associated with this network client</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
+        /// <param name="readAheadBufferSize">The amount of socket reads the source is allowed to lead the consumer</param>
         public IoTcpClient(IoNodeAddress localAddress, int readAheadBufferSize) : base(localAddress, readAheadBufferSize) { }
         
         /// <summary>

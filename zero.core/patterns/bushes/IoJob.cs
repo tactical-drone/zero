@@ -13,18 +13,17 @@ namespace zero.core.patterns.bushes
     /// Meta data about produced work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
-    public abstract class IoProducible<TJob> : IoConfigurable, IIoWorker
-        where TJob : IIoWorker
-        
+    public abstract class IoJob<TJob> : IoConfigurable, IIoJob
+        where TJob : IIoJob
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoProducible(string workDescription, IoProducer<TJob> producer)
+        protected IoJob(string description, IoSource<TJob> source)
         {            
             _logger = LogManager.GetCurrentClassLogger();
-            Producer = producer;
-            WorkDescription = workDescription;
+            Source = source;
+            _jobDescription = description;
         }
 
         /// <summary>
@@ -37,10 +36,13 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public long Id { get; private set; }
 
-        public volatile IoProducible<TJob> Previous;
+        /// <summary>
+        /// Work spanning multiple jobs
+        /// </summary>
+        public IIoJob Previous { get; set; }
 
         /// <summary>
-        /// Respective States as the work goes through the producer consumer pattern
+        /// Respective States as the work goes through the source consumer pattern
         /// </summary>
         public enum State
         {
@@ -78,25 +80,20 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A description of this kind of work
         /// </summary>
-        public string WorkDescription { get; protected set; }
+        public virtual string Description => $"{Source.Description} | {_jobDescription}";
 
         /// <summary>
         /// A description of the job and work
         /// </summary>
-        public virtual string ProductionDescription => WorkDescription;
-
-        /// <summary>
-        /// A description of the job and work
-        /// </summary>
-        public virtual string TraceDescription => $"{ProductionDescription}|{Id}#  ";
+        public virtual string TraceDescription => $"{Description}|#{Id} -";
 
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public IoProducer<TJob> Producer { get; }
+        public IIoSource Source { get; }
 
         /// <summary>
-        /// The state transition history, sourced from <see  cref="IoProducerConsumer{TJob}"/>
+        /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
         /// </summary>      
         public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];//TODO what should this size be?
 
@@ -108,7 +105,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
         /// </summary>
-        public volatile bool StillHasUnprocessedFragments;
+        public bool StillHasUnprocessedFragments { get; protected set; }
 
         /// <summary>
         /// Callback the generates the next job
@@ -174,7 +171,7 @@ namespace zero.core.patterns.bushes
         public void PrintState(IoWorkStateTransition<TJob> currentState)
         {
             _logger.Info("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
-                ProductionDescription,
+                Description,
                 (currentState.Previous == null ? CurrentState.DefaultPadded : currentState.Previous.PaddedStr()),
                 (currentState.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
                 currentState.PaddedStr(),
@@ -187,6 +184,11 @@ namespace zero.core.patterns.bushes
         /// The total amount of states
         /// </summary>
         public static readonly int StateMapSize = Enum.GetNames(typeof(State)).Length;
+
+        /// <summary>
+        /// A description of this job
+        /// </summary>
+        private readonly string _jobDescription;
 
         /// <summary>
         /// Gets and sets the state of the work
@@ -207,14 +209,14 @@ namespace zero.core.patterns.bushes
 
                     if (CurrentState.State == value)
                     {
-                        Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
+                        Interlocked.Increment(ref Source.Counters[(int)CurrentState.State]);
                         return;
                     }
                     
                     CurrentState.ExitTime = DateTime.Now;
                     
-                    Interlocked.Increment(ref Producer.Counters[(int)CurrentState.State]);
-                    Interlocked.Add(ref Producer.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
+                    Interlocked.Increment(ref Source.Counters[(int)CurrentState.State]);
+                    Interlocked.Add(ref Source.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
                 }
                 else
                 {
@@ -247,7 +249,7 @@ namespace zero.core.patterns.bushes
                 //generate a unique id
                 if (value == State.Undefined)
                 {
-                    Id = Interlocked.Read(ref Producer.Counters[(int)State.Undefined]);
+                    Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]);
                 }
 
                 //terminate

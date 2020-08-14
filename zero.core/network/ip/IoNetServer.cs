@@ -15,7 +15,7 @@ namespace zero.core.network.ip
     /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
     /// </summary>
     public abstract class IoNetServer<TJob> : IoConfigurable
-    where TJob : IIoWorker
+    where TJob : IIoJob
     
     {
         /// <inheritdoc />

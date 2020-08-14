@@ -8,7 +8,7 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoNetClient{TJob}" />
     public class IoUdpClient<TJob> : IoNetClient<TJob>
-        where TJob : IIoWorker
+        where TJob : IIoJob
         
     {
         /// <summary>

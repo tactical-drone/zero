@@ -114,7 +114,7 @@ namespace zero.tangle.api.controllers.generic
                     .ForEach(async n =>
 #pragma warning restore 4014
                     {
-                        var relaySource = n.Producer.AttachProducer<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
+                        var relaySource = n.Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
 
                         if (relaySource != null)
                         {
@@ -153,12 +153,12 @@ namespace zero.tangle.api.controllers.generic
                                                 break;
                                         }
 
-                                        msg.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.Consumed;
+                                        msg.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.ProcessState == IoProducible<IoTangleTransaction<TKey>>.State.Consuming)
-                                            msg.ProcessState = IoProducible<IoTangleTransaction<TKey>>.State.ConsumeErr;
+                                        if (msg.ProcessState == IoJob<IoTangleTransaction<TKey>>.State.Consuming)
+                                            msg.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.ConsumeErr;
                                     }
 
                                     return Task.CompletedTask;                                    
@@ -169,7 +169,7 @@ namespace zero.tangle.api.controllers.generic
                             freeBufferSpace = relaySource.JobHeap.FreeCapacity();
                         }
                         else
-                            _logger.Warn($"Waiting for multicast producer `{n.Producer.Description}' to initialize...");
+                            _logger.Warn($"Waiting for multicast source `{n.Source.Description}' to initialize...");
                     });
                 return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
             }

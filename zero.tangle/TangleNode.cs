@@ -19,7 +19,7 @@ namespace zero.tangle
     /// <typeparam name="TJob">Message job types</typeparam>
     /// <typeparam name="TKey">Type of the key field</typeparam>
     public class TangleNode<TJob,TKey>:IoNode<TJob> 
-        where TJob : IIoWorker
+        where TJob : IIoJob
     {        
         public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
@@ -62,7 +62,7 @@ namespace zero.tangle
                         case TaskStatus.Faulted:
                             break;
                         case TaskStatus.RanToCompletion:
-                            ioNeighbor.Producer.RecentlyProcessed = r.Result;
+                            ioNeighbor.Source.RecentlyProcessed = r.Result;
                             break;
                     }
                 });
@@ -78,7 +78,7 @@ namespace zero.tangle
         {            
             //TangleNode<TJob> node = (TangleNode<TJob>) sender;
             //TODO fix
-            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.Producer).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.Producer).ListeningAddress.Port}");
+            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.Source).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.Source).ListeningAddress.Port}");
 #pragma warning disable 4014
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
@@ -89,14 +89,14 @@ namespace zero.tangle
                     {
                         if (newNeighbor.Result != null)
                         {
-                            ((IoNetClient<TJob>) ioNeighbor.Producer).Disconnected += (s, e) =>
+                            ((IoNetClient<TJob>) ioNeighbor.Source).Disconnected += (s, e) =>
                             {
                                 newNeighbor.Result.Close();
                             };
 
-                            if (newNeighbor.Result.Producer.IsOperational)
+                            if (newNeighbor.Result.Source.IsOperational)
 
-                                await newNeighbor.Result.Producer.ProduceAsync(client =>
+                                await newNeighbor.Result.Source.ProduceAsync(client =>
                                 {
                                     //TODO
                                     ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,

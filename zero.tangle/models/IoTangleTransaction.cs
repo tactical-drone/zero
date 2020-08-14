@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.tangle.models.sources;
 
 namespace zero.tangle.models
@@ -9,16 +10,16 @@ namespace zero.tangle.models
     /// <summary>
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
-    /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public class IoTangleTransaction<TKey> : IoConsumable<IoTangleTransaction<TKey>> 
+    /// <seealso cref="IIoSource" />
+    public class IoTangleTransaction<TKey> : IoLoad<IoTangleTransaction<TKey>> 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction{TKey}"/> class.
         /// </summary>
-        /// <param name="source">The producer of these jobs</param>
-        /// <param name="waitForConsumerTimeout">The time we wait for the producer before reporting it</param>
-        public IoTangleTransaction(IoProducer<IoTangleTransaction<TKey>> source, int waitForConsumerTimeout = 0) 
-            : base("forward", $"{nameof(IoTangleTransaction<TKey>)}", source)
+        /// <param name="originatingSource">The originatingSource of these jobs</param>
+        /// <param name="waitForConsumerTimeout">The time we wait for the originatingSource before reporting it</param>
+        public IoTangleTransaction(IoSource<IoTangleTransaction<TKey>> originatingSource, int waitForConsumerTimeout = 0) 
+            : base("forward", $"{nameof(IoTangleTransaction<TKey>)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;            
             _logger = LogManager.GetCurrentClassLogger();            
@@ -44,34 +45,34 @@ namespace zero.tangle.models
         /// </returns>
         public override async Task<State> ProduceAsync()
         {            
-            await Producer.ProduceAsync(async producer =>
+            await Source.ProduceAsync(async producer =>
             {
-                if (Producer.ProducerBarrier == null)
+                if (Source.ProducerBarrier == null)
                 {
                     ProcessState = State.ProdCancel;
                     return false;                    
                 }
 
-                if (!await Producer.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Producer.Spinners.Token))
+                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Source.Spinners.Token))
                 {
-                    ProcessState = !Producer.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = !Source.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
-                if (Producer.Spinners.IsCancellationRequested)
+                if (Source.Spinners.IsCancellationRequested)
                 {
                     ProcessState = State.ProdCancel;
                     return false;
                 }
                 
-                Transactions = ((IoTangleTransactionProducer<TKey>)Producer).TxQueue.Take();
+                Transactions = ((IoTangleTransactionSource<TKey>)Source).TxQueue.Take();
 
                 ProcessState = State.Produced;
 
                 return true;
             });
 
-            //If the producer gave us nothing, mark this production to be skipped            
+            //If the originatingSource gave us nothing, mark this production to be skipped            
             return ProcessState;
         }
 

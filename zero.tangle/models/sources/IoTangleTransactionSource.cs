@@ -11,11 +11,11 @@ namespace zero.tangle.models.sources
     /// <summary>
     /// A upstream that serves <see cref="IoTangleTransaction{TKey}"/>
     /// </summary>
-    /// <seealso cref="zero.core.patterns.bushes.IoProducer{IoTangleTransaction}" />
-    /// <seealso cref="zero.core.patterns.bushes.contracts.IIoProducer" />
-    public sealed class IoTangleTransactionProducer<TKey> : IoProducer<IoTangleTransaction<TKey>>, IIoProducer 
+    /// <seealso cref="IoSource{TJob}" />
+    /// <seealso cref="IIoSource" />
+    public sealed class IoTangleTransactionSource<TKey> : IoSource<IoTangleTransaction<TKey>>, IIoSource 
     {
-        public IoTangleTransactionProducer(string destDescription, int bufferSize):base(bufferSize)//TODO config
+        public IoTangleTransactionSource(string destDescription, int bufferSize):base(bufferSize)//TODO config
         {
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
@@ -41,7 +41,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => ChannelProducer.Key;
+        public override string Key => ChannelSource.Key;
 
         /// <summary>
         /// Description of this upstream
@@ -51,7 +51,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// The original source URI
         /// </summary>
-        public override string SourceUri => ChannelProducer.SourceUri;
+        public override string SourceUri => ChannelSource.SourceUri;
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -59,19 +59,19 @@ namespace zero.tangle.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => ChannelProducer.IsOperational;        
+        public override bool IsOperational => ChannelSource.IsOperational;        
 
         /// <inheritdoc />        
-        public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null,
-            Func<object, IoConsumable<TFJob>> jobMalloc = null)
-        {
-            throw new NotImplementedException();
-        }
+        //public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
+        //    Func<object, IoLoad<TFJob>> jobMalloc = null)
+        //{
+        //    throw new NotImplementedException();
+        //}
 
-        public override IoChannel<TFJob> GetChannel<TFJob>(string id)
-        {
-            throw new NotImplementedException();
-        }
+        //public override IoChannel<TFJob> GetChannel<TFJob>(string id)
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         /// <summary>
         /// Closes this source
@@ -87,7 +87,7 @@ namespace zero.tangle.models.sources
         /// </summary>
         /// <param name="callback">The callback.</param>
         /// <returns>The async task</returns>        
-        public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
+        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> callback)
         {                        
             try
             {
@@ -107,7 +107,7 @@ namespace zero.tangle.models.sources
             }
             catch (Exception e)
             {
-                _logger.Error(e,$"Producer `{Description}' callback failed:");
+                _logger.Error(e,$"Source `{Description}' callback failed:");
                 return false;
             }
         }

@@ -10,7 +10,7 @@ namespace zero.cocoon.models
 {
     public class IoCcGossipMessage : IoMessage<IoCcGossipMessage>
     {
-        public IoCcGossipMessage(string jobDescription, string workDescription, IoProducer<IoCcGossipMessage> producer) : base(jobDescription, workDescription, producer)
+        public IoCcGossipMessage(string jobDescription, string loadDescription, IoSource<IoCcGossipMessage> originatingSource) : base(loadDescription, loadDescription, originatingSource)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

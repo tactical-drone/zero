@@ -5,23 +5,23 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// Used as a simple job forwarding producer consumer queue, by <see cref="IoProducerConsumer{TJob}"/>
+    /// Used as a simple job forwarding source consumer queue, by <see cref="IoZero{TJob}"/>
     /// </summary>
     /// <typeparam name="TJob">The type of the job.</typeparam>
-    /// <seealso cref="zero.core.patterns.bushes.IoProducerConsumer{TJob}" />
+    /// <seealso cref="IoZero{TJob}" />
     /// <seealso cref="IIoChannel" />
-    public class IoChannel<TJob>:IoProducerConsumer<TJob>, IIoChannel
-        where TJob : IIoWorker
+    public class IoChannel<TJob>:IoZero<TJob>, IIoChannel
+        where TJob : IIoJob
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoChannel{TJob}"/> class.
         /// </summary>
         /// <param name="description">A description of the channel destination</param>
-        /// <param name="producer">The source of the work to be done</param>
+        /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
-        public IoChannel(string description, IoProducer<TJob> producer, Func<object, IoConsumable<TJob>> mallocMessage) : base(description, producer, mallocMessage)
+        public IoChannel(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage) : base(description, source, mallocMessage)
         {
-            producer.SetUpstreamChannel(this);
+            source.SetUpstreamChannel(this);
         }        
     }
 }

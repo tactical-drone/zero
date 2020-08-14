@@ -17,7 +17,7 @@ namespace zero.core.core
     /// A p2p node
     /// </summary>
     public class IoNode<TJob> : IoConfigurable        
-    where TJob:IIoWorker    
+    where TJob:IIoJob    
     {
         /// <summary>
         /// Constructor
@@ -126,7 +126,7 @@ namespace zero.core.core
                 {
                     cancelRegistration.Dispose();
                     DisconnectedEvent?.Invoke(this, newNeighbor);
-                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).Producer.Key, out var _);
+                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).Source.Key, out var _);
                 };
 
                 // Add new neighbor
@@ -144,7 +144,7 @@ namespace zero.core.core
 
                 //start redis                
 
-                //Start the producer consumer on the neighbor scheduler
+                //Start the source consumer on the neighbor scheduler
                 try
                 {                    
 #pragma warning disable 4014
@@ -153,7 +153,7 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.Producer.Description}' processing thread returned with errors:");
+                    _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
                 }
             }, parm_tcp_readahead);
         }
@@ -284,9 +284,9 @@ namespace zero.core.core
             if (_whiteList.TryRemove(address.ToString(), out var ioNodeAddress))
             {
                 var keys = new List<string>();
-                Neighbors.Values.Where(n=>n.Producer.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
+                Neighbors.Values.Where(n=>n.Source.Key.Contains(address.ProtocolDesc)).ToList().ForEach(n =>
                 {                    
-                    keys.Add(n.Producer.Key);
+                    keys.Add(n.Source.Key);
                 });
 
                 Neighbors[address.ToString()].Close();

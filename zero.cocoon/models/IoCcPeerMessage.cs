@@ -20,7 +20,7 @@ namespace zero.cocoon.models
 {
     public class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
     {
-        public IoCcPeerMessage(string jobDescription, string workDescription, IoProducer<IoCcPeerMessage> producer) : base(jobDescription, workDescription, producer)
+        public IoCcPeerMessage(string loadDescription, string jobDescription, IoSource<IoCcPeerMessage> source) : base(loadDescription, jobDescription, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -34,13 +34,13 @@ namespace zero.cocoon.models
 
             IoCcProtocolBuffer protocol = null;
             //forward to neighbor
-            if (!Producer.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
+            if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
-                protocol = new IoCcProtocolBuffer($"{Producer.Description}/{nameof(IoCcPeerMessage)}", parm_forward_queue_length);
-                Producer.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
+                protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
+                Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
             }
 
-            ProtocolChannel = Producer.AttachProducer(nameof(IoCcNeighbor), protocol, userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), protocol, userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
             ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             ProtocolChannel.parm_producer_start_retry_time = 0;
         }
@@ -61,12 +61,12 @@ namespace zero.cocoon.models
         public IoChannel<IoCcProtocolMessage> ProtocolChannel;
 
         /// <summary>
-        /// Used to control how long we wait for the producer before we report it
+        /// Used to control how long we wait for the source before we report it
         /// </summary>
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
 
         /// <summary>
-        /// The time a consumer will wait for a producer to release it before aborting in ms
+        /// The time a consumer will wait for a source to release it before aborting in ms
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -93,7 +93,7 @@ namespace zero.cocoon.models
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
 
         /// <summary>
-        /// Userdata in the producer
+        /// Userdata in the source
         /// </summary>
         protected volatile object ProducerUserData;
 
@@ -112,7 +112,7 @@ namespace zero.cocoon.models
         {
             try
             {
-                var sourceTaskSuccess = await Producer.ProduceAsync(async ioSocket =>
+                var sourceTaskSuccess = await Source.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -121,14 +121,14 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await Producer.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Producer.Spinners.Token))
+                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Source.Spinners.Token))
                     {
-                        if (!Producer.Spinners.IsCancellationRequested)
+                        if (!Source.Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"{TraceDescription} `{ProductionDescription}' timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                         $"CB = `{Producer.ConsumerBarrier.CurrentCount}'");
+                            _logger.Warn($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                                         $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
@@ -140,14 +140,14 @@ namespace zero.cocoon.models
                         return true;
                     }
 
-                    if (Producer.Spinners.IsCancellationRequested)
+                    if (Source.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.ProdCancel;
                         return false;
                     }
 
                     //Async read the message from the message stream
-                    if (Producer.IsOperational)
+                    if (Source.IsOperational)
                     {
                         await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
                             rx =>
@@ -158,9 +158,9 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Producer.Spinners.Cancel();
-                                        Producer.Close();
-                                        _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream `{ProductionDescription}' returned with errors:");
+                                        Source.Spinners.Cancel();
+                                        Source.Close();
+                                        _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
                                     case TaskStatus.RanToCompletion:
@@ -183,16 +183,16 @@ namespace zero.cocoon.models
                                         break;
                                     default:
                                         ProcessState = State.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{ProductionDescription}', State={rx.Status}");
+                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                                 }
-                            }, Producer.Spinners.Token);
+                            }, Source.Spinners.Token);
                     }
                     else
                     {
-                        Producer.Close();
+                        Source.Close();
                     }
 
-                    if (Producer.Spinners.IsCancellationRequested)
+                    if (Source.Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.Cancelled;
                         return false;
@@ -202,7 +202,7 @@ namespace zero.cocoon.models
             }
             catch (Exception e)
             {
-                _logger.Warn(e, $"{TraceDescription} Producing job `{ProductionDescription}' returned with errors:");
+                _logger.Warn(e, $"{TraceDescription} Producing job returned with errors:");
             }
             finally
             {
@@ -229,13 +229,14 @@ namespace zero.cocoon.models
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
                     StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
+                    //TODO
                     Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
                 }
                 catch (Exception e) // we de-synced 
                 {
                     _logger.Warn(e, $"{TraceDescription} We desynced!:");
 
-                    Producer.Synced = false;
+                    Source.Synced = false;
                     DatumCount = 0;
                     BytesRead = 0;
                     ProcessState = State.Consumed;
@@ -277,7 +278,7 @@ namespace zero.cocoon.models
 
                         var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                         packet.Type = packet.Data[0];
-                        _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Producer.Description}'");
+                        _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
 
                         //Don't process unsigned or unknown messages
                         if(!verified || messageType == null)
@@ -352,7 +353,7 @@ namespace zero.cocoon.models
         private async Task ForwardToNeighborAsync(List<Tuple<IMessage, object, Packet>> newInteropTransactions)
         {
             //cog the source
-            await ProtocolChannel.Producer.ProduceAsync(source =>
+            await ProtocolChannel.Source.ProduceAsync(source =>
             {
                 if (ProtocolChannel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
                     ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(newInteropTransactions);
@@ -363,9 +364,9 @@ namespace zero.cocoon.models
             }).ConfigureAwait(false);
 
             //forward transactions
-            if (!await ProtocolChannel.ProduceAsync(Producer.Spinners.Token).ConfigureAwait(false))
+            if (!await ProtocolChannel.ProduceAsync(Source.Spinners.Token).ConfigureAwait(false))
             {
-                _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Producer.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
             }
         }
 

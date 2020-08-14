@@ -11,10 +11,10 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoProducer{TJob}"/> that can be used by <see cref="IoProducerConsumer{TJob}"/>
+    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoSource{TJob}"/> that can be used by <see cref="IoZero{TJob}"/>
     /// </summary>
-    public abstract class IoNetClient<TJob> : IoProducer<TJob>
-    where TJob : IIoWorker
+    public abstract class IoNetClient<TJob> : IoSource<TJob>
+    where TJob : IIoJob
     
     {
         /// <summary>
@@ -63,44 +63,44 @@ namespace zero.core.network.ip
         /// </summary>
         public IoNodeAddress RemoteAddress => IoSocket.RemoteAddress;
 
-        /// <summary>
-        /// Creates a new channel from id
-        /// </summary>
-        /// <typeparam name="TFJob">The type of items this channel carries</typeparam>
-        /// <param name="id">The id of the channel</param>
-        /// <param name="channelProducer">The upstream channel when creating a new channel</param>
-        /// <param name="jobMalloc">Allocates jobs</param>
-        /// <returns><see cref="IoChannel{TJob}"/>The created channel</returns>
-        public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoProducer<TFJob> channelProducer = null,
-            Func<object, IoConsumable<TFJob>> jobMalloc = null)
-        {
-            if (!IoChannels.ContainsKey(id))
-            {
-                if (channelProducer == null || jobMalloc == null)
-                {
-                    _logger.Warn($"Waiting for the channel producer of `{Description}' to initialize... ??");
-                    return null;
-                }
+        ///// <summary>
+        ///// Creates a new channel from id
+        ///// </summary>
+        ///// <typeparam name="TFJob">The type of items this channel carries</typeparam>
+        ///// <param name="id">The id of the channel</param>
+        ///// <param name="channelSource">The upstream channel when creating a new channel</param>
+        ///// <param name="jobMalloc">Allocates jobs</param>
+        ///// <returns><see cref="IoChannel{TJob}"/>The created channel</returns>
+        //public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
+        //    Func<object, IoLoad<TFJob>> jobMalloc = null)
+        //{
+        //    if (!IoChannels.ContainsKey(id))
+        //    {
+        //        if (channelSource == null || jobMalloc == null)
+        //        {
+        //            _logger.Warn($"Waiting for the channel source of `{Description}' to initialize... ??");
+        //            return null;
+        //        }
 
-                lock (this)
-                {
-                    IoChannels.TryAdd(id, new IoChannel<TFJob>($"CHANNEL: ({channelProducer.GetType().Name}) -> ({typeof(TFJob).Name})", channelProducer, jobMalloc));
-                }                
-            }
+        //        lock (this)
+        //        {
+        //            IoChannels.TryAdd(id, new IoChannel<TFJob>($"CHANNEL: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc));
+        //        }                
+        //    }
                
-            return (IoChannel<TFJob>) IoChannels[id];
-        }
+        //    return (IoChannel<TFJob>) IoChannels[id];
+        //}
 
-        public override IoChannel<TFJob> GetChannel<TFJob>(string id)
-        {
-            try
-            {
-                return (IoChannel<TFJob>)IoChannels[id];
-            }
-            catch { }
+        //public override IoChannel<TFJob> GetChannel<TFJob>(string id)
+        //{
+        //    try
+        //    {
+        //        return (IoChannel<TFJob>)IoChannels[id];
+        //    }
+        //    catch { }
 
-            return null;
-        }
+        //    return null;
+        //}
 
         /// <summary>
         /// Keys this instance.
@@ -228,7 +228,7 @@ namespace zero.core.network.ip
 
 
         //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
-        public override async Task<bool> ProduceAsync(Func<IIoProducer, Task<bool>> callback)
+        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> callback)
         {
             //Is the TCP connection up?
             if (!IsOperational)
@@ -254,7 +254,7 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Error(e,$"Producer `{Description}' callback failed:");
+                _logger.Error(e,$"Source `{Description}' callback failed:");
                 return false;
             }
         }
