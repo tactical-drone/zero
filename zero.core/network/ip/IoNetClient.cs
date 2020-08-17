@@ -34,7 +34,7 @@ namespace zero.core.network.ip
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            ListeningAddress = remote.ListenerAddress;                        
+            ListeningAddress = remote.ListeningAddress;                        
         }
 
         /// <summary>

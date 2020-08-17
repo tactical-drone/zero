@@ -60,7 +60,7 @@ namespace zero.sync
         {
 
             var cocoon = new IoCcNode(IoNodeAddress.Create(gossipAddress), IoNodeAddress.Create(peerAddress), IoNodeAddress.Create(fpcAddress), IoNodeAddress.Create(extAddress),
-                (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, null, ioNetClient),
+                (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, (IoCcNeighbor) extraData, ioNetClient),
                 TanglePeer<byte[]>.TcpReadAhead);
 
 #pragma warning disable 4014

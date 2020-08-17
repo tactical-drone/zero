@@ -50,13 +50,14 @@ namespace zero.cocoon.identity
             };
         }
 
-        public static IoCcIdentity Generate()
+        public static IoCcIdentity Generate(bool devMode = false)
         {
             //var skBuf = new byte[Ed25519.SecretKeySize];
             var skBuf = Base58CheckEncoding.Decode(DevKey);
             var pkBuf = new byte[Ed25519.PublicKeySize];
 
-            //Ed25519.GeneratePrivateKey(SecureRandom.GetInstance("SHA256PRNG"), skBuf);
+            if(!devMode)
+                Ed25519.GeneratePrivateKey(SecureRandom.GetInstance("SHA256PRNG"), skBuf);
             
             Ed25519.GeneratePublicKey(skBuf, 0, pkBuf, 0);
 

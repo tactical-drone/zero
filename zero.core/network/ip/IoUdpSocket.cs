@@ -29,9 +29,9 @@ namespace zero.core.network.ip
         /// A copy constructor
         /// </summary>
         /// <param name="socket">The underlying socket</param>
-        /// <param name="listenerAddress">The address listened on</param>
+        /// <param name="listeningAddress">The address listened on</param>
         /// <param name="cancellationToken">Token used for cancellation</param>
-        public IoUdpSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
+        public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(socket, listeningAddress, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -199,7 +199,7 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return ListenerAddress?.IpEndPoint != null || _udpRemoteEndpointInfo != null || RemoteAddress != null;
+            return ListeningAddress?.IpEndPoint != null || _udpRemoteEndpointInfo != null || RemoteAddress != null;
         }
 
         public override object ExtraData()

@@ -16,12 +16,12 @@ namespace zero.core.network.ip
         {
         }
 
-        protected IoNetSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken) : base(socket, listenerAddress, cancellationToken)
+        protected IoNetSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(socket, listeningAddress, cancellationToken)
         {
         }
 
         public string Description => $"{this.GetType().Name} `{base.LocalAddress}'";
-        public string SourceUri => $"{base.ListenerAddress}";
+        public string SourceUri => $"{base.ListeningAddress}";
         public bool IsOperational => NativeSocket.Connected;
         public IIoDupChecker RecentlyProcessed { get; set; }
     }

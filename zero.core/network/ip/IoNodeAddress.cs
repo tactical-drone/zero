@@ -16,13 +16,15 @@ namespace zero.core.network.ip
         /// Constructs a new node address
         /// </summary>
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
-        public IoNodeAddress(string url)
+        /// <param name="lookup">Whether to perform a dns lookup on <see cref="HostStr"/></param>
+        public IoNodeAddress(string url, bool lookup = false)
         {
+            _performDns = lookup;
             Init(url);
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        private Logger _logger;
+        private readonly Logger _logger;
 
         [DataMember]
         public string Url { get; set; }
@@ -49,6 +51,12 @@ namespace zero.core.network.ip
 
         [DataMember]
         public IPEndPoint ResolvedIpEndPoint { get; protected set; }
+
+
+        /// <summary>
+        /// Whether to perform a DNS lookup
+        /// </summary>
+        private bool _performDns = false;
 
         /// <summary>
         /// The Ip
@@ -219,17 +227,27 @@ namespace zero.core.network.ip
         {
             try
             {
-                if(!Validated)
-                    return;
-
-                if (HostStr == "0.0.0.0")
+                if (HostStr == "0.0.0.0" || string.IsNullOrEmpty(HostStr))
                 {
                     IpEndPoint = new IPEndPoint(0, Port);
                     DnsResolutionChanged = false;
                     DnsValidated = true;
                     return;
                 }
-                
+
+                if (!Validated)
+                {
+                    return;
+                }
+
+                if (!_performDns)
+                {
+                    IpEndPoint = new IPEndPoint(IPAddress.Parse(HostStr), Port);
+                    DnsResolutionChanged = false;
+                    DnsValidated = false;
+                    return;
+                }
+
                 var resolvedIpAddress = Dns.GetHostAddresses(HostStr)[0];
                 if (!IpEndPoint?.Address.Equals(resolvedIpAddress) ?? false)
                 {

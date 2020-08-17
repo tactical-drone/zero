@@ -205,7 +205,7 @@ namespace zero.core.core
                             
                             _logger.Info($"Added {newNeighbor.Id}");
 
-                            ConnectedEvent(this, newNeighbor);
+                            ConnectedEvent?.Invoke(this, newNeighbor);
 
                             return newNeighbor;
                         }

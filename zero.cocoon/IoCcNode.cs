@@ -81,12 +81,12 @@ namespace zero.cocoon
             //    peer.SpawnProcessingAsync(CancellationToken);
             //}
 
-            if (!((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsListeningSocket && !((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsConnectingSocket &&
+            if (neighbor.Address != null && (((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsListeningSocket || ((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsConnectingSocket) &&
                 Neighbors.Count < parm_max_outbound &&
                 //TODO add distance calc &&
-                neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.peering))
+                neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
             {
-                SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering]).ContinueWith(async (task) =>
+                SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor).ContinueWith(async (task) =>
                     {
                         switch (task.Status)
                         {
@@ -104,6 +104,10 @@ namespace zero.cocoon
                         }
                     }).ConfigureAwait(false);
                 
+            }
+            else
+            {
+                _logger.Trace($"Handled {neighbor.Description}");
             }
             
         }

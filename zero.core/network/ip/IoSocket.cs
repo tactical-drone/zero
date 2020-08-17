@@ -34,13 +34,13 @@ namespace zero.core.network.ip
         /// A copy constructor used by listeners
         /// </summary>
         /// <param name="socket">The listening socket</param>
-        /// <param name="listenerAddress">The address listened on</param>
+        /// <param name="listeningAddress">The address listened on</param>
         /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        protected IoSocket(Socket socket, IoNodeAddress listenerAddress, CancellationToken cancellationToken)
+        protected IoSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Socket = socket;
-            ListenerAddress = listenerAddress;            
+            ListeningAddress = listeningAddress;            
 
             _cancellationTokenRegistration = cancellationToken.Register(Close);
         }
@@ -63,7 +63,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The original node address this socket is supposed to work with
         /// </summary>
-        public IoNodeAddress ListenerAddress { get; protected set; }
+        public IoNodeAddress ListeningAddress { get; protected set; }
 
         /// <summary>
         /// The original node address this socket is supposed to work with
@@ -88,12 +88,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// Public access to remote address (used for logging)
         /// </summary>
-        public string RemoteAddressFallback => Socket?.RemoteAddress()?.ToString() ?? ListenerAddress.IpEndPoint?.Address?.ToString() ?? ListenerAddress.Url;
+        public string RemoteAddressFallback => Socket?.RemoteAddress()?.ToString() ?? ListeningAddress.IpEndPoint?.Address?.ToString() ?? ListeningAddress.Url;
 
         /// <summary>
         /// Public access to remote port (used for logging)
         /// </summary>
-        public int RemotePort => Socket?.RemotePort() ?? ListenerAddress.IpEndPoint?.Port ?? ListenerAddress.Port;
+        public int RemotePort => Socket?.RemotePort() ?? ListeningAddress.IpEndPoint?.Port ?? ListeningAddress.Port;
 
         /// <summary>
         /// Returns the remote address as a string ip:port
@@ -169,22 +169,22 @@ namespace zero.core.network.ip
                 throw new InvalidOperationException($"Starting listener failed, socket `{address}' is already bound!");
 
             if (IsConnectingSocket)
-                throw new InvalidOperationException($"This socket was already used to connect to `{ListenerAddress}'. Make a new one!");
+                throw new InvalidOperationException($"This socket was already used to connect to `{ListeningAddress}'. Make a new one!");
 
             IsListeningSocket = true;
 
-            ListenerAddress = address;
+            ListeningAddress = address;
 
-            if (ListenerAddress.Validated)
+            if (ListeningAddress.Validated)
             {
                 try
                 {
-                    Socket.Bind(ListenerAddress.IpEndPoint);
-                    _logger.Debug($"Bound port `{ListenerAddress}'");
+                    Socket.Bind(ListeningAddress.IpEndPoint);
+                    _logger.Debug($"Bound port `{ListeningAddress}'");
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Unable to bind socket at `{ListenerAddress}':");
+                    _logger.Error(e, $"Unable to bind socket at `{ListeningAddress}':");
                     return Task.FromResult(false);
                 }
 
@@ -192,7 +192,7 @@ namespace zero.core.network.ip
             }
             else
             {
-                _logger.Fatal($"Unable to create listener at: {ListenerAddress?.Url??LocalAddress??"N/A"}. Socket is invalid! ({ListenerAddress.ValidationErrorString})");
+                _logger.Fatal($"Unable to create listener at: {ListeningAddress?.Url??LocalAddress??"N/A"}. Socket is invalid! ({ListeningAddress.ValidationErrorString})");
                 return Task.FromResult(false);
             }
                 
@@ -212,11 +212,12 @@ namespace zero.core.network.ip
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
             if (IsListeningSocket)
-                throw new InvalidOperationException($"This socket was already used to listen at `{ListenerAddress}'. Make a new one!");
+                throw new InvalidOperationException($"This socket was already used to listen at `{ListeningAddress}'. Make a new one!");
 
             IsConnectingSocket = true;
 
-            RemoteAddress = address;
+            ListeningAddress = address;
+            RemoteAddress = null;
 
             return true;
         }
