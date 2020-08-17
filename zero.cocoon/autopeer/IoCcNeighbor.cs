@@ -30,6 +30,7 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
             Identity = ((Tuple<IoCcIdentity, IoCcService>)extraData)?.Item1 ?? IoCcIdentity.Generate();
+            Address = ioNetClient.RemoteAddress;
             NeighborDiscoveryNode = (IoCcNeighborDiscovery)node;
             Services = services ?? ((Tuple<IoCcIdentity, IoCcService>)extraData)?.Item2 ?? ((IoCcNeighborDiscovery)node).Services;
         }
@@ -40,6 +41,7 @@ namespace zero.cocoon.autopeer
         private readonly Logger _logger;
 
         protected IoCcNeighborDiscovery NeighborDiscoveryNode;
+        protected IoNodeAddress Address;
 
         public const int TcpReadAhead = 50;
 
@@ -169,26 +171,40 @@ namespace zero.cocoon.autopeer
                     try
                     {
                         await ProcessMsgBatchAsync(batch, _protocolChannel,
-                        (message, forward) =>
+                        (msg
+                                            , forward) =>
                         {
 #pragma warning disable 4014
                             try
                             {
-                                switch (message.Item1.GetType().Name)
+                                switch (msg
+                                            .Item1.GetType().Name)
                                 {
                                     case nameof(Ping):
-                                        ProcessMsgAsync((Ping)message.Item1, message.Item2, message.Item3);
+                                        ProcessMsgAsync((Ping)msg
+                                            .Item1, msg
+                                            .Item2, msg
+                                            .Item3);
                                         break;
                                     case nameof(Pong):
-                                        ProcessMsgAsync((Pong)message.Item1, message.Item2, message.Item3);
+                                        ProcessMsgAsync((Pong)msg
+                                            .Item1, msg
+                                            .Item2, msg
+                                            .Item3);
                                         break;
                                     case nameof(DiscoveryRequest):
-                                        ProcessMsgAsync((DiscoveryRequest)message.Item1, message.Item2);
+                                        ProcessMsgAsync((DiscoveryRequest)msg
+                                            .Item1, msg
+                                            .Item2, msg
+                                            .Item3);
                                         break;
                                     case nameof(DiscoveryResponse):
                                         break;
                                     case nameof(PeeringRequest):
-                                        ProcessPeerReqAsync((PeeringRequest)message.Item1, message.Item2, message.Item3);
+                                        ProcessPeerReqAsync((PeeringRequest)msg
+                                            .Item1, msg
+                                            .Item2, msg
+                                            .Item3);
                                         break;
 
                                 }
@@ -240,16 +256,24 @@ namespace zero.cocoon.autopeer
                 Status = Node.Neighbors.ContainsKey(id) //TODO Distance calc
             };
 
-            using var poolMem = MemoryPool<byte>.Shared.Rent(peeringResponse.CalculateSize() + 1);
-            MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-            var heapStream = new MemoryStream(heapMem.Array);
-            heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.PeeringResponse);
-            peeringResponse.WriteTo(heapStream);
+            //using var poolMem = MemoryPool<byte>.Shared.Rent(peeringResponse.CalculateSize() + 1);
+
+            //MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
+            //if(heapMem == null)
+            //    throw new OutOfMemoryException();
+
+            //var heapStream = new MemoryStream(heapMem.Array);
+
+            //heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.PeeringResponse);
+
+            //peeringResponse.WriteTo(heapStream);
 
             var protoResponse = new Packet
             {
-                Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey)
+                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
+                Data = peeringResponse.ToByteString(),
+                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                Type = (uint) IoCcPeerMessage.MessageTypes.PeeringResponse,
             };
 
             protoResponse.Signature =
@@ -270,18 +294,18 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="request"></param>
         /// <param name="extraData"></param>
+        /// <param name="packet"></param>
         /// <returns></returns>
-        private async Task ProcessMsgAsync(DiscoveryRequest request, object extraData)
+        private async Task ProcessMsgAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            var hashStream = new MemoryStream(new byte[request.CalculateSize() + 1]);
-            hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryRequest);
-            request.WriteTo(hashStream);
-            hashStream.Seek(0, SeekOrigin.Begin);
-
+            //var hashStream = new MemoryStream(new byte[request.CalculateSize() + 1]);
+            //hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryRequest);
+            //request.WriteTo(hashStream);
+            //hashStream.Seek(0, SeekOrigin.Begin);
 
             var discoveryResponse = new DiscoveryResponse
             {
-                ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(hashStream)),
+                ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(packet.Data.ToByteArray())),
                 Peers = { new Peer { PublicKey = ByteString.CopyFrom(CcId.PublicKey), Ip = Source.SourceUri, Services = new ServiceMap { Map = { new Dictionary<string, NetworkAddress> { { IoCcService.Keys.peering.ToString(), new NetworkAddress { Network = NeighborDiscoveryNode.Server.ListeningAddress.UrlNoPort, Port = (uint)NeighborDiscoveryNode.Server.ListeningAddress.Port } } } } } } }
             };
 
@@ -293,20 +317,23 @@ namespace zero.cocoon.autopeer
                 discoveryResponse.Peers.Add(new Peer
                 {
                     PublicKey = ByteString.CopyFrom(((IoCcNeighbor)ioNeighbor.Value).Identity.PublicKey),
-                    Services = ((IoCcNeighbor)ioNeighbor.Value).ServiceMap
+                    Services = ((IoCcNeighbor)ioNeighbor.Value).ServiceMap,
+                    Ip = ((IoCcNeighbor)ioNeighbor.Value).Address.HostStr
                 });
             }
 
-            using var poolMem = MemoryPool<byte>.Shared.Rent(discoveryResponse.CalculateSize() + 1);
-            MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-            var heapStream = new MemoryStream(heapMem.Array);
-            heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryResponse);
-            discoveryResponse.WriteTo(heapStream);
+            //using var poolMem = MemoryPool<byte>.Shared.Rent(discoveryResponse.CalculateSize() + 1);
+            //MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
+            //var heapStream = new MemoryStream(heapMem.Array);
+            //heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryResponse);
+            //discoveryResponse.WriteTo(heapStream);
 
             var protoResponse = new Packet
             {
-                Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey)
+                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
+                Data = discoveryResponse.ToByteString(),
+                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                Type = (uint)IoCcPeerMessage.MessageTypes.DiscoveryResponse,
             };
 
             protoResponse.Signature =
@@ -336,11 +363,11 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            await using var hashStream = new MemoryStream(new byte[ping.CalculateSize() + 1]);
-            hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Ping);
-            ping.WriteTo(hashStream);
-            var pos = hashStream.Position;
-            hashStream.Seek(0, SeekOrigin.Begin);
+            //await using var hashStream = new MemoryStream(new byte[ping.CalculateSize() + 1]);
+            //hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Ping);
+            //ping.WriteTo(hashStream);
+            //var pos = hashStream.Position;
+            //hashStream.Seek(0, SeekOrigin.Begin);
 
             //TODO optimize
             var gossipAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.peering];
@@ -349,7 +376,7 @@ namespace zero.cocoon.autopeer
 
             var pong = new Pong
             {
-                ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(hashStream)),
+                ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(packet.Data.ToByteArray())),
                 DstAddr = $"{remoteEp.Address}",//TODO, add port somehow
                 Services = new ServiceMap
                 {
@@ -362,16 +389,22 @@ namespace zero.cocoon.autopeer
                 }
             };
 
-            using var poolMem = MemoryPool<byte>.Shared.Rent(pong.CalculateSize() + 1);
-            MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-            var heapStream = new MemoryStream(heapMem.Array);
-            heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Pong);
-            pong.WriteTo(heapStream);
+            //using var poolMem = MemoryPool<byte>.Shared.Rent(pong.CalculateSize() );
+            //MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
+
+            //if (heapMem == null)
+            //    throw new OutOfMemoryException();
+
+            //var heapStream = new MemoryStream(heapMem.Array!);
+            ////heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Pong);
+            //pong.WriteTo(heapStream);
 
             var responsePacket = new Packet
             {
-                Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey)
+                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
+                Data = pong.ToByteString(),
+                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                Type = (uint)IoCcPeerMessage.MessageTypes.Pong,
             };
 
             responsePacket.Signature =
@@ -488,16 +521,18 @@ namespace zero.cocoon.autopeer
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            using var poolMem = MemoryPool<byte>.Shared.Rent(ping.CalculateSize() + 1);
-            MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-            var heapStream = new MemoryStream(heapMem.Array);
-            heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Ping);
-            ping.WriteTo(heapStream);
+            //using var poolMem = MemoryPool<byte>.Shared.Rent(ping.CalculateSize() + 1);
+            //MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
+            //var heapStream = new MemoryStream(heapMem.Array);
+            ////heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Ping);
+            //ping.WriteTo(heapStream);
 
             var responsePacket = new Packet
             {
-                Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey)
+                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
+                Data = ping.ToByteString(),
+                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                Type = (uint)IoCcPeerMessage.MessageTypes.Ping
             };
 
             responsePacket.Signature =

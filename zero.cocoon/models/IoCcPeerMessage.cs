@@ -276,7 +276,8 @@ namespace zero.cocoon.models
                             verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.ToByteArray(), 0, packet.Signature.ToByteArray(), 0);
                         }
 
-                        var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
+                        //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
+                        var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
                         packet.Type = packet.Data[0];
                         _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
 
@@ -334,12 +335,13 @@ namespace zero.cocoon.models
             try
             {
                 var parser = new MessageParser<T>(() => new T());
-                var requestRaw = packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray();
-                var request = parser.ParseFrom(requestRaw);
+                //var requestRaw = packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray();
+                var requestRaw = packet.Data.Span.Slice(0, packet.Data.Length).ToArray();
+                var request = parser.ParseFrom(packet.Data);
 
                 if (request != null)
                 {
-                    _logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
+                    //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
 
                     _protocolMsgBatch.Add(Tuple.Create((IMessage)request, ProducerUserData, packet));
                 }
