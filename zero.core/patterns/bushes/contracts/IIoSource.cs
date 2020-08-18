@@ -131,5 +131,10 @@ namespace zero.core.patterns.bushes.contracts
         /// Closes this source
         /// </summary>
         void Close();
+
+        /// <summary>
+        /// On closed
+        /// </summary>
+        event EventHandler ClosedEvent;
     }
 }

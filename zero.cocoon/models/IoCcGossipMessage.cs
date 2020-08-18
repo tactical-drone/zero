@@ -170,16 +170,17 @@ namespace zero.cocoon.models
                                         break;
                                     //Success
                                     case TaskStatus.RanToCompletion:
+                                        BytesRead = rx.Result;
+                                        var stream = ByteStream;
                                         try
                                         {
-                                            BytesRead = rx.Result;
                                             if (rx.Result > 0 && _handshakeRequest == null) //handshake
                                             {
                                                 //recv
                                                 if (((IoSocket) ioSocket).IsListeningSocket)
                                                 {
                                                     var verified = false;
-                                                    var packet = Packet.Parser.ParseFrom(ByteStream);
+                                                    var packet = Packet.Parser.ParseFrom(stream);
                                                     if (packet.Data != null && packet.Data.Length > 0)
                                                     {
                                                         var packetMsgRaw = packet.Data.ToByteArray(); //TODO remove copy
@@ -223,7 +224,7 @@ namespace zero.cocoon.models
                                                 else //verify handshake response
                                                 {
                                                     var verified = false;
-                                                    var packet = Packet.Parser.ParseFrom(ByteStream);
+                                                    var packet = Packet.Parser.ParseFrom(stream);
                                                     if (packet.Data != null && packet.Data.Length > 0)
                                                     {
                                                         var packetMsgRaw = packet.Data.ToByteArray(); //TODO remove copy
@@ -271,6 +272,7 @@ namespace zero.cocoon.models
                                         }
                                         finally
                                         {
+                                            BufferOffset += (int)stream.Position;
                                             //UDP signals source ip
                                             ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
@@ -325,7 +327,7 @@ namespace zero.cocoon.models
         {
             if (Previous?.StillHasUnprocessedFragments ?? false)
             {
-                var previousJobFragment = (IoMessage<IoCcPeerMessage>)Previous;
+                var previousJobFragment = (IoMessage<IoCcGossipMessage>)Previous;
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
@@ -375,7 +377,7 @@ namespace zero.cocoon.models
             }
             finally
             {
-                BufferOffset += Math.Min(BytesLeftToProcess, DatumSize);
+                
             }
 
             //if (_protocolMsgBatch.Count > 0)

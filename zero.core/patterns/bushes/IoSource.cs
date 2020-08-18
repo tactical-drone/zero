@@ -167,11 +167,16 @@ namespace zero.core.patterns.bushes
         // ReSharper disable once InconsistentNaming
         protected long parm_event_min_ave_display = 0;
 
-
         /// <summary>
         /// 
         /// </summary>
         private long _nextProducerId;
+
+
+        /// <summary>
+        /// Called when this neighbor is closed
+        /// </summary>
+        public event EventHandler ClosedEvent;
         
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.
@@ -273,6 +278,11 @@ namespace zero.core.patterns.bushes
         {
             Channel = channel;
             _logger.Debug($"Setting input channel: from = `{Description}', to = `{channel.Description}'");
+        }
+
+        protected virtual void OnClosedEvent()
+        {
+            ClosedEvent?.Invoke(this, EventArgs.Empty);
         }
     }
 }

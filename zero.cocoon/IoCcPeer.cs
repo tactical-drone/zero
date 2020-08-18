@@ -39,8 +39,13 @@ namespace zero.cocoon
         public void AttachPeerNeighbor(IoCcNeighbor neighbor)
         {
             _neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
-            _neighbor.Closed += (sender, args) => Close(); //TODO does this make sense?
-            _neighbor.Verified = true;
+            //_neighbor.Closed += (sender, args) => Close(); //TODO does this make sense?
+            Closed += (sender, args) => _neighbor.Direction = IoCcNeighbor.Kind.Undefined;
+            IoNetClient.ClosedEvent += (sender, args) =>
+            {
+                Close();
+                //_neighbor.Direction = IoCcNeighbor.Kind.Undefined;
+            };
         }
     }
 }

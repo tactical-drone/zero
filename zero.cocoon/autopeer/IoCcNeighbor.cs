@@ -36,6 +36,7 @@ namespace zero.cocoon.autopeer
             Address = ioNetClient.RemoteAddress;
             NeighborDiscoveryNode = (IoCcNeighborDiscovery)node;
             Services = services ?? ((Tuple<IoCcIdentity, IoCcService>)extraData)?.Item2 ?? ((IoCcNeighborDiscovery)node).Services;
+            Closed += (sender, args) => Direction = Kind.Undefined;
         }
 
         /// <summary>
@@ -52,7 +53,7 @@ namespace zero.cocoon.autopeer
 
         public bool Verified { get; set; } = false;
 
-        public Kind Direction { get; protected set; } = Kind.Undefined;
+        public Kind Direction { get; set; } = Kind.Undefined;
 
         public enum Kind
         {
@@ -227,7 +228,9 @@ namespace zero.cocoon.autopeer
                                     case nameof(PeeringResponse):
                                         ccNeighbor.ProcessPeerReqAsync((PeeringResponse)msg.Item1, msg.Item2, msg.Item3);
                                         break;
-
+                                    case nameof(PeeringDrop):
+                                        ccNeighbor.ProcessPeerReqAsync((PeeringDrop)msg.Item1, msg.Item2, msg.Item3);
+                                        break;
                                 }
                             }
                             catch (Exception e)
@@ -252,6 +255,18 @@ namespace zero.cocoon.autopeer
             _logger.Debug($"Shutting down persistence for `{Description}'");
         }
 
+        private void ProcessPeerReqAsync(PeeringDrop request, object extraData, Packet packet)
+        {
+            if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20)
+            {
+                _logger.Trace($"{nameof(PeeringDrop)}: Ignoring old request ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
+                return;
+            }
+
+            _logger.Debug($"{nameof(PeeringDrop)}: Drop peer requested, closing {Description}");
+            Close();
+        }
+
         private void ProcessPeerReqAsync(PeeringResponse response, object extraData, Packet packet)
         {
             if (_peerRequest == null || Address == null)
@@ -272,6 +287,8 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
+            _logger.Trace($"{nameof(PeeringResponse)}: status = {response.Status}");
+
             if (response.Status)
             {
                 lock (this)
@@ -287,6 +304,7 @@ namespace zero.cocoon.autopeer
                             }
                             else
                                 return;
+                            _logger.Info($"Peering selected {Direction}: {Id}");
                         }
                     }
                     else
@@ -318,10 +336,11 @@ namespace zero.cocoon.autopeer
             var msgRaw = packet.ToByteArray();
 
             var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint);
-            _logger.Debug($"{nameof(IoCcNeighbor)}: Sent {sent} bytes to {dest.IpEndPoint} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)})");
+            _logger.Debug($"{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}: Sent {sent} bytes to {dest.IpEndPoint}");
             return (sent, packet);
         }
 
+        //TODO
         SHA256 _sha256 = SHA256.Create();
         /// <summary>
         /// 
@@ -404,6 +423,8 @@ namespace zero.cocoon.autopeer
                     peeringResponse.Status = false; //TODO does this work?
 
             }
+
+            _logger.Trace($"{nameof(PeeringResponse)}: Status = {peeringResponse.Status}");
 
             await SendMessage(Address, peeringResponse.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringResponse);
         }
@@ -623,7 +644,7 @@ namespace zero.cocoon.autopeer
                         Node.Neighbors.TryAdd(keyStr, newNeighbor))
                     {
                         await newNeighbor.SendPingMsgAsync(newNeighbor.Address);
-                        await Task.Delay(1000);
+                        //await Task.Delay(1000);
                         await newNeighbor.SendDiscoveryRequestAsync(newNeighbor.Address);
                     }
                     else
@@ -636,6 +657,8 @@ namespace zero.cocoon.autopeer
             {
                 Verified = true;
                 _logger.Info($"Discovered/Verified peer {Id}");
+                if( ((IoCcNeighborDiscovery)Node).CcNode.Neighbors.Count < 7) //TODO 
+                    await SendPeerRequestAsync();
             }
         }
 
@@ -696,7 +719,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="dest"></param>
         /// <returns></returns>
-        private async Task SendPeerRequestAsync(IoNodeAddress dest)
+        private async Task SendPeerRequestAsync()
         {
             _peerRequest = new PeeringRequest
             {
@@ -704,7 +727,7 @@ namespace zero.cocoon.autopeer
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            await SendMessage(dest, _peerRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringRequest);
+            await SendMessage(Address, _peerRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringRequest);
         }
 
 

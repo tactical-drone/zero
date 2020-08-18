@@ -303,8 +303,10 @@ namespace zero.cocoon.models
                                 ProcessRequest<PeeringRequest>(packet, packetMsgRaw);
                                 break;
                             case nameof(MessageTypes.PeeringResponse):
+                                ProcessRequest<PeeringResponse>(packet, packetMsgRaw);
                                 break;
                             case nameof(MessageTypes.PeeringDrop):
+                                ProcessRequest<PeeringDrop>(packet, packetMsgRaw);
                                 break;
                             default:
                                 _logger.Debug($"Unknown auto peer msg type = {Buffer[BufferOffset - 1]}");

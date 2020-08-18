@@ -179,16 +179,21 @@ namespace zero.core.network.ip
 
                 Spinners?.Cancel();
                 IoSocket?.Close();
-            
+
                 //Unlock any blockers
                 ProducerBarrier?.Dispose();
                 ConsumerBarrier?.Dispose();
                 ConsumeAheadBarrier?.Dispose();
                 ProduceAheadBarrier?.Dispose();
+
             }
             catch (Exception e)
             {
-                _logger.Trace(e,"Close returned with errors");
+                _logger.Trace(e, "Close returned with errors");
+            }
+            finally
+            {
+                OnClosedEvent();
             }
         }
 

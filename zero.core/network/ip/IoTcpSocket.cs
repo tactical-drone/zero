@@ -213,20 +213,25 @@ namespace zero.core.network.ip
                     await Task.Delay(1000);
                     return 0;
                 }
-                    
-
-                return await Task.Factory.FromAsync(
+                
+                var read = await Task.Factory.FromAsync(
                     Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
                     Socket.EndReceive).HandleCancellation(Spinners.Token).ConfigureAwait(false);                
+
+                if(read == 0)//TODO does this make sense?
+                    Close();
+
+                return read;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                //_logger.Trace(e, $"Unable to read from socket `tcp://{Address.ResolvedIpAndPort}', length = `{length}', offset = `{offset}' :");
+                _logger.Trace(e, $"Unable to read from socket `tcp://{Socket.LocalEndPoint}', length = `{length}', offset = `{offset}' :");
+                Close();
                 return 0;
             }
             finally
             {
-                
+
             }
         }
 
