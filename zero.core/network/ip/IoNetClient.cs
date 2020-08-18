@@ -156,11 +156,6 @@ namespace zero.core.network.ip
         public event EventHandler Disconnected;
 
         /// <summary>
-        /// Cancellation hooks
-        /// </summary>
-        private readonly CancellationTokenSource _spinners = new CancellationTokenSource(); //TODO hook this up
-
-        /// <summary>
         /// Handle to unregister cancellation registrations
         /// </summary>
         private CancellationTokenRegistration _cancellationRegistration;
@@ -178,18 +173,23 @@ namespace zero.core.network.ip
             
             _logger.Debug($"Closing `{Description}'");
 
-            OnDisconnected();
+            try
+            {
+                OnDisconnected();
 
-            Spinners?.Cancel();
+                Spinners?.Cancel();
+                IoSocket?.Close();
             
-            IoSocket?.Close();
-            //IoSocket = null;
-
-            //Unlock any blockers
-            ProducerBarrier?.Dispose();
-            ConsumerBarrier?.Dispose();
-            ConsumeAheadBarrier?.Dispose();
-            ProduceAheadBarrier?.Dispose();            
+                //Unlock any blockers
+                ProducerBarrier?.Dispose();
+                ConsumerBarrier?.Dispose();
+                ConsumeAheadBarrier?.Dispose();
+                ProduceAheadBarrier?.Dispose();
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e,"Close returned with errors");
+            }
         }
 
         /// <summary>

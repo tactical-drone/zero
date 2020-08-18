@@ -22,8 +22,9 @@ namespace zero.cocoon
             IoNetClient = ioNetClient;
             _neighbor = neighbor;
 
-            if(neighbor!= null)
-                SetNeighbor(neighbor);
+            if(_neighbor != null)
+                AttachPeerNeighbor(_neighbor);
+
         }
 
         private readonly Logger _logger;
@@ -31,14 +32,15 @@ namespace zero.cocoon
 
         public IoCcNeighbor Neighbor => _neighbor;
 
-        public override string Id => _neighbor.Id;
+        public override string Id => _neighbor?.Id??"N/A";
 
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
 
-        public void SetNeighbor(IoCcNeighbor neighbor)
+        public void AttachPeerNeighbor(IoCcNeighbor neighbor)
         {
             _neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
             _neighbor.Closed += (sender, args) => Close(); //TODO does this make sense?
+            _neighbor.Verified = true;
         }
     }
 }

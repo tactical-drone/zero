@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
@@ -63,11 +64,48 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
         public int parm_max_outbound = 4;
 
+
+        protected override Task SpawnListenerAsync(Func<IoNeighbor<IoCcGossipMessage>, Task<bool>> acceptConnection = null)
+        {
+            return base.SpawnListenerAsync(neighbor =>
+            {
+                
+                if (Neighbors.Count > parm_max_inbound + parm_max_outbound)
+                    return Task.FromResult(false);
+                var searchStr = neighbor.IoSource.Key.Split(":")[1].Replace($"//", "");
+                var ccNeighbor = (IoCcNeighbor) _autoPeering.Neighbors
+                    .FirstOrDefault(n => n.Value.Id.Contains(searchStr))
+                    .Value;
+
+                if (ccNeighbor == default)
+                {
+                    _logger.Debug($"Dropping connection {neighbor.IoSource.Key}, {searchStr} not verified! ({_autoPeering.Neighbors.Count})");
+                    return Task.FromResult(false);
+                }
+                    
+                
+                //if (!_autoPeering.Neighbors.ContainsKey(neighbor.Id))
+                //    return Task.FromResult(false);
+
+                if (ccNeighbor.Direction == IoCcNeighbor.Kind.Inbound)
+                {
+                    _logger.Info($"Peering selected {ccNeighbor.Direction}: {ccNeighbor.Id}");
+                    ((IoCcPeer)neighbor).AttachPeerNeighbor(ccNeighbor);
+                    return Task.FromResult(true);
+                }
+                else
+                {
+                    _logger.Debug($"Dropping inbound connection to {ccNeighbor.Id}, Kind = {ccNeighbor.Direction}");
+                    return Task.FromResult(false);
+                }
+            });
+        }
+
         /// <summary>
         /// Handles a neighbor that was selected for gossip
         /// </summary>
         /// <param name="neighbor">The verified neighbor</param>
-        public void HandleVerifiedNeighbor(IoCcNeighbor neighbor)
+        public void AddNeighbor(IoCcNeighbor neighbor)
         {
             Task<IoNeighbor<IoCcGossipMessage>> peer;
 
@@ -86,24 +124,28 @@ namespace zero.cocoon
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
             {
-                SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor).ContinueWith(async (task) =>
-                    {
-                        switch (task.Status)
+                if (neighbor.Direction == IoCcNeighbor.Kind.OutBound)
+                {
+                    SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor)
+                        .ContinueWith(async (task) =>
                         {
-                            case TaskStatus.RanToCompletion:
-                                if (task.Result != null)
-                                {
-                                    _logger.Info($"Spawning new gossip peer: `{task.Result.Id}'");
-                                    ((IoCcPeer)task.Result).SetNeighbor(neighbor);
-                                    await task.Result.SpawnProcessingAsync(CancellationToken);
-                                }
-                                break;
-                            case TaskStatus.Canceled:
-                            case TaskStatus.Faulted:
-                                break;
-                        }
-                    }).ConfigureAwait(false);
-                
+                            switch (task.Status)
+                            {
+                                case TaskStatus.RanToCompletion:
+                                    if (task.Result != null)
+                                    {
+                                        _logger.Info($"Peering selected {neighbor.Direction}: {task.Result.Id}");
+                                        ((IoCcPeer) task.Result).AttachPeerNeighbor(neighbor);
+                                        await task.Result.SpawnProcessingAsync(CancellationToken);
+                                    }
+                                    break;
+                                case TaskStatus.Canceled:
+                                case TaskStatus.Faulted:
+                                    _logger.Error(task.Exception, $"Peer select {neighbor.Address} failed");
+                                    break;
+                            }
+                        }).ConfigureAwait(false);
+                }
             }
             else
             {

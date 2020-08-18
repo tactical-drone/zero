@@ -45,8 +45,8 @@ namespace zero.tangle
         /// Start listener and connect back to any new connections
         /// </summary>
         /// <returns>Task</returns>
-        protected override async Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
-        {            
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<TJob>, Task<bool>> connectionReceivedAction = null)
+        {
             //ConnectedEvent += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
 
             await base.SpawnListenerAsync(async ioNeighbor =>
@@ -66,6 +66,7 @@ namespace zero.tangle
                             break;
                     }
                 });
+                return true;
             });
         }
 

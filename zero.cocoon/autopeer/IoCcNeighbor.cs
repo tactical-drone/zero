@@ -5,8 +5,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Mime;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -48,14 +50,33 @@ namespace zero.cocoon.autopeer
 
         public IoCcIdentity Identity { get; protected set; }
 
+        public bool Verified { get; set; } = false;
+
+        public Kind Direction { get; protected set; } = Kind.Undefined;
+
+        public enum Kind
+        {
+            Undefined,
+            Inbound,
+            OutBound
+        }
+
         public static string MakeId(IoCcIdentity identity, IoNodeAddress address)
         {
             return $"{identity.IdString()}|{identity.PkString()}@{address.HostStr}";
         }
 
-        public override string Id => $"{IoCcNeighbor.MakeId(Identity, ((IoUdpClient<IoCcPeerMessage>)Source).RemoteAddress)}";
+        //public override string Id => $"{MakeId(Identity, ((IoUdpClient<IoCcPeerMessage>)Source).Socket.IsListeningSocket? ((IoUdpClient<IoCcPeerMessage>)Source).ListeningAddress:((IoUdpClient<IoCcPeerMessage>)Source).RemoteAddress)}";
+        public override string Id => $"{MakeId(Identity, Address??((IoUdpClient<IoCcPeerMessage>)Source).ListeningAddress)}";
 
         public IoCcService Services { get; protected set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_salt_length = 20;
 
         protected ServiceMap ServiceMap
         {
@@ -203,6 +224,9 @@ namespace zero.cocoon.autopeer
                                     case nameof(PeeringRequest):
                                         ccNeighbor.ProcessPeerReqAsync((PeeringRequest)msg.Item1, msg.Item2, msg.Item3);
                                         break;
+                                    case nameof(PeeringResponse):
+                                        ccNeighbor.ProcessPeerReqAsync((PeeringResponse)msg.Item1, msg.Item2, msg.Item3);
+                                        break;
 
                                 }
                             }
@@ -228,30 +252,74 @@ namespace zero.cocoon.autopeer
             _logger.Debug($"Shutting down persistence for `{Description}'");
         }
 
+        private void ProcessPeerReqAsync(PeeringResponse response, object extraData, Packet packet)
+        {
+            if (_peerRequest == null || Address == null)
+            {
+                _logger.Trace($"{nameof(PeeringResponse)}: Unexpected request from {extraData}, {Address}");
+                return;
+            }
+
+            var hash = _sha256.ComputeHash(_peerRequest.ToByteArray());
+
+            if (Address != null && !response.ReqHash.SequenceEqual(hash))
+            {
+                if (Address == null)
+                    _logger.Debug($"{nameof(Pong)}: Got invalid request from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}");
+                else
+                    _logger.Debug($"{nameof(Pong)}: Got invalid request hash from {extraData}, {Convert.ToBase64String(hash)} - {Convert.ToBase64String(response.ReqHash.ToByteArray())}");
+
+                return;
+            }
+
+            if (response.Status)
+            {
+                lock (this)
+                {
+                    if (Direction == Kind.Undefined)
+                    {
+                        lock (this)
+                        {
+                            if (Direction == Kind.Undefined)
+                            {
+                                Direction = response.Status ? Kind.OutBound : Kind.Undefined;
+                                ((IoCcNeighborDiscovery)Node).CcNode.AddNeighbor(this);
+                            }
+                            else
+                                return;
+                        }
+                    }
+                    else
+                        return;
+                }
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="dest"></param>
         /// <param name="data"></param>
+        /// <param name="type"></param>
+        /// <param name="responsePacket"></param>
         /// <returns></returns>
-        private async Task<int> SendMessage(IoNodeAddress dest, ByteString data)
+        private async Task<(int sent, Packet responsePacket)> SendMessage(IoNodeAddress dest, ByteString data, IoCcPeerMessage.MessageTypes type)
         {
-            var responsePacket = new Packet
+            var packet = new Packet
             {
                 Data = data,
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)IoCcPeerMessage.MessageTypes.Ping
+                Type = (uint)type
             };
 
-            responsePacket.Signature =
-                ByteString.CopyFrom(CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
+            packet.Signature =
+                ByteString.CopyFrom(CcId.Sign(packet.Data.ToByteArray(), 0, packet.Data.Length));
 
-            var pingMsgRaw = responsePacket.ToByteArray();
+            var msgRaw = packet.ToByteArray();
 
-            var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(pingMsgRaw, 0,
-                pingMsgRaw.Length, dest.IpEndPoint);
-            _logger.Debug($"{nameof(IoCcNeighbor)}: Sent {sent} bytes to {dest.IpEndPoint} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
-            return sent;
+            var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint);
+            _logger.Debug($"{nameof(IoCcNeighbor)}: Sent {sent} bytes to {dest.IpEndPoint} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)})");
+            return (sent, packet);
         }
 
         SHA256 _sha256 = SHA256.Create();
@@ -265,7 +333,7 @@ namespace zero.cocoon.autopeer
         private async Task ProcessMsgAsync(DiscoveryResponse response, object extraData, Packet packet)
         {
 
-            if (Address != null && response.ReqHash.SequenceEqual(_sha256.ComputeHash(_ping.ToByteArray())))
+            if (Address != null && response.ReqHash.SequenceEqual(_sha256.ComputeHash(_discoveryReq.ToByteArray())))
             {
                 if (Address != null)
                     _logger.Debug($"{nameof(DiscoveryResponse)}: Got invalid request from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}");
@@ -311,56 +379,48 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessPeerReqAsync(PeeringRequest request, object extraData, Packet packet)
         {
-
-            var hashStream = new MemoryStream(new byte[request.CalculateSize() + 1]);
-            hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.PeeringRequest);
-            request.WriteTo(hashStream);
-            hashStream.Seek(0, SeekOrigin.Begin);
-
-            //TODO: normalize
-            var id = MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData));
-            //var id = $"{Base58Check.Base58CheckEncoding.EncodePlain(packet.PublicKey.Span.Slice(0, 8).ToArray())}|{IoCcIdentity.FromPK(packet.PublicKey.Span)}@udp://{extraData}";
-
+            if (Address == null)
+            {
+                _logger.Trace($"{nameof(PeeringRequest)}: Dropped request, not verified! ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
+                return;
+            }
+            
             var peeringResponse = new PeeringResponse
             {
-                ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(hashStream)),
-                Status = Node.Neighbors.ContainsKey(id) //TODO Distance calc
+                ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(packet.Data.ToByteArray())),
+                Status = ((IoCcNeighborDiscovery)Node).CcNode.Neighbors.Count < 7
             };
 
-            //using var poolMem = MemoryPool<byte>.Shared.Rent(peeringResponse.CalculateSize() + 1);
-
-            //MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-            //if(heapMem == null)
-            //    throw new OutOfMemoryException();
-
-            //var heapStream = new MemoryStream(heapMem.Array);
-
-            //heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.PeeringResponse);
-
-            //peeringResponse.WriteTo(heapStream);
-
-            var protoResponse = new Packet
+            lock (this)
             {
-                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                Data = peeringResponse.ToByteString(),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)IoCcPeerMessage.MessageTypes.PeeringResponse,
-            };
+                if (Direction == Kind.Undefined)
+                {
+                    Direction = peeringResponse.Status ? Kind.Inbound : Kind.Undefined;
+                    ((IoCcNeighborDiscovery)Node).CcNode.AddNeighbor(this);
+                }
+                //else
+                //    return;
+                else
+                    peeringResponse.Status = false; //TODO does this work?
 
-            protoResponse.Signature =
-                ByteString.CopyFrom(CcId.Sign(protoResponse.Data.ToByteArray(), 0, protoResponse.Data.Length));
+            }
 
-            var discRespMsgRaw = protoResponse.ToByteArray();
-
-            var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(discRespMsgRaw, 0,
-                discRespMsgRaw.Length, (EndPoint)extraData).ConfigureAwait(false);
-            _logger.Debug($"{nameof(DiscoveryResponse)}: Sent {sent} bytes ({extraData})");
+            await SendMessage(Address, peeringResponse.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringResponse);
         }
 
         static IoCcIdentity CcId = IoCcIdentity.Generate(true); //TODO 
         private IoChannel<IoCcProtocolMessage> _protocolChannel;
         private DiscoveryRequest _discoveryReq;
         private Ping _ping;
+        private PeeringRequest _peerRequest;
+
+
+        private ByteString _curSalt;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private ByteString GetSalt => _curSalt = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(Encoding.ASCII.GetBytes((DateTimeOffset.UtcNow.ToUnixTimeSeconds()/120*60).ToString())),0, parm_salt_length);
 
         /// <summary>
         /// 
@@ -375,7 +435,13 @@ namespace zero.cocoon.autopeer
             //hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryRequest);
             //request.WriteTo(hashStream);
             //hashStream.Seek(0, SeekOrigin.Begin);
-            
+
+            if (Address == null || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20)
+            {
+                _logger.Trace($"{nameof(DiscoveryRequest)}: Dropped request, not verified! ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
+                return;
+            }
+
             //TODO accuracy param
             if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20 || request.Timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 20)
             {
@@ -408,22 +474,7 @@ namespace zero.cocoon.autopeer
             //heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryResponse);
             //discoveryResponse.WriteTo(heapStream);
 
-            var protoResponse = new Packet
-            {
-                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                Data = discoveryResponse.ToByteString(),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)IoCcPeerMessage.MessageTypes.DiscoveryResponse,
-            };
-
-            protoResponse.Signature =
-                ByteString.CopyFrom(CcId.Sign(protoResponse.Data.ToByteArray(), 0, protoResponse.Data.Length));
-
-            var discRespMsgRaw = protoResponse.ToByteArray();
-
-            var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(discRespMsgRaw, 0,
-                discRespMsgRaw.Length, (EndPoint)extraData).ConfigureAwait(false);
-            _logger.Debug($"{nameof(DiscoveryResponse)}: Sent {sent} bytes to {extraData}");
+            await SendMessage(Address, discoveryResponse.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryResponse);
         }
 
         /// <summary>
@@ -450,9 +501,9 @@ namespace zero.cocoon.autopeer
             //hashStream.Seek(0, SeekOrigin.Begin);
 
             //TODO optimize
-            var gossipAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.peering];
+            var gossipAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip];
             var peeringAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.peering];
-            var fpcAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.peering];
+            var fpcAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.fpc];
 
             var pong = new Pong
             {
@@ -462,9 +513,9 @@ namespace zero.cocoon.autopeer
                 {
                     Map =
                     {
-                        {"peering", new NetworkAddress {Network = "udp", Port = (uint)peeringAddress.Port}},
-                        {"gossip", new NetworkAddress {Network = "tcp", Port = (uint)gossipAddress.Port}},
-                        {"fpc", new NetworkAddress {Network = "tcp", Port = (uint)fpcAddress.Port}}
+                        {IoCcService.Keys.peering.ToString(), new NetworkAddress {Network = "udp", Port = (uint)peeringAddress.Port}},
+                        {IoCcService.Keys.gossip.ToString(), new NetworkAddress {Network = "tcp", Port = (uint)gossipAddress.Port}},
+                        {IoCcService.Keys.fpc.ToString(), new NetworkAddress {Network = "tcp", Port = (uint)fpcAddress.Port}}
                     }
                 }
             };
@@ -479,58 +530,44 @@ namespace zero.cocoon.autopeer
             ////heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Pong);
             //pong.WriteTo(heapStream);
 
-            var responsePacket = new Packet
-            {
-                //Data = ByteString.CopyFrom(heapMem.Array, 0, (int)heapStream.Position),
-                Data = pong.ToByteString(),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)IoCcPeerMessage.MessageTypes.Pong,
-            };
+            //responsePacket.Signature =
+            //    ByteString.CopyFrom(CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
 
-            responsePacket.Signature =
-                ByteString.CopyFrom(CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
-
-            var pongMsgRaw = responsePacket.ToByteArray();
+            //var pongMsgRaw = responsePacket.ToByteArray();
 
             IoNodeAddress dest = null;
             IoNodeAddress dest2 = IoNodeAddress.Create($"udp://{remoteEp.Address}:{ping.SrcPort}");
+            var id = MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), dest2);
 
-            if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)
+            if (Address != null)
             {
-                dest = IoNodeAddress.Create($"udp://{ping.SrcAddr}:{ping.SrcPort}");
-                _logger.Trace($"static peer address received: {dest}, source detected = udp://{remoteEp}");
+                await SendMessage(Address, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
             }
             else
             {
-                dest = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
-                _logger.Trace($"automatic peer address detected: {dest}, source declared = udp://{ping.SrcAddr}:{ping.SrcPort}");
-            }
-
-            if (dest.Validated)
-            {
-                var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(pongMsgRaw, 0,
-                    pongMsgRaw.Length, dest2.IpEndPoint); //TODO
-
-                _logger.Trace($"{nameof(Pong)}({GetHashCode()}): Sent {sent} bytes to {dest2}");
-
-                //retry on incoming proxy
-                sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(pongMsgRaw, 0,
-                    pongMsgRaw.Length, dest.IpEndPoint); //TODO
-
-                _logger.Trace($"{nameof(Pong)}({GetHashCode()}): Sent {sent} bytes to {dest}");
-
-                var identity = IoCcIdentity.FromPK(packet.PublicKey.ToByteArray());
-
-                //TODO Optimize
-                if (!Node.Neighbors.ContainsKey(MakeId(identity, dest2)) && !Node.Neighbors.ContainsKey(MakeId(identity, dest)))
+                if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)
                 {
-                    await SendPingMsgAsync(dest2);
-                    await SendPingMsgAsync(dest);
+                    dest = IoNodeAddress.Create($"udp://{ping.SrcAddr}:{ping.SrcPort}");
+                    _logger.Trace($"static peer address received: {dest}, source detected = udp://{remoteEp}");
                 }
+                else
+                {
+                    dest = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
+                    _logger.Trace($"automatic peer address detected: {dest}, source declared = udp://{ping.SrcAddr}:{ping.SrcPort}");
+                }
+
+                await SendMessage(dest2, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
+
+                if (dest2.HostStr != dest.HostStr)
+                    await SendMessage(dest2, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
             }
-            else
+
+            if (!Node.Neighbors.ContainsKey(id))
             {
-                _logger.Error($"{nameof(Ping)}: Invalid dest address {dest}, ({dest.ValidationErrorString})");
+                _logger.Info($"Probing new destination {dest2}");
+                await SendPingMsgAsync(dest2);
+                if (dest2.HostStr != dest!.HostStr)
+                    await SendPingMsgAsync(dest);
             }
         }
 
@@ -543,65 +580,63 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessMsgAsync(Pong pong, object extraData, Packet packet)
         {
-            if (Address != null && pong.ReqHash.SequenceEqual(_sha256.ComputeHash(_ping.ToByteArray())))
+            var hash = _sha256.ComputeHash(_ping.ToByteArray());
+
+            if (Address != null && !pong.ReqHash.SequenceEqual(hash))
             {
-                if( Address != null)
+                if (Address == null)
                     _logger.Debug($"{nameof(Pong)}: Got invalid request from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}");
+                else
+                    _logger.Debug($"{nameof(Pong)}: Got invalid request hash from {extraData}, {Convert.ToBase64String(hash)} - {Convert.ToBase64String(pong.ReqHash.ToByteArray())}");
+                
+                    
                 return;
             }
 
-            //if (Node.Neighbors.TryGetValue(
-            //    MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span),
-            //        IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData)), out var reqNeighbor))
-            //{
-            //    if (pong.ReqHash.SequenceEqual(_sha256.ComputeHash(((IoCcNeighbor)reqNeighbor)._ping.ToByteArray())))
-            //    {
-            //        _logger.Debug($"{nameof(Pong)}: Got invalid request from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}");
-            //        return;
-            //    }
-            //}
-            //else
-            //{
-            //    _logger.Trace($"{nameof(Pong)}: Got unexpected reply from {extraData}, dropping!");
-            //    return;
-            //}
-
-            var idCheck = IoCcIdentity.FromPK(packet.PublicKey.Span);
-            var keyStr = MakeId(idCheck, IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData));
-            //TODO normalize key
-            if (!Node.Neighbors.TryGetValue(keyStr, out _))
+            if (Address == null)
             {
-                var remoteServices = new IoCcService();
-                foreach (var key in pong.Services.Map.Keys.ToList())
-                    remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
-
-                //var newNeighbor = (IoCcNeighbor)await Node.SpawnConnectionAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData),  Tuple.Create(IoCcIdentity.FromPK(pk), remoteServices));
-                //if (newNeighbor != null && false) //TODO, this entire if statement is full of unknowns
-                //{
-                //    //newNeighbor._protocolChannel = _protocolChannel;
-                //    await newNeighbor.SendPingMsgAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
-                //    //TODO: twice because the first time the src port is not set by the framework.
-                //    await newNeighbor.SendPingMsgAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
-
-                //    ((IoCcNeighborDiscovery)Node).CcNode.HandleVerifiedNeighbor(newNeighbor);
-
-                //    var task = newNeighbor.SpawnProcessingAsync(Spinners.Token);
-                //}
-                var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices));
-
-                if (Node.Neighbors.TryAdd(keyStr, newNeighbor))
+                var idCheck = IoCcIdentity.FromPK(packet.PublicKey.Span);
+                var keyStr = MakeId(idCheck, IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData));
+                //TODO normalize key
+                if (!Node.Neighbors.TryGetValue(keyStr, out _))
                 {
-                    var dest = IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData);
-                    _logger.Info($"Discovered/Verified peer {keyStr}@{newNeighbor.Address}");
-                    ((IoCcNeighborDiscovery)Node).CcNode.HandleVerifiedNeighbor(newNeighbor);
-                    await newNeighbor.SendPingMsgAsync(dest);
-                    await newNeighbor.SendDiscoveryRequestAsync(dest);
+                    var remoteServices = new IoCcService();
+                    foreach (var key in pong.Services.Map.Keys.ToList())
+                        remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
+
+                    //var newNeighbor = (IoCcNeighbor)await Node.SpawnConnectionAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData),  Tuple.Create(IoCcIdentity.FromPK(pk), remoteServices));
+                    //if (newNeighbor != null && false) //TODO, this entire if statement is full of unknowns
+                    //{
+                    //    //newNeighbor._protocolChannel = _protocolChannel;
+                    //    await newNeighbor.SendPingMsgAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
+                    //    //TODO: twice because the first time the src port is not set by the framework.
+                    //    await newNeighbor.SendPingMsgAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
+
+                    //    ((IoCcNeighborDiscovery)Node).CcNode.AddNeighbor(newNeighbor);
+
+                    //    var task = newNeighbor.SpawnProcessingAsync(Spinners.Token);
+                    //}
+                    var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices));
+
+                    if (newNeighbor.Address.IpEndPoint.Address.Equals(((IPEndPoint)extraData).Address) &&
+                        newNeighbor.Address.IpEndPoint.Port == ((IPEndPoint)extraData).Port &&
+                        Node.Neighbors.TryAdd(keyStr, newNeighbor))
+                    {
+                        await newNeighbor.SendPingMsgAsync(newNeighbor.Address);
+                        await Task.Delay(1000);
+                        await newNeighbor.SendDiscoveryRequestAsync(newNeighbor.Address);
+                    }
+                    else
+                    {
+                        _logger.Trace($"Create new neighbor {keyStr} skipped!");
+                    }
                 }
             }
-            //else if( Address == null )
-            //{
-            //    //await SendPingMsgAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
-            //}
+            else if (!Verified)
+            {
+                Verified = true;
+                _logger.Info($"Discovered/Verified peer {Id}");
+            }
         }
 
         /// <summary>
@@ -622,7 +657,7 @@ namespace zero.cocoon.autopeer
             };
 
             if(Address != null)
-                await SendMessage(dest, _ping.ToByteString());
+                await SendMessage(dest, _ping.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
             else
             {
                 IoCcNeighbor ccNeighbor = null;
@@ -637,7 +672,7 @@ namespace zero.cocoon.autopeer
 
                 ccNeighbor ??= this;
 
-                await ccNeighbor.SendMessage(dest, _ping.ToByteString());
+                await ccNeighbor.SendMessage(dest, _ping.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
             }
         }
 
@@ -653,7 +688,25 @@ namespace zero.cocoon.autopeer
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            await SendMessage(dest, _discoveryReq.ToByteString());
+            await SendMessage(dest, _discoveryReq.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryRequest);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dest"></param>
+        /// <returns></returns>
+        private async Task SendPeerRequestAsync(IoNodeAddress dest)
+        {
+            _peerRequest = new PeeringRequest
+            {
+                Salt = new Salt{ExpTime = (ulong) DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeSeconds(), Bytes = GetSalt},
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+            await SendMessage(dest, _peerRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringRequest);
+        }
+
+
     }
 }

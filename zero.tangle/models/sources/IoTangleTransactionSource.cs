@@ -79,6 +79,7 @@ namespace zero.tangle.models.sources
         /// <exception cref="NotImplementedException"></exception>
         public override void Close()
         {
+            Spinners.Cancel();
             TxQueue.Dispose();
         }
 

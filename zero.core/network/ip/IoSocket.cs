@@ -217,7 +217,7 @@ namespace zero.core.network.ip
             IsConnectingSocket = true;
 
             ListeningAddress = address;
-            RemoteAddress = null;
+            RemoteAddress = address;
 
             return true;
         }

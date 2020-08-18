@@ -247,7 +247,8 @@ namespace zero.cocoon.models
 
         }
 
-        static IoCcIdentity CcId = IoCcIdentity.Generate();
+        //TODO fix
+        public static IoCcIdentity CcId = IoCcIdentity.Generate(true);
 
         public override async Task<State> ConsumeAsync()
         {

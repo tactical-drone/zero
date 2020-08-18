@@ -114,6 +114,12 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
         {
+            if (_closed)
+            {
+                await Task.Delay(1000);
+                return 0;
+            }
+                
             //TODO HACKS! Remove
             //if (!IsConnectingSocket)
             //    return 0;
@@ -137,7 +143,7 @@ namespace zero.core.network.ip
                             _logger.Trace($"Sent {length} bytes to udp://{endPoint} from {Socket.LocalPort()}");
                             break;
                     }
-                }, Spinners.Token);
+                }, Spinners.Token).ConfigureAwait(false);
             return length;
         }
 
@@ -148,42 +154,41 @@ namespace zero.core.network.ip
         /// <returns>The number of bytes read</returns>
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
         {
-            //TODO HACKS! Remove
             try
             {
-                if (Socket?.IsBound??false)
-                {
-                    var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
-                        result =>
-                        {
-                            try
-                            {
-                                if(Socket!= null && Socket.IsBound)
-                                    return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
-                                else
-                                    return 0;
-                            }
-                            catch (Exception e)
-                            {
-                                _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
-                                Close();
-                                return 0;
-                            }
-                        }).HandleCancellation(Spinners.Token);
 
-                    if (RemoteAddress == null)
-                        RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
-                    else
-                        RemoteAddress.Update($"udp://{_udpRemoteEndpointInfo}");
-
-                    return readAsync;
-                }
-                else
+                if (!(Socket?.IsBound ?? false) || _closed)
                 {
-                    await Task.Delay(1000);//TODO
+                    await Task.Delay(1000);
                     return 0;
                 }
-                    
+                
+                var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
+                    result =>
+                    {
+                        try
+                        {
+                            if(Socket!= null && Socket.IsBound)
+                                return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+                            else
+                                return 0;
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
+                            Close();
+                            return 0;
+                        }
+                    }).HandleCancellation(Spinners.Token).ConfigureAwait(false);
+
+                if (RemoteAddress == null)
+                    RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                else
+                    RemoteAddress.Update($"udp://{_udpRemoteEndpointInfo}");
+
+                return readAsync;
+                
+    
             }
             catch (Exception e)
             {

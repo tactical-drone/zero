@@ -66,7 +66,7 @@ namespace zero.core.network.ip
             // Accept incoming connections
             while (!Spinners.Token.IsCancellationRequested)
             {
-                _logger.Debug($"Listening for a new connection at `{ListeningAddress}'");
+                _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
                 await Socket.AcceptAsync().ContinueWith(t =>
                 {
                     switch (t.Status)
@@ -80,12 +80,12 @@ namespace zero.core.network.ip
                             var newSocket = new IoTcpSocket(t.Result, ListeningAddress, Spinners.Token);                            
 
                             //Do some pointless sanity checking
-                            if (newSocket.LocalAddress != ListeningAddress.HostStr || newSocket.LocalPort != ListeningAddress.Port)
-                            {
-                                _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpAndPort}'! Possible hackery! Investigate immediately!");
-                                newSocket.Close();
-                                break;
-                            }
+                            //if (newSocket.LocalAddress != ListeningAddress.HostStr || newSocket.LocalPort != ListeningAddress.Port)
+                            //{
+                            //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpAndPort}'! Possible hackery! Investigate immediately!");
+                            //    newSocket.Close();
+                            //    break;
+                            //}
 
                             _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}'");
 
@@ -162,8 +162,14 @@ namespace zero.core.network.ip
         {
             try
             {
+                if (_closed)
+                {
+                    await Task.Delay(1000);
+                    return 0;
+                }
+                
                 var task = Task.Factory
-                    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null),
+                    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
                         Socket.EndSend).HandleCancellation(Spinners.Token);                
                 await task.ContinueWith(t =>
                 {
@@ -178,7 +184,7 @@ namespace zero.core.network.ip
                             _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
                             break;
                     }
-                }, Spinners.Token);
+                }, Spinners.Token).ConfigureAwait(false);
 
                 return task.Result;
             }
@@ -187,10 +193,6 @@ namespace zero.core.network.ip
                 _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
                 Close();
                 return 0;
-            }
-            finally
-            {
-                
             }
         }
 
@@ -205,10 +207,17 @@ namespace zero.core.network.ip
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int length) //TODO can we go back to array buffers?
         {
             try
-            {                
+            {
+                if (_closed)
+                {
+                    await Task.Delay(1000);
+                    return 0;
+                }
+                    
+
                 return await Task.Factory.FromAsync(
-                    Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null),
-                    Socket.EndReceive).HandleCancellation(Spinners.Token);                
+                    Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
+                    Socket.EndReceive).HandleCancellation(Spinners.Token).ConfigureAwait(false);                
             }
             catch (Exception)
             {
@@ -233,7 +242,7 @@ namespace zero.core.network.ip
 
         public override object ExtraData()
         {
-            throw new NotImplementedException();
+            return null;
         }
     }
 }

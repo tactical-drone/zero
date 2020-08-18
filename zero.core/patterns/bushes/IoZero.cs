@@ -17,7 +17,7 @@ namespace zero.core.patterns.bushes
     /// Source Consumer pattern
     /// </summary>    
     /// <typeparam name="TJob">The type of job</typeparam>
-    public abstract class IoZero<TJob> : IoConfigurable, IObservable<IoLoad<TJob>>
+    public abstract class IoZero<TJob> : IoConfigurable, IObservable<IoLoad<TJob>>, IIoZero
         where TJob : IIoJob
 
     {
@@ -48,7 +48,7 @@ namespace zero.core.patterns.bushes
             ObservableRouter.Connect();
 
             //Configure cancellations
-            Spinners = new CancellationTokenSource();
+            Spinners = source.Spinners;
             Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
             parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
@@ -63,8 +63,7 @@ namespace zero.core.patterns.bushes
         public void ConfigureProducer(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage)
         {
             Description = description;            
-            Source = source;            
-
+            Source = source;
             JobHeap = new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage };
         }
 
@@ -72,6 +71,11 @@ namespace zero.core.patterns.bushes
         /// The source of the work
         /// </summary>
         public IoSource<TJob> Source;
+
+        /// <summary>
+        /// Upstream <see cref="Source"/> reference
+        /// </summary>
+        public IIoSource IoSource => Source; 
 
         /// <summary>
         /// The job queue
@@ -94,6 +98,11 @@ namespace zero.core.patterns.bushes
         public IoHeapIo<IoLoad<TJob>> JobHeap { get; protected set; }
 
         /// <summary>
+        /// Upstream reference to <see cref="JobHeap"/>
+        /// </summary>
+        public object IoJobHeap => JobHeap;
+
+        /// <summary>
         /// A description of this source consumer
         /// </summary>
         public virtual string Description { get; protected set; }
@@ -106,7 +115,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Stops this source consumer
         /// </summary>
-        public CancellationTokenSource Spinners { get; }
+        public CancellationTokenSource Spinners { get; protected set; }
 
         /// <summary>
         /// The current observer, there can only be one
@@ -189,6 +198,28 @@ namespace zero.core.patterns.bushes
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_start_retry_time = 1000;
+
+        private volatile bool _closed = false;
+        public void Close()
+        {
+            lock (this)
+            {
+                if(_closed) return;
+                try
+                {
+                    Source.Close();
+                    Spinners.Cancel();
+                }
+                catch (Exception e)
+                {
+                    _logger.Trace(e, "Close returned with errors");
+                }
+                finally
+                {
+                    _closed = true;
+                }
+            }
+        }
 
         /// <summary>
         /// Produces the inline instead of in a spin loop
@@ -540,7 +571,7 @@ namespace zero.core.patterns.bushes
         public virtual async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
         {
             _logger.Trace($"Starting processing for `{Source.Description}'");
-            using (cancellationToken.Register(() => Spinners.Cancel()))
+            await using (cancellationToken.Register(() => Spinners.Cancel()))
             {
                 //Source
                 var producerTask = Task.Factory.StartNew(async () =>
@@ -548,7 +579,7 @@ namespace zero.core.patterns.bushes
                     //While not cancellation requested
                     while (!Spinners.IsCancellationRequested && spawnProducer)
                     {                        
-                        await ProduceAsync(cancellationToken);
+                        await ProduceAsync(cancellationToken).ConfigureAwait(false);
                         if (!Source.IsOperational)
                         {
                             _logger.Trace($"Source `{Description}' went non operational!");
@@ -564,7 +595,7 @@ namespace zero.core.patterns.bushes
                     //While supposed to be working
                     while (!Spinners.IsCancellationRequested)
                     {                        
-                        await ConsumeAsync();
+                        await ConsumeAsync().ConfigureAwait(false);
                         if (!Source.IsOperational)
                         {
                             _logger.Trace($"Consumer `{Description}' went non operational!");
@@ -591,7 +622,7 @@ namespace zero.core.patterns.bushes
         /// <returns></returns>
         public IDisposable Subscribe(IObserver<IoLoad<TJob>> observer)
         {
-            _observer = observer;
+            _observer = observer;   
             return IoAnonymousDisposable.Create(() => { _observer = null; });
         }
     }

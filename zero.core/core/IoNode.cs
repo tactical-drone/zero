@@ -98,16 +98,32 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async Task SpawnListenerAsync(Action<IoNeighbor<TJob>> connectionReceivedAction = null)
+        protected virtual async Task SpawnListenerAsync(Func<IoNeighbor<TJob>, Task<bool>> acceptConnection = null)
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
 
-            await _netServer.StartListenerAsync(remoteClient =>
+            await _netServer.StartListenerAsync(async remoteClient =>
             {
                 var newNeighbor = MallocNeighbor(this, remoteClient, null);
+
+                //superclass specific mutations
+                try
+                {
+                    if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor))
+                    {
+                        _logger.Debug($"Incoming connection from {remoteClient.Key} rejected, peer not verified!");
+                        newNeighbor.Close();
+                        return;
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"Accepting connection {remoteClient.Key} returned with errors");
+                    return;
+                }
 
                 // Register close hooks
                 var cancelRegistration = _spinners.Token.Register(() =>
@@ -126,11 +142,11 @@ namespace zero.core.core
                 {
                     cancelRegistration.Dispose();
                     DisconnectedEvent?.Invoke(this, newNeighbor);
-                    Neighbors.TryRemove(((IoNeighbor<TJob>)s).Source.Key, out var _);
+                    Neighbors.TryRemove(((IoNeighbor<TJob>)s)?.Id, out var _);
                 };
 
                 // Add new neighbor
-                if (!Neighbors.TryAdd(remoteClient.Key, newNeighbor))
+                if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
                     newNeighbor.Close();
                     _logger.Warn($"Neighbor `{remoteClient.ListeningAddress}' already connected. Possible spoof investigate!");
@@ -138,11 +154,6 @@ namespace zero.core.core
 
                 //New peer connection event
                 ConnectedEvent?.Invoke(this, newNeighbor);
-
-                //super class specific mutations
-                connectionReceivedAction?.Invoke(newNeighbor);
-
-                //start redis                
 
                 //Start the source consumer on the neighbor scheduler
                 try
@@ -239,12 +250,12 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async Task StartAsync()
+        public async Task StartAsync(Func<IoNeighbor<TJob>, Task<bool>> acceptConnection = null)
         {
             _logger.Info($"Unimatrix Zero - {ToString()}");
             try
             {
-                await SpawnListenerAsync().ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()}"), CancellationToken);
+                await SpawnListenerAsync(acceptConnection).ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()}"), CancellationToken);
             }
             catch (Exception e)
             {

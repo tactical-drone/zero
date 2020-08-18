@@ -20,7 +20,7 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
             CcNode = ioCcNode;
-            ConnectedEvent += (sender, neighbor) => CcNode.HandleVerifiedNeighbor((IoCcNeighbor) neighbor);
+            ConnectedEvent += (sender, neighbor) => CcNode.AddNeighbor((IoCcNeighbor) neighbor);
         }
 
         private readonly Logger _logger;

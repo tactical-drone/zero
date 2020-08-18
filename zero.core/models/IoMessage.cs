@@ -54,12 +54,17 @@ namespace zero.core.models
         /// <summary>
         /// Stream access to the input
         /// </summary>
-        public Stream ByteStream => new MemoryStream(ByteBuffer, BufferOffset, BytesRead);
+        public Stream ByteStream => new MemoryStream(ByteBuffer, BufferOffset, BytesLeftToProcess);
         
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>
         public volatile int BytesRead;
+
+        /// <summary>
+        /// The number of bytes left to process in this buffer
+        /// </summary>
+        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
 
         /// <summary>
         /// The number of bytes processed from the buffer
