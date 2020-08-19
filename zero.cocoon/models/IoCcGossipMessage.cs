@@ -105,20 +105,6 @@ namespace zero.cocoon.models
         {
             try
             {
-                //handshake
-                if (Id == 0 && ((IoTcpClient<IoCcGossipMessage>)Source).Socket.Egress )
-                {
-                    _handshakeRequest = new HandshakeRequest
-                    {
-                        Version = 0,
-                        To = ((IoTcpClient<IoCcGossipMessage>)Source).Socket.ListeningAddress.Ip,
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                    };
-
-                    await SendMessage(_handshakeRequest.ToByteString());
-                    _logger.Trace($"{nameof(HandshakeRequest)}: Sent to {((IoTcpClient<IoCcGossipMessage>)Source).Socket.Description}");
-                }
-
                 var sourceTaskSuccess = await Source.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
@@ -172,120 +158,22 @@ namespace zero.cocoon.models
                                     case TaskStatus.RanToCompletion:
                                         BytesRead = rx.Result;
                                         var stream = ByteStream;
-                                        try
-                                        {
-                                            if (rx.Result > 0 && _handshakeRequest == null) //handshake
-                                            {
-                                                //recv
-                                                if (((IoSocket) ioSocket).Ingress)
-                                                {
-                                                    var verified = false;
-                                                    var packet = Packet.Parser.ParseFrom(stream);
-                                                    if (packet.Data != null && packet.Data.Length > 0)
-                                                    {
-                                                        var packetMsgRaw = packet.Data.ToByteArray(); //TODO remove copy
 
-                                                        if (packet.Signature != null || packet.Signature?.Length != 0)
-                                                        {
-                                                            verified = IoCcPeerMessage.CcId.Verify(packetMsgRaw, 0,
-                                                                packetMsgRaw.Length, packet.PublicKey.ToByteArray(), 0,
-                                                                packet.Signature.ToByteArray(), 0);
-                                                        }
+                                        BufferOffset += (int)stream.Position;
+                                        //UDP signals source ip
+                                        ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
-                                                        packet.Type = packet.Data[0];
-                                                        _logger.Debug($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
+                                        //Set how many datums we have available to process
+                                        DatumCount = BytesLeftToProcess / DatumSize;
+                                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                                                        //Don't process unsigned or unknown messages
-                                                        if (!verified)
-                                                        {
-                                                            Source.Close();
-                                                            break;
-                                                        }
+                                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
-                                                        //process handshake request 
-                                                        _handshakeRequest =
-                                                            HandshakeRequest.Parser.ParseFrom(packet.Data);
-                                                        if (_handshakeRequest != null)
-                                                        {
+                                        ProcessState = State.Produced;
 
-                                                            var handshakeResponse = new HandshakeResponse
-                                                            {
-                                                                ReqHash = ByteString.CopyFrom(SHA256.Create()
-                                                                    .ComputeHash(packet.Data.ToByteArray()))
-                                                            };
+                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
 
-                                                            await SendMessage(handshakeResponse.ToByteString());
-                                                            _logger.Trace(
-                                                                $"{nameof(HandshakeResponse)}: Sent to {((IoTcpClient<IoCcGossipMessage>) Source).Socket.Description}");
-                                                        }
-                                                    }
-                                                }
-                                                else //verify handshake response
-                                                {
-                                                    var verified = false;
-                                                    var packet = Packet.Parser.ParseFrom(stream);
-                                                    if (packet.Data != null && packet.Data.Length > 0)
-                                                    {
-                                                        var packetMsgRaw = packet.Data.ToByteArray(); //TODO remove copy
-
-                                                        if (packet.Signature != null || packet.Signature?.Length != 0)
-                                                        {
-                                                            verified = IoCcPeerMessage.CcId.Verify(packetMsgRaw, 0,
-                                                                packetMsgRaw.Length, packet.PublicKey.ToByteArray(), 0,
-                                                                packet.Signature.ToByteArray(), 0);
-                                                        }
-
-                                                        packet.Type = packet.Data[0];
-                                                        _logger.Debug(
-                                                            $"[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
-
-                                                        //Don't process unsigned or unknown messages
-                                                        if (!verified)
-                                                        {
-                                                            Source.Close();
-                                                            break;
-                                                        }
-
-                                                        _handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
-
-                                                        if (_handshakeResponse != null)
-                                                        {
-                                                            if (!IoCcIdentity.Sha256
-                                                                .ComputeHash(_handshakeRequest.ToByteArray())
-                                                                .SequenceEqual(_handshakeResponse.ReqHash))
-                                                            {
-                                                                _logger.Error(
-                                                                    $"Invalid handshake response! Closing {Source.Description}");
-                                                                Source.Close();
-                                                            }
-                                                        }
-                                                    }
-
-                                                }
-                                            }
-                                        }
-                                        catch (Exception e)
-                                        {
-                                            _logger.Error(e, $"Handshake to {((IoSocket)ioSocket).Key} failed");
-                                            ProcessState = State.ProduceErr;
-                                        }
-                                        finally
-                                        {
-                                            BufferOffset += (int)stream.Position;
-                                            //UDP signals source ip
-                                            ProducerUserData = ((IoSocket)ioSocket).ExtraData();
-
-                                            //Set how many datums we have available to process
-                                            DatumCount = BytesLeftToProcess / DatumSize;
-                                            DatumFragmentLength = BytesLeftToProcess % DatumSize;
-
-                                            //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                            StillHasUnprocessedFragments = DatumFragmentLength > 0;
-
-                                            ProcessState = State.Produced;
-
-                                            _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
-                                        }
 
                                         break;
                                     default:
@@ -376,7 +264,7 @@ namespace zero.cocoon.models
             }
             finally
             {
-                
+
             }
 
             //if (_protocolMsgBatch.Count > 0)

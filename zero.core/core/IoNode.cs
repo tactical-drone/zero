@@ -263,8 +263,6 @@ namespace zero.core.core
                 await _listernerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})"), CancellationToken).ConfigureAwait(false);
 
                 _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
-                _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
-                _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
             }
             catch (Exception e)
             {
@@ -274,7 +272,7 @@ namespace zero.core.core
 
         protected volatile bool Closed = false;
 
-        event EventHandler ClosedEvent;
+        public event EventHandler ClosedEvent;
 
         /// <summary>
         /// Close the node
