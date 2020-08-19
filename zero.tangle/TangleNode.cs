@@ -79,7 +79,7 @@ namespace zero.tangle
         {            
             //TangleNode<TJob> node = (TangleNode<TJob>) sender;
             //TODO fix
-            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.Source).RemoteAddress.HostStr}:{((IoNetClient<TJob>) ioNeighbor.Source).ListeningAddress.Port}");
+            var connectBackAddress = IoNodeAddress.Create($"tcp://{((IoNetClient<TJob>) ioNeighbor.Source).RemoteAddress.Ip}:{((IoNetClient<TJob>) ioNeighbor.Source).ListeningAddress.Port}");
 #pragma warning disable 4014
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))

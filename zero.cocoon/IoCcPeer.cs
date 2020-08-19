@@ -14,6 +14,12 @@ namespace zero.cocoon
 {
     public class IoCcPeer : IoNeighbor<IoCcGossipMessage>
     {
+        /// <summary>
+        /// Ctor
+        /// </summary>
+        /// <param name="node">The node this peer belongs to </param>
+        /// <param name="neighbor">Optional neighbor association</param>
+        /// <param name="ioNetClient">The peer transport carrier</param>
         public IoCcPeer(IoNode<IoCcGossipMessage> node, IoCcNeighbor neighbor,
             IoNetClient<IoCcGossipMessage> ioNetClient) 
             : base(node, ioNetClient, userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.AddressString}", ioNetClient))
@@ -23,28 +29,52 @@ namespace zero.cocoon
             _neighbor = neighbor;
 
             if(_neighbor != null)
-                AttachPeerNeighbor(_neighbor);
-
+                AttachNeighbor(_neighbor);
         }
 
+        /// <summary>
+        /// The logger
+        /// </summary>
         private readonly Logger _logger;
-        private IoCcNeighbor _neighbor;
 
+        private IoCcNeighbor _neighbor;
+        /// <summary>
+        /// The attached neighbor
+        /// </summary>
         public IoCcNeighbor Neighbor => _neighbor;
 
-        public override string Id => _neighbor?.Id??"N/A";
+        /// <summary>
+        /// Id
+        /// </summary>
+        public override string Id => _neighbor?.Id??"null";
 
+        /// <summary>
+        /// Helper
+        /// </summary>
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
 
-        public void AttachPeerNeighbor(IoCcNeighbor neighbor)
+        /// <summary>
+        /// Attaches a neighbor to this peer
+        /// </summary>
+        /// <param name="neighbor"></param>
+        public void AttachNeighbor(IoCcNeighbor neighbor)
         {
             _neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
-            //_neighbor.Closed += (sender, args) => Close(); //TODO does this make sense?
-            Closed += (sender, args) => _neighbor.Direction = IoCcNeighbor.Kind.Undefined;
+
+            //Attach the other way
+            _neighbor.AttachPeer(this);
+
+            //peer closed
+            ClosedEvent += (sender, args) =>
+            {
+                _neighbor.Direction = IoCcNeighbor.Kind.Undefined;
+                _neighbor.DetachPeer();
+            };
+
+            //peer transport closed
             IoNetClient.ClosedEvent += (sender, args) =>
             {
                 Close();
-                //_neighbor.Direction = IoCcNeighbor.Kind.Undefined;
             };
         }
     }

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -51,6 +52,9 @@ namespace zero.core.core
         /// </summary>
         private IoNetServer<TJob> _netServer;
 
+        /// <summary>
+        /// The server
+        /// </summary>
         public IoNetServer<TJob> Server => _netServer;
 
         /// <summary>
@@ -80,7 +84,6 @@ namespace zero.core.core
         /// </summary>
         public EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
 
-
         /// <summary>
         /// Threads per neighbor
         /// </summary>
@@ -95,6 +98,8 @@ namespace zero.core.core
         // ReSharper disable once InconsistentNaming
         protected int parm_tcp_readahead = 2;
 
+        private Task _listernerTask;
+
         /// <summary>
         /// Starts the node's listener
         /// </summary>
@@ -105,23 +110,23 @@ namespace zero.core.core
 
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
 
-            await _netServer.StartListenerAsync(async remoteClient =>
+            await _netServer.ListenAsync(async client =>
             {
-                var newNeighbor = MallocNeighbor(this, remoteClient, null);
+                var newNeighbor = MallocNeighbor(this, client, null);
 
                 //superclass specific mutations
                 try
                 {
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor))
                     {
-                        _logger.Debug($"Incoming connection from {remoteClient.Key} rejected, peer not verified!");
+                        _logger.Debug($"Incoming connection from {client.Key} rejected, peer not verified!");
                         newNeighbor.Close();
                         return;
                     }
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Accepting connection {remoteClient.Key} returned with errors");
+                    _logger.Error(e, $"Accepting connection {client.Key} returned with errors");
                     return;
                 }
 
@@ -132,24 +137,25 @@ namespace zero.core.core
                 });
 
                 //Close neighbor when connection closes
-                remoteClient.Disconnected += (s, e) =>
+                client.Disconnected += (s, e) =>
                 {
                     newNeighbor.Close();
                 };
 
                 // Remove from lists if closed
-                newNeighbor.Closed += (s, e) =>
+                newNeighbor.ClosedEvent += (s, e) =>
                 {
                     cancelRegistration.Dispose();
                     DisconnectedEvent?.Invoke(this, newNeighbor);
-                    Neighbors.TryRemove(((IoNeighbor<TJob>)s)?.Id, out var _);
+                    if (Neighbors.TryRemove(((IoNeighbor<TJob>) s)?.Id, out var _))
+                        _logger.Debug($"Removed neighbor Id = {((IoNeighbor<TJob>)s)?.Id}");
                 };
 
                 // Add new neighbor
                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
                     newNeighbor.Close();
-                    _logger.Warn($"Neighbor `{remoteClient.ListeningAddress}' already connected. Possible spoof investigate!");
+                    _logger.Warn($"Neighbor `{client.ListeningAddress}' already connected. Possible spoof investigate!");
                 }
 
                 //New peer connection event
@@ -166,7 +172,7 @@ namespace zero.core.core
                 {
                     _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
                 }
-            }, parm_tcp_readahead);
+            }, parm_tcp_readahead).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -191,8 +197,6 @@ namespace zero.core.core
                     if (newClient != null && newClient.IsOperational)
                     {
                         var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
-                        
-                        _spinners.Token.Register(() => neighbor.Spinners.Cancel());
 
                         //TODO does this make sense?
                         if (Neighbors.ContainsKey(newNeighbor.Id))
@@ -206,7 +210,7 @@ namespace zero.core.core
                             neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
-                            newNeighbor.Closed += (s, e) =>
+                            newNeighbor.ClosedEvent += (s, e) =>
                             {
                                 if (!Neighbors.TryRemove(newNeighbor.Id, out _))
                                 {
@@ -250,28 +254,50 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async Task StartAsync(Func<IoNeighbor<TJob>, Task<bool>> acceptConnection = null)
+        public async Task StartAsync()
         {
-            _logger.Info($"Unimatrix Zero - {ToString()}");
+            _logger.Info($"Unimatrix Zero - Launching cube: {ToString()}");
             try
             {
-                await SpawnListenerAsync(acceptConnection).ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()}"), CancellationToken);
+                _listernerTask = SpawnListenerAsync();
+                await _listernerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})"), CancellationToken).ConfigureAwait(false);
+
+                _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
+                _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
+                _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Unimatrix Zero returned with errors: ");
+                _logger.Error(e, $"Unimatrix Zero returned {ToString()}");
             }
         }
 
+        protected volatile bool Closed = false;
+
+        event EventHandler ClosedEvent;
+
         /// <summary>
-        /// Stop the node
+        /// Close the node
         /// </summary>
-        public void Stop()
+        public virtual bool Close()
         {
-            _spinners.Cancel();
+            lock (this)
+            {
+                if (Closed) return Closed;
+                Closed = true;
+            }
+
+            _logger.Info($"{ToString()}: Closing {Server.Description}");
+
+            OnClosedEvent();
+
             Neighbors.ToList().ForEach(n => n.Value.Close());
             Neighbors.Clear();
-            _logger.Info("Resistance is futile");
+
+            _netServer.Close();
+
+            _spinners.Cancel();
+            return Closed;
         }
         
         public bool WhiteList(IoNodeAddress address)
@@ -307,6 +333,14 @@ namespace zero.core.core
 
             _logger.Warn($"Unable to blacklist `{address}', not found!");
             return null;
+        }
+
+        /// <summary>
+        /// Emits closed event
+        /// </summary>
+        protected virtual void OnClosedEvent()
+        {
+            ClosedEvent?.Invoke(this, EventArgs.Empty);
         }
     }
 }

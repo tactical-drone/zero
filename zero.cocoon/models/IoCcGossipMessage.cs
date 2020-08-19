@@ -106,12 +106,12 @@ namespace zero.cocoon.models
             try
             {
                 //handshake
-                if (Id == 0 && ((IoTcpClient<IoCcGossipMessage>)Source).Socket.IsConnectingSocket )
+                if (Id == 0 && ((IoTcpClient<IoCcGossipMessage>)Source).Socket.Egress )
                 {
                     _handshakeRequest = new HandshakeRequest
                     {
                         Version = 0,
-                        To = ((IoTcpClient<IoCcGossipMessage>)Source).Socket.RemoteAddress.HostStr,
+                        To = ((IoTcpClient<IoCcGossipMessage>)Source).Socket.ListeningAddress.Ip,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     };
 
@@ -177,7 +177,7 @@ namespace zero.cocoon.models
                                             if (rx.Result > 0 && _handshakeRequest == null) //handshake
                                             {
                                                 //recv
-                                                if (((IoSocket) ioSocket).IsListeningSocket)
+                                                if (((IoSocket) ioSocket).Ingress)
                                                 {
                                                     var verified = false;
                                                     var packet = Packet.Parser.ParseFrom(stream);
@@ -193,8 +193,7 @@ namespace zero.cocoon.models
                                                         }
 
                                                         packet.Type = packet.Data[0];
-                                                        _logger.Debug(
-                                                            $"[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
+                                                        _logger.Debug($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
 
                                                         //Don't process unsigned or unknown messages
                                                         if (!verified)
@@ -247,11 +246,11 @@ namespace zero.cocoon.models
                                                             break;
                                                         }
 
-                                                        _handshakeResponse =
-                                                            HandshakeResponse.Parser.ParseFrom(packet.Data);
+                                                        _handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
+
                                                         if (_handshakeResponse != null)
                                                         {
-                                                            if (!SHA256.Create()
+                                                            if (!IoCcIdentity.Sha256
                                                                 .ComputeHash(_handshakeRequest.ToByteArray())
                                                                 .SequenceEqual(_handshakeResponse.ReqHash))
                                                             {

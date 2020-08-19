@@ -37,23 +37,22 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAhead">Tcp readahead</param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
+        public override async Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
         {
-            if (!await base.StartListenerAsync(connectionReceivedAction, readAhead))
-                return false;
+            await base.ListenAsync(connectionReceivedAction, readAhead);
 
             IoListenSocket = new IoTcpSocket(Spinners.Token);
 
-            return await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
+            await IoListenSocket.ListenAsync(ListeningAddress, newConnectionSocket =>
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(new IoTcpClient<TJob>(ioSocket, parm_read_ahead));
+                    connectionReceivedAction?.Invoke(new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead));
                 }
                 catch (Exception e)
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
-                    ioSocket.Close();
+                    newConnectionSocket.Close();
                 }
             });
         }

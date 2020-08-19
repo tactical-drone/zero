@@ -34,7 +34,7 @@ namespace zero.core.network.ip
         {
             IoSocket = (IoNetSocket)remote;
             _logger = LogManager.GetCurrentClassLogger();
-            ListeningAddress = remote.ListeningAddress;                        
+            ListeningAddress = remote.ListeningAddress; 
         }
 
         /// <summary>
@@ -213,7 +213,7 @@ namespace zero.core.network.ip
                 {
                     _cancellationRegistration = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
 
-                    IoSocket.Disconnected += (s, e) => _cancellationRegistration.Dispose();
+                    IoSocket.CloseEvent += (s, e) => _cancellationRegistration.Dispose();
 
                     _logger.Info($"Connected to `{AddressString}'");                    
                 }

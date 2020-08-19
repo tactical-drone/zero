@@ -31,16 +31,13 @@ namespace zero.core.network.ip
         public IoTcpSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(socket, listeningAddress, cancellationToken)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            RemoteAddress = IoNodeAddress.CreateFromRemoteSocket(socket);
-            IsListeningSocket = true;
+            ListeningAddress = IoNodeAddress.CreateFromRemoteSocket(socket);
         }
 
         /// <summary>
         /// The logger
         /// </summary>
         private readonly Logger _logger;
-
-        //public sealed override IoNodeAddress RemoteAddress { get; protected set; }
 
         /// <summary>
         /// Starts a TCP listener
@@ -77,12 +74,15 @@ namespace zero.core.network.ip
                             break;
                         case TaskStatus.RanToCompletion:
 
-                            var newSocket = new IoTcpSocket(t.Result, ListeningAddress, Spinners.Token);                            
+                            var newSocket = new IoTcpSocket(t.Result, ListeningAddress, Spinners.Token)
+                            {
+                                Kind = Connection.Ingress
+                            };                         
 
                             //Do some pointless sanity checking
-                            //if (newSocket.LocalAddress != ListeningAddress.HostStr || newSocket.LocalPort != ListeningAddress.Port)
+                            //if (newSocket.LocalAddress != ListeningAddress.Ip || newSocket.LocalPort != ListeningAddress.Port)
                             //{
-                            //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpAndPort}'! Possible hackery! Investigate immediately!");
+                            //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpPort}'! Possible hackery! Investigate immediately!");
                             //    newSocket.Close();
                             //    break;
                             //}
@@ -119,7 +119,7 @@ namespace zero.core.network.ip
             if (!await base.ConnectAsync(address))
                 return false;
 
-            return await Socket.ConnectAsync(address.HostStr, address.Port).ContinueWith(r =>
+            return await Socket.ConnectAsync(address.Ip, address.Port).ContinueWith(r =>
             {
                 switch (r.Status)
                 {
@@ -132,12 +132,10 @@ namespace zero.core.network.ip
                         //Do some pointless sanity checking
                         if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
                         {
-                            _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpAndPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                            _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
                             Socket.Close();
                             return Task.FromResult(false);
                         }
-
-                        RemoteAddress = IoNodeAddress.CreateFromRemoteSocket(Socket);
 
                         _logger.Info($"Connected to `{ListeningAddress}'");
                         break;

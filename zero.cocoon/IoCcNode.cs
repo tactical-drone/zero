@@ -15,24 +15,26 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon
 {
+    /// <summary>
+    /// Connects to cocoon
+    /// </summary>
     public class IoCcNode:IoNode<IoCcGossipMessage>
     {
-        public IoCcNode(IoNodeAddress gossipAddress, IoNodeAddress peerAddress, IoNodeAddress fpcAddress, IoNodeAddress extAddress, Func<IoNode<IoCcGossipMessage>, IoNetClient<IoCcGossipMessage>, object, IoNeighbor<IoCcGossipMessage>> mallocNeighbor, int tcpReadAhead) : base(gossipAddress, mallocNeighbor, tcpReadAhead)
+        public IoCcNode(IoNodeAddress gossipAddress, IoNodeAddress peerAddress, IoNodeAddress fpcAddress, IoNodeAddress extAddress, int tcpReadAhead) 
+            : base(gossipAddress, (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, (IoCcNeighbor) extraData, ioNetClient), tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
             _peerAddress = peerAddress;
             _fpcAddress = fpcAddress;
             ExtAddress = extAddress;
-            _autoPeering = new IoCcNeighborDiscovery(this, _peerAddress, 
-                (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery) node, client, extraData), IoCcNeighbor.TcpReadAhead);
 
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.peering, _peerAddress);
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.gossip, _gossipAddress);
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.fpc, _fpcAddress);
 
-            _autoPeeringTask = _autoPeering.StartAsync();
-            
+            _autoPeering = new IoCcNeighborDiscovery(this, _peerAddress,
+                (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead);
         }
 
         private readonly Logger _logger;
@@ -41,14 +43,31 @@ namespace zero.cocoon
         private readonly IoNodeAddress _peerAddress;
         private readonly IoNodeAddress _fpcAddress;
 
+        /// <summary>
+        /// Reachable from DMZ
+        /// </summary>
         public IoNodeAddress ExtAddress { get; protected set; }
 
-        [IoParameter] public bool UdpTunnelSupport = true;
+        /// <summary>
+        /// Experimental support for detection of tunneled UDP connections (WSL)
+        /// </summary>
+        [IoParameter] 
+        public bool UdpTunnelSupport = true;
 
+        /// <summary>
+        /// The discovery service
+        /// </summary>
         public IoCcNeighborDiscovery DiscoveryService => (IoCcNeighborDiscovery) _autoPeering;
+
+        /// <summary>
+        /// The services this node supports
+        /// </summary>
         public IoCcService Services { get; set; } = new IoCcService();
 
-        private readonly Task _autoPeeringTask;
+        /// <summary>
+        /// The autopeering task handler
+        /// </summary>
+        private Task _autoPeeringTask;
 
         /// <summary>
         /// Max inbound neighbors
@@ -64,62 +83,62 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
         public int parm_max_outbound = 4;
 
+        /// <summary>
+        /// Maximum clients allowed
+        /// </summary>
+        public int MaxClients => parm_max_outbound + parm_max_inbound;
 
-        protected override Task SpawnListenerAsync(Func<IoNeighbor<IoCcGossipMessage>, Task<bool>> acceptConnection = null)
+        /// <summary>
+        /// Spawn the node listeners
+        /// </summary>
+        /// <param name="acceptConnection"></param>
+        /// <returns></returns>
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcGossipMessage>, Task<bool>> acceptConnection = null)
         {
-            return base.SpawnListenerAsync(neighbor =>
+            //start peering
+            _autoPeeringTask = Task.Factory.StartNew(async () => await _autoPeering.StartAsync().ConfigureAwait(false), TaskCreationOptions.LongRunning );
+
+            await base.SpawnListenerAsync(neighbor =>
             {
                 
-                if (Neighbors.Count > parm_max_inbound + parm_max_outbound)
+                if (Neighbors.Count > MaxClients)
                     return Task.FromResult(false);
-                var searchStr = neighbor.IoSource.Key.Split(":")[1].Replace($"//", "");
-                var ccNeighbor = (IoCcNeighbor) _autoPeering.Neighbors
-                    .FirstOrDefault(n => n.Value.Id.Contains(searchStr))
-                    .Value;
 
-                if (ccNeighbor == default)
-                {
-                    _logger.Debug($"Dropping connection {neighbor.IoSource.Key}, {searchStr} not verified! ({_autoPeering.Neighbors.Count})");
-                    return Task.FromResult(false);
-                }
-                    
-                
-                //if (!_autoPeering.Neighbors.ContainsKey(neighbor.Id))
-                //    return Task.FromResult(false);
+                //var searchStr = neighbor.IoSource.Key.Split(":")[1].Replace($"//", "");
+                //var connected = false;
+                //_autoPeering.Neighbors
+                //    .Where(n => n.Value.Id.Contains(searchStr)).ToList().ForEach(kv =>
+                //    {
+                //        var ccNeighbor = (IoCcNeighbor)kv.Value;
 
-                if (ccNeighbor.Direction == IoCcNeighbor.Kind.Inbound)
-                {
-                    _logger.Info($"Peering selected {ccNeighbor.Direction}: {ccNeighbor.Id}");
-                    ((IoCcPeer)neighbor).AttachPeerNeighbor(ccNeighbor);
-                    return Task.FromResult(true);
-                }
-                else
-                {
-                    _logger.Debug($"Dropping inbound connection to {ccNeighbor.Id}, Kind = {ccNeighbor.Direction}");
-                    return Task.FromResult(false);
-                }
+                //        if (ccNeighbor == default)
+                //        {
+                //            _logger.Debug($"Connection {neighbor.IoSource.Key}, {searchStr} not verified! ({_autoPeering.Neighbors.Count})");
+                //            return;
+                //        }
+
+                //        if (ccNeighbor.Direction == IoCcNeighbor.Kind.Inbound)
+                //        {
+                //            _logger.Info($"Connection Received {ccNeighbor.Direction}: {ccNeighbor.Id}");
+                //            ((IoCcPeer)neighbor).AttachNeighbor(ccNeighbor);
+                //            connected = true;
+                //        }
+                //        else
+                //        {
+                //            _logger.Debug($"Dropping inbound connection from {ccNeighbor.Id}, neighbor is set as {ccNeighbor.Direction}");
+                //        }
+                //    });
+                return Task.FromResult(true);
             });
         }
 
         /// <summary>
-        /// Handles a neighbor that was selected for gossip
+        /// Opens an <see cref="IoCcNeighbor.Kind.OutBound"/> connection to a gossip peer
         /// </summary>
-        /// <param name="neighbor">The verified neighbor</param>
-        public void AddNeighbor(IoCcNeighbor neighbor)
+        /// <param name="neighbor">The verified neighbor associated with this connection</param>
+        public void ConnectToPeer(IoCcNeighbor neighbor)
         {
-            Task<IoNeighbor<IoCcGossipMessage>> peer;
-
-            //if (Neighbors.Count < parm_max_outbound &&
-            //    //TODO add distance calc &&
-            //    neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.peering) && 
-            //    (peer = new IoCcPeer(this, neighbor, new IoTcpClient<IoCcGossipMessage>(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering], 1))) != null &&
-            //    Neighbors.TryAdd(peer.Id, peer))
-            //{
-            //    _logger.Info($"Spawning new gossip peer: `{peer.Id}'");
-            //    peer.SpawnProcessingAsync(CancellationToken);
-            //}
-
-            if (neighbor.Address != null && (((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsListeningSocket || ((IoUdpClient<IoCcPeerMessage>)neighbor.Source).Socket.IsConnectingSocket) &&
+            if (neighbor.Address != null && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
                 Neighbors.Count < parm_max_outbound &&
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
@@ -134,8 +153,8 @@ namespace zero.cocoon
                                 case TaskStatus.RanToCompletion:
                                     if (task.Result != null)
                                     {
-                                        _logger.Info($"Peering selected {neighbor.Direction}: {task.Result.Id}");
-                                        ((IoCcPeer) task.Result).AttachPeerNeighbor(neighbor);
+                                        _logger.Info($"Peer {neighbor.Direction}: Connected! ({task.Result.Id})");
+                                        ((IoCcPeer) task.Result).AttachNeighbor(neighbor);
                                         await task.Result.SpawnProcessingAsync(CancellationToken);
                                     }
                                     break;

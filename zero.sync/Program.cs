@@ -36,8 +36,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Stop();
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Stop();
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Close();
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Close();
                 tangleNodeTask.Wait();
             }
             else
@@ -50,8 +50,8 @@ namespace zero.sync
                 var tangleNodeTask = tangleNode.StartAsync();
 #pragma warning restore 4014
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Stop();
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Stop();
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Close();
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Close();
                 tangleNodeTask.Wait();
             }
         }
@@ -59,17 +59,19 @@ namespace zero.sync
         private static void CoCoon(string gossipAddress, string peerAddress, string fpcAddress, string extAddress)
         {
 
-            var cocoon = new IoCcNode(IoNodeAddress.Create(gossipAddress), IoNodeAddress.Create(peerAddress), IoNodeAddress.Create(fpcAddress), IoNodeAddress.Create(extAddress),
-                (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, (IoCcNeighbor) extraData, ioNetClient),
+            var cocoon = new IoCcNode(
+                IoNodeAddress.Create(gossipAddress), 
+                IoNodeAddress.Create(peerAddress),
+                IoNodeAddress.Create(fpcAddress),
+                IoNodeAddress.Create(extAddress), 
                 TanglePeer<byte[]>.TcpReadAhead);
 
 #pragma warning disable 4014
             var tangleNodeTask = cocoon.StartAsync();
 
-            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Stop();
-            Console.CancelKeyPress += (sender, eventArgs) => cocoon.Stop();
+            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Close();
+            Console.CancelKeyPress += (sender, eventArgs) => cocoon.Close();
             tangleNodeTask.Wait();
-
         }
     }
 }

@@ -119,7 +119,7 @@ namespace zero.core.data.providers.cassandra
             }
             catch (Exception e)
             {                
-                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.Url}' at `{_clusterAddress.ResolvedIpAndPort}':");
+                _logger.Error(e, $"Unable to connect to cassandra database `{_clusterAddress.Url}' at `{_clusterAddress.EndpointIpPort}':");
                 IsConnected = false;
                 return _isConnecting = false;
             }

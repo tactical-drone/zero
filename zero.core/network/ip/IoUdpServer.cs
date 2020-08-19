@@ -39,14 +39,13 @@ namespace zero.core.network.ip
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAheadBufferSize)
+        public override async Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAheadBufferSize)
         {
-            if (!await base.StartListenerAsync(connectionReceivedAction, readAheadBufferSize))
-                return false;
+            await base.ListenAsync(connectionReceivedAction, readAheadBufferSize);
 
             IoListenSocket = new IoUdpSocket(Spinners.Token);
 
-            return await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
+            await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
             {
                 try
                 {

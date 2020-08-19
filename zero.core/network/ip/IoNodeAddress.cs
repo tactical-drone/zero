@@ -16,7 +16,7 @@ namespace zero.core.network.ip
         /// Constructs a new node address
         /// </summary>
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
-        /// <param name="lookup">Whether to perform a dns lookup on <see cref="HostStr"/></param>
+        /// <param name="lookup">Whether to perform a dns lookup on <see cref="Ip"/></param>
         public IoNodeAddress(string url, bool lookup = false)
         {
             _performDns = lookup;
@@ -32,7 +32,7 @@ namespace zero.core.network.ip
         public string UrlNoPort => $"{Url.Split(":")[0]}{Url.Split(":")[1]}";
 
         [DataMember]
-        public string Key => $"{ProtocolDesc}{HostStr}:{Port}";
+        public string Key => $"{ProtocolDesc}{Ip}:{Port}";
 
         [DataMember]
         public IPAddress ResolvedIpAddress { get; protected set; }
@@ -52,7 +52,6 @@ namespace zero.core.network.ip
         [DataMember]
         public IPEndPoint ResolvedIpEndPoint { get; protected set; }
 
-
         /// <summary>
         /// Whether to perform a DNS lookup
         /// </summary>
@@ -62,7 +61,7 @@ namespace zero.core.network.ip
         /// The Ip
         /// </summary>
         [IgnoreDataMember]
-        public string HostStr { get; protected set; }
+        public string Ip { get; protected set; }
 
         [IgnoreDataMember]
         public string ProtocolDesc { get; protected set; }
@@ -95,11 +94,10 @@ namespace zero.core.network.ip
         /// Returns the address as ip:port
         /// </summary>
         [IgnoreDataMember]
-        public string IpAndPort => $"{HostStr}:{Port}";
+        public string IpPort => $"{Ip}:{Port}";
 
         [IgnoreDataMember]
-        public string ResolvedIpAndPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
-
+        public string EndpointIpPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
 
         /// <summary>
         /// Initializes the data from a url string
@@ -137,9 +135,13 @@ namespace zero.core.network.ip
             return address;
         }
 
-        public IoNodeAddress Update(string url)
+        public IoNodeAddress Update(IPEndPoint endpoint)
         {
-            Init(url);
+            Ip = endpoint.Address.ToString();
+            Port = endpoint.Port;
+            IpEndPoint = endpoint;
+            Url = $"{ProtocolDesc}{IpPort}";
+
             return this;
         }
 
@@ -205,7 +207,7 @@ namespace zero.core.network.ip
                     ProtocolDesc = $"{uriAndIpAndPort[0]}://";
 
                     Port = int.Parse(uriAndIpAndPort[2]);
-                    HostStr = StripIpFromUrlString(uriAndIp);
+                    Ip = StripIpFromUrlString(uriAndIp);
 
                     Validated = true;
                 }
@@ -227,7 +229,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (HostStr == "0.0.0.0" || string.IsNullOrEmpty(HostStr))
+                if (Ip == "0.0.0.0" || string.IsNullOrEmpty(Ip))
                 {
                     IpEndPoint = new IPEndPoint(0, Port);
                     DnsResolutionChanged = false;
@@ -242,13 +244,13 @@ namespace zero.core.network.ip
 
                 if (!_performDns)
                 {
-                    IpEndPoint = new IPEndPoint(IPAddress.Parse(HostStr), Port);
+                    IpEndPoint = new IPEndPoint(IPAddress.Parse(Ip), Port);
                     DnsResolutionChanged = false;
                     DnsValidated = false;
                     return;
                 }
 
-                var resolvedIpAddress = Dns.GetHostAddresses(HostStr)[0];
+                var resolvedIpAddress = Dns.GetHostAddresses(Ip)[0];
                 if (!IpEndPoint?.Address.Equals(resolvedIpAddress) ?? false)
                 {
                     ResolvedIpEndPoint = IpEndPoint;

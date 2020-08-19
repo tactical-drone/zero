@@ -13,7 +13,7 @@ namespace zero.core.patterns.bushes.contracts
         public object IoJobHeap { get; }
         string Description { get; }
         bool IsArbitrating { get; set; }
-        void Close();
+        bool Close();
         Task<bool> ProduceAsync(CancellationToken cancellationToken, bool sleepOnConsumerLag = true);
         //Task<Task> ConsumeAsync(Func<IoLoad<IIoJob>, Task> inlineCallback = null, bool sleepOnProducerLag = true);
         Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true);  

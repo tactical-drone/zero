@@ -88,11 +88,6 @@ namespace zero.cocoon.models
 
 
         /// <summary>
-        /// The number of bytes left to process in this buffer
-        /// </summary>
-        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
-
-        /// <summary>
         /// Userdata in the source
         /// </summary>
         protected volatile object ProducerUserData;

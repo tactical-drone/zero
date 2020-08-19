@@ -11,7 +11,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// Abstracts TCP and UDP
     /// </summary>
-    public abstract class 
+    public abstract class
         IoSocket
     {
         /// <inheritdoc />
@@ -26,7 +26,7 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
             Socket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
 
-            _cancellationTokenRegistration = cancellationToken.Register(() => Spinners.Cancel());
+            _cancellationTokenRegistration = cancellationToken.Register(Close);
         }
 
         /// <inheritdoc />
@@ -40,7 +40,7 @@ namespace zero.core.network.ip
         {
             _logger = LogManager.GetCurrentClassLogger();
             Socket = socket;
-            ListeningAddress = listeningAddress;            
+            ListeningAddress = listeningAddress;
 
             _cancellationTokenRegistration = cancellationToken.Register(Close);
         }
@@ -53,7 +53,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        protected volatile Socket Socket;
+        protected Socket Socket;
 
         /// <summary>
         /// Keys this socket
@@ -66,19 +66,55 @@ namespace zero.core.network.ip
         public IoNodeAddress ListeningAddress { get; protected set; }
 
         /// <summary>
+        /// The remote node address
+        /// </summary>
+        protected IoNodeAddress RemoteNodeAddress;
+
+        /// <summary>
         /// The original node address this socket is supposed to work with
         /// </summary>
-        public IoNodeAddress RemoteAddress { get; protected set; }
+        public IoNodeAddress RemoteAddress
+        {
+            get
+            {
+                if (RemoteNodeAddress != null)
+                    return RemoteNodeAddress;
+
+                if(Socket != null && Socket.Connected && Socket.RemoteEndPoint!= null)
+                    return RemoteNodeAddress = Socket.RemoteNodeAddress();
+
+                if (Egress)
+                    return ListeningAddress;
+
+                return null;
+            }
+        }
 
         /// <summary>
-        /// An indication that this socket is a listening socket
+        /// Socket 
         /// </summary>
-        public bool IsListeningSocket { get; protected set; } = false;
+        public enum Connection
+        {
+            Undefined,
+            Ingress,
+            Egress,
+            Listener,
+        }
 
         /// <summary>
-        /// An indication that this socket is a connecting socket
+        /// The socket initiative
         /// </summary>
-        public bool IsConnectingSocket { get; protected set; } = false;
+        public Connection Kind { get; protected set; } = Connection.Undefined;
+
+        /// <summary>
+        /// Ingress connection
+        /// </summary>
+        public bool Ingress => Kind == Connection.Ingress;
+
+        /// <summary>
+        /// Egress connection
+        /// </summary>
+        public bool Egress => Kind == Connection.Egress;
 
         /// <summary>
         /// Cancellation sources.
@@ -111,7 +147,7 @@ namespace zero.core.network.ip
         public int LocalPort => Socket.LocalPort();
 
         /// <summary>
-        /// Returns the remote address as a string ip:port
+        /// Returns the local address as a string ip:port
         /// </summary>
         public string LocalIpAndPort => $"{LocalAddress}:{LocalPort}";
 
@@ -168,11 +204,10 @@ namespace zero.core.network.ip
             if (Socket.IsBound)
                 throw new InvalidOperationException($"Starting listener failed, socket `{address}' is already bound!");
 
-            if (IsConnectingSocket)
+            if (Kind != Connection.Undefined)
                 throw new InvalidOperationException($"This socket was already used to connect to `{ListeningAddress}'. Make a new one!");
 
-            IsListeningSocket = true;
-
+            Kind = Connection.Listener;
             ListeningAddress = address;
 
             if (ListeningAddress.Validated)
@@ -192,11 +227,9 @@ namespace zero.core.network.ip
             }
             else
             {
-                _logger.Fatal($"Unable to create listener at: {ListeningAddress?.Url??LocalAddress??"N/A"}. Socket is invalid! ({ListeningAddress.ValidationErrorString})");
+                _logger.Fatal($"Unable to create listener at: {ListeningAddress?.Url ?? LocalAddress ?? "N/A"}. Socket is invalid! ({ListeningAddress.ValidationErrorString})");
                 return Task.FromResult(false);
             }
-                
-
         }
 
         /// <summary>
@@ -211,13 +244,12 @@ namespace zero.core.network.ip
             if (Socket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
-            if (IsListeningSocket)
+            if (Kind != Connection.Undefined)
                 throw new InvalidOperationException($"This socket was already used to listen at `{ListeningAddress}'. Make a new one!");
 
-            IsConnectingSocket = true;
+            Kind = Connection.Egress;
 
             ListeningAddress = address;
-            RemoteAddress = address;
 
             return true;
         }
@@ -232,36 +264,46 @@ namespace zero.core.network.ip
                 if (_closed) return;
                 _closed = true;
             }
+            try
+            {
+                _logger.Debug(Egress
+                    ? $"Closing connection to: `{RemoteAddress?.ToString() ?? LocalIpAndPort}'"
+                    : $"Closing connection from: `{LocalIpAndPort}'");
 
-            _logger.Debug($"Closing connection to `{RemoteAddress?.ToString()??LocalIpAndPort}'");
+                //This has to be at the top or we might recurse
+                _cancellationTokenRegistration.Dispose();
 
-            //This has to be at the top or we might recurse
-            _cancellationTokenRegistration.Dispose();
+                //Signal to users that we are disconnecting
+                OnClosed();
 
-            //Cancel everything that is running
-            Spinners.Cancel();
+                //Cancel everything that is running
+                Spinners.Cancel();
 
-            //Signal to users that we are disconnecting
-            OnDisconnected();
+                //Close the socket
+                if(Socket.Connected)
+                    Socket.Shutdown(SocketShutdown.Both);
 
-            //Close the socket
-            //Socket.Shutdown(SocketShutdown.Both);
-            Socket?.Close();
-            Socket?.Dispose();
-            Socket = null;
+                Socket?.Close();
+                Socket?.Dispose();
+                Socket = null;
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Closing socket returned with errors");
+            }
         }
 
         /// <summary>
-        /// Signals remote endpoint disconnections
+        /// Signals remote endpoint closing
         /// </summary>
-        public event EventHandler Disconnected;
+        public event EventHandler CloseEvent;
 
         /// <summary>
-        /// Disconnect event hander boilerplate
+        /// Emits closed events
         /// </summary>
-        protected virtual void OnDisconnected()
+        protected virtual void OnClosed()
         {
-            Disconnected?.Invoke(this, new EventArgs());
+            CloseEvent?.Invoke(this, new EventArgs());
         }
 
         /// <summary>

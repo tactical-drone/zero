@@ -48,7 +48,6 @@ namespace zero.core.patterns.bushes
             ObservableRouter.Connect();
 
             //Configure cancellations
-            Spinners = source.Spinners;
             Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
             parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
@@ -65,6 +64,8 @@ namespace zero.core.patterns.bushes
             Description = description;            
             Source = source;
             JobHeap = new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage };
+
+            Source.ClosedEvent += (sender, args) => Close();
         }
 
         /// <summary>
@@ -115,7 +116,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Stops this source consumer
         /// </summary>
-        public CancellationTokenSource Spinners { get; protected set; }
+        protected CancellationTokenSource Spinners { get; set; } = new CancellationTokenSource();
 
         /// <summary>
         /// The current observer, there can only be one
@@ -191,7 +192,6 @@ namespace zero.core.patterns.bushes
         // ReSharper disable once InconsistentNaming
         public int parm_consumer_wait_for_producer_timeout = 5000;
 
-
         /// <summary>
         /// How long a source will sleep for when it is getting skipped productions
         /// </summary>
@@ -199,26 +199,39 @@ namespace zero.core.patterns.bushes
         // ReSharper disable once InconsistentNaming
         public int parm_producer_start_retry_time = 1000;
 
-        private volatile bool _closed = false;
-        public void Close()
+        /// <summary>
+        /// Called when this neighbor is closed
+        /// </summary>
+        public event EventHandler ClosedEvent;
+
+        protected volatile bool Closed = false;
+        public virtual bool Close()
         {
             lock (this)
             {
-                if(_closed) return;
-                try
-                {
-                    Source.Close();
-                    Spinners.Cancel();
-                }
-                catch (Exception e)
-                {
-                    _logger.Trace(e, "Close returned with errors");
-                }
-                finally
-                {
-                    _closed = true;
-                }
+                if (Closed) return Closed;
+                Closed = true;
             }
+
+            try
+            {
+                OnClosedEvent();
+
+                if(IsArbitrating)
+                    Source.Close();
+                
+                if(!Spinners.IsCancellationRequested)
+                    Spinners.Cancel();
+
+                _logger.Debug($"Closed {ToString()}: {Description}");
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e, "Close returned with errors");
+                return Closed;
+            }
+
+            return Closed;
         }
 
         /// <summary>
@@ -265,7 +278,8 @@ namespace zero.core.patterns.bushes
                             nextJob.Previous = prevJobFragment;
                             nextJob.ProcessState = IoJob<TJob>.State.Producing;
                             if (await nextJob.ProduceAsync() < IoJob<TJob>.State.Error)
-                            {                            
+                            {
+                                IsArbitrating = true;
                                 //TODO Double check this hack
                                 //Basically to handle this weird double connection business on the TCP iri side
                                 //if (nextJob.ProcessState == IoJob<TJob>.State.ProStarting)
@@ -315,7 +329,9 @@ namespace zero.core.patterns.bushes
                                 }                            
                             }
                             else //produce job returned with errors
-                            {                            
+                            {
+                                IsArbitrating = false;
+
                                 if (nextJob.Source.BlockOnProduceAheadBarrier)
                                     nextJob.Source.ProduceAheadBarrier.Release();
 
@@ -624,6 +640,14 @@ namespace zero.core.patterns.bushes
         {
             _observer = observer;   
             return IoAnonymousDisposable.Create(() => { _observer = null; });
+        }
+
+        /// <summary>
+        /// Emits the closed event
+        /// </summary>
+        protected virtual void OnClosedEvent()
+        {
+            ClosedEvent?.Invoke(this, EventArgs.Empty);
         }
     }
 }

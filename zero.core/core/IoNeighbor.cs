@@ -25,7 +25,6 @@ namespace zero.core.core
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;
-            Spinners.Token.Register(() => Source?.Close());
         }
 
         /// <summary>
@@ -39,45 +38,23 @@ namespace zero.core.core
         protected IoNode<TJob> Node;
 
         /// <summary>
-        /// If closed
-        /// </summary>
-        private bool _closed = false;
-
-        /// <summary>
-        /// Called when this neighbor is closed
-        /// </summary>
-        public event EventHandler Closed;
-
-        /// <summary>
         /// Close this neighbor
         /// </summary>
-        public void Close()
+        public override bool Close()
         {
-            lock (this)
+            var closed = base.Close();
+            if (closed)
             {
-                if (_closed) return;
-                _closed = true;
+                _logger.Info($"Closing neighbor `{Description}', Id = {Id}");
             }
-            
-            _logger.Info($"Closing neighbor `{Description}', Id = {Id}");
 
-            OnClosed();
-            
-            Spinners.Cancel();            
-        }
-
-        /// <summary>
-        /// Emits the closed event
-        /// </summary>
-        public virtual void OnClosed()
-        {
-            Closed?.Invoke(this, EventArgs.Empty);
+            return closed;
         }
 
         /// <summary>
         /// The Id of this neighbor
         /// </summary>
         /// <returns></returns>
-        public virtual string Id => "N/A";
+        public virtual string Id => Source.Key;
     }
 }

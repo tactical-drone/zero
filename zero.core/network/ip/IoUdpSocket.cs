@@ -48,7 +48,7 @@ namespace zero.core.network.ip
 
         //public override IoNodeAddress RemoteAddress { get; protected set; }
 
-        public override string Key => RemoteAddress?.IpAndPort ?? LocalIpAndPort;
+        public override string Key => RemoteAddress?.IpPort ?? LocalIpAndPort;
 
         //public override string Key
         //{
@@ -61,7 +61,7 @@ namespace zero.core.network.ip
         //        }
 
 
-        //        return RemoteAddress.IpAndPort;
+        //        return RemoteAddress.IpPort;
         //    }
         //}
 
@@ -94,6 +94,13 @@ namespace zero.core.network.ip
 
                 // Prepare UDP connection orientated things                
                 _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
+
+                while (!Spinners.IsCancellationRequested)
+                {
+                    await Task.Delay(5000);
+                    if (!Socket?.IsBound??false)
+                        Close();
+                }
             }
             catch (Exception e)
             {
@@ -111,6 +118,7 @@ namespace zero.core.network.ip
         /// <param name="buffer">The buffer containing the data</param>
         /// <param name="offset">Start offset into the buffer</param>
         /// <param name="length">The length of the data</param>
+        /// <param name="endPoint">A destination, used for UDP connections</param>
         /// <returns></returns>
         public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
         {
@@ -119,17 +127,14 @@ namespace zero.core.network.ip
                 await Task.Delay(1000);
                 return 0;
             }
-                
-            //TODO HACKS! Remove
-            //if (!IsConnectingSocket)
-            //    return 0;
+            
             if (endPoint == null)
             {
                 _logger.Fatal("No endpoint supplied!");
                 return 0;
             }
             
-            await Socket.SendToAsync(buffer, SocketFlags.None, (EndPoint)endPoint).ContinueWith(
+            await Socket.SendToAsync(buffer, SocketFlags.None, endPoint).ContinueWith(
                 t =>
                 {
                     switch (t.Status)
@@ -181,14 +186,14 @@ namespace zero.core.network.ip
                         }
                     }).HandleCancellation(Spinners.Token).ConfigureAwait(false);
 
-                if (RemoteAddress == null)
-                    RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                if (RemoteNodeAddress == null)
+                {
+                    RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                }
                 else
-                    RemoteAddress.Update($"udp://{_udpRemoteEndpointInfo}");
+                    RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
 
                 return readAsync;
-                
-    
             }
             catch (Exception e)
             {

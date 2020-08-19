@@ -45,6 +45,11 @@ namespace zero.core.network.ip
         public IoNodeAddress ListeningAddress { get; protected set; }
 
         /// <summary>
+        /// A description
+        /// </summary>
+        public string Description => IoListenSocket?.ToString() ?? ListeningAddress.ToString();
+
+        /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped
         /// </summary>
         protected IoSocket IoListenSocket;
@@ -77,16 +82,16 @@ namespace zero.core.network.ip
         protected int parm_read_ahead = 1;
         
         /// <summary>
-        /// Start the listener
+        /// Listens for new connections
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAhead">TCP read ahead</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> StartListenerAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
+        public virtual Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
-            return Task.FromResult(true);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -162,8 +167,8 @@ namespace zero.core.network.ip
             //This method must always be at the top or we might recurse
             _cancellationRegistration.Dispose();
 
-            Spinners.Cancel();
             IoListenSocket.Close();
+            Spinners.Cancel();
         }
 
         /// <summary>

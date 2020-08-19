@@ -41,13 +41,29 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the remote port from a socket
         /// </summary>
-        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="socket">The socket.</param>
         /// <returns>The remote port</returns>
-        public static int RemotePort(this Socket endpoint)
+        public static int RemotePort(this Socket socket)
         {
-            if (endpoint.ProtocolType == ProtocolType.Tcp)
-                return ((IPEndPoint)endpoint.RemoteEndPoint)?.Port ?? 0;
+            if (socket.ProtocolType == ProtocolType.Tcp)
+                return ((IPEndPoint)socket.RemoteEndPoint)?.Port ?? 0;
             return 0;
+        }
+
+
+        /// <summary>
+        /// Returns remote endpoint as <see cref="IoNodeAddress"/>
+        /// </summary>
+        /// <param name="socket">The socket</param>
+        /// <returns>The <see cref="IoNodeAddress"/></returns>
+        public static IoNodeAddress RemoteNodeAddress(this Socket socket)
+        {
+            if (socket.IsBound && socket.Connected)
+            {
+                return IoNodeAddress.CreateFromEndpoint($"{(socket.SocketType==SocketType.Dgram?"udp":"tcp")}", socket.RemoteEndPoint);
+            }
+
+            return null;
         }
     }
 }
