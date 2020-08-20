@@ -99,6 +99,21 @@ namespace zero.cocoon
         public int parm_max_outbound = 4;
 
         /// <summary>
+        /// Protocol version
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public uint parm_version = 0;
+
+        /// <summary>
+        /// Protocol response message timeout in seconds
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_response_timeout = 20;
+
+
+        /// <summary>
         /// Maximum clients allowed
         /// </summary>
         public int MaxClients => parm_max_outbound + parm_max_inbound;
@@ -122,7 +137,6 @@ namespace zero.cocoon
                 return await HandshakeAsync((IoCcPeer)neighbor);
             });
         }
-
 
         /// <summary>
         /// Sends a message to a peer
@@ -210,6 +224,28 @@ namespace zero.cocoon
                     var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
                     if (handshakeRequest != null)
                     {
+                        //reject old handshake requests
+                        if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp) >
+                            parm_response_timeout)
+                        {
+                            _logger.Debug($"Rejected old handshake request from {socket.Key} - {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
+                            return false;
+                        }
+
+                        //reject invalid protocols
+                        if (handshakeRequest.Version != parm_version)
+                        {
+                            _logger.Debug($"Invalid handshake protocol version from  {socket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
+                            return false;
+                        }
+
+                        //reject requests to invalid ext ip
+                        if (handshakeRequest.To != ExtAddress.Ip)
+                        {
+                            _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {ExtAddress.Ip}");
+                            return false;
+                        }
+
                         var handshakeResponse = new HandshakeResponse
                         {
                             ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.ToByteArray()))
@@ -225,7 +261,7 @@ namespace zero.cocoon
             {
                 var handshakeRequest = new HandshakeRequest
                 {
-                    Version = 0,
+                    Version = parm_version,
                     To = socket.ListeningAddress.Ip,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
