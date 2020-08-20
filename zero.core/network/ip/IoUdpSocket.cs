@@ -172,10 +172,10 @@ namespace zero.core.network.ip
                 }
 
                 Socket.ReceiveTimeout = timeout;
-
+                var read = 0;
                 if (timeout == 0)
                 {
-                    var readAsync = await Task.Factory.FromAsync(
+                    read = await Task.Factory.FromAsync(
                         Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo,
                             null, null),
                         result =>
@@ -194,25 +194,25 @@ namespace zero.core.network.ip
                                 return 0;
                             }
                         }).HandleCancellation(Spinners.Token).ConfigureAwait(false);
-
-                    if (RemoteNodeAddress == null)
-                    {
-                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
-                    }
-                    else
-                        RemoteAddress.Update((IPEndPoint) _udpRemoteEndpointInfo);
-
-                    return readAsync;
                 }
                 else if (timeout > 0)
                 {
-                    return Socket.Receive(buffer, offset, length, SocketFlags.None);
+                    read = Socket.ReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo );
                 }
                 else
                 {
                     return 0;
                 }
 
+                //Set the remote address
+                if (RemoteNodeAddress == null)
+                {
+                    RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                }
+                else
+                    RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+
+                return read;
             }
             catch (Exception e)
             {

@@ -135,8 +135,16 @@ namespace zero.core.network.ip
             return address;
         }
 
+        /// <summary>
+        /// Mutate the state, UDP needs this
+        /// </summary>
+        /// <param name="endpoint">The new endpoint</param>
+        /// <returns>The modified address</returns>
         public IoNodeAddress Update(IPEndPoint endpoint)
         {
+            if (endpoint.Address.Equals(IpEndPoint.Address) && endpoint.Port == Port)
+                return this;
+
             Ip = endpoint.Address.ToString();
             Port = endpoint.Port;
             IpEndPoint = endpoint;
