@@ -20,12 +20,22 @@ using zero.core.patterns.bushes;
 
 namespace zero.cocoon.models
 {
+    /// <summary>
+    /// Process gossip messages
+    /// </summary>
     public class IoCcGossipMessage : IoMessage<IoCcGossipMessage>
     {
-        public IoCcGossipMessage(string jobDescription, string loadDescription, IoSource<IoCcGossipMessage> originatingSource) : base(loadDescription, loadDescription, originatingSource)
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="jobDescription">Describe the source</param>
+        /// <param name="loadDescription">Describe the sink</param>
+        /// <param name="originatingSource">The source of the work</param>
+        public IoCcGossipMessage(string jobDescription, string loadDescription, IoSource<IoCcGossipMessage> originatingSource) : base(loadDescription, jobDescription, originatingSource)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
+            
             DatumSize = 300;
 
             //Init buffers
@@ -34,7 +44,6 @@ namespace zero.cocoon.models
             DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
         }
-
 
         /// <summary>
         /// logger
@@ -71,9 +80,6 @@ namespace zero.cocoon.models
         /// Userdata in the source
         /// </summary>
         protected volatile object ProducerUserData;
-
-        private HandshakeRequest _handshakeRequest;
-        private HandshakeResponse _handshakeResponse;
 
         /// <summary>
         /// 

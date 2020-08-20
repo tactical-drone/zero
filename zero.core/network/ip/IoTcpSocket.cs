@@ -200,9 +200,10 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="buffer">The buffer to read into</param>
         /// <param name="offset">The offset into the buffer</param>
-        /// <param name="length">The maximum bytes to read into the buffer</param>        
+        /// <param name="length">The maximum bytes to read into the buffer</param>
+        /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length) //TODO can we go back to array buffers?
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
         {
             try
             {
@@ -211,15 +212,30 @@ namespace zero.core.network.ip
                     await Task.Delay(1000);
                     return 0;
                 }
-                
-                var read = await Task.Factory.FromAsync(
-                    Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
-                    Socket.EndReceive).HandleCancellation(Spinners.Token).ConfigureAwait(false);                
 
-                if(read == 0)//TODO does this make sense?
-                    Close();
+                Socket.ReceiveTimeout = timeout;
 
-                return read;
+                if (timeout == 0)
+                {
+                    var read = await Task.Factory.FromAsync(
+                        Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
+                        Socket.EndReceive).HandleCancellation(Spinners.Token).ConfigureAwait(false);
+
+                    if (read == 0) //TODO does this make sense?
+                    {
+                        _logger.Fatal($"Read 0 bytes, closing {Key}");
+                        Close();
+                    }
+                        
+
+                    return read;
+                }
+                else if( timeout > 0 )
+                {
+                    return Socket.Receive(buffer, offset, length, SocketFlags.None);
+                }
+
+                return 0;
             }
             catch (Exception e)
             {

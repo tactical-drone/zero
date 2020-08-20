@@ -209,7 +209,7 @@ namespace zero.core.patterns.bushes
         {
             lock (this)
             {
-                if (Closed) return Closed;
+                if (Closed) return false;
                 Closed = true;
             }
 
@@ -228,10 +228,10 @@ namespace zero.core.patterns.bushes
             catch (Exception e)
             {
                 _logger.Trace(e, "Close returned with errors");
-                return Closed;
+                return true;
             }
 
-            return Closed;
+            return true;
         }
 
         /// <summary>

@@ -152,12 +152,15 @@ namespace zero.core.network.ip
             return length;
         }
 
-        /// <inheritdoc />
         /// <summary>
-        /// Read UDP packet data
+        /// Read from the socket
         /// </summary>
-        /// <returns>The number of bytes read</returns>
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length)
+        /// <param name="buffer">Read into a buffer</param>
+        /// <param name="offset">Write start pos</param>
+        /// <param name="length">Bytes to read</param>
+        /// <param name="timeout">Timeout after ms</param>
+        /// <returns></returns>
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0)
         {
             try
             {
@@ -167,33 +170,49 @@ namespace zero.core.network.ip
                     await Task.Delay(1000);
                     return 0;
                 }
-                
-                var readAsync = await Task.Factory.FromAsync(Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
-                    result =>
-                    {
-                        try
-                        {
-                            if(Socket!= null && Socket.IsBound)
-                                return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
-                            else
-                                return 0;
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
-                            Close();
-                            return 0;
-                        }
-                    }).HandleCancellation(Spinners.Token).ConfigureAwait(false);
 
-                if (RemoteNodeAddress == null)
+                Socket.ReceiveTimeout = timeout;
+
+                if (timeout == 0)
                 {
-                    RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                    var readAsync = await Task.Factory.FromAsync(
+                        Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo,
+                            null, null),
+                        result =>
+                        {
+                            try
+                            {
+                                if (Socket != null && Socket.IsBound)
+                                    return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+                                else
+                                    return 0;
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
+                                Close();
+                                return 0;
+                            }
+                        }).HandleCancellation(Spinners.Token).ConfigureAwait(false);
+
+                    if (RemoteNodeAddress == null)
+                    {
+                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                    }
+                    else
+                        RemoteAddress.Update((IPEndPoint) _udpRemoteEndpointInfo);
+
+                    return readAsync;
+                }
+                else if (timeout > 0)
+                {
+                    return Socket.Receive(buffer, offset, length, SocketFlags.None);
                 }
                 else
-                    RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+                {
+                    return 0;
+                }
 
-                return readAsync;
             }
             catch (Exception e)
             {

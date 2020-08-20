@@ -58,6 +58,18 @@ namespace zero.cocoon
         public bool UdpTunnelSupport = true;
 
         /// <summary>
+        /// Maximum size of a handshake message
+        /// </summary>
+        [IoParameter]
+        public int parm_max_handshake_bytes = 256;
+
+        /// <summary>
+        /// Timeout for handshake messages
+        /// </summary>
+        [IoParameter]
+        public int parm_handshake_timeout = 500;
+
+        /// <summary>
         /// The discovery service
         /// </summary>
         public IoCcNeighborDiscovery DiscoveryService => (IoCcNeighborDiscovery)_autoPeering;
@@ -108,41 +120,16 @@ namespace zero.cocoon
                     return false;
 
                 return await HandshakeAsync((IoCcPeer)neighbor);
-
-                //var searchStr = neighbor.IoSource.Key.Split(":")[1].Replace($"//", "");
-                //var connected = false;
-                //_autoPeering.Neighbors
-                //    .Where(n => n.Value.Id.Contains(searchStr)).ToList().ForEach(kv =>
-                //    {
-                //        var ccNeighbor = (IoCcNeighbor)kv.Value;
-
-                //        if (ccNeighbor == default)
-                //        {
-                //            _logger.Debug($"Connection {neighbor.IoSource.Key}, {searchStr} not verified! ({_autoPeering.Neighbors.Count})");
-                //            return;
-                //        }
-
-                //        if (ccNeighbor.Direction == IoCcNeighbor.Kind.Inbound)
-                //        {
-                //            _logger.Info($"Connection Received {ccNeighbor.Direction}: {ccNeighbor.Id}");
-                //            ((IoCcPeer)neighbor).AttachNeighbor(ccNeighbor);
-                //            connected = true;
-                //        }
-                //        else
-                //        {
-                //            _logger.Debug($"Dropping inbound connection from {ccNeighbor.Id}, neighbor is set as {ccNeighbor.Direction}");
-                //        }
-                //    });
             });
         }
 
 
         /// <summary>
-        /// 
+        /// Sends a message to a peer
         /// </summary>
-        /// <param name="peer"></param>
-        /// <param name="data"></param>
-        /// <returns></returns>
+        /// <param name="peer">The destination</param>
+        /// <param name="data">The message</param>
+        /// <returns>The number of bytes sent</returns>
         private async Task<int> SendMessage(IoCcPeer peer, ByteString data)
         {
             var responsePacket = new Packet
@@ -169,7 +156,7 @@ namespace zero.cocoon
         /// <returns></returns>
         private async Task<bool> HandshakeAsync(IoCcPeer peer)
         {
-            byte[] handshakeBuffer = new byte[512];
+            byte[] handshakeBuffer = new byte[parm_max_handshake_bytes];
             var socket = ((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket;
 
             //inbound
@@ -177,17 +164,21 @@ namespace zero.cocoon
             {
                 var verified = false;
 
-                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length);
+                //read from the socket
+                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length, parm_handshake_timeout);
 
                 if (bytesRead == 0)
                     return false;
 
+                //parse a packet
                 var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
 
                 if (packet != null && packet.Data != null && packet.Data.Length > 0)
                 {
                     var packetData = packet.Data.ToByteArray(); //TODO remove copy
 
+
+                    //verify the signature
                     if (packet.Signature != null || packet.Signature?.Length != 0)
                     {
                         verified = IoCcPeerMessage.CcId.Verify(packetData, 0,
@@ -195,7 +186,7 @@ namespace zero.cocoon
                             packet.Signature.ToByteArray(), 0);
                     }
 
-                    _logger.Debug($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], {peer.IoSource.Key}");
+                    _logger.Debug($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified)
@@ -239,10 +230,12 @@ namespace zero.cocoon
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
+                //Send challenge
                 await SendMessage(peer, handshakeRequest.ToByteString());
                 _logger.Trace($"{nameof(HandshakeRequest)}: Sent to {socket.Description}");
 
-                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length);
+                //Read challenge response 
+                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length, parm_handshake_timeout);
 
                 var verified = false;
                 var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
@@ -250,6 +243,7 @@ namespace zero.cocoon
                 {
                     var packetData = packet.Data.ToByteArray(); //TODO remove copy
 
+                    //verify signature
                     if (packet.Signature != null || packet.Signature?.Length != 0)
                     {
                         verified = IoCcPeerMessage.CcId.Verify(packetData, 0,
@@ -257,7 +251,7 @@ namespace zero.cocoon
                             packet.Signature.ToByteArray(), 0);
                     }
 
-                    _logger.Debug($"HandshakeResponse [{(verified ? "signed" : "un-signed")}], s = {bytesRead}");
+                    _logger.Debug($"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified)
@@ -279,6 +273,7 @@ namespace zero.cocoon
                         _logger.Debug($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
                     }
 
+                    //validate handshake response
                     var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
 
                     if (handshakeResponse != null)
