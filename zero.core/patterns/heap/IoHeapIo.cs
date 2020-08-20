@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using NLog;
+using zero.core.patterns.bushes;
 
 namespace zero.core.patterns.heap
 {
@@ -24,7 +25,7 @@ namespace zero.core.patterns.heap
         /// Take an item but call the constructor first
         /// </summary>
         /// <returns>The constructed heap item</returns>
-        public override T Take(Func<T,T> parms = null, object userData = null)
+        public override T Take(Func<T, T> parms = null, object userData = null)
         {
             object next = null;
             try

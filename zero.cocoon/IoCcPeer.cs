@@ -26,10 +26,10 @@ namespace zero.cocoon
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
-            _neighbor = neighbor;
+            Neighbor = neighbor;
 
-            if(_neighbor != null)
-                AttachNeighbor(_neighbor);
+            if(Neighbor != null)
+                AttachNeighbor(Neighbor);
         }
 
         /// <summary>
@@ -37,16 +37,15 @@ namespace zero.cocoon
         /// </summary>
         private readonly Logger _logger;
 
-        private IoCcNeighbor _neighbor;
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public IoCcNeighbor Neighbor => _neighbor;
+        public IoCcNeighbor Neighbor { get; private set; }
 
         /// <summary>
-        /// Id
+        /// CcId
         /// </summary>
-        public override string Id => _neighbor?.Id??"null";
+        public override string Id => Neighbor?.Id??"null";
 
         /// <summary>
         /// Helper
@@ -59,16 +58,16 @@ namespace zero.cocoon
         /// <param name="neighbor"></param>
         public void AttachNeighbor(IoCcNeighbor neighbor)
         {
-            _neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
+            Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
 
             //Attach the other way
-            _neighbor.AttachPeer(this);
+            Neighbor.AttachPeer(this);
 
             //peer closed
             ClosedEvent += (sender, args) =>
             {
-                _neighbor.Direction = IoCcNeighbor.Kind.Undefined;
-                _neighbor.DetachPeer();
+                Neighbor.Direction = IoCcNeighbor.Kind.Undefined;
+                Neighbor.DetachPeer();
             };
 
             //peer transport closed

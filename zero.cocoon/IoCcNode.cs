@@ -119,6 +119,11 @@ namespace zero.cocoon
         public int MaxClients => parm_max_outbound + parm_max_inbound;
 
         /// <summary>
+        /// The node id
+        /// </summary>
+        public IoCcIdentity CcId { get; protected set; } = IoCcIdentity.Generate(true);
+
+        /// <summary>
         /// Spawn the node listeners
         /// </summary>
         /// <param name="acceptConnection"></param>
@@ -149,12 +154,12 @@ namespace zero.cocoon
             var responsePacket = new Packet
             {
                 Data = data,
-                PublicKey = ByteString.CopyFrom(IoCcPeerMessage.CcId.PublicKey),
+                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
                 Type = 0
             };
 
             responsePacket.Signature =
-                ByteString.CopyFrom(IoCcPeerMessage.CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
+                ByteString.CopyFrom(CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
 
             var msgRaw = responsePacket.ToByteArray();
 
@@ -195,7 +200,7 @@ namespace zero.cocoon
                     //verify the signature
                     if (packet.Signature != null || packet.Signature?.Length != 0)
                     {
-                        verified = IoCcPeerMessage.CcId.Verify(packetData, 0,
+                        verified = CcId.Verify(packetData, 0,
                             packetData.Length, packet.PublicKey.ToByteArray(), 0,
                             packet.Signature.ToByteArray(), 0);
                     }
@@ -283,7 +288,7 @@ namespace zero.cocoon
                     //verify signature
                     if (packet.Signature != null || packet.Signature?.Length != 0)
                     {
-                        verified = IoCcPeerMessage.CcId.Verify(packetData, 0,
+                        verified = CcId.Verify(packetData, 0,
                             packetData.Length, packet.PublicKey.ToByteArray(), 0,
                             packet.Signature.ToByteArray(), 0);
                     }

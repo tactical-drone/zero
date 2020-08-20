@@ -89,7 +89,42 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// Create an Id string
+        /// The node that this neighbor belongs to
+        /// </summary>
+        public IoCcNode CcNode => NeighborDiscoveryNode.CcNode;
+        
+        /// <summary>
+        /// Receives protocol messages from here
+        /// </summary>
+        private IoChannel<IoCcProtocolMessage> _protocolChannel;
+
+        /// <summary>
+        /// Used to Match requests
+        /// </summary>
+        private DiscoveryRequest _discoveryRequest;
+
+        /// <summary>
+        /// Used to Match requests
+        /// </summary>
+        private Ping _pingRequest;
+
+        /// <summary>
+        /// Used to Match requests
+        /// </summary>
+        private PeeringRequest _peerRequest;
+
+        /// <summary>
+        /// Current salt value
+        /// </summary>
+        private ByteString _curSalt;
+
+        /// <summary>
+        /// Generates a new salt
+        /// </summary>
+        private ByteString GetSalt => _curSalt = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(Encoding.ASCII.GetBytes((DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 120 * 60).ToString())), 0, parm_salt_length);
+
+        /// <summary>
+        /// Create an CcId string
         /// </summary>
         /// <param name="identity">The crypto identity</param>
         /// <param name="address">The transport identity</param>
@@ -100,7 +135,7 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// The Id
+        /// The CcId
         /// </summary>
         public override string Id => $"{MakeId(Identity, Address??((IoUdpClient<IoCcPeerMessage>)Source).ListeningAddress)}";
 
@@ -338,7 +373,7 @@ namespace zero.cocoon.autopeer
             var peeringResponse = new PeeringResponse
             {
                 ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(packet.Data.ToByteArray())),
-                Status = ((IoCcNeighborDiscovery)Node).CcNode.Neighbors.Count < ((IoCcNeighborDiscovery)Node).CcNode.MaxClients
+                Status = CcNode.Neighbors.Count < CcNode.MaxClients
             };
 
             lock (this)
@@ -346,7 +381,7 @@ namespace zero.cocoon.autopeer
                 if (Direction == Kind.Undefined)
                 {
                     Direction = peeringResponse.Status ? Kind.Inbound : Kind.Undefined;
-                    ((IoCcNeighborDiscovery)Node).CcNode.ConnectToPeer(this);
+                    CcNode.ConnectToPeer(this);
                     _logger.Info($"Peering negotiated {Direction}: {Id}");
                 }
                 else if (Direction == Kind.OutBound)
@@ -360,7 +395,7 @@ namespace zero.cocoon.autopeer
                 }
             }
 
-            _logger.Trace($"{nameof(PeeringResponse)}: Sent Allow Status = {peeringResponse.Status}, Capacity = {-((IoCcNeighborDiscovery)Node).CcNode.Neighbors.Count + ((IoCcNeighborDiscovery)Node).CcNode.MaxClients}");
+            _logger.Trace($"{nameof(PeeringResponse)}: Sent Allow Status = {peeringResponse.Status}, Capacity = {-CcNode.Neighbors.Count + CcNode.MaxClients}");
 
             await SendMessage(Address, peeringResponse.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringResponse);
         }
@@ -400,7 +435,7 @@ namespace zero.cocoon.autopeer
                     if (Direction == Kind.Undefined)
                     {
                         Direction = response.Status ? Kind.OutBound : Kind.Undefined;
-                        ((IoCcNeighborDiscovery)Node).CcNode.ConnectToPeer(this);
+                        CcNode.ConnectToPeer(this);
                     }
                     else
                         return;
@@ -422,12 +457,12 @@ namespace zero.cocoon.autopeer
             var packet = new Packet
             {
                 Data = data,
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey),
                 Type = (uint)type
             };
 
             packet.Signature =
-                ByteString.CopyFrom(CcId.Sign(packet.Data.ToByteArray(), 0, packet.Data.Length));
+                ByteString.CopyFrom(CcNode.CcId.Sign(packet.Data.ToByteArray(), 0, packet.Data.Length));
 
             var msgRaw = packet.ToByteArray();
 
@@ -467,41 +502,6 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// The public ID of this node
-        /// </summary>
-        static IoCcIdentity CcId = IoCcIdentity.Generate(true); //TODO 
-
-        /// <summary>
-        /// Receives protocol messages from here
-        /// </summary>
-        private IoChannel<IoCcProtocolMessage> _protocolChannel;
-
-        /// <summary>
-        /// Used to Match requests
-        /// </summary>
-        private DiscoveryRequest _discoveryRequest;
-
-        /// <summary>
-        /// Used to Match requests
-        /// </summary>
-        private Ping _pingRequest;
-
-        /// <summary>
-        /// Used to Match requests
-        /// </summary>
-        private PeeringRequest _peerRequest;
-
-        /// <summary>
-        /// Current salt value
-        /// </summary>
-        private ByteString _curSalt;
-
-        /// <summary>
-        /// 
-        /// </summary>
-        private ByteString GetSalt => _curSalt = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(Encoding.ASCII.GetBytes((DateTimeOffset.UtcNow.ToUnixTimeSeconds()/120*60).ToString())),0, parm_salt_length);
-
-        /// <summary>
         /// 
         /// </summary>
         /// <param name="request"></param>
@@ -510,11 +510,6 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessMsgAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            //var hashStream = new MemoryStream(new byte[request.CalculateSize() + 1]);
-            //hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryRequest);
-            //request.WriteTo(hashStream);
-            //hashStream.Seek(0, SeekOrigin.Begin);
-
             if (Address == null || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20)
             {
                 _logger.Trace($"{nameof(DiscoveryRequest)}: Dropped request, not verified! ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
@@ -531,7 +526,7 @@ namespace zero.cocoon.autopeer
             var discoveryResponse = new DiscoveryResponse
             {
                 ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(packet.Data.ToByteArray())),
-                Peers = { new Peer { PublicKey = ByteString.CopyFrom(CcId.PublicKey), Ip = Source.SourceUri, Services = new ServiceMap { Map = { new Dictionary<string, NetworkAddress> { { IoCcService.Keys.peering.ToString(), new NetworkAddress { Network = ((IoCcNeighborDiscovery)Node).CcNode.ExtAddress.Ip, Port = (uint)((IoCcNeighborDiscovery)Node).CcNode.ExtAddress.Port } } } } } } }
+                Peers = { new Peer { PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey), Ip = Source.SourceUri, Services = new ServiceMap { Map = { new Dictionary<string, NetworkAddress> { { IoCcService.Keys.peering.ToString(), new NetworkAddress { Network = CcNode.ExtAddress.Ip, Port = (uint)CcNode.ExtAddress.Port } } } } } } }
             };
 
             foreach (var ioNeighbor in NeighborDiscoveryNode.Neighbors)
@@ -546,12 +541,6 @@ namespace zero.cocoon.autopeer
                     Ip = ((IoCcNeighbor)ioNeighbor.Value).Address.Ip
                 });
             }
-
-            //using var poolMem = MemoryPool<byte>.Shared.Rent(discoveryResponse.CalculateSize() + 1);
-            //MemoryMarshal.TryGetArray<byte>(poolMem.Memory, out var heapMem);
-            //var heapStream = new MemoryStream(heapMem.Array);
-            //heapStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.DiscoveryResponse);
-            //discoveryResponse.WriteTo(heapStream);
 
             await SendMessage(Address, discoveryResponse.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryResponse);
         }
@@ -571,12 +560,6 @@ namespace zero.cocoon.autopeer
                 _logger.Trace($"{nameof(Ping)}: message dropped, to old. age = {age}s");
                 return;
             }
-
-            //await using var hashStream = new MemoryStream(new byte[ping.CalculateSize() + 1]);
-            //hashStream.WriteByte((byte)IoCcPeerMessage.MessageTypes.Ping);
-            //ping.WriteTo(hashStream);
-            //var pos = hashStream.Position;
-            //hashStream.Seek(0, SeekOrigin.Begin);
 
             //TODO optimize
             var gossipAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip];
@@ -629,7 +612,7 @@ namespace zero.cocoon.autopeer
             {
                 _logger.Info($"Probing new destination {toAddress}");
                 await SendPingMsgAsync(toAddress);
-                if (((IoCcNeighborDiscovery)Node).CcNode.UdpTunnelSupport &&  toProxyAddress != null && toProxyAddress.Ip != toAddress .Ip)
+                if (CcNode.UdpTunnelSupport &&  toProxyAddress != null && toProxyAddress.Ip != toAddress .Ip)
                     await SendPingMsgAsync(toProxyAddress);
             }
         }
@@ -685,7 +668,7 @@ namespace zero.cocoon.autopeer
             {
                 Verified = true;
                 _logger.Info($"Discovered/Verified peer {Id}");
-                if( ((IoCcNeighborDiscovery)Node).CcNode.Neighbors.Count < ((IoCcNeighborDiscovery)Node).CcNode.MaxClients) //TODO 
+                if( CcNode.Neighbors.Count < CcNode.MaxClients) //TODO 
                     await SendPeerRequestAsync();
             }
         }
@@ -703,7 +686,7 @@ namespace zero.cocoon.autopeer
                 NetworkId = 6,
                 Version = 0,
                 SrcAddr = "0.0.0.0", //TODO auto/manual option here
-                SrcPort = (uint)((IoCcNeighborDiscovery)Node).CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering].Port,
+                SrcPort = (uint)CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering].Port,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 

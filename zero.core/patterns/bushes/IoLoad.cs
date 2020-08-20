@@ -35,6 +35,11 @@ namespace zero.core.patterns.bushes
         public override string Description => $"{base.Description} | {_loadDescription}";
 
         /// <summary>
+        /// Zero
+        /// </summary>
+        public IIoZero Zero { get; set; }
+
+        /// <summary>
         /// Consumes the job
         /// </summary>
         /// <returns>The state of the consumption</returns>

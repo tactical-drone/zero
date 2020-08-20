@@ -255,6 +255,7 @@ namespace zero.core.patterns.bushes
                         //Allocate a job from the heap
                         if ((nextJob = JobHeap.Take()) != null)
                         {
+                            nextJob.Zero = this;
                             while (nextJob.Source.BlockOnProduceAheadBarrier)
                             {
                                 if (!await nextJob.Source.ProduceAheadBarrier.WaitAsync(-1, Spinners.Token))

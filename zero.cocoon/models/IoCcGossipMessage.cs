@@ -54,6 +54,11 @@ namespace zero.cocoon.models
         private readonly Logger _logger;
 
         /// <summary>
+        /// The node that this message belongs to
+        /// </summary>
+        protected IoCcNode CcNode => ((IoCcPeer)Zero).Neighbor.CcNode;
+
+        /// <summary>
         /// Used to control how long we wait for the source before we report it
         /// </summary>
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
@@ -101,12 +106,12 @@ namespace zero.cocoon.models
             var responsePacket = new Packet
             {
                 Data = data,
-                PublicKey = ByteString.CopyFrom(IoCcPeerMessage.CcId.PublicKey),
+                PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey),
                 Type = 0
             };
 
             responsePacket.Signature =
-                ByteString.CopyFrom(IoCcPeerMessage.CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
+                ByteString.CopyFrom(CcNode.CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
 
             var msgRaw = responsePacket.ToByteArray();
 

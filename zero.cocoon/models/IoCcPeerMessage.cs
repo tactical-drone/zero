@@ -242,8 +242,11 @@ namespace zero.cocoon.models
 
         }
 
-        //TODO fix
-        public static IoCcIdentity CcId = IoCcIdentity.Generate(true);
+
+        protected IoCcNode CcNode => ((IoCcNeighbor) Zero).CcNode;
+
+        //public static IoCcIdentity CcId = IoCcIdentity.Generate(true);
+        public IoCcIdentity CcId => CcNode.CcId;
 
         public override async Task<State> ConsumeAsync()
         {
