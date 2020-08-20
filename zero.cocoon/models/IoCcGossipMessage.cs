@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Microsoft.AspNetCore.DataProtection.Repositories;
@@ -36,7 +39,7 @@ namespace zero.cocoon.models
             _logger = LogManager.GetCurrentClassLogger();
 
             
-            DatumSize = 300;
+            DatumSize = parm_max_datum_size;
 
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
@@ -74,7 +77,14 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 250;
+        public int parm_datums_per_buffer = 5000;
+
+        /// <summary>
+        /// Max gossip message size
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_datum_size = 1280;
 
         /// <summary>
         /// Userdata in the source
@@ -104,8 +114,6 @@ namespace zero.cocoon.models
             _logger.Debug($"{nameof(IoCcGossipMessage)}: Sent {sent} bytes to {((IoTcpClient<IoCcGossipMessage>)Source).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
             return sent;
         }
-
-
 
         public override async Task<State> ProduceAsync()
         {
@@ -148,7 +156,7 @@ namespace zero.cocoon.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(async rx =>
+                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(rx =>
                             {
                                 switch (rx.Status)
                                 {
@@ -163,9 +171,7 @@ namespace zero.cocoon.models
                                     //Success
                                     case TaskStatus.RanToCompletion:
                                         BytesRead = rx.Result;
-                                        var stream = ByteStream;
 
-                                        BufferOffset += (int)stream.Position;
                                         //UDP signals source ip
                                         ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
@@ -179,8 +185,6 @@ namespace zero.cocoon.models
                                         ProcessState = State.Produced;
 
                                         _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
-
-
                                         break;
                                     default:
                                         ProcessState = State.ProduceErr;
@@ -224,8 +228,8 @@ namespace zero.cocoon.models
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
-                    BufferOffset -= bytesToTransfer;
-                    DatumProvisionLength -= bytesToTransfer;
+                    Interlocked.Add(ref BufferOffset, -bytesToTransfer);
+                    Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
                     StillHasUnprocessedFragments = DatumFragmentLength > 0;

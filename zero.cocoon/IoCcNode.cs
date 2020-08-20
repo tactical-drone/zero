@@ -246,6 +246,7 @@ namespace zero.cocoon
                             return false;
                         }
 
+                        //send response
                         var handshakeResponse = new HandshakeResponse
                         {
                             ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.ToByteArray()))
