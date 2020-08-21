@@ -14,8 +14,8 @@ namespace zero.core.patterns.bushes.contracts
         string Description { get; }
         bool IsArbitrating { get; set; }
         bool Close();
-        Task<bool> ProduceAsync(CancellationToken cancellationToken, bool sleepOnConsumerLag = true);
+        Task<bool> ProduceAsync(bool sleepOnConsumerLag = true);
         //Task<Task> ConsumeAsync(Func<IoLoad<IIoJob>, Task> inlineCallback = null, bool sleepOnProducerLag = true);
-        Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true);  
+        Task SpawnProcessingAsync(bool spawnProducer = true);  
     }
 }

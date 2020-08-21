@@ -121,20 +121,15 @@ namespace zero.core.patterns.bushes.contracts
         IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
             Func<object, IoLoad<TFJob>> jobMalloc = null)
             where TFJob : IIoJob;
-
-        /// <summary>
-        /// Used to signal shutdown
-        /// </summary>
-        public CancellationTokenSource Spinners { get; }
-
+        
         /// <summary>
         /// Closes this source
         /// </summary>
-        void Close();
+        bool Close();
 
         /// <summary>
         /// On closed
         /// </summary>
-        event EventHandler ClosedEvent;
+        void ClosedEvent(EventHandler del);
     }
 }

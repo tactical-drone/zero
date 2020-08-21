@@ -67,7 +67,7 @@ namespace zero.core.patterns.heap
 
                 _maxSize = value;
 
-                //Flush some memory and it does not need to be the exact amount
+                //Clear some memory and it does not need to be the exact amount
                 while (value < CurrentHeapSize )
                 {
                     if(!_buffer.TryTake(out var flushed))
@@ -136,7 +136,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Flushes the buffer
         /// </summary>
-        public void Flush()
+        public void Clear()
         {
             _buffer.Clear();
         }

@@ -24,12 +24,19 @@ namespace zero.core.patterns.bushes
             _logger = LogManager.GetCurrentClassLogger();
             Source = source;
             _jobDescription = description;
+
+            Source?.ClosedEvent((sender, args) => Spinners.Cancel());
         }
 
         /// <summary>
         /// logger
         /// </summary>
         private readonly Logger _logger;
+
+        /// <summary>
+        /// Cancellation token
+        /// </summary>
+        protected CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// A unique id for this work

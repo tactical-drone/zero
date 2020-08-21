@@ -38,6 +38,15 @@ namespace zero.cocoon
 
             _autoPeering = new IoCcNeighborDiscovery(this, _peerAddress,
                 (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead);
+
+            Task.Run(async () =>
+            {
+                while (!_spinners.IsCancellationRequested)
+                {
+                    await Task.Delay(60000);
+                    _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
+                }
+            });
         }
 
         private readonly Logger _logger;
@@ -73,6 +82,17 @@ namespace zero.cocoon
         /// The discovery service
         /// </summary>
         public IoCcNeighborDiscovery DiscoveryService => (IoCcNeighborDiscovery)_autoPeering;
+
+        /// <summary>
+        /// Number of inbound neighbors
+        /// </summary>
+        public int InboundCount => Neighbors.Count(kv => ((IoCcPeer) kv.Value).Neighbor?.Inbound ?? false);
+
+        /// <summary>
+        /// Number of outbound neighbors
+        /// </summary>
+        public int OutboundCount => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor?.Outbound ?? false);
+
 
         /// <summary>
         /// The services this node supports
@@ -135,10 +155,10 @@ namespace zero.cocoon
 
             await base.SpawnListenerAsync(async neighbor =>
             {
-
-                if (Neighbors.Count > MaxClients)
+                //limit connects
+                if (InboundCount >= parm_max_inbound)
                     return false;
-
+                
                 return await HandshakeAsync((IoCcPeer)neighbor);
             });
         }
@@ -196,7 +216,6 @@ namespace zero.cocoon
                 {
                     var packetData = packet.Data.ToByteArray(); //TODO remove copy
 
-
                     //verify the signature
                     if (packet.Signature != null || packet.Signature?.Length != 0)
                     {
@@ -212,17 +231,23 @@ namespace zero.cocoon
                         return false;
 
                     //Verify the connection 
-                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPK(packetData), socket.RemoteAddress);
+                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPK(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
                     if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
                     {
                         if(((IoCcNeighbor)neighbor).Verified)
                             peer.AttachNeighbor((IoCcNeighbor)neighbor);
                         else
+                        {
                             _logger.Debug($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
+                            //await ((IoCcNeighbor)neighbor).SendPingMsgAsync();
+                            return false;
+                        }
+                            
                     }
                     else
                     {
                         _logger.Debug($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
+                        return false;
                     }
                     
                     //process handshake request 
@@ -245,9 +270,9 @@ namespace zero.cocoon
                         }
 
                         //reject requests to invalid ext ip
-                        if (handshakeRequest.To != ExtAddress.Ip)
+                        if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.GossipAddress.IpPort)
                         {
-                            _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {ExtAddress.Ip}");
+                            _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.GossipAddress.IpPort}");
                             return false;
                         }
 
@@ -268,7 +293,7 @@ namespace zero.cocoon
                 var handshakeRequest = new HandshakeRequest
                 {
                     Version = parm_version,
-                    To = socket.ListeningAddress.Ip,
+                    To = socket.ListeningAddress.IpPort,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
@@ -302,17 +327,23 @@ namespace zero.cocoon
                     }
 
                     //Verify the connection 
-                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPK(packetData), socket.RemoteAddress);
+                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPK(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
                     if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
                     {
                         if (((IoCcNeighbor)neighbor).Verified)
                             peer.AttachNeighbor((IoCcNeighbor)neighbor);
                         else
+                        {
                             _logger.Debug($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
+                            //await ((IoCcNeighbor) neighbor).SendPingMsgAsync();
+                            return false;
+                        }
+                            
                     }
                     else
                     {
                         _logger.Debug($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
+                        return false;
                     }
 
                     //validate handshake response
@@ -340,7 +371,7 @@ namespace zero.cocoon
         public void ConnectToPeer(IoCcNeighbor neighbor)
         {
             if (neighbor.Address != null && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
-                Neighbors.Count < parm_max_outbound &&
+                OutboundCount < parm_max_outbound &&
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
             {
@@ -358,20 +389,27 @@ namespace zero.cocoon
                                         {
                                             _logger.Info($"Peer {neighbor.Direction}: Connected! ({task.Result.Id})");
                                             ((IoCcPeer)task.Result).AttachNeighbor(neighbor);
-                                            await task.Result.SpawnProcessingAsync(CancellationToken);
+                                            await task.Result.SpawnProcessingAsync();
                                         }
                                     }
                                     break;
                                 case TaskStatus.Canceled:
                                 case TaskStatus.Faulted:
+                                    neighbor.DetachPeer();
                                     _logger.Error(task.Exception, $"Peer select {neighbor.Address} failed");
                                     break;
                             }
                         }).ConfigureAwait(false);
                 }
+                else
+                {
+                    neighbor.DetachPeer();
+                    throw new ApplicationException($"Unexpected direction {neighbor.Direction}");
+                }
             }
             else
             {
+                neighbor.DetachPeer();
                 _logger.Trace($"Handled {neighbor.Description}");
             }
 

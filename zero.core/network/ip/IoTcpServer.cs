@@ -18,9 +18,9 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Cancellation hooks</param>
+        /// <param name="readAheadBuffer"></param>
         /// <inheritdoc />
-        public IoTcpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken, int readAheadBuffer) : base(listeningAddress, cancellationToken)
+        public IoTcpServer(IoNodeAddress listeningAddress, int readAheadBuffer = 1) : base(listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
             parm_read_ahead = readAheadBuffer;
@@ -35,19 +35,22 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAhead">Tcp readahead</param>
+        /// <param name="readAhead"></param>
         /// <returns>True on success, false otherwise</returns>
         public override async Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
         {
             await base.ListenAsync(connectionReceivedAction, readAhead);
 
-            IoListenSocket = new IoTcpSocket(Spinners.Token);
+            IoListenSocket = new IoTcpSocket();
+            IoListenSocket.ClosedEvent((sender, args) => Close());
 
             await IoListenSocket.ListenAsync(ListeningAddress, newConnectionSocket =>
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead));
+                    var newConnection = new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead);
+                    //newConnection.ClosedEvent((sender, args) => Close());
+                    connectionReceivedAction?.Invoke(newConnection);
                 }
                 catch (Exception e)
                 {
@@ -68,6 +71,7 @@ namespace zero.core.network.ip
             if (!address.Validated)
                 return null;
             var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
+            //ioTcpclient.ClosedEvent((sender, args) => Close());
             return await base.ConnectAsync(address, ioTcpclient);
         }
     }

@@ -90,10 +90,10 @@ namespace zero.tangle
                     {
                         if (newNeighbor.Result != null)
                         {
-                            ((IoNetClient<TJob>) ioNeighbor.Source).Disconnected += (s, e) =>
+                            ((IoNetClient<TJob>) ioNeighbor.Source).ClosedEvent((s, e) =>
                             {
                                 newNeighbor.Result.Close();
-                            };
+                            });
 
                             if (newNeighbor.Result.Source.IsOperational)
 

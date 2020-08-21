@@ -49,7 +49,7 @@ namespace zero.core.conf
         /// <summary>
         /// Emitted when a setting has changed
         /// </summary>
-        public static EventHandler<KeyValuePair<string, object>> SettingChangedEvent;
+        //public static EventHandler<KeyValuePair<string, object>> SettingChangedEvent;
 
         /// <summary>
         /// A dictionary containing all settings over all instances

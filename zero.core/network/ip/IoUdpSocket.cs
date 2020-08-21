@@ -17,8 +17,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructs the UDP socket
         /// </summary>
-        /// <param name="cancellationToken">Signals cancellation</param>
-        public IoUdpSocket(CancellationToken cancellationToken) : base(SocketType.Dgram, ProtocolType.Udp, cancellationToken)
+        public IoUdpSocket() : base(SocketType.Dgram, ProtocolType.Udp)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
@@ -30,8 +29,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socket">The underlying socket</param>
         /// <param name="listeningAddress">The address listened on</param>
-        /// <param name="cancellationToken">Token used for cancellation</param>
-        public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(socket, listeningAddress, cancellationToken)
+        public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress) : base(socket, listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

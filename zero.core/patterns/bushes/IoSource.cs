@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
@@ -38,14 +39,9 @@ namespace zero.core.patterns.bushes
         private readonly Logger _logger;
 
         /// <summary>
-        /// True if closed
-        /// </summary>
-        protected volatile bool Closed = false;
-
-        /// <summary>
         /// Used to signal shutdown
         /// </summary>
-        public CancellationTokenSource Spinners { get; protected set; }
+        protected CancellationTokenSource Spinners { get; set; }
 
         /// <summary>
         /// The forwarding channel
@@ -172,12 +168,76 @@ namespace zero.core.patterns.bushes
         /// </summary>
         private long _nextProducerId;
 
+        /// <summary>
+        /// True if closed
+        /// </summary>
+        protected volatile bool Closed = false;
 
         /// <summary>
         /// Called when this neighbor is closed
         /// </summary>
-        public event EventHandler ClosedEvent;
-        
+        protected event EventHandler __closedEvent;
+
+        /// <summary>
+        /// Keeps tabs on all subscribers to be freed on close
+        /// </summary>
+        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
+
+        /// <summary>
+        /// Enables safe subscriptions to close events
+        /// </summary>
+        /// <param name="del"></param>
+        public void ClosedEvent(EventHandler del)
+        {
+            _closedEventHandlers.Add(del);
+            __closedEvent += del;
+        }
+
+        /// <summary>
+        /// Fires closed event
+        /// </summary>
+        protected virtual void OnClosedEvent()
+        {
+            __closedEvent?.Invoke(this, EventArgs.Empty);
+            //free handles
+            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
+            _closedEventHandlers.Clear();
+        }
+
+        /// <summary>
+        /// Closes the connection
+        /// </summary>
+        public virtual bool Close()
+        {
+            lock (this)
+            {
+                if (Closed) return false;
+                Closed = true;
+            }
+
+            _logger.Debug($"Closing `{Description}'");
+
+            try
+            {
+                OnClosedEvent();
+
+                //Unblock any blockers
+                ProducerBarrier?.Dispose();
+                ConsumerBarrier?.Dispose();
+                ConsumeAheadBarrier?.Dispose();
+                ProduceAheadBarrier?.Dispose();
+
+                Spinners.Cancel();
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e, "Close returned with errors");
+                return true;
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.
         /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
@@ -259,11 +319,6 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Closes this source
-        /// </summary>
-        public abstract void Close();
-
-        /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="func">The function.</param>
@@ -278,11 +333,6 @@ namespace zero.core.patterns.bushes
         {
             Channel = channel;
             _logger.Debug($"Setting input channel: from = `{Description}', to = `{channel.Description}'");
-        }
-
-        protected virtual void OnClosedEvent()
-        {
-            ClosedEvent?.Invoke(this, EventArgs.Empty);
         }
     }
 }

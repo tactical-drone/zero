@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.SignalR.Protocol;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
@@ -23,15 +25,11 @@ namespace zero.core.network.ip
         /// Constructor
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Cancellation hooks</param>
-        protected IoNetServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken)
+        protected IoNetServer(IoNodeAddress listeningAddress)
         {
             ListeningAddress = listeningAddress;
 
             _logger = LogManager.GetCurrentClassLogger();
-
-            Spinners = new CancellationTokenSource();
-            cancellationToken.Register(Close);
         }
 
         /// <summary>
@@ -57,22 +55,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// Cancel all listener tasks
         /// </summary>
-        protected readonly CancellationTokenSource Spinners;
-
-        /// <summary>
-        /// The cancellation registration handle
-        /// </summary>
-        private CancellationTokenRegistration _cancellationRegistration;
+        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// A set of currently connecting net clients
         /// </summary>
-        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
-
-        /// <summary>
-        /// Have we closed?
-        /// </summary>
-        private bool _closed;
+        private readonly ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
 
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
@@ -105,7 +93,7 @@ namespace zero.core.network.ip
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
                 _logger.Warn($"Cancelling existing connection attemp to `{address}'");
-                _connectionAttempts[address.Key].Spinners.Cancel();
+                _connectionAttempts[address.Key].Close();
                 await Task.Delay(500);
                 return await ConnectAsync(address, ioNetClient);
             }
@@ -153,37 +141,84 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
+        /// Called when this neighbor is closed
+        /// </summary>
+        // ReSharper disable once InconsistentNaming
+        protected event EventHandler __closedEvent;
+
+        /// <summary>
+        /// Keeps tabs on all subscribers to be freed on close
+        /// </summary>
+        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
+
+        /// <summary>
+        /// Enables safe subscriptions to close events
+        /// </summary>
+        /// <param name="del"></param>
+        public void ClosedEvent(EventHandler del)
+        {
+            _closedEventHandlers.Add(del);
+            __closedEvent += del;
+        }
+
+        /// <summary>
+        /// Closed
+        /// </summary>
+        protected volatile bool Closed = false;
+
+        /// <summary>
+        /// Emits the closed event
+        /// </summary>
+        protected virtual void OnClosedEvent()
+        {
+            __closedEvent?.Invoke(this, EventArgs.Empty);
+            //free handles
+            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
+            _closedEventHandlers.Clear();
+        }
+
+        /// <summary>
         /// Closes this server
         /// </summary>
-        public virtual void Close()
+        public virtual bool Close()
         {
             lock (this)
             {
-                if (_closed) return;
-                _closed = true;
+                if (Closed) return false;
+                Closed = true;
+            }
+            _logger.Debug($"Closing listener at `{ListeningAddress}'");
+
+            try
+            {
+                OnClosedEvent();
+
+                IoListenSocket.Close();
+
+                Spinners.Cancel();
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,$"An error occured while closing {ListeningAddress}");
             }
 
-            _logger.Debug($"Closing listener at `{ListeningAddress}'");
-            //This method must always be at the top or we might recurse
-            _cancellationRegistration.Dispose();
-
-            IoListenSocket.Close();
-            Spinners.Cancel();
+            return true;
         }
 
         /// <summary>
         /// Figures out the correct server to use from the url, <see cref="IoTcpServer"/> or <see cref="IoUdpServer"/>
         /// </summary>
         /// <param name="address"></param>
-        /// <param name="spinner"></param>
+        /// <param name="bufferReadAheadSize"></param>
         /// <returns></returns>
-        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, CancellationToken spinner, int bufferReadAheadSize)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int bufferReadAheadSize)
         {
             if (address.Protocol() == ProtocolType.Tcp)
-                return new IoTcpServer<TJob>(address, spinner, bufferReadAheadSize);
+                return new IoTcpServer<TJob>(address, bufferReadAheadSize);
+                
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer<TJob>(address, spinner);
+                return new IoUdpServer<TJob>(address);
 
             return null;
         }

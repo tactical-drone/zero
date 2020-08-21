@@ -18,9 +18,8 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoUdpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="cancellationToken">Cancellation hooks</param>
         /// <inheritdoc />
-        public IoUdpServer(IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(listeningAddress, cancellationToken)
+        public IoUdpServer(IoNodeAddress listeningAddress) : base(listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -43,7 +42,8 @@ namespace zero.core.network.ip
         {
             await base.ListenAsync(connectionReceivedAction, readAheadBufferSize);
 
-            IoListenSocket = new IoUdpSocket(Spinners.Token);
+            IoListenSocket = new IoUdpSocket();
+            //IoListenSocket.ClosedEvent((sender, args) => Close());
 
             await IoListenSocket.ListenAsync(ListeningAddress, ioSocket =>
             {

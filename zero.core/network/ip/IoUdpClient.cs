@@ -37,7 +37,8 @@ namespace zero.core.network.ip
         /// </returns>
         public override async Task<bool> ConnectAsync()
         {
-            IoSocket = new IoUdpSocket(Spinners.Token);
+            IoSocket = new IoUdpSocket();
+            IoSocket.ClosedEvent((sender, args) => Close());
             return await base.ConnectAsync();
         }
     }

@@ -55,33 +55,19 @@ namespace zero.cocoon.models.sources
         /// </value>
         public override bool IsOperational => this == ChannelSource || (ChannelSource?.IsOperational??false);
 
-
-        private bool _closed = false;
-        
         /// <summary>
         /// Closes this source
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        public override void Close()
+        public override bool Close()
         {
-            lock (this)
+            if (base.Close())
             {
-                if(_closed) return;
-                _closed = true;
-
-                _logger.Debug($"Closing `{Description}'");
-
-                try
-                {
-                    Spinners.Cancel();
-                    MessageQueue.Dispose();
-                }
-                catch (Exception e)
-                {
-                    _logger.Trace(e, "Close returned with errors");
-                }
+                MessageQueue.Dispose();
+                return true;
             }
-            
+
+            return false;
         }
 
         /// <summary>

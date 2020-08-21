@@ -43,13 +43,13 @@ namespace zero.cocoon.models
                     return false;
                 }
 
-                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Source.Spinners.Token))
+                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Spinners.Token))
                 {
-                    ProcessState = !Source.Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = !Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
-                if (Source.Spinners.IsCancellationRequested)
+                if (Spinners.IsCancellationRequested)
                 {
                     ProcessState = State.ProdCancel;
                     return false;
@@ -57,7 +57,7 @@ namespace zero.cocoon.models
 
                 //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
                 {
-                    Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(Source.Spinners.Token);
+                    Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(Spinners.Token);
                     ProcessState = State.Produced;
                 }
                 //else

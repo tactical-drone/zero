@@ -30,6 +30,22 @@ namespace zero.cocoon
 
             if(Neighbor != null)
                 AttachNeighbor(Neighbor);
+
+
+            //Testing
+            var rand = new Random((int) DateTimeOffset.Now.Ticks);
+            Task.Run(async () =>
+            {
+                return;
+                
+                //await Task.Delay(rand.Next(120000) + 60000, Spinners.Token).ContinueWith(r =>
+                await Task.Delay(rand.Next(60000), Spinners.Token).ContinueWith(r =>
+                {
+                    if(r.IsCompletedSuccessfully)
+                        _logger.Fatal($"Testing SOCKET FAILURE {Id}");
+                    Close();
+                });
+            });
         }
 
         /// <summary>
@@ -63,18 +79,19 @@ namespace zero.cocoon
             //Attach the other way
             Neighbor.AttachPeer(this);
 
-            //peer closed
-            ClosedEvent += (sender, args) =>
-            {
-                Neighbor.Direction = IoCcNeighbor.Kind.Undefined;
-                Neighbor.DetachPeer();
-            };
-
             //peer transport closed
-            IoNetClient.ClosedEvent += (sender, args) =>
-            {
-                Close();
-            };
+            IoNetClient.ClosedEvent((sender, args) => Close());
+        }
+
+        /// <summary>
+        /// Closed event
+        /// </summary>
+        protected override void OnClosedEvent()
+        {
+            base.OnClosedEvent();
+
+            Neighbor?.DetachPeer();
+            Neighbor = null;
         }
     }
 }

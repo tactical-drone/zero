@@ -17,7 +17,8 @@ namespace zero.core.patterns.bushes
     /// Source Consumer pattern
     /// </summary>    
     /// <typeparam name="TJob">The type of job</typeparam>
-    public abstract class IoZero<TJob> : IoConfigurable, IObservable<IoLoad<TJob>>, IIoZero
+    //public abstract class IoZero<TJob> : IoConfigurable, IObservable<IoLoad<TJob>>, IIoZero
+    public abstract class IoZero<TJob> : IoConfigurable, IIoZero
         where TJob : IIoJob
 
     {
@@ -34,21 +35,21 @@ namespace zero.core.patterns.bushes
             _logger = LogManager.GetCurrentClassLogger();
 
             //What to do when certain parameters change
-            SettingChangedEvent += (sender, pair) =>
-            {
-                //update heap to match max Q size
-                if (pair.Key == nameof(parm_max_q_size))
-                {
-                    JobHeap.MaxSize = parm_max_q_size;
-                }
-            };
+            //SettingChangedEvent += (sender, pair) =>
+            //{
+            //    //update heap to match max Q size
+            //    if (pair.Key == nameof(parm_max_q_size))
+            //    {
+            //        JobHeap.MaxSize = parm_max_q_size;
+            //    }
+            //};
 
             //prepare a multicast subject
-            ObservableRouter = this.Publish();
-            ObservableRouter.Connect();
+            //ObservableRouter = this.Publish();
+            //ObservableRouter.Connect();
 
             //Configure cancellations
-            Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
+            //Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
             parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
         }
@@ -65,7 +66,7 @@ namespace zero.core.patterns.bushes
             Source = source;
             JobHeap = new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
-            Source.ClosedEvent += (sender, args) => Close();
+            Source.ClosedEvent((sender, args) => Close());
         }
 
         /// <summary>
@@ -121,12 +122,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The current observer, there can only be one
         /// </summary>
-        private IObserver<IoLoad<TJob>> _observer;
+        //private IObserver<IoLoad<TJob>> _observer;
 
         /// <summary>
         /// A connectable observer, used to multicast messages
         /// </summary>
-        public IConnectableObservable<IoLoad<TJob>> ObservableRouter { private set; get; }
+        //public IConnectableObservable<IoLoad<TJob>> ObservableRouter { private set; get; }
 
         /// <summary>
         /// Indicates whether jobs are being processed
@@ -202,9 +203,44 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Called when this neighbor is closed
         /// </summary>
-        public event EventHandler ClosedEvent;
+        // ReSharper disable once InconsistentNaming
+        protected event EventHandler __closedEvent;
 
+        /// <summary>
+        /// Keeps tabs on all subscribers to be freed on close
+        /// </summary>
+        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
+
+        /// <summary>
+        /// Enables safe subscriptions to close events
+        /// </summary>
+        /// <param name="del"></param>
+        public void ClosedEvent(EventHandler del)
+        {
+            _closedEventHandlers.Add(del);
+            __closedEvent += del;
+        }
+
+        /// <summary>
+        /// Closed
+        /// </summary>
         protected volatile bool Closed = false;
+
+        /// <summary>
+        /// Emits the closed event
+        /// </summary>
+        protected virtual void OnClosedEvent()
+        {
+            __closedEvent?.Invoke(this, EventArgs.Empty);
+            //free handles
+            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
+            _closedEventHandlers.Clear();
+        }
+
+        /// <summary>
+        /// Close 
+        /// </summary>
+        /// <returns>True if closed, false if it was closed</returns>
         public virtual bool Close()
         {
             lock (this)
@@ -217,11 +253,15 @@ namespace zero.core.patterns.bushes
             {
                 OnClosedEvent();
 
-                if(IsArbitrating)
+                JobHeap.Clear();
+
+                if (IsArbitrating || !Source.IsOperational )
+                {
+                    _logger.Debug($"Closing {Source.Key}");
                     Source.Close();
+                }
                 
-                if(!Spinners.IsCancellationRequested)
-                    Spinners.Cancel();
+                Spinners.Cancel();
 
                 _logger.Debug($"Closed {ToString()}: {Description}");
             }
@@ -240,7 +280,7 @@ namespace zero.core.patterns.bushes
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <param name="sleepOnConsumerLag">if set to <c>true</c> [sleep on consumer lag].</param>
         /// <returns></returns>
-        public async Task<bool> ProduceAsync(CancellationToken cancellationToken, bool sleepOnConsumerLag = true) //TODO fix sleepOnConsumerLag variable name that has double meaning
+        public async Task<bool> ProduceAsync(bool sleepOnConsumerLag = true) //TODO fix sleepOnConsumerLag variable name that has double meaning
         {
             try
             {
@@ -256,6 +296,8 @@ namespace zero.core.patterns.bushes
                         if ((nextJob = JobHeap.Take()) != null)
                         {
                             nextJob.Zero = this;
+                            if (nextJob.Id == 0)
+                                IsArbitrating = true;
                             while (nextJob.Source.BlockOnProduceAheadBarrier)
                             {
                                 if (!await nextJob.Source.ProduceAheadBarrier.WaitAsync(-1, Spinners.Token))
@@ -338,19 +380,19 @@ namespace zero.core.patterns.bushes
 
                                 Source.ProducerBarrier.Release(1);
 
-                                if (nextJob.ProcessState == IoJob<TJob>.State.Cancelled ||
-                                    nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
-                                {
-                                    Spinners.Cancel();
-                                    _logger.Debug($"{nextJob.TraceDescription} Source `{Description}' is shutting down");
-                                    return false;
-                                }
-                            
                                 jobSafeReleased = true;
                                 if (nextJob.Previous != null)
                                     _previousJobFragment.TryAdd(nextJob.Previous.Id + 1, (IoLoad<TJob>) nextJob.Previous);
 
-                                JobHeap.Return(nextJob);                            
+                                Free(nextJob);
+
+                                if (nextJob.ProcessState == IoJob<TJob>.State.Cancelled ||
+                                    nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
+                                {
+                                    _logger.Debug($"{nextJob.TraceDescription} Source `{Description}' is shutting down");
+                                    Close();
+                                    return false;
+                                }
                             }
                         }
                         else
@@ -497,7 +539,7 @@ namespace zero.core.patterns.bushes
                             }
 
                             //Notify observer
-                            _observer?.OnNext(curJob);
+                            //_observer?.OnNext(curJob);
                         }                        
                     }
                     catch (ArgumentNullException e)
@@ -560,21 +602,10 @@ namespace zero.core.patterns.bushes
             }            
             catch (ObjectDisposedException) { }
             catch (TimeoutException) { }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, $"Consumer `{Description}' was cancelled:");
-            }
-            catch (ArgumentNullException e) {
-                _logger.Trace(e, $"Consumer `{Description}' dequeue returned with errors:");
-            }
+            catch (OperationCanceledException) { }
             catch (Exception e)
             {
                 _logger.Error(e, $"Consumer `{Description}' dequeue returned with errors:");
-            }
-            finally
-            {
-                //_logger.Trace($"{nameof(ConsumeAsync)}: `{Description}' [EXIT]");
-                //GC.Collect(GC.MaxGeneration);
             }
 
             return Task.CompletedTask;
@@ -583,53 +614,49 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Starts this source consumer
         /// </summary>
-        /// <param name="cancellationToken">The kill signal</param>
         /// <param name="spawnProducer">Sometimes we don't want to start the source, for example when we are forwarding to another source consumer queue</param>
-        public virtual async Task SpawnProcessingAsync(CancellationToken cancellationToken, bool spawnProducer = true)
+        public virtual async Task SpawnProcessingAsync(bool spawnProducer = true)
         {
             _logger.Trace($"Starting processing for `{Source.Description}'");
-            await using (cancellationToken.Register(() => Spinners.Cancel()))
+            
+            //Source
+            var producerTask = Task.Factory.StartNew(async () =>
             {
-                //Source
-                var producerTask = Task.Factory.StartNew(async () =>
-                {
-                    //While not cancellation requested
-                    while (!Spinners.IsCancellationRequested && spawnProducer)
-                    {                        
-                        await ProduceAsync(cancellationToken).ConfigureAwait(false);
-                        if (!Source.IsOperational)
-                        {
-                            _logger.Trace($"Source `{Description}' went non operational!");
-                            break;
-                        }
-                            
+                //While not cancellation requested
+                while (!Spinners.IsCancellationRequested && spawnProducer)
+                {                        
+                    await ProduceAsync().ConfigureAwait(false);
+                    if (!Source.IsOperational)
+                    {
+                        _logger.Trace($"Source `{Description}' went non operational!");
+                        break;
                     }
-                }, TaskCreationOptions.LongRunning);
+                        
+                }
+            }, TaskCreationOptions.LongRunning);
 
-                //Consumer
-                var consumerTask = Task.Factory.StartNew(async () =>
-                {
-                    //While supposed to be working
-                    while (!Spinners.IsCancellationRequested)
-                    {                        
-                        await ConsumeAsync().ConfigureAwait(false);
-                        if (!Source.IsOperational)
-                        {
-                            _logger.Trace($"Consumer `{Description}' went non operational!");
-                            break;
-                        }                            
-                    }
-                }, TaskCreationOptions.LongRunning);
+            //Consumer
+            var consumerTask = Task.Factory.StartNew(async () =>
+            {
+                //While supposed to be working
+                while (!Spinners.IsCancellationRequested)
+                {                        
+                    await ConsumeAsync().ConfigureAwait(false);
+                    if (!Source.IsOperational)
+                    {
+                        _logger.Trace($"Consumer `{Description}' went non operational!");
+                        break;
+                    }                            
+                }
+            }, TaskCreationOptions.LongRunning);
 
-                //Wait for tear down                
-                await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
-                {
-                    Source.Close();
-                }, cancellationToken);
+            //Wait for tear down                
+            await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
+            {
+                Source.Close();
+            }, Spinners.Token);
 
-                _logger.Trace($"Processing for `{Source.Description}' stopped");
-            }
-
+            _logger.Trace($"Processing for `{Source.Description}' stopped");
         }
 
         /// <summary>
@@ -637,18 +664,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="observer">The observer that has to be notified</param>
         /// <returns></returns>
-        public IDisposable Subscribe(IObserver<IoLoad<TJob>> observer)
-        {
-            _observer = observer;   
-            return IoAnonymousDisposable.Create(() => { _observer = null; });
-        }
-
-        /// <summary>
-        /// Emits the closed event
-        /// </summary>
-        protected virtual void OnClosedEvent()
-        {
-            ClosedEvent?.Invoke(this, EventArgs.Empty);
-        }
+        //public IDisposable Subscribe(IObserver<IoLoad<TJob>> observer)
+        //{
+        //    _observer = observer;   
+        //    return IoAnonymousDisposable.Create(() => { _observer = null; });
+        //}
     }
 }

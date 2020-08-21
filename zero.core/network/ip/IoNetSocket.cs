@@ -12,11 +12,11 @@ namespace zero.core.network.ip
     /// <seealso cref="IIoSource" />
     public abstract class IoNetSocket : IoSocket, IIoSourceBase
     {
-        protected IoNetSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken) : base(socketType, protocolType, cancellationToken)
+        protected IoNetSocket(SocketType socketType, ProtocolType protocolType) : base(socketType, protocolType)
         {
         }
 
-        protected IoNetSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(socket, listeningAddress, cancellationToken)
+        protected IoNetSocket(Socket socket, IoNodeAddress listeningAddress) : base(socket, listeningAddress)
         {
         }
 

@@ -77,10 +77,15 @@ namespace zero.tangle.models.sources
         /// Closes this source
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        public override void Close()
+        public override bool Close()
         {
-            Spinners.Cancel();
-            TxQueue.Dispose();
+            if (base.Close())
+            {
+                TxQueue.Dispose();
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

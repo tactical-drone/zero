@@ -42,13 +42,13 @@ namespace zero.core.core
         /// </summary>
         public override bool Close()
         {
-            var closed = base.Close();
-            if (closed)
+            if (base.Close())
             {
                 _logger.Info($"Closing neighbor `{Description}', Id = {Id}");
+                return true;
             }
 
-            return closed;
+            return false;
         }
 
         /// <summary>

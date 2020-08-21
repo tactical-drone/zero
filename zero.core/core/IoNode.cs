@@ -70,19 +70,19 @@ namespace zero.core.core
         /// <summary>
         /// Used to cancel downstream processes
         /// </summary>
-        private readonly CancellationTokenSource _spinners = new CancellationTokenSource();
+        protected readonly CancellationTokenSource _spinners = new CancellationTokenSource();
 
         protected CancellationToken CancellationToken => _spinners.Token;
 
         /// <summary>
         /// On Connected
         /// </summary>
-        public EventHandler<IoNeighbor<TJob>> ConnectedEvent;
+        protected EventHandler<IoNeighbor<TJob>> ConnectedEvent;
 
         /// <summary>
         /// 
         /// </summary>
-        public EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
+        protected EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
 
         /// <summary>
         /// Threads per neighbor
@@ -108,7 +108,8 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _spinners.Token, parm_tcp_readahead);
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead);
+            _netServer.ClosedEvent((sender, args) => Close());
 
             await _netServer.ListenAsync(async client =>
             {
@@ -119,7 +120,7 @@ namespace zero.core.core
                 {
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor))
                     {
-                        _logger.Debug($"Incoming connection from {client.Key} rejected, peer not verified!");
+                        _logger.Debug($"Incoming connection from {client.Key} rejected.");
                         newNeighbor.Close();
                         return;
                     }
@@ -130,26 +131,13 @@ namespace zero.core.core
                     return;
                 }
 
-                // Register close hooks
-                var cancelRegistration = _spinners.Token.Register(() =>
-                {
-                    newNeighbor.Close();
-                });
-
-                //Close neighbor when connection closes
-                client.Disconnected += (s, e) =>
-                {
-                    newNeighbor.Close();
-                };
-
                 // Remove from lists if closed
-                newNeighbor.ClosedEvent += (s, e) =>
+                newNeighbor.ClosedEvent((s, e) =>
                 {
-                    cancelRegistration.Dispose();
                     DisconnectedEvent?.Invoke(this, newNeighbor);
                     if (Neighbors.TryRemove(((IoNeighbor<TJob>) s)?.Id, out var _))
                         _logger.Debug($"Removed neighbor Id = {((IoNeighbor<TJob>)s)?.Id}");
-                };
+                });
 
                 // Add new neighbor
                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
@@ -159,13 +147,13 @@ namespace zero.core.core
                 }
 
                 //New peer connection event
-                ConnectedEvent?.Invoke(this, newNeighbor);
+                //ConnectedEvent?.Invoke(this, newNeighbor);
 
                 //Start the source consumer on the neighbor scheduler
                 try
                 {                    
 #pragma warning disable 4014
-                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(_spinners.Token), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
 #pragma warning restore 4014
                 }
                 catch (Exception e)
@@ -207,16 +195,17 @@ namespace zero.core.core
 
                         if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                         {
+                            //TODO
                             neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
-                            newNeighbor.ClosedEvent += (s, e) =>
+                            newNeighbor.ClosedEvent((s, e) =>
                             {
                                 if (!Neighbors.TryRemove(newNeighbor.Id, out _))
                                 {
                                     _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.Id}'");
                                 }
-                            };
+                            });
                             
                             _logger.Info($"Added {newNeighbor.Id}");
 
@@ -270,9 +259,30 @@ namespace zero.core.core
             }
         }
 
+        /// <summary>
+        /// Closed or not
+        /// </summary>
         protected volatile bool Closed = false;
 
-        public event EventHandler ClosedEvent;
+        /// <summary>
+        /// Emits closed events
+        /// </summary>
+        protected event EventHandler __closedEvent;
+
+        /// <summary>
+        /// Keeps tabs on all subscribers to be freed on close
+        /// </summary>
+        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
+
+        /// <summary>
+        /// Enables safe subscriptions to close events
+        /// </summary>
+        /// <param name="del"></param>
+        public void ClosedEvent(EventHandler del)
+        {
+            _closedEventHandlers.Add(del);
+            __closedEvent += del;
+        }
 
         /// <summary>
         /// Close the node
@@ -281,7 +291,7 @@ namespace zero.core.core
         {
             lock (this)
             {
-                if (Closed) return Closed;
+                if (Closed) return false;
                 Closed = true;
             }
 
@@ -295,7 +305,7 @@ namespace zero.core.core
             _netServer.Close();
 
             _spinners.Cancel();
-            return Closed;
+            return true;
         }
         
         public bool WhiteList(IoNodeAddress address)
@@ -338,7 +348,11 @@ namespace zero.core.core
         /// </summary>
         protected virtual void OnClosedEvent()
         {
-            ClosedEvent?.Invoke(this, EventArgs.Empty);
+            __closedEvent?.Invoke(this, EventArgs.Empty);
+
+            //free handles
+            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
+            _closedEventHandlers.Clear();
         }
     }
 }

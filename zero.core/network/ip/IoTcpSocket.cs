@@ -16,8 +16,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructs a new TCP socket
         /// </summary>
-        /// <param name="cancellationToken">Token used to send cancellation signals</param>
-        public IoTcpSocket(CancellationToken cancellationToken) : base(SocketType.Stream, ProtocolType.Tcp, cancellationToken)
+        public IoTcpSocket() : base(SocketType.Stream, ProtocolType.Tcp)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -27,8 +26,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socket">The connecting socket</param>
         /// <param name="listeningAddress">The address that was listened on where this socket was spawned</param>
-        /// <param name="cancellationToken">Token used to send cancellation signals</param>
-        public IoTcpSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken) : base(socket, listeningAddress, cancellationToken)
+        public IoTcpSocket(Socket socket, IoNodeAddress listeningAddress) : base(socket, listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
             ListeningAddress = IoNodeAddress.CreateFromRemoteSocket(socket);
@@ -64,7 +62,7 @@ namespace zero.core.network.ip
             while (!Spinners.Token.IsCancellationRequested)
             {
                 _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
-                await Socket.AcceptAsync().ContinueWith(t =>
+                await Socket?.AcceptAsync().ContinueWith(t =>
                 {
                     switch (t.Status)
                     {
@@ -74,10 +72,12 @@ namespace zero.core.network.ip
                             break;
                         case TaskStatus.RanToCompletion:
 
-                            var newSocket = new IoTcpSocket(t.Result, ListeningAddress, Spinners.Token)
+                            var newSocket = new IoTcpSocket(t.Result, ListeningAddress)
                             {
                                 Kind = Connection.Ingress
                             };                         
+
+                            //newSocket.ClosedEvent((sender, args) => Close());
 
                             //Do some pointless sanity checking
                             //if (newSocket.LocalAddress != ListeningAddress.Ip || newSocket.LocalPort != ListeningAddress.Port)
@@ -165,10 +165,11 @@ namespace zero.core.network.ip
                     await Task.Delay(1000);
                     return 0;
                 }
-                
+
                 var task = Task.Factory
                     .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
-                        Socket.EndSend).HandleCancellation(Spinners.Token);                
+                        Socket.EndSend);//.HandleCancellation(Spinners.Token); //TODO
+
                 await task.ContinueWith(t =>
                 {
                     switch (t.Status)
@@ -218,35 +219,32 @@ namespace zero.core.network.ip
                 if (timeout == 0)
                 {
                     var read = await Task.Factory.FromAsync(
-                        Socket.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
-                        Socket.EndReceive).HandleCancellation(Spinners.Token).ConfigureAwait(false);
+                            Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
+                            Socket.EndReceive)
+                        .ConfigureAwait(false); //.HandleCancellation(Spinners.Token).ConfigureAwait(false); //TODO
 
                     if (read == 0) //TODO does this make sense?
                     {
                         _logger.Fatal($"Read 0 bytes, closing {Key}");
                         Close();
                     }
-                        
 
                     return read;
                 }
-                else if( timeout > 0 )
+                else if (timeout > 0)
                 {
                     return Socket.Receive(buffer, offset, length, SocketFlags.None);
                 }
-
-                return 0;
             }
+            catch (ObjectDisposedException) { }
+            catch (OperationCanceledException) { }
             catch (Exception e)
             {
-                _logger.Trace(e, $"Unable to read from socket `tcp://{Socket.LocalEndPoint}', length = `{length}', offset = `{offset}' :");
+                _logger.Trace(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
                 Close();
-                return 0;
             }
-            finally
-            {
 
-            }
+            return 0;
         }
 
         /// <inheritdoc />

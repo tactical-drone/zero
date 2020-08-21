@@ -76,7 +76,6 @@ namespace zero.cocoon.models
         [IoParameter]
         public int parm_forward_queue_length = 4;
 
-
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
@@ -133,9 +132,9 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Source.Spinners.Token))
+                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Spinners.Token))
                     {
-                        if (!Source.Spinners.IsCancellationRequested)
+                        if (!Spinners.IsCancellationRequested)
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
@@ -152,7 +151,7 @@ namespace zero.cocoon.models
                         return true;
                     }
 
-                    if (Source.Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.ProdCancel;
                         return false;
@@ -169,7 +168,6 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Spinners.Cancel();
                                         Source.Close();
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
@@ -195,14 +193,14 @@ namespace zero.cocoon.models
                                         ProcessState = State.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                                 }
-                            }, Source.Spinners.Token);
+                            }, Spinners.Token);
                     }
                     else
                     {
                         Source.Close();
                     }
 
-                    if (Source.Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested)
                     {
                         ProcessState = State.Cancelled;
                         return false;

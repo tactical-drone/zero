@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -33,6 +35,7 @@ namespace zero.core.network.ip
         protected IoNetClient(IoSocket remote,int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
+            IoSocket.ClosedEvent((sender, args) => Close());
             _logger = LogManager.GetCurrentClassLogger();
             ListeningAddress = remote.ListeningAddress; 
         }
@@ -151,50 +154,17 @@ namespace zero.core.network.ip
         protected int parm_rx_timeout = 3000;
 
         /// <summary>
-        /// Called when disconnect is detected
-        /// </summary>
-        public event EventHandler Disconnected;
-
-        /// <summary>
-        /// Handle to unregister cancellation registrations
-        /// </summary>
-        private CancellationTokenRegistration _cancellationRegistration;
-        
-        /// <summary>
         /// Closes the connection
         /// </summary>
-        public override void Close()
+        public override bool Close()
         {
-            lock (this)
+            if (base.Close())
             {
-                if (Closed) return;
-                Closed = true;
-            }
-            
-            _logger.Debug($"Closing `{Description}'");
-
-            try
-            {
-                OnDisconnected();
-
-                Spinners?.Cancel();
                 IoSocket?.Close();
+                return true;
+            }
 
-                //Unlock any blockers
-                ProducerBarrier?.Dispose();
-                ConsumerBarrier?.Dispose();
-                ConsumeAheadBarrier?.Dispose();
-                ProduceAheadBarrier?.Dispose();
-
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e, "Close returned with errors");
-            }
-            finally
-            {
-                OnClosedEvent();
-            }
+            return false;
         }
 
         /// <summary>
@@ -211,9 +181,10 @@ namespace zero.core.network.ip
             {
                 if (t.Result)
                 {
-                    _cancellationRegistration = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
+                    //_cancellationRegistration = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
 
-                    IoSocket.CloseEvent += (s, e) => _cancellationRegistration.Dispose();
+                    //TODO teardown
+                    //IoSocket.ClosedEvent((s, e) => Close());
 
                     _logger.Info($"Connected to `{AddressString}'");                    
                 }
@@ -262,14 +233,6 @@ namespace zero.core.network.ip
                 _logger.Error(e,$"Source `{Description}' callback failed:");
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Emit disconnect event
-        /// </summary>
-        public virtual void OnDisconnected()
-        {
-            Disconnected?.Invoke(this, new EventArgs());
         }
 
         /// <summary>

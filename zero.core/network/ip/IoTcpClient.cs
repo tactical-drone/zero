@@ -45,7 +45,8 @@ namespace zero.core.network.ip
         /// </returns>
         public override async Task<bool> ConnectAsync()
         {
-            IoSocket = new IoTcpSocket(Spinners.Token);
+            IoSocket = new IoTcpSocket();
+            IoSocket.ClosedEvent((sender, args) => Close());
             return await base.ConnectAsync();
         }
     }

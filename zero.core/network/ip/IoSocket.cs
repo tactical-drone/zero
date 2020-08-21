@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -20,13 +22,10 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socketType">The socket type</param>
         /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
-        /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        protected IoSocket(SocketType socketType, ProtocolType protocolType, CancellationToken cancellationToken)
+        protected IoSocket(SocketType socketType, ProtocolType protocolType)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Socket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
-
-            _cancellationTokenRegistration = cancellationToken.Register(Close);
         }
 
         /// <inheritdoc />
@@ -36,13 +35,11 @@ namespace zero.core.network.ip
         /// <param name="socket">The listening socket</param>
         /// <param name="listeningAddress">The address listened on</param>
         /// <param name="cancellationToken">Signals all blockers to cancel</param>
-        protected IoSocket(Socket socket, IoNodeAddress listeningAddress, CancellationToken cancellationToken)
+        protected IoSocket(Socket socket, IoNodeAddress listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Socket = socket;
             ListeningAddress = listeningAddress;
-
-            _cancellationTokenRegistration = cancellationToken.Register(Close);
         }
 
         /// <summary>
@@ -58,7 +55,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Keys this socket
         /// </summary>
-        public virtual string Key => RemoteAddress.Key;
+        public virtual string Key => RemoteAddress?.Key;
 
         /// <summary>
         /// The original node address this socket is supposed to work with
@@ -157,17 +154,12 @@ namespace zero.core.network.ip
         public Socket NativeSocket => Socket;
 
         /// <summary>
-        /// A handle to dispose upstream cancellation hooks
-        /// </summary>
-        private CancellationTokenRegistration _cancellationTokenRegistration;
-
-        /// <summary>
         /// Returns true if this is a TCP socket
         /// </summary>
         public bool IsTcpSocket => Socket.ProtocolType == ProtocolType.Tcp;
 
 
-        public bool _closed = false;
+        public volatile bool _closed;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -180,12 +172,12 @@ namespace zero.core.network.ip
         /// <param name="url">The url</param>
         /// <param name="spinner">A hook to cancel blockers</param>
         /// <returns></returns>
-        public static IoSocket GetKindFromUrl(string url, CancellationToken spinner)
+        public static IoSocket GetKindFromUrl(string url)
         {
             if (url.Contains("tcp://"))
-                return new IoTcpSocket(spinner);
+                return new IoTcpSocket();
             else if (url.Contains("udp://"))
-                return new IoUdpSocket(spinner);
+                return new IoUdpSocket();
             else
             {
                 throw new UriFormatException($"URI string `{url}' must be in the format tcp://ip:port or udp://ip");
@@ -270,40 +262,55 @@ namespace zero.core.network.ip
                     ? $"Closing connection to: `{RemoteAddress?.ToString() ?? LocalIpAndPort}'"
                     : $"Closing connection from: `{LocalIpAndPort}'");
 
-                //This has to be at the top or we might recurse
-                _cancellationTokenRegistration.Dispose();
-
                 //Signal to users that we are disconnecting
-                OnClosed();
-
-                //Cancel everything that is running
-                Spinners.Cancel();
+                OnClosedEvent();
 
                 //Close the socket
-                if(Socket.Connected)
+                if(Socket?.Connected??false)
                     Socket.Shutdown(SocketShutdown.Both);
 
                 Socket?.Close();
                 Socket?.Dispose();
                 Socket = null;
+
+                //Cancel everything that is running
+                Spinners.Cancel();
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Closing socket returned with errors");
+                _logger.Error(e, $"Closing socket `{Key}' returned with errors");
             }
         }
 
         /// <summary>
         /// Signals remote endpoint closing
         /// </summary>
-        public event EventHandler CloseEvent;
+        protected event EventHandler __closedEvent;
+
+        /// <summary>
+        /// Keeps tabs on all subscribers to be freed on close
+        /// </summary>
+        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
+
+        /// <summary>
+        /// Enables safe subscriptions to close events
+        /// </summary>
+        /// <param name="del"></param>
+        public void ClosedEvent(EventHandler del)
+        {
+            _closedEventHandlers.Add(del);
+            __closedEvent += del;
+        }
 
         /// <summary>
         /// Emits closed events
         /// </summary>
-        protected virtual void OnClosed()
+        protected virtual void OnClosedEvent()
         {
-            CloseEvent?.Invoke(this, new EventArgs());
+            __closedEvent?.Invoke(this, new EventArgs());
+            //free handles
+            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
+            _closedEventHandlers.Clear();
         }
 
         /// <summary>
