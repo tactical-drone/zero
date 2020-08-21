@@ -39,7 +39,7 @@ namespace zero.cocoon.autopeer
                     {
                         if (!Verified)
                             await SendPingMsgAsync(Address);
-                        else if (Direction == Kind.OutBound && Peer == null || !Peer.IsArbitrating || Peer.Source.IsOperational)
+                        else if (Direction == Kind.OutBound && Peer == null || (!Peer?.IsArbitrating??true) || (!Peer?.Source?.IsOperational??true))
                             await SendPeerRequestAsync();
                     }
                 }
