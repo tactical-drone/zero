@@ -320,7 +320,7 @@ namespace zero.core.patterns.bushes
                             _previousJobFragment.TryRemove(nextJob.Id - 1,  out var prevJobFragment);
                             nextJob.Previous = prevJobFragment;
                             nextJob.ProcessState = IoJob<TJob>.State.Producing;
-                            if (await nextJob.ProduceAsync() < IoJob<TJob>.State.Error)
+                            if (await nextJob.ProduceAsync() < IoJob<TJob>.State.Error && nextJob.ProcessState != IoJob<TJob>.State.Producing)
                             {
                                 IsArbitrating = true;
                                 //TODO Double check this hack
@@ -375,24 +375,30 @@ namespace zero.core.patterns.bushes
                             {
                                 IsArbitrating = false;
 
+                                if (nextJob.ProcessState == IoJob<TJob>.State.Producing)
+                                    throw new ApplicationException($"ProcessState remained {IoJob<TJob>.State.Producing}");
+
                                 if (nextJob.Source.BlockOnProduceAheadBarrier)
                                     nextJob.Source.ProduceAheadBarrier.Release();
 
                                 Source.ProducerBarrier.Release(1);
 
+
                                 jobSafeReleased = true;
                                 if (nextJob.Previous != null)
                                     _previousJobFragment.TryAdd(nextJob.Previous.Id + 1, (IoLoad<TJob>) nextJob.Previous);
-
-                                Free(nextJob);
 
                                 if (nextJob.ProcessState == IoJob<TJob>.State.Cancelled ||
                                     nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
                                 {
                                     _logger.Debug($"{nextJob.TraceDescription} Source `{Description}' is shutting down");
                                     Close();
+
+                                    Free(nextJob);
                                     return false;
                                 }
+
+                                Free(nextJob);
                             }
                         }
                         else

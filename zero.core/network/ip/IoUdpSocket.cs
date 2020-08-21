@@ -187,7 +187,7 @@ namespace zero.core.network.ip
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e, $"Unable to read from {Socket.LocalEndPoint}");
+                                _logger.Error(e, $"Unable to read from {ListeningAddress}");
                                 Close();
                                 return 0;
                             }
