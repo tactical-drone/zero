@@ -657,7 +657,7 @@ namespace zero.cocoon.autopeer
             if (_pingRequest == null)
             {
                 if (Address != null)
-                    _logger.Debug($"{nameof(Pong)}: Unexpected dropped! Address = {Address} ({GetHashCode()})");
+                    _logger.Fatal($"{nameof(Pong)}: {GetHashCode()} Unexpected dropped! Address = {Address} {Id}");
                 return;
             }
 
@@ -675,11 +675,25 @@ namespace zero.cocoon.autopeer
 
             _pingRequest = null;
 
-            if (Address == null)//TODO check hash?
+            if (Address == null)
             {
                 var idCheck = IoCcIdentity.FromPK(packet.PublicKey.Span);
                 var keyStr = MakeId(idCheck, IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData));
-                //TODO normalize key
+
+                // remove stale neighbor PKs
+                var staleId = Node.Neighbors
+                    .Where(kv => ((IoCcNeighbor)kv.Value).Address != null)
+                    .Where(kv => kv.Value.Source.Key.Contains(((IPEndPoint) extraData).Port.ToString()))
+                    .Where(kv => !kv.Value.Source.Key.Contains(idCheck.PkString()))
+                    .Select(kv => kv.Value.Id).FirstOrDefault();
+
+                if(!string.IsNullOrEmpty(staleId) && Node.Neighbors.TryRemove(staleId, out var staleNeighbor)) 
+                {
+                    _logger.Warn($"Removing stale neighbor {staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Socket.RemotePort}");
+                    _logger.Warn($"Replaced stale neighbor {keyStr}:{((IPEndPoint)extraData).Port}");
+                    staleNeighbor.Close();
+                }
+
                 if (!Node.Neighbors.TryGetValue(keyStr, out _))
                 {
                     var remoteServices = new IoCcService();
@@ -699,6 +713,10 @@ namespace zero.cocoon.autopeer
                     {
                         _logger.Trace($"Create new neighbor {keyStr} skipped!");
                     }
+                }
+                else
+                {
+                    throw new ApplicationException($"Neighbor UDP router failed! Strange.");
                 }
             }
             else if (!Verified)
@@ -743,7 +761,7 @@ namespace zero.cocoon.autopeer
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            _logger.Fatal($"{GetHashCode()}: SET! {Address}");
+            _logger.Fatal($"{GetHashCode()}: SET! {Address} {Id}");
 
             if (Address != null)
                 await SendMessage(dest, _pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
