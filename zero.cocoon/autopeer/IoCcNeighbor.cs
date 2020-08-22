@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
@@ -142,6 +143,8 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private volatile DiscoveryRequest _discoveryRequest;
 
+
+        private SemaphoreSlim _pingRequestAutoResetEvent = new SemaphoreSlim(1);
         /// <summary>
         /// Used to Match requests
         /// </summary>
@@ -187,6 +190,10 @@ namespace zero.cocoon.autopeer
         // ReSharper disable once InconsistentNaming
         public int parm_salt_length = 20;
 
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_ping_timeout = 1000;
+
         /// <summary>
         /// A servicemap helper
         /// </summary>
@@ -208,6 +215,12 @@ namespace zero.cocoon.autopeer
 
                 return mapping;
             }
+        }
+
+        protected override void OnClosedEvent()
+        {
+            base.OnClosedEvent();
+            _pingRequestAutoResetEvent.Dispose();
         }
 
         /// <summary>
@@ -676,7 +689,7 @@ namespace zero.cocoon.autopeer
             {
                 if (RoutedRequest)
                 {
-                    _logger.Fatal($"{nameof(Pong)}: {GetHashCode()} Unexpected dropped! RemoteAddress = {RemoteAddress} {Id}");
+                    _logger.Debug($"{nameof(Pong)}({GetHashCode()}):  Unexpected! {Id}:{RemoteAddress.Port}");
                     Node.Neighbors.ToList().ForEach(kv=>_logger.Trace($"{kv.Value.Id}:{((IoNetClient<IoCcPeerMessage>)kv.Value.Source).RemoteAddress.Port}"));
                 }
                 else { } //ignore
@@ -696,10 +709,12 @@ namespace zero.cocoon.autopeer
             }
 
             _pingRequest = null;
-
+            
             //Unknown source IP
             if (!RoutedRequest)
             {
+                _pingRequestAutoResetEvent.Release();
+
                 var idCheck = IoCcIdentity.FromPK(packet.PublicKey.Span);
                 var keyStr = MakeId(idCheck, IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData));
 
@@ -774,7 +789,7 @@ namespace zero.cocoon.autopeer
         {
             dest ??= RemoteAddress;
 
-            _pingRequest = new Ping
+            var pingRequest = new Ping
             {
                 DstAddr = dest.IpEndPoint.Address.ToString(),
                 NetworkId = 6,
@@ -784,10 +799,11 @@ namespace zero.cocoon.autopeer
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            _logger.Warn($"{GetHashCode()}: SET! {Id}:{RemoteAddress?.Port}");
-
             if (RoutedRequest)
-                await SendMessage(dest, _pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+            {
+                _pingRequest = pingRequest;
+                await SendMessage(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+            }
             else
             {
                 IoCcNeighbor ccNeighbor = null;
@@ -802,7 +818,17 @@ namespace zero.cocoon.autopeer
 
                 ccNeighbor ??= this;
 
-                await ccNeighbor.SendMessage(  ccNeighbor.RemoteAddress??dest,_pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+                if (!ccNeighbor.RoutedRequest)
+                {
+                    if (!await _pingRequestAutoResetEvent.WaitAsync(parm_ping_timeout))
+                    {
+                        _logger.Debug($"{nameof(Ping)}:Probe failed {ccNeighbor.RemoteAddress ?? dest}");
+                    }
+                }
+
+                ccNeighbor._pingRequest = pingRequest;
+                await ccNeighbor.SendMessage( ccNeighbor.RemoteAddress??dest,pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+                //_logger.Warn($"{nameof(Ping)}({ccNeighbor.GetHashCode()}): SENT! {Id}:{RemoteAddress?.Port}");
             }
         }
 
