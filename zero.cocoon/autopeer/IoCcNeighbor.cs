@@ -25,10 +25,21 @@ namespace zero.cocoon.autopeer
         public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient))
         {
             _logger = LogManager.GetCurrentClassLogger();
-            Identity = ((Tuple<IoCcIdentity, IoCcService>)extraData)?.Item1 ?? IoCcIdentity.Generate();
-            RemoteAddress = ioNetClient.RemoteAddress;
+
+            if (extraData != null)
+            {
+                var extra = (Tuple<IoCcIdentity, IoCcService, IPEndPoint>) extraData;
+                Identity = extra.Item1;
+                Services = services ?? extra.Item2;
+                RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", extra.Item3);
+            }
+            else
+            {
+                Identity = IoCcIdentity.Generate();
+                Services = services ?? ((IoCcNeighborDiscovery)node).Services;
+            }
+            
             NeighborDiscoveryNode = (IoCcNeighborDiscovery)node;
-            Services = services ?? ((Tuple<IoCcIdentity, IoCcService>)extraData)?.Item2 ?? ((IoCcNeighborDiscovery)node).Services;
 
             Task.Run(async () =>
             {
@@ -497,7 +508,7 @@ namespace zero.cocoon.autopeer
             var msgRaw = packet.ToByteArray();
 
             var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint);
-            _logger.Debug($"{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}: Sent {sent} bytes to {dest.IpEndPoint}");
+            _logger.Debug($"{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}: Sent {sent} bytes to {dest.IpEndPoint} ({Id})");
             return (sent, packet);
         }
 
@@ -665,8 +676,8 @@ namespace zero.cocoon.autopeer
             {
                 if (RoutedRequest)
                 {
-                    _logger.Debug($"{nameof(Pong)}: {GetHashCode()} Unexpected dropped! RemoteAddress = {RemoteAddress} {Id}");
-                    Node.Neighbors.ToList().ForEach(kv=>_logger.Trace($"{kv.Value.Id}"));
+                    _logger.Fatal($"{nameof(Pong)}: {GetHashCode()} Unexpected dropped! RemoteAddress = {RemoteAddress} {Id}");
+                    Node.Neighbors.ToList().ForEach(kv=>_logger.Trace($"{kv.Value.Id}:{((IoNetClient<IoCcPeerMessage>)kv.Value.Source).RemoteAddress.Port}"));
                 }
                 else { } //ignore
 
@@ -712,7 +723,7 @@ namespace zero.cocoon.autopeer
                     foreach (var key in pong.Services.Map.Keys.ToList())
                         remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
 
-                    var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices));
+                    var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices, (IPEndPoint)extraData));
 
                     if (newNeighbor.RemoteAddress.IpEndPoint.Address.Equals(((IPEndPoint)extraData).Address) &&
                         newNeighbor.RemoteAddress.IpEndPoint.Port == ((IPEndPoint)extraData).Port &&
@@ -773,7 +784,7 @@ namespace zero.cocoon.autopeer
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            //_logger.Fatal($"{GetHashCode()}: SET! {RemoteAddress} {Id}");
+            _logger.Warn($"{GetHashCode()}: SET! {Id}:{RemoteAddress?.Port}");
 
             if (RoutedRequest)
                 await SendMessage(dest, _pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
