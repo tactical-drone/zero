@@ -239,7 +239,7 @@ namespace zero.cocoon
                         else
                         {
                             _logger.Debug($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
-                            //await ((IoCcNeighbor)neighbor).SendPingMsgAsync();
+                            //await ((IoCcNeighbor)neighbor).SendPingAsync();
                             return false;
                         }
                             
@@ -270,9 +270,9 @@ namespace zero.cocoon
                         }
 
                         //reject requests to invalid ext ip
-                        if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.GossipAddress.IpPort)
+                        if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort)
                         {
-                            _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.GossipAddress.IpPort}");
+                            _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
                             return false;
                         }
 
@@ -335,7 +335,7 @@ namespace zero.cocoon
                         else
                         {
                             _logger.Debug($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
-                            //await ((IoCcNeighbor) neighbor).SendPingMsgAsync();
+                            //await ((IoCcNeighbor) neighbor).SendPingAsync();
                             return false;
                         }
                             
@@ -370,7 +370,7 @@ namespace zero.cocoon
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
         public void ConnectToPeer(IoCcNeighbor neighbor)
         {
-            if (neighbor.Address != null && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
+            if (neighbor.RemoteAddress != null && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
                 OutboundCount < parm_max_outbound &&
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
@@ -396,7 +396,7 @@ namespace zero.cocoon
                                 case TaskStatus.Canceled:
                                 case TaskStatus.Faulted:
                                     neighbor.DetachPeer();
-                                    _logger.Error(task.Exception, $"Peer select {neighbor.Address} failed");
+                                    _logger.Error(task.Exception, $"Peer select {neighbor.RemoteAddress} failed");
                                     break;
                             }
                         }).ConfigureAwait(false);

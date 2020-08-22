@@ -57,13 +57,18 @@ namespace zero.core.network.ip
         /// </summary>
         public virtual string Key => RemoteAddress?.Key;
 
+        
         /// <summary>
-        /// The original node address this socket is supposed to work with
+        /// When connecting: <see cref="RemoteAddress" == <see cref="ListeningAddress"/>/>
+        /// When listening: <see cref="LocalEndPoint"/>
         /// </summary>
         public IoNodeAddress ListeningAddress { get; protected set; }
 
         /// <summary>
-        /// The remote node address
+        /// When connecting the server IP
+        /// When listening the client IP
+        ///
+        /// One name to represent the other side's IP. 
         /// </summary>
         protected IoNodeAddress RemoteNodeAddress;
 
@@ -77,7 +82,7 @@ namespace zero.core.network.ip
                 if (RemoteNodeAddress != null)
                     return RemoteNodeAddress;
 
-                if(Socket != null && Socket.Connected && Socket.RemoteEndPoint!= null)
+                if(Socket != null && Socket.Connected && Socket.RemoteEndPoint != null)
                     return RemoteNodeAddress = Socket.RemoteNodeAddress();
 
                 if (Egress)
@@ -136,12 +141,17 @@ namespace zero.core.network.ip
         /// <summary>
         /// Public access to local address (used for logging)
         /// </summary>
-        public string LocalAddress => Socket.LocalAddress().ToString();
+        public IPAddress LocalAddress => Socket.LocalAddress();
 
         /// <summary>
         /// Public access to local port (used for logging)
         /// </summary>
         public int LocalPort => Socket.LocalPort();
+
+        /// <summary>
+        /// The local endpoint
+        /// </summary>
+        public IPEndPoint LocalEndPoint => (IPEndPoint) Socket.LocalEndPoint;
 
         /// <summary>
         /// Returns the local address as a string ip:port
@@ -219,7 +229,7 @@ namespace zero.core.network.ip
             }
             else
             {
-                _logger.Fatal($"Unable to create listener at: {ListeningAddress?.Url ?? LocalAddress ?? "N/A"}. Socket is invalid! ({ListeningAddress.ValidationErrorString})");
+                _logger.Fatal($"Unable to create listener at: {ListeningAddress?.Url ?? LocalAddress.ToString() ?? "N/A"}. Socket is invalid! ({ListeningAddress.ValidationErrorString})");
                 return Task.FromResult(false);
             }
         }

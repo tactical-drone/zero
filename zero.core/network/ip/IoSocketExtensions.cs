@@ -45,9 +45,9 @@ namespace zero.core.network.ip
         /// <returns>The remote port</returns>
         public static int RemotePort(this Socket socket)
         {
-            if (socket.ProtocolType == ProtocolType.Tcp)
-                return ((IPEndPoint)socket.RemoteEndPoint)?.Port ?? 0;
-            return 0;
+            //if (socket.ProtocolType == ProtocolType.Tcp)
+            //return 0;
+            return ((IPEndPoint)socket.RemoteEndPoint)?.Port ?? 0;
         }
 
 

@@ -298,5 +298,21 @@ namespace zero.core.network.ip
             retval.IpEndPoint = (IPEndPoint) udpRemoteEndpointInfo;
             return retval;
         }
+
+        public override bool Equals(object? obj)
+        {
+            if (obj == null)
+                return false;
+
+            if (!base.Equals(obj))
+                return false;
+
+            return Equals((IoNodeAddress) obj);
+        }
+
+        protected bool Equals(IoNodeAddress other)
+        {
+            return Port == other.Port && Ip == other.Ip;
+        }
     }
 }

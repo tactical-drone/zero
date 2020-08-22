@@ -94,6 +94,7 @@ namespace zero.cocoon.models
 
         public enum MessageTypes
         {
+            Undefined = 0,
             Ping = 10,
             Pong = 11,
             DiscoveryRequest = 12,
