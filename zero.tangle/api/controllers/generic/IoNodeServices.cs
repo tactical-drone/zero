@@ -188,7 +188,7 @@ namespace zero.tangle.api.controllers.generic
             if (!Nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Neighbor with listener port `{id}' does not exist");
 
-            Nodes[id].Close();
+            Nodes[id].Zero();
             Nodes.TryRemove(id, out _);
 
             return IoApiReturn.Result(true, $"Successfully stopped neighbor `{id}'");

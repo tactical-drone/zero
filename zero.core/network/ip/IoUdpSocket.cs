@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
@@ -32,6 +31,24 @@ namespace zero.core.network.ip
         public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress) : base(socket, listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+
+            _logger.Info($"Zeroed {ListeningAddress}");
         }
 
         /// <summary>
@@ -93,11 +110,15 @@ namespace zero.core.network.ip
                 // Prepare UDP connection orientated things                
                 _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
 
-                while (!Spinners.IsCancellationRequested)
+                while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
                     await Task.Delay(5000);
-                    if (!Socket?.IsBound??false)
-                        Close();
+                    if (!Socket?.IsBound ?? true)
+                    {
+                        _logger.Warn($"Found zombie udp socket state");
+                        Zero();
+                    }
+                        
                 }
             }
             catch (Exception e)
@@ -120,7 +141,7 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
         {
-            if (_closed)
+            if (Zeroed())
             {
                 await Task.Delay(1000);
                 return 0;
@@ -140,7 +161,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                             _logger.Error(t.Exception, $"Sending to udp://{endPoint} failed");
-                            Close();
+                            Zero();
                             break;
                         case TaskStatus.RanToCompletion:
                             _logger.Trace($"Sent {length} bytes to udp://{endPoint} from {Socket.LocalPort()}");
@@ -163,7 +184,7 @@ namespace zero.core.network.ip
             try
             {
 
-                if (!(Socket?.IsBound ?? false) || _closed)
+                if (!(Socket?.IsBound ?? false) || Zeroed())
                 {
                     await Task.Delay(1000);
                     return 0;
@@ -180,18 +201,21 @@ namespace zero.core.network.ip
                         {
                             try
                             {
+                                if (Spinners.IsCancellationRequested || Zeroed())
+                                    return 0;
+
                                 if (Socket != null && Socket.IsBound)
                                     return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
-                                else
-                                    return 0;
+                                
+                                return 0;
                             }
                             catch (Exception e)
                             {
                                 _logger.Error(e, $"Unable to read from {ListeningAddress}");
-                                Close();
+                                Zero();
                                 return 0;
                             }
-                        }).HandleCancellation(Spinners.Token).ConfigureAwait(false);
+                        }).ConfigureAwait(false);
                 }
                 else if (timeout > 0)
                 {

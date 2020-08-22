@@ -3,10 +3,11 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.data.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoSource : IIoSourceBase
+    public interface IIoSource : IIoSourceBase, IIoZeroable
     {
         /// <summary>
         /// Keys this instance.
@@ -118,18 +119,8 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
+        IoChannel<TFJob> AttachProducer<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoLoad<TFJob>> jobMalloc = null)
             where TFJob : IIoJob;
-        
-        /// <summary>
-        /// Closes this source
-        /// </summary>
-        bool Close();
-
-        /// <summary>
-        /// On closed
-        /// </summary>
-        void ClosedEvent(EventHandler del);
     }
 }

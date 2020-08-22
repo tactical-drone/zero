@@ -44,10 +44,10 @@ namespace zero.cocoon.autopeer
 
             Task.Run(async () =>
             {
-                while (!Spinners.IsCancellationRequested)
+                while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
-                    await Task.Delay(30000);
-                    if (RemoteAddress != null)
+                    await Task.Delay(30000, Spinners.Token);
+                    if (!Spinners.IsCancellationRequested && Zeroed() && RemoteAddress != null)
                     {
                         if (!Verified)
                             await SendPingAsync();
@@ -91,7 +91,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Tcp Readahead
         /// </summary>
-        public const int TcpReadAhead = 50;
+        public const int TcpReadAhead = 1;
 
         /// <summary>
         /// The node identity
@@ -195,6 +195,16 @@ namespace zero.cocoon.autopeer
         public int parm_ping_timeout = 1000;
 
         /// <summary>
+        /// Handle to peer zero sub
+        /// </summary>
+        private EventHandler _peerZeroSub;
+
+        /// <summary>
+        /// Handle to neighbor zero sub
+        /// </summary>
+        private EventHandler _neighborZeroSub;
+
+        /// <summary>
         /// A servicemap helper
         /// </summary>
         protected ServiceMap ServiceMap
@@ -217,10 +227,22 @@ namespace zero.cocoon.autopeer
             }
         }
 
-        protected override void OnClosedEvent()
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
         {
-            base.OnClosedEvent();
             _pingRequestAutoResetEvent.Dispose();
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>
@@ -231,20 +253,20 @@ namespace zero.cocoon.autopeer
         public override async Task SpawnProcessingAsync(bool spawnProducer = true)
         {
             var neighbor = base.SpawnProcessingAsync(spawnProducer);
-            var protocol = ProcessProtoMsgAsync();
+            var protocol = ProcessAsync();
 
             await Task.WhenAll(neighbor, protocol).ConfigureAwait(false);
 
             if (neighbor.IsFaulted)
             {
                 _logger.Fatal(neighbor.Exception, "Neighbor processing returned with errors!");
-                Close();
+                Zero();
             }
 
             if (protocol.IsFaulted)
             {
                 _logger.Fatal(protocol.Exception, "Protocol processing returned with errors!");
-                Close();
+                Zero();
             }
         }
 
@@ -296,13 +318,13 @@ namespace zero.cocoon.autopeer
         /// Processes a protocol message
         /// </summary>
         /// <returns></returns>
-        private async Task ProcessProtoMsgAsync()
+        private async Task ProcessAsync()
         {
             if (_protocolChannel == null)
                 _protocolChannel = Source.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
 
-            _logger.Debug($"Starting persistence for `{Description}'");
-            while (!Spinners.IsCancellationRequested)
+            _logger.Debug($"Processing peer msgs: `{Description}'");
+            while (!Spinners.IsCancellationRequested && !Zeroed())
             {
                 if (_protocolChannel == null)
                 {
@@ -316,9 +338,7 @@ namespace zero.cocoon.autopeer
                 {
                     try
                     {
-                        await ProcessMsgBatchAsync(batch, _protocolChannel,
-                        (msg
-                                            , forward) =>
+                        await ProcessMsgBatchAsync(batch, _protocolChannel, (msg, forward) =>
                         {
 #pragma warning disable 4014
                             try
@@ -334,25 +354,25 @@ namespace zero.cocoon.autopeer
                                 switch (msg.Item1.GetType().Name)
                                 {
                                     case nameof(Ping):
-                                        ccNeighbor.ProcessMsgAsync((Ping)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((Ping)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(Pong):
-                                        ccNeighbor.ProcessMsgAsync((Pong)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((Pong)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(DiscoveryRequest):
-                                        ccNeighbor.ProcessMsgAsync((DiscoveryRequest)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((DiscoveryRequest)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(DiscoveryResponse):
-                                        ccNeighbor.ProcessMsgAsync((DiscoveryResponse)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((DiscoveryResponse)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(PeeringRequest):
-                                        ccNeighbor.ProcessPeerReqAsync((PeeringRequest)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((PeeringRequest)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(PeeringResponse):
-                                        ccNeighbor.ProcessPeerReqAsync((PeeringResponse)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((PeeringResponse)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(PeeringDrop):
-                                        ccNeighbor.ProcessPeerReqAsync((PeeringDrop)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((PeeringDrop)msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                 }
                             }
@@ -375,7 +395,7 @@ namespace zero.cocoon.autopeer
                     break;
             }
 
-            _logger.Debug($"Shutting down persistence for `{Description}'");
+            _logger.Debug($"Stopped processing peer msgs: `{Description}'");
         }
 
         /// <summary>
@@ -384,7 +404,7 @@ namespace zero.cocoon.autopeer
         /// <param name="request">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessPeerReqAsync(PeeringDrop request, object extraData, Packet packet)
+        private async Task Process(PeeringDrop request, object extraData, Packet packet)
         {
             var diff = 0;
             if (!RoutedRequest || (diff = Math.Abs((int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp))) > 20)
@@ -398,7 +418,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             _logger.Debug($"{nameof(PeeringDrop)}: {Direction} Peer= {Peer?.Id ?? "null"}");
-            Peer?.Close();
+            Peer?.Zero();
             
             //Attempt reconnect
             await SendPingAsync();
@@ -410,7 +430,7 @@ namespace zero.cocoon.autopeer
         /// <param name="request">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessPeerReqAsync(PeeringRequest request, object extraData, Packet packet)
+        private async Task Process(PeeringRequest request, object extraData, Packet packet)
         {
             if (RemoteAddress == null)
             {
@@ -441,7 +461,7 @@ namespace zero.cocoon.autopeer
                     if (Peer != null && (!Peer.Source.IsOperational || !Peer.IsArbitrating))
                     {
                         _logger.Warn($"Found zombie peer: {Id}, closing peer = {Peer}, Operational = {Peer?.Source.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
-                        Peer.Close();
+                        Peer.Zero();
                     }
                     else
                         _logger.Debug($"Peering stands {Direction}: {Id}");
@@ -459,7 +479,7 @@ namespace zero.cocoon.autopeer
         /// <param name="response">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private void ProcessPeerReqAsync(PeeringResponse response, object extraData, Packet packet)
+        private void Process(PeeringResponse response, object extraData, Packet packet)
         {
             if (_peerRequest == null || RemoteAddress == null)
             {
@@ -531,7 +551,7 @@ namespace zero.cocoon.autopeer
         /// <param name="response">The response</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessMsgAsync(DiscoveryResponse response, object extraData, Packet packet)
+        private async Task Process(DiscoveryResponse response, object extraData, Packet packet)
         {
             if (_discoveryRequest == null || RemoteAddress == null)
             {
@@ -568,7 +588,7 @@ namespace zero.cocoon.autopeer
         /// <param name="extraData"></param>
         /// <param name="packet"></param>
         /// <returns></returns>
-        private async Task ProcessMsgAsync(DiscoveryRequest request, object extraData, Packet packet)
+        private async Task Process(DiscoveryRequest request, object extraData, Packet packet)
         {
             if (RemoteAddress == null || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20)
             {
@@ -611,7 +631,7 @@ namespace zero.cocoon.autopeer
         /// <param name="ping">The ping packet</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessMsgAsync(Ping ping, object extraData, Packet packet)
+        private async Task Process(Ping ping, object extraData, Packet packet)
         {
             var remoteEp = (IPEndPoint)extraData;
             var age = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ping.Timestamp;
@@ -683,7 +703,7 @@ namespace zero.cocoon.autopeer
         /// <param name="pong">The Pong packet</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessMsgAsync(Pong pong, object extraData, Packet packet)
+        private async Task Process(Pong pong, object extraData, Packet packet)
         {
             if (_pingRequest == null)
             {
@@ -729,7 +749,7 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Warn($"Removing stale neighbor {staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Socket.RemotePort}");
                     _logger.Warn($"Replaced stale neighbor {keyStr}:{((IPEndPoint)extraData).Port}");
-                    staleNeighbor.Close();
+                    staleNeighbor.Zero();
                 }
 
                 if (!Node.Neighbors.TryGetValue(keyStr, out _))
@@ -775,7 +795,7 @@ namespace zero.cocoon.autopeer
                 if (Peer != null && (!Peer.IsArbitrating || !Peer.Source.IsOperational) && Direction != Kind.Undefined)
                 {
                     _logger.Warn($"Found zombie Peer, closing: {Peer.Id}");
-                    Peer.Close();
+                    Peer.Zero();
                 }
             }
         }
@@ -882,15 +902,27 @@ namespace zero.cocoon.autopeer
             await SendMessage(dest, dropRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringDrop);
         }
 
-
+        //TODO complexity
         /// <summary>
         /// Attaches a gossip peer to this neighbor
         /// </summary>
         /// <param name="ioCcPeer">The peer</param>
         public void AttachPeer(IoCcPeer ioCcPeer)
         {
-            Peer = ioCcPeer;
-            Peer.ClosedEvent(async (sender, args) => await SendPeerDropAsync());
+            if(Peer == ioCcPeer)
+                return;
+
+            Peer = ioCcPeer ?? throw new ArgumentNullException($"{nameof(ioCcPeer)}");
+
+            ioCcPeer.AttachNeighbor(this);
+
+            _peerZeroSub = Peer.ZeroEvent(async (sender, args) =>
+            {
+                DetachPeer();
+                await SendPeerDropAsync();
+            });
+
+            _neighborZeroSub = ZeroEvent((sender, args) => Peer?.Zero());
         }
 
         /// <summary>
@@ -898,6 +930,12 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public void DetachPeer()
         {
+            if(Peer == null)
+                return;
+
+            Peer.Unsubscribe(_peerZeroSub);
+            Unsubscribe(_neighborZeroSub);
+            Peer.DetachNeighbor();
             Peer = null;
             Direction = Kind.Undefined;
             Verified = false;

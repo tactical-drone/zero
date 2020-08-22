@@ -45,11 +45,11 @@ namespace zero.cocoon.models
 
                 if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Spinners.Token))
                 {
-                    ProcessState = !Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = !Spinners.IsCancellationRequested || Zeroed() ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
-                if (Spinners.IsCancellationRequested)
+                if (Spinners.IsCancellationRequested || Zeroed())
                 {
                     ProcessState = State.ProdCancel;
                     return false;

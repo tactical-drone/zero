@@ -28,9 +28,10 @@ namespace zero.core.patterns.bushes
         /// <param name="description">A description of the progress</param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
-        protected IoZero(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage)
+        /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
+        protected IoZero(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage, bool sourceZeroCascade = true)
         {
-            ConfigureProducer(description, source, mallocMessage);
+            ConfigureProducer(description, source, mallocMessage, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -60,13 +61,15 @@ namespace zero.core.patterns.bushes
         /// <param name="description">A description of the source</param>
         /// <param name="source">An instance of the source</param>
         /// <param name="mallocMessage"></param>
-        public void ConfigureProducer(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage)
+        /// <param name="sourceZeroCascade"></param>
+        public void ConfigureProducer(string description, IoSource<TJob> source,
+            Func<object, IoLoad<TJob>> mallocMessage, bool sourceZeroCascade)
         {
-            Description = description;            
-            Source = source;
+            Description = description;
             JobHeap = new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
-            Source.ClosedEvent((sender, args) => Close());
+            Source = source;
+            Source.ZeroOnCascade(this, sourceZeroCascade);
         }
 
         /// <summary>
@@ -200,84 +203,39 @@ namespace zero.core.patterns.bushes
         // ReSharper disable once InconsistentNaming
         public int parm_producer_start_retry_time = 1000;
 
-        /// <summary>
-        /// Called when this neighbor is closed
-        /// </summary>
-        // ReSharper disable once InconsistentNaming
-        protected event EventHandler __closedEvent;
 
         /// <summary>
-        /// Keeps tabs on all subscribers to be freed on close
+        /// zero unmanaged
         /// </summary>
-        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
-
-        /// <summary>
-        /// Enables safe subscriptions to close events
-        /// </summary>
-        /// <param name="del"></param>
-        public void ClosedEvent(EventHandler del)
+        protected override void ZeroUnmanaged()
         {
-            _closedEventHandlers.Add(del);
-            __closedEvent += del;
+            Spinners.Dispose();
+            base.ZeroUnmanaged();
         }
 
         /// <summary>
-        /// Closed
+        /// zero managed
         /// </summary>
-        protected volatile bool Closed = false;
-
-        /// <summary>
-        /// Emits the closed event
-        /// </summary>
-        protected virtual void OnClosedEvent()
+        protected override void ZeroManaged()
         {
-            __closedEvent?.Invoke(this, EventArgs.Empty);
-            //free handles
-            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
-            _closedEventHandlers.Clear();
-        }
+            JobHeap.Clear();
 
-        /// <summary>
-        /// Close 
-        /// </summary>
-        /// <returns>True if closed, false if it was closed</returns>
-        public virtual bool Close()
-        {
-            lock (this)
+            if (IsArbitrating || !Source.IsOperational)
             {
-                if (Closed) return false;
-                Closed = true;
+                _logger.Debug($"Zeroing source {Source.Key} for {Description}");
+                Source.Zero();
             }
 
-            try
-            {
-                OnClosedEvent();
+            Spinners.Cancel();
 
-                JobHeap.Clear();
+            base.ZeroManaged();
 
-                if (IsArbitrating || !Source.IsOperational )
-                {
-                    _logger.Debug($"Closing {Source.Key}");
-                    Source.Close();
-                }
-                
-                Spinners.Cancel();
-
-                _logger.Debug($"Closed {ToString()}: {Description}");
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e, "Close returned with errors");
-                return true;
-            }
-
-            return true;
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>
         /// Produces the inline instead of in a spin loop
         /// </summary>
-        /// <param name="cancellationToken">The cancellation token.</param>
         /// <param name="sleepOnConsumerLag">if set to <c>true</c> [sleep on consumer lag].</param>
         /// <returns></returns>
         public async Task<bool> ProduceAsync(bool sleepOnConsumerLag = true) //TODO fix sleepOnConsumerLag variable name that has double meaning
@@ -295,7 +253,7 @@ namespace zero.core.patterns.bushes
                         //Allocate a job from the heap
                         if ((nextJob = JobHeap.Take()) != null)
                         {
-                            nextJob.Zero = this;
+                            nextJob.IoZero = this;
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
                             while (nextJob.Source.BlockOnProduceAheadBarrier)
@@ -392,7 +350,7 @@ namespace zero.core.patterns.bushes
                                     nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
                                 {
                                     _logger.Debug($"{nextJob.TraceDescription} Source `{Description}' is shutting down");
-                                    Close();
+                                    Zero();
 
                                     Free(nextJob);
                                     return false;
@@ -486,7 +444,7 @@ namespace zero.core.patterns.bushes
                     Spinners.Token))
                 {
                     //Was shutdown requested?
-                    if (Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested || Zeroed())
                     {
                         _logger.Debug($"Consumer `{Description}' is shutting down");
                         return Task.CompletedTask;
@@ -506,7 +464,7 @@ namespace zero.core.patterns.bushes
                 if (!await Source.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token))
                 {
                     //Was shutdown requested?
-                    if (Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested || Zeroed())
                     {
                         _logger.Debug($"Consumer `{Description}' is shutting down");
                         return Task.CompletedTask;
@@ -629,7 +587,7 @@ namespace zero.core.patterns.bushes
             var producerTask = Task.Factory.StartNew(async () =>
             {
                 //While not cancellation requested
-                while (!Spinners.IsCancellationRequested && spawnProducer)
+                while (!Spinners.IsCancellationRequested && !Zeroed() && spawnProducer)
                 {                        
                     await ProduceAsync().ConfigureAwait(false);
                     if (!Source.IsOperational)
@@ -637,7 +595,6 @@ namespace zero.core.patterns.bushes
                         _logger.Trace($"Source `{Description}' went non operational!");
                         break;
                     }
-                        
                 }
             }, TaskCreationOptions.LongRunning);
 
@@ -645,7 +602,7 @@ namespace zero.core.patterns.bushes
             var consumerTask = Task.Factory.StartNew(async () =>
             {
                 //While supposed to be working
-                while (!Spinners.IsCancellationRequested)
+                while (!Spinners.IsCancellationRequested && !Zeroed())
                 {                        
                     await ConsumeAsync().ConfigureAwait(false);
                     if (!Source.IsOperational)
@@ -659,7 +616,7 @@ namespace zero.core.patterns.bushes
             //Wait for tear down                
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
             {
-                Source.Close();
+                Source.Zero();
             }, Spinners.Token);
 
             _logger.Trace($"Processing for `{Source.Description}' stopped");

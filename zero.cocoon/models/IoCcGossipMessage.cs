@@ -56,7 +56,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The node that this message belongs to
         /// </summary>
-        protected IoCcNode CcNode => ((IoCcPeer)Zero).Neighbor.CcNode;
+        protected IoCcNode CcNode => ((IoCcPeer)IoZero).Neighbor.CcNode;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -168,7 +168,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Close();
+                                        Source.Zero();
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -197,7 +197,7 @@ namespace zero.cocoon.models
                     }
                     else
                     {
-                        Source.Close();
+                        Source.Zero();
                     }
 
                     if (Spinners.IsCancellationRequested)

@@ -42,20 +42,18 @@ namespace zero.core.network.ip
             await base.ListenAsync(connectionReceivedAction, readAhead);
 
             IoListenSocket = new IoTcpSocket();
-            IoListenSocket.ClosedEvent((sender, args) => Close());
+            IoListenSocket.ZeroOnCascade(this, true);
 
             await IoListenSocket.ListenAsync(ListeningAddress, newConnectionSocket =>
             {
                 try
                 {
-                    var newConnection = new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead);
-                    //newConnection.ClosedEvent((sender, args) => Close());
-                    connectionReceivedAction?.Invoke(newConnection);
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead)));
                 }
                 catch (Exception e)
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
-                    newConnectionSocket.Close();
+                    newConnectionSocket.Zero();
                 }
             });
         }

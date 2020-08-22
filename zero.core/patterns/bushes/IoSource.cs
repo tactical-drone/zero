@@ -169,73 +169,30 @@ namespace zero.core.patterns.bushes
         private long _nextProducerId;
 
         /// <summary>
-        /// True if closed
+        /// zero unmanaged
         /// </summary>
-        protected volatile bool Closed = false;
-
-        /// <summary>
-        /// Called when this neighbor is closed
-        /// </summary>
-        protected event EventHandler __closedEvent;
-
-        /// <summary>
-        /// Keeps tabs on all subscribers to be freed on close
-        /// </summary>
-        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
-
-        /// <summary>
-        /// Enables safe subscriptions to close events
-        /// </summary>
-        /// <param name="del"></param>
-        public void ClosedEvent(EventHandler del)
+        protected override void ZeroUnmanaged()
         {
-            _closedEventHandlers.Add(del);
-            __closedEvent += del;
+            //Unblock any blockers
+            ProducerBarrier.Dispose();
+            ConsumerBarrier.Dispose();
+            ConsumeAheadBarrier.Dispose();
+            ProduceAheadBarrier.Dispose();
+
+            base.ZeroUnmanaged();
         }
 
         /// <summary>
-        /// Fires closed event
+        /// zero managed
         /// </summary>
-        protected virtual void OnClosedEvent()
+        protected override void ZeroManaged()
         {
-            __closedEvent?.Invoke(this, EventArgs.Empty);
-            //free handles
-            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
-            _closedEventHandlers.Clear();
-        }
+            IoChannels.Clear();
+            Spinners.Cancel();
 
-        /// <summary>
-        /// Closes the connection
-        /// </summary>
-        public virtual bool Close()
-        {
-            lock (this)
-            {
-                if (Closed) return false;
-                Closed = true;
-            }
+            base.ZeroManaged();
 
-            _logger.Debug($"Closing `{Description}'");
-
-            try
-            {
-                OnClosedEvent();
-
-                //Unblock any blockers
-                ProducerBarrier?.Dispose();
-                ConsumerBarrier?.Dispose();
-                ConsumeAheadBarrier?.Dispose();
-                ProduceAheadBarrier?.Dispose();
-
-                Spinners.Cancel();
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e, "Close returned with errors");
-                return true;
-            }
-
-            return true;
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>
@@ -244,10 +201,11 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
+        /// <param name="cascade">ZeroOnCascade close events</param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        public IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
+        public IoChannel<TFJob> AttachProducer<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoLoad<TFJob>> jobMalloc = null)
         where TFJob : IIoJob
         {
@@ -261,7 +219,9 @@ namespace zero.core.patterns.bushes
 
                 lock (this)
                 {
-                    IoChannels.TryAdd(id, new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc));
+                    var newChannel = new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc);
+                    if (IoChannels.TryAdd(id, newChannel))
+                        newChannel.ZeroOnCascade(this, cascade);
                 }
             }
 

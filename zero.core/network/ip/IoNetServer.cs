@@ -79,6 +79,8 @@ namespace zero.core.network.ip
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
+
+            parm_read_ahead = readAhead;
             return Task.CompletedTask;
         }
 
@@ -93,7 +95,7 @@ namespace zero.core.network.ip
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
                 _logger.Warn($"Cancelling existing connection attemp to `{address}'");
-                _connectionAttempts[address.Key].Close();
+                _connectionAttempts[address.Key].Zero();
                 await Task.Delay(500);
                 return await ConnectAsync(address, ioNetClient);
             }
@@ -108,7 +110,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:                 
                         case TaskStatus.Faulted:
                             _logger.Error(t.Exception,$"Failed to connect to `{ioNetClient.AddressString}':");
-                            ioNetClient.Close();
+                            ioNetClient.Zero();
                             break;
                         case TaskStatus.RanToCompletion:                        
                             if (ioNetClient.IsOperational)
@@ -119,7 +121,7 @@ namespace zero.core.network.ip
                             else // On connect failure
                             {
                                 _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
-                                ioNetClient.Close();
+                                ioNetClient.Zero();
                                 return false;
                             }                 
                     }
@@ -141,69 +143,24 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Called when this neighbor is closed
+        /// zero unmanaged
         /// </summary>
-        // ReSharper disable once InconsistentNaming
-        protected event EventHandler __closedEvent;
-
-        /// <summary>
-        /// Keeps tabs on all subscribers to be freed on close
-        /// </summary>
-        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
-
-        /// <summary>
-        /// Enables safe subscriptions to close events
-        /// </summary>
-        /// <param name="del"></param>
-        public void ClosedEvent(EventHandler del)
+        protected override void ZeroUnmanaged()
         {
-            _closedEventHandlers.Add(del);
-            __closedEvent += del;
+            Spinners.Dispose();
+            base.ZeroUnmanaged();
         }
 
         /// <summary>
-        /// Closed
+        /// zero managed
         /// </summary>
-        protected volatile bool Closed = false;
-
-        /// <summary>
-        /// Emits the closed event
-        /// </summary>
-        protected virtual void OnClosedEvent()
+        protected override void ZeroManaged()
         {
-            __closedEvent?.Invoke(this, EventArgs.Empty);
-            //free handles
-            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
-            _closedEventHandlers.Clear();
+            Spinners.Cancel();
+            base.ZeroManaged();
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
-        /// <summary>
-        /// Closes this server
-        /// </summary>
-        public virtual bool Close()
-        {
-            lock (this)
-            {
-                if (Closed) return false;
-                Closed = true;
-            }
-            _logger.Debug($"Closing listener at `{ListeningAddress}'");
-
-            try
-            {
-                OnClosedEvent();
-
-                IoListenSocket.Close();
-
-                Spinners.Cancel();
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e,$"An error occured while closing {ListeningAddress}");
-            }
-
-            return true;
-        }
 
         /// <summary>
         /// Figures out the correct server to use from the url, <see cref="IoTcpServer"/> or <see cref="IoUdpServer"/>

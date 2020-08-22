@@ -1,6 +1,10 @@
-﻿namespace zero.core.patterns.bushes.contracts
+﻿using System;
+using zero.core.patterns.misc;
+
+namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoChannel
+    public interface IIoChannel : IIoZeroable
     {
+        
     }
 }

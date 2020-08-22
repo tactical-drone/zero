@@ -25,7 +25,7 @@ namespace zero.core.patterns.bushes
             Source = source;
             _jobDescription = description;
 
-            Source?.ClosedEvent((sender, args) => Spinners.Cancel());
+            Source?.ZeroOnCascade(this);
         }
 
         /// <summary>
@@ -140,6 +140,26 @@ namespace zero.core.patterns.bushes
             }
 
             return this;
+        }
+
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            Spinners.Dispose();
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            Spinners.Cancel();
+            base.ZeroManaged();
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>

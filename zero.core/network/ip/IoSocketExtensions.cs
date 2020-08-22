@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Net.Sockets;
 
 namespace zero.core.network.ip
@@ -15,7 +16,17 @@ namespace zero.core.network.ip
         /// <returns>The local address</returns>
         public static IPAddress LocalAddress(this Socket socket)
         {
-            return ((IPEndPoint)socket?.LocalEndPoint)?.Address??IPAddress.Any;
+
+            try
+            {
+                return ((IPEndPoint)socket?.LocalEndPoint)?.Address??IPAddress.Any;
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return IPAddress.Any;
         }
 
         /// <summary>
@@ -25,7 +36,16 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public static int LocalPort(this Socket socket)
         {
-            return ((IPEndPoint)socket?.LocalEndPoint)?.Port??0;
+            try
+            {
+                return ((IPEndPoint)socket?.LocalEndPoint)?.Port??0;
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return 0;
         }
 
         /// <summary>

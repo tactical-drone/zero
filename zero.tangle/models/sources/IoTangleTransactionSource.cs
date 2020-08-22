@@ -59,7 +59,7 @@ namespace zero.tangle.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => ChannelSource.IsOperational;        
+        public override bool IsOperational => ChannelSource.IsOperational;
 
         /// <inheritdoc />        
         //public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
@@ -72,20 +72,19 @@ namespace zero.tangle.models.sources
         //{
         //    throw new NotImplementedException();
         //}
-
-        /// <summary>
-        /// Closes this source
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
-        public override bool Close()
+        protected override void ZeroUnmanaged()
         {
-            if (base.Close())
-            {
-                TxQueue.Dispose();
-                return true;
-            }
+            base.ZeroUnmanaged();
+            TxQueue.Dispose();
+            TxQueue = null;
+        }
 
-            return false;
+        protected override void ZeroManaged()
+        {
+            
+            base.ZeroManaged();
+
+            _logger.Info($"Zeroed {Description}");
         }
 
         /// <summary>

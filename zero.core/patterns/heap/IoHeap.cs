@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Runtime;
 using System.Threading;
 using NLog;
 using zero.core.misc;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.heap
 {
@@ -12,7 +14,7 @@ namespace zero.core.patterns.heap
     /// Basic heap construct
     /// </summary>
     /// <typeparam name="T">The type of item managed</typeparam>
-    public class IoHeap<T> where T:class
+    public class IoHeap<T> where T:class,IIoZeroable
     {               
         /// <summary>
         /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
@@ -138,6 +140,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public void Clear()
         {
+            _buffer.ToList().ForEach(j=>j.Zero());
             _buffer.Clear();
         }
 

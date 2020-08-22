@@ -1,14 +1,10 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.cocoon.autopeer;
 using zero.cocoon.models;
-using zero.cocoon.models.services;
 using zero.core.core;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon
 {
@@ -41,9 +37,11 @@ namespace zero.cocoon
                 await Task.Delay(rand.Next(120000) + 60000, Spinners.Token).ContinueWith(r =>
                 //await Task.Delay(rand.Next(60000), Spinners.Token).ContinueWith(r =>
                 {
-                    if(r.IsCompletedSuccessfully)
+                    if (r.IsCompletedSuccessfully && !Spinners.IsCancellationRequested && !Zeroed())
+                    {
                         _logger.Fatal($"Testing SOCKET FAILURE {Id}");
-                    Close();
+                        Zero();
+                    }
                 });
             });
         }
@@ -69,27 +67,35 @@ namespace zero.cocoon
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            DetachNeighbor();
+            base.ZeroManaged();
+            _logger.Info($"Zeroed {Description} ({Id})");
+        }
+
+        /// <summary>
         /// Attaches a neighbor to this peer
         /// </summary>
         /// <param name="neighbor"></param>
         public void AttachNeighbor(IoCcNeighbor neighbor)
         {
+            if (neighbor == Neighbor)
+                return;
+
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
 
             //Attach the other way
             Neighbor.AttachPeer(this);
-
-            //peer transport closed
-            IoNetClient.ClosedEvent((sender, args) => Close());
         }
 
         /// <summary>
-        /// Closed event
+        /// Detaches current neighbor
         /// </summary>
-        protected override void OnClosedEvent()
+        public void DetachNeighbor()
         {
-            base.OnClosedEvent();
-
             Neighbor?.DetachPeer();
             Neighbor = null;
         }

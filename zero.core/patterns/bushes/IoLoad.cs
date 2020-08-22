@@ -37,7 +37,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Zero
         /// </summary>
-        public IIoZero Zero { get; set; }
+        public IIoZero IoZero { get; set; }
 
         /// <summary>
         /// Consumes the job

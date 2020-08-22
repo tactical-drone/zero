@@ -2,13 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using zero.core.misc;
+using zero.core.patterns.misc;
 
 namespace zero.core.conf
 {
     /// <summary>
     /// Configuration storage, retrieval and mutation
     /// </summary>
-    public class IoConfigurable 
+    public class IoConfigurable: IoZeroable
     {
         /// <summary>
         /// Constructor that gathers all parameters from instances by scanning for the <see cref="IoParameter"/> attribute

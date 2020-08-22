@@ -39,14 +39,44 @@ namespace zero.cocoon
             _autoPeering = new IoCcNeighborDiscovery(this, _peerAddress,
                 (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead);
 
+            _autoPeering.ZeroOnCascade(this, true);
+
             Task.Run(async () =>
             {
-                while (!_spinners.IsCancellationRequested)
+                while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
                     await Task.Delay(60000);
                     _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
                 }
             });
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+
+            try
+            {
+                _autoPeeringTask.Wait();
+            }
+            catch
+            {
+                // ignored
+            }
+
+            base.ZeroManaged();
+            _logger.Info($"Zeroed");
+            GC.Collect(GC.MaxGeneration);
         }
 
         private readonly Logger _logger;

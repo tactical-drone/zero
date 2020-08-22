@@ -18,24 +18,34 @@ namespace zero.core.network.ip
         /// </summary>
         public IoTcpClient()
         {
-            _logger = LogManager.CreateNullLogger();            
+            _logger = LogManager.GetCurrentClassLogger();
         }
 
+        /// <summary>
+        /// The logger
+        /// </summary>
         private readonly Logger _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
-        /// <param name="remote">The tcpclient to be wrapped</param>
+        /// <param name="remote">The tcp client to be wrapped</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the source is allowed to lead the consumer</param>
-        public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket)remote, readAheadBufferSize) { }
+        public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket) remote, readAheadBufferSize)
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="localAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the source is allowed to lead the consumer</param>
-        public IoTcpClient(IoNodeAddress localAddress, int readAheadBufferSize) : base(localAddress, readAheadBufferSize) { }
+        public IoTcpClient(IoNodeAddress localAddress, int readAheadBufferSize) : base(localAddress,
+            readAheadBufferSize)
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
         
         /// <summary>
         /// Connects to a remote listener
@@ -46,8 +56,26 @@ namespace zero.core.network.ip
         public override async Task<bool> ConnectAsync()
         {
             IoSocket = new IoTcpSocket();
-            IoSocket.ClosedEvent((sender, args) => Close());
+            IoSocket.ZeroOnCascade(this, true);
             return await base.ConnectAsync();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+
+            _logger.Info($"Zeroed {Key}");
         }
     }
 }

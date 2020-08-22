@@ -22,6 +22,24 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+
+            _logger.Info($"Zeroed {ListeningAddress}");
+        }
+
+        /// <summary>
         /// A copy constructor used by the listener to spawn new TCP connection handlers
         /// </summary>
         /// <param name="socket">The connecting socket</param>
@@ -160,7 +178,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (_closed)
+                if (Zeroed())
                 {
                     await Task.Delay(1000);
                     return 0;
@@ -177,7 +195,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                             _logger.Error(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
-                            Close();
+                            Zero();
                             break;
                         case TaskStatus.RanToCompletion:
                             _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
@@ -190,7 +208,7 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
-                Close();
+                Zero();
                 return 0;
             }
         }
@@ -208,7 +226,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (_closed)
+                if (Zeroed())
                 {
                     await Task.Delay(1000);
                     return 0;
@@ -226,7 +244,7 @@ namespace zero.core.network.ip
                     if (read == 0) //TODO does this make sense?
                     {
                         _logger.Fatal($"Read 0 bytes, closing {Key}");
-                        Close();
+                        Zero();
                     }
 
                     return read;
@@ -241,7 +259,7 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Trace(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
-                Close();
+                Zero();
             }
 
             return 0;

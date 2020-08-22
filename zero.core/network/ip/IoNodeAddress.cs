@@ -21,10 +21,12 @@ namespace zero.core.network.ip
         {
             _performDns = lookup;
             Init(url);
-            _logger = LogManager.GetCurrentClassLogger();
         }
 
-        private readonly Logger _logger;
+        /// <summary>
+        /// The logger
+        /// </summary>
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         [DataMember]
         public string Url { get; set; }
@@ -276,7 +278,7 @@ namespace zero.core.network.ip
             {
                 Validated = false;
                 DnsValidated = false;
-                _logger.Error(e,$"Unable to resolve host name for `{Url}':");
+                Logger.Error(e,$"Unable to resolve host name for `{Url}':");
             }
         }
 
@@ -299,20 +301,19 @@ namespace zero.core.network.ip
             return retval;
         }
 
-        public override bool Equals(object? obj)
+        public override bool Equals(object obj)
         {
-            if (obj == null)
-                return false;
-
-            if (!base.Equals(obj))
-                return false;
-
-            return Equals((IoNodeAddress) obj);
+            return obj != null && Equals((IoNodeAddress) obj);
         }
 
         protected bool Equals(IoNodeAddress other)
         {
             return Port == other.Port && Ip == other.Ip;
+        }
+
+        public override int GetHashCode()
+        {
+            return Key.GetHashCode();
         }
     }
 }

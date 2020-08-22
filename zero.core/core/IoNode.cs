@@ -70,9 +70,7 @@ namespace zero.core.core
         /// <summary>
         /// Used to cancel downstream processes
         /// </summary>
-        protected readonly CancellationTokenSource _spinners = new CancellationTokenSource();
-
-        protected CancellationToken CancellationToken => _spinners.Token;
+        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// On Connected
@@ -99,6 +97,7 @@ namespace zero.core.core
         protected int parm_tcp_readahead = 2;
 
         private Task _listernerTask;
+        private ConcurrentBag<Task> _neighborTasks = new ConcurrentBag<Task>();
 
         /// <summary>
         /// Starts the node's listener
@@ -109,7 +108,7 @@ namespace zero.core.core
                 throw new ConstraintException("The network has already been started");
 
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead);
-            _netServer.ClosedEvent((sender, args) => Close());
+            _netServer.ZeroOnCascade(this, true);
 
             await _netServer.ListenAsync(async client =>
             {
@@ -121,7 +120,7 @@ namespace zero.core.core
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor))
                     {
                         _logger.Debug($"Incoming connection from {client.Key} rejected.");
-                        newNeighbor.Close();
+                        newNeighbor.Zero();
                         return;
                     }
                 }
@@ -132,7 +131,7 @@ namespace zero.core.core
                 }
 
                 // Remove from lists if closed
-                newNeighbor.ClosedEvent((s, e) =>
+                newNeighbor.ZeroEvent((s, e) =>
                 {
                     DisconnectedEvent?.Invoke(this, newNeighbor);
                     if (Neighbors.TryRemove(((IoNeighbor<TJob>) s)?.Id, out var _))
@@ -142,19 +141,25 @@ namespace zero.core.core
                 // Add new neighbor
                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
-                    newNeighbor.Close();
+                    newNeighbor.Zero();
                     _logger.Warn($"Neighbor `{client.ListeningAddress}' already connected. Possible spoof investigate!");
                 }
+
+                // zero neighbors on zero
+                ZeroOnCascade(newNeighbor);
 
                 //New peer connection event
                 //ConnectedEvent?.Invoke(this, newNeighbor);
 
                 //Start the source consumer on the neighbor scheduler
                 try
-                {                    
-#pragma warning disable 4014
-                    Task.Factory.StartNew(() => newNeighbor.SpawnProcessingAsync(), _spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
-#pragma warning restore 4014
+                {
+                    _neighborTasks.Add(Task.Factory.StartNew(async () => await newNeighbor.SpawnProcessingAsync(), Spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current));
+
+                    //prune finished tasks
+                    var remainTasks = _neighborTasks.Where(t => !t.IsCompleted).ToList();
+                    _neighborTasks.Clear();
+                    remainTasks.ForEach(_neighborTasks.Add);
                 }
                 catch (Exception e)
                 {
@@ -176,7 +181,7 @@ namespace zero.core.core
             IoNeighbor<TJob> newNeighbor = null;
             bool connectedAtLeastOnce = false;
 
-            while (!_spinners.IsCancellationRequested && !connectedAtLeastOnce)
+            while (!Spinners.IsCancellationRequested && !Zeroed() && !connectedAtLeastOnce)
             {
                 if (newNeighbor == null && !connectedAtLeastOnce)
                 {
@@ -185,27 +190,26 @@ namespace zero.core.core
                     if (newClient != null && newClient.IsOperational)
                     {
                         var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
-
+                        var id = newNeighbor.Id;
                         //TODO does this make sense?
-                        if (Neighbors.ContainsKey(newNeighbor.Id))
-                        {
-                            var n = Neighbors[neighbor.Id];
-                            n.Close();
-                        }
-
+                        if (Neighbors.TryGetValue(newNeighbor.Id, out var zombieNeighbor))
+                            zombieNeighbor.Zero();
+                        
                         if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                         {
                             //TODO
                             neighbor.parm_producer_start_retry_time = 60000;
                             neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
-                            newNeighbor.ClosedEvent((s, e) =>
+                            newNeighbor.ZeroEvent((s, e) =>
                             {
-                                if (!Neighbors.TryRemove(newNeighbor.Id, out _))
+                                if (!Neighbors.TryRemove(id, out _))
                                 {
                                     _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.Id}'");
                                 }
                             });
+
+                            ZeroOnCascade(newNeighbor);
                             
                             _logger.Info($"Added {newNeighbor.Id}");
 
@@ -216,7 +220,7 @@ namespace zero.core.core
                         else //strange case
                         {
                             _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                            newNeighbor.Close();
+                            newNeighbor.Zero();
                             newNeighbor = null;
                         }
 
@@ -249,7 +253,7 @@ namespace zero.core.core
             try
             {
                 _listernerTask = SpawnListenerAsync();
-                await _listernerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})"), CancellationToken).ConfigureAwait(false);
+                await _listernerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})")).ConfigureAwait(false);
 
                 _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
             }
@@ -260,54 +264,38 @@ namespace zero.core.core
         }
 
         /// <summary>
-        /// Closed or not
+        /// zero unmanaged
         /// </summary>
-        protected volatile bool Closed = false;
-
-        /// <summary>
-        /// Emits closed events
-        /// </summary>
-        protected event EventHandler __closedEvent;
-
-        /// <summary>
-        /// Keeps tabs on all subscribers to be freed on close
-        /// </summary>
-        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
-
-        /// <summary>
-        /// Enables safe subscriptions to close events
-        /// </summary>
-        /// <param name="del"></param>
-        public void ClosedEvent(EventHandler del)
+        protected override void ZeroUnmanaged()
         {
-            _closedEventHandlers.Add(del);
-            __closedEvent += del;
+            base.ZeroUnmanaged();
+            Spinners.Dispose();
         }
 
         /// <summary>
-        /// Close the node
+        /// zero managed
         /// </summary>
-        public virtual bool Close()
+        protected override void ZeroManaged()
         {
-            lock (this)
-            {
-                if (Closed) return false;
-                Closed = true;
-            }
-
-            _logger.Info($"{ToString()}: Closing {Server.Description}");
-
-            OnClosedEvent();
-
-            Neighbors.ToList().ForEach(n => n.Value.Close());
+            Neighbors.ToList().ForEach(kv=>kv.Value.Zero());
             Neighbors.Clear();
 
-            _netServer.Close();
+            Spinners.Cancel();
 
-            _spinners.Cancel();
-            return true;
+            try
+            {
+                _listernerTask.Wait();
+                Task.WaitAll(_neighborTasks.ToArray());
+            }
+            catch
+            {
+                // ignored
+            }
+
+            base.ZeroManaged();
+            _logger.Debug($"{ToString()}: Zeroed");
         }
-        
+
         public bool WhiteList(IoNodeAddress address)
         {
             if (_whiteList.TryAdd(address.ToString(), address))
@@ -334,25 +322,13 @@ namespace zero.core.core
                     keys.Add(n.Source.Key);
                 });
 
-                Neighbors[address.ToString()].Close();
+                Neighbors[address.ToString()].Zero();
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;
             }
 
             _logger.Warn($"Unable to blacklist `{address}', not found!");
             return null;
-        }
-
-        /// <summary>
-        /// Emits closed event
-        /// </summary>
-        protected virtual void OnClosedEvent()
-        {
-            __closedEvent?.Invoke(this, EventArgs.Empty);
-
-            //free handles
-            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
-            _closedEventHandlers.Clear();
         }
     }
 }

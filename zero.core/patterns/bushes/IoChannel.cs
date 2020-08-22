@@ -22,6 +22,6 @@ namespace zero.core.patterns.bushes
         public IoChannel(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage) : base(description, source, mallocMessage)
         {
             source.SetUpstreamChannel(this);
-        }        
+        }
     }
 }

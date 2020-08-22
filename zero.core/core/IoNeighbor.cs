@@ -38,20 +38,6 @@ namespace zero.core.core
         protected IoNode<TJob> Node;
 
         /// <summary>
-        /// Close this neighbor
-        /// </summary>
-        public override bool Close()
-        {
-            if (base.Close())
-            {
-                _logger.Info($"Closing neighbor `{Description}', Id = {Id}");
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
         /// The Id of this neighbor
         /// </summary>
         /// <returns></returns>

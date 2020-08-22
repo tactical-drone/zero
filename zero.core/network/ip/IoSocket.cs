@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.misc;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -14,7 +16,7 @@ namespace zero.core.network.ip
     /// Abstracts TCP and UDP
     /// </summary>
     public abstract class
-        IoSocket
+        IoSocket : IoZeroable
     {
         /// <inheritdoc />
         /// <summary>
@@ -169,12 +171,9 @@ namespace zero.core.network.ip
         public bool IsTcpSocket => Socket.ProtocolType == ProtocolType.Tcp;
 
 
-        public volatile bool _closed;
-
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_socket_listen_backlog = 20;
-
 
         /// <summary>
         /// Parses the url string and returns either a TCP or UDP <see cref="IoSocket"/>
@@ -257,70 +256,32 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Close this socket
+        /// zero unmanaged
         /// </summary>
-        public virtual void Close()
+        protected override void ZeroUnmanaged()
         {
-            lock (this)
-            {
-                if (_closed) return;
-                _closed = true;
-            }
-            try
-            {
-                _logger.Debug(Egress
-                    ? $"Closing connection to: `{RemoteAddress?.ToString() ?? LocalIpAndPort}'"
-                    : $"Closing connection from: `{LocalIpAndPort}'");
-
-                //Signal to users that we are disconnecting
-                OnClosedEvent();
-
-                //Close the socket
-                if(Socket?.Connected??false)
-                    Socket.Shutdown(SocketShutdown.Both);
-
-                Socket?.Close();
-                Socket?.Dispose();
-                Socket = null;
-
-                //Cancel everything that is running
-                Spinners.Cancel();
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"Closing socket `{Key}' returned with errors");
-            }
+            Socket.Dispose();
+            Spinners.Dispose();
+            base.ZeroUnmanaged();
         }
 
         /// <summary>
-        /// Signals remote endpoint closing
+        /// zero managed
         /// </summary>
-        protected event EventHandler __closedEvent;
-
-        /// <summary>
-        /// Keeps tabs on all subscribers to be freed on close
-        /// </summary>
-        private readonly ConcurrentBag<EventHandler> _closedEventHandlers = new ConcurrentBag<EventHandler>();
-
-        /// <summary>
-        /// Enables safe subscriptions to close events
-        /// </summary>
-        /// <param name="del"></param>
-        public void ClosedEvent(EventHandler del)
+        protected override void ZeroManaged()
         {
-            _closedEventHandlers.Add(del);
-            __closedEvent += del;
-        }
+            //Close the socket
+            if (Socket?.Connected ?? false)
+                Socket.Shutdown(SocketShutdown.Both);
 
-        /// <summary>
-        /// Emits closed events
-        /// </summary>
-        protected virtual void OnClosedEvent()
-        {
-            __closedEvent?.Invoke(this, new EventArgs());
-            //free handles
-            _closedEventHandlers.ToList().ForEach(del => __closedEvent -= del);
-            _closedEventHandlers.Clear();
+            Socket?.Close();
+
+            //Cancel everything that is running
+            Spinners.Cancel();
+
+            base.ZeroManaged();
+
+            _logger.Debug($"{ToString()}: Zeroed {Key}");
         }
 
         /// <summary>
@@ -355,5 +316,6 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>Some data</returns>
         public abstract object ExtraData();
+
     }
 }

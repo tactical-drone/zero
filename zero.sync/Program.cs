@@ -36,8 +36,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Close();
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Close();
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero();
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero();
                 tangleNodeTask.Wait();
             }
             else
@@ -50,8 +50,8 @@ namespace zero.sync
                 var tangleNodeTask = tangleNode.StartAsync();
 #pragma warning restore 4014
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Close();
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Close();
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero();
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero();
                 tangleNodeTask.Wait();
             }
         }
@@ -69,9 +69,14 @@ namespace zero.sync
 #pragma warning disable 4014
             var tangleNodeTask = cocoon.StartAsync();
 
-            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Close();
-            Console.CancelKeyPress += (sender, eventArgs) => cocoon.Close();
+            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Zero();
+            Console.CancelKeyPress += (sender, eventArgs) =>
+            {
+                cocoon.Zero();
+                cocoon = null;
+            };
             tangleNodeTask.Wait();
+            Console.WriteLine("cocoon exited");
         }
     }
 }

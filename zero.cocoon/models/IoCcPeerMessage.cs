@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Microsoft.AspNetCore.SignalR.Protocol;
 using NLog;
 using Proto;
 using zero.cocoon.autopeer;
@@ -40,7 +41,7 @@ namespace zero.cocoon.models
                 Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
             }
 
-            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), protocol, userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), true, protocol, userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
             ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             ProtocolChannel.parm_producer_start_retry_time = 0;
         }
@@ -119,7 +120,7 @@ namespace zero.cocoon.models
                     _producerStopwatch.Restart();
                     if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Spinners.Token))
                     {
-                        if (!Spinners.IsCancellationRequested)
+                        if (!Spinners.IsCancellationRequested && !Zeroed())
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
@@ -136,7 +137,7 @@ namespace zero.cocoon.models
                         return true;
                     }
 
-                    if (Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested || Zeroed())
                     {
                         ProcessState = State.ProdCancel;
                         return false;
@@ -154,7 +155,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Close();
+                                        Source.Zero();
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -184,10 +185,10 @@ namespace zero.cocoon.models
                     }
                     else
                     {
-                        Source.Close();
+                        Source.Zero();
                     }
 
-                    if (Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested || Zeroed())
                     {
                         ProcessState = State.Cancelled;
                         return false;
@@ -243,7 +244,7 @@ namespace zero.cocoon.models
         }
 
 
-        protected IoCcNode CcNode => ((IoCcNeighbor) Zero).CcNode;
+        protected IoCcNode CcNode => ((IoCcNeighbor) IoZero).CcNode;
 
         //public static IoCcIdentity CcId = IoCcIdentity.Generate(true);
         public IoCcIdentity CcId => CcNode.CcId;

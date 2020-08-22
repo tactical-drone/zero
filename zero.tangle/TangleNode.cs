@@ -29,8 +29,6 @@ namespace zero.tangle
 
         private readonly Logger _logger;
 
-        private readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
         /// <summary>
         /// The latest milestone seen
         /// </summary>
@@ -90,9 +88,9 @@ namespace zero.tangle
                     {
                         if (newNeighbor.Result != null)
                         {
-                            ((IoNetClient<TJob>) ioNeighbor.Source).ClosedEvent((s, e) =>
+                            ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent((s, e) =>
                             {
-                                newNeighbor.Result.Close();
+                                newNeighbor.Result.Zero();
                             });
 
                             if (newNeighbor.Result.Source.IsOperational)

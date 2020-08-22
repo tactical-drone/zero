@@ -12,7 +12,7 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models.sources
 {
-    sealed class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>, IIoSource
+    public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>, IIoSource
     {
         public IoCcProtocolBuffer(int bufferSize) : base(bufferSize)//TODO config
         {
@@ -39,7 +39,23 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Description of upstream channel
         /// </summary>
-        public override string Description => $"{MessageQueue.Select(m=>m.Count > 0? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
+        public override string Description
+        {
+            get
+            {
+                try
+                {
+                    if(!Zeroed())
+                        return $"{MessageQueue.Select(m => m.Count > 0 ? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
+                }
+                catch (Exception e)
+                {
+                    _logger.Trace(e,"Failed to get description:");
+                }
+
+                return null;
+            }
+        } 
         //public override string Description => Key;
 
         /// <summary>
@@ -55,19 +71,19 @@ namespace zero.cocoon.models.sources
         /// </value>
         public override bool IsOperational => this == ChannelSource || (ChannelSource?.IsOperational??false);
 
-        /// <summary>
-        /// Closes this source
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
-        public override bool Close()
+        protected override void ZeroUnmanaged()
         {
-            if (base.Close())
-            {
-                MessageQueue.Dispose();
-                return true;
-            }
+            MessageQueue.Dispose();
+        }
 
-            return false;
+        protected override void ZeroManaged()
+        {
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
+        }
+
+        protected override void Zero(bool disposing)
+        {
+            base.Zero(disposing);
         }
 
         /// <summary>

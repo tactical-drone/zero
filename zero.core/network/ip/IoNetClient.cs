@@ -35,7 +35,8 @@ namespace zero.core.network.ip
         protected IoNetClient(IoSocket remote,int readAheadBufferSize) : base(readAheadBufferSize)
         {
             IoSocket = (IoNetSocket)remote;
-            IoSocket.ClosedEvent((sender, args) => Close());
+            IoSocket.ZeroOnCascade(this, true);
+            
             _logger = LogManager.GetCurrentClassLogger();
             ListeningAddress = remote.ListeningAddress; 
         }
@@ -138,7 +139,6 @@ namespace zero.core.network.ip
         /// </summary>
         public string AddressString => $"{ListeningAddress.Url}";
 
-
         /// <summary>
         /// Transmit timeout in ms
         /// </summary>
@@ -153,18 +153,23 @@ namespace zero.core.network.ip
         // ReSharper disable once InconsistentNaming
         protected int parm_rx_timeout = 3000;
 
-        /// <summary>
-        /// Closes the connection
-        /// </summary>
-        public override bool Close()
-        {
-            if (base.Close())
-            {
-                IoSocket?.Close();
-                return true;
-            }
 
-            return false;
+        /// <summary>
+        /// Zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// Zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+
+            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>
@@ -181,11 +186,6 @@ namespace zero.core.network.ip
             {
                 if (t.Result)
                 {
-                    //_cancellationRegistration = Spinners.Token.Register(() => IoSocket?.Spinners.Cancel());
-
-                    //TODO teardown
-                    //IoSocket.ClosedEvent((s, e) => Close());
-
                     _logger.Info($"Connected to `{AddressString}'");                    
                 }
                 else
@@ -255,10 +255,10 @@ namespace zero.core.network.ip
                         if (!IoSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
                         {
                             //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                            _logger.Warn($"Connection to `{AddressString}' disconnected!");
+                            _logger.Warn($"Connection to `{ListeningAddress}' disconnected!");
 
                             //Do cleanup
-                            Close();
+                            Zero();
 
                             return false;
                         }

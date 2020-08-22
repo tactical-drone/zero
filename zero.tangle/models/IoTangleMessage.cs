@@ -57,7 +57,7 @@ namespace zero.tangle.models
                 }
             }
 
-            NodeServicesArbiter = Source.AttachProducer(nameof(IoNodeServices<TKey>), _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy));            
+            NodeServicesArbiter = Source.AttachProducer(nameof(IoNodeServices<TKey>), false, _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy));            
 
 
             NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0; 
@@ -73,7 +73,7 @@ namespace zero.tangle.models
                 }
             }
 
-            NeighborServicesArbiter = source.AttachProducer(nameof(TanglePeer<IoTangleTransaction<TKey>>), _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/));                        
+            NeighborServicesArbiter = Source.AttachProducer(nameof(TanglePeer<IoTangleTransaction<TKey>>), false, _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/));                        
             NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborServicesArbiter.parm_producer_start_retry_time = 0;
         }
@@ -527,7 +527,7 @@ namespace zero.tangle.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Close();
+                                        Source.Zero();
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -576,7 +576,7 @@ namespace zero.tangle.models
                     }
                     else
                     {
-                        Source.Close();
+                        Source.Zero();
                     }
 
                     if (Spinners.IsCancellationRequested)
