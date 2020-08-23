@@ -36,7 +36,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Cancellation token
         /// </summary>
-        protected CancellationTokenSource Spinners = new CancellationTokenSource();
+        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// A unique id for this work

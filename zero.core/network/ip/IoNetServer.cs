@@ -18,7 +18,7 @@ namespace zero.core.network.ip
     /// </summary>
     public abstract class IoNetServer<TJob> : IoConfigurable
     where TJob : IIoJob
-    
+
     {
         /// <inheritdoc />
         /// <summary>
@@ -68,7 +68,7 @@ namespace zero.core.network.ip
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_read_ahead = 1;
-        
+
         /// <summary>
         /// Listens for new connections
         /// </summary>
@@ -95,24 +95,27 @@ namespace zero.core.network.ip
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
                 _logger.Warn($"Cancelling existing connection attemp to `{address}'");
+#pragma warning disable 4014
                 _connectionAttempts[address.Key].Zero();
+#pragma warning restore 4014
+
+                _connectionAttempts.TryRemove(address.Key, out _);
                 await Task.Delay(500);
                 return await ConnectAsync(address, ioNetClient);
             }
 
             try
             {
-                //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-                if (ioNetClient != null && await ioNetClient.ConnectAsync().ContinueWith(t =>
+                var connectTask = ioNetClient?.ConnectAsync().ContinueWith(t =>
                 {
                     switch (t.Status)
                     {
-                        case TaskStatus.Canceled:                 
+                        case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception,$"Failed to connect to `{ioNetClient.AddressString}':");
+                            _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
                             ioNetClient.Zero();
                             break;
-                        case TaskStatus.RanToCompletion:                        
+                        case TaskStatus.RanToCompletion:
                             if (ioNetClient.IsOperational)
                             {
                                 _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
@@ -123,19 +126,32 @@ namespace zero.core.network.ip
                                 _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
                                 ioNetClient.Zero();
                                 return false;
-                            }                 
+                            }
                     }
+
                     return false;
-                }, Spinners.Token))
+                }, Spinners.Token);
+
+                //ioNetClient will never be null, the null in the parameter is needed for the interface contract
+                if (ioNetClient != null && await connectTask)
                 {
+                    ZeroOnCascade(ioNetClient);
                     return ioNetClient;
                 }
             }
+            catch (ObjectDisposedException){}
+            catch (OperationCanceledException) {}
             finally
             {
                 if (!_connectionAttempts.TryRemove(address.Key, out _))
                 {
                     _logger.Fatal($"Expected key `{address.Key}'");
+                }
+
+                if (_connectionAttempts.Count > 0)
+                {
+                    _logger.Warn($"Empty connection attempts expected!");
+                    _connectionAttempts.Clear();
                 }
             }
 
@@ -172,7 +188,7 @@ namespace zero.core.network.ip
         {
             if (address.Protocol() == ProtocolType.Tcp)
                 return new IoTcpServer<TJob>(address, bufferReadAheadSize);
-                
+
 
             if (address.Protocol() == ProtocolType.Udp)
                 return new IoUdpServer<TJob>(address);

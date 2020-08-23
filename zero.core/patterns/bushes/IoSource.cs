@@ -30,7 +30,6 @@ namespace zero.core.patterns.bushes
             ConsumeAheadBarrier = new SemaphoreSlim(1);
             ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
-            Spinners = new CancellationTokenSource();
         }
 
         /// <summary>
@@ -41,7 +40,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Used to signal shutdown
         /// </summary>
-        protected CancellationTokenSource Spinners { get; set; }
+        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// The forwarding channel
@@ -173,6 +172,8 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroUnmanaged()
         {
+            Spinners.Dispose();
+
             //Unblock any blockers
             ProducerBarrier.Dispose();
             ConsumerBarrier.Dispose();

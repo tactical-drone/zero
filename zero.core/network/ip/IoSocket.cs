@@ -123,7 +123,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Cancellation sources.
         /// </summary>
-        public readonly CancellationTokenSource Spinners = new CancellationTokenSource();
+        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// Public access to remote address (used for logging)

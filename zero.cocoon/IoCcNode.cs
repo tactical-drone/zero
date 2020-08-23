@@ -45,7 +45,7 @@ namespace zero.cocoon
             {
                 while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
-                    await Task.Delay(60000);
+                    await Task.Delay(60000, Spinners.Token);
                     _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
                 }
             });
@@ -67,7 +67,7 @@ namespace zero.cocoon
 
             try
             {
-                _autoPeeringTask.Wait();
+                _autoPeeringTask?.Wait();
             }
             catch
             {

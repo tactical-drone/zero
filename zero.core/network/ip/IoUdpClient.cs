@@ -13,6 +13,8 @@ namespace zero.core.network.ip
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpClient{TJob}"/> class.
+        ///
+        /// Used by listener
         /// </summary>
         /// <param name="remote">The tcpclient to be wrapped</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>
@@ -22,6 +24,8 @@ namespace zero.core.network.ip
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpClient{TJob}"/> class.
+        ///
+        /// Needed to connect
         /// </summary>
         /// <param name="localAddress">The address associated with this network client</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the producer is allowed to lead the consumer</param>

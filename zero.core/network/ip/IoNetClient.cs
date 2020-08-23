@@ -30,15 +30,15 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructor for incoming connections used by the listener
         /// </summary>
-        /// <param name="remote">The remote socket</param>
+        /// <param name="socket">The new socket</param>
         /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
-        protected IoNetClient(IoSocket remote,int readAheadBufferSize) : base(readAheadBufferSize)
+        protected IoNetClient(IoSocket socket,int readAheadBufferSize) : base(readAheadBufferSize)
         {
-            IoSocket = (IoNetSocket)remote;
+            IoSocket = (IoNetSocket)socket;
             IoSocket.ZeroOnCascade(this, true);
             
             _logger = LogManager.GetCurrentClassLogger();
-            ListeningAddress = remote.ListeningAddress; 
+            ListeningAddress = socket.ListeningAddress; 
         }
 
         /// <summary>

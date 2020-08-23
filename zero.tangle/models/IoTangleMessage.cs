@@ -94,11 +94,6 @@ namespace zero.tangle.models
         public sbyte[] TritBuffer = new sbyte[IoTransaction.NUM_TRITS_SERIALIZED_TRANSACTION + IoTransaction.NUM_TRITS_HASH];
         
         /// <summary>
-        /// The number of bytes left to process in this buffer
-        /// </summary>
-        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
-
-        /// <summary>
         /// Used to control how long we wait for the source before we report it
         /// </summary>
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
@@ -576,7 +571,9 @@ namespace zero.tangle.models
                     }
                     else
                     {
+#pragma warning disable 4014
                         Source.Zero();
+#pragma warning restore 4014
                     }
 
                     if (Spinners.IsCancellationRequested)

@@ -49,7 +49,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(new IoUdpClient<TJob>(ioSocket, parm_read_ahead));
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, parm_read_ahead)));
                 }
                 catch (Exception e)
                 {
@@ -68,6 +68,7 @@ namespace zero.core.network.ip
         /// <returns>The udp client object managing this socket connection</returns>
         public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
         {
+            //ZEROd later on inside net server once we know the connection succeeded
             var ioUdpClient = new IoUdpClient<TJob>(address, parm_read_ahead);
             return await base.ConnectAsync(address, ioUdpClient);
         }

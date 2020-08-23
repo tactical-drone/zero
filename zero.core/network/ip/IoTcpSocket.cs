@@ -76,51 +76,73 @@ namespace zero.core.network.ip
                 return false;
             }
 
+            Task<Socket> acceptTask = null;
+
             // Accept incoming connections
-            while (!Spinners.Token.IsCancellationRequested)
+            while (!Spinners.Token.IsCancellationRequested && !Zeroed())
             {
                 _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
-                await Socket?.AcceptAsync().ContinueWith(t =>
+                acceptTask = Socket?.AcceptAsync();
+
+                try
                 {
-                    switch (t.Status)
-                    {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Listener `{ListeningAddress}' returned with status `{t.Status}':");
-                            break;
-                        case TaskStatus.RanToCompletion:
-
-                            var newSocket = new IoTcpSocket(t.Result, ListeningAddress)
+                    if (acceptTask != null)
+                        await acceptTask.ContinueWith(t =>
+                        {
+                            switch (t.Status)
                             {
-                                Kind = Connection.Ingress
-                            };                         
+                                case TaskStatus.Canceled:
+                                case TaskStatus.Faulted:
+                                    _logger.Error(t.Exception,
+                                        $"Listener `{ListeningAddress}' returned with status `{t.Status}':");
+                                    break;
+                                case TaskStatus.RanToCompletion:
 
-                            //newSocket.ClosedEvent((sender, args) => Close());
 
-                            //Do some pointless sanity checking
-                            //if (newSocket.LocalAddress != ListeningAddress.Ip || newSocket.LocalPort != ListeningAddress.Port)
-                            //{
-                            //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpPort}'! Possible hackery! Investigate immediately!");
-                            //    newSocket.Close();
-                            //    break;
-                            //}
+                                    //ZERO control passed to connection handler
+                                    var newSocket = new IoTcpSocket(t.Result, ListeningAddress)
+                                    {
+                                        Kind = Connection.Ingress
+                                    };
 
-                            _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}'");
+                                    //newSocket.ClosedEvent((sender, args) => Close());
 
-                            try
-                            {
-                                connectionHandler(newSocket);
+                                    //Do some pointless sanity checking
+                                    //if (newSocket.LocalAddress != ListeningAddress.Ip || newSocket.LocalPort != ListeningAddress.Port)
+                                    //{
+                                    //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpPort}'! Possible hackery! Investigate immediately!");
+                                    //    newSocket.Close();
+                                    //    break;
+                                    //}
+
+                                    _logger.Debug(
+                                        $"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}'");
+
+                                    try
+                                    {
+                                        //ZERO
+                                        connectionHandler(newSocket);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        _logger.Error(e,
+                                            $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.ListeningAddress}'");
+                                    }
+
+                                    break;
+                                default:
+                                    _logger.Error(
+                                        $"Listener for `{ListeningAddress}' went into unknown state `{t.Status}'");
+                                    break;
                             }
-                            catch (Exception e)
-                            {
-                                _logger.Error(e, $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.ListeningAddress}'");
-                            }
-                            break;
-                        default:
-                            _logger.Error($"Listener for `{ListeningAddress}' went into unknown state `{t.Status}'");
-                            break;
-                    }
-                }, Spinners.Token);
+                        }, Spinners.Token);
+                }
+                catch (ObjectDisposedException){}
+                catch (OperationCanceledException) {}
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"Listener at `{ListeningAddress}' returned with errors");
+                }
             }
 
             _logger.Debug($"Listener at `{ListeningAddress}' exited");
@@ -208,7 +230,9 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
+#pragma warning disable 4014
                 Zero();
+#pragma warning restore 4014
                 return 0;
             }
         }
@@ -244,7 +268,9 @@ namespace zero.core.network.ip
                     if (read == 0) //TODO does this make sense?
                     {
                         _logger.Fatal($"Read 0 bytes, closing {Key}");
+#pragma warning disable 4014
                         Zero();
+#pragma warning restore 4014
                     }
 
                     return read;
@@ -259,7 +285,9 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Trace(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
+#pragma warning disable 4014
                 Zero();
+#pragma warning restore 4014
             }
 
             return 0;

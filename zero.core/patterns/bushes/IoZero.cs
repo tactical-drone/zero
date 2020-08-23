@@ -120,7 +120,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Stops this source consumer
         /// </summary>
-        protected CancellationTokenSource Spinners { get; set; } = new CancellationTokenSource();
+        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
 
         /// <summary>
         /// The current observer, there can only be one
@@ -350,7 +350,9 @@ namespace zero.core.patterns.bushes
                                     nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
                                 {
                                     _logger.Debug($"{nextJob.TraceDescription} Source `{Description}' is shutting down");
+#pragma warning disable 4014
                                     Zero();
+#pragma warning restore 4014
 
                                     Free(nextJob);
                                     return false;
@@ -398,6 +400,8 @@ namespace zero.core.patterns.bushes
                     }
                 }                
             }
+            catch(OperationCanceledException){}
+            catch(ObjectDisposedException){}
             catch(Exception e)
             {
                 _logger.Fatal(e, $"{Description}: ");
@@ -617,7 +621,7 @@ namespace zero.core.patterns.bushes
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
             {
                 Source.Zero();
-            }, Spinners.Token);
+            });
 
             _logger.Trace($"Processing for `{Source.Description}' stopped");
         }

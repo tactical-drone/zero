@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
@@ -70,13 +71,14 @@ namespace zero.sync
             var tangleNodeTask = cocoon.StartAsync();
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Zero();
-            Console.CancelKeyPress += (sender, eventArgs) =>
+
+            Console.CancelKeyPress += (sender, args) =>
             {
                 cocoon.Zero();
-                cocoon = null;
+                args.Cancel = true;
             };
+
             tangleNodeTask.Wait();
-            Console.WriteLine("cocoon exited");
         }
     }
 }

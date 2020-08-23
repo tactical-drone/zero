@@ -197,7 +197,9 @@ namespace zero.cocoon.models
                     }
                     else
                     {
+#pragma warning disable 4014
                         Source.Zero();
+#pragma warning restore 4014
                     }
 
                     if (Spinners.IsCancellationRequested)

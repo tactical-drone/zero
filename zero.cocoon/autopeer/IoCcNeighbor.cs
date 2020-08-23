@@ -17,6 +17,7 @@ using zero.core.conf;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.misc;
 using Logger = NLog.Logger;
 
 namespace zero.cocoon.autopeer
@@ -197,12 +198,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Handle to peer zero sub
         /// </summary>
-        private EventHandler _peerZeroSub;
+        private Func<IIoZeroable, Task> _peerZeroSub;
 
         /// <summary>
         /// Handle to neighbor zero sub
         /// </summary>
-        private EventHandler _neighborZeroSub;
+        private Func<IIoZeroable, Task> _neighborZeroSub;
 
         /// <summary>
         /// A servicemap helper
@@ -260,13 +261,17 @@ namespace zero.cocoon.autopeer
             if (neighbor.IsFaulted)
             {
                 _logger.Fatal(neighbor.Exception, "Neighbor processing returned with errors!");
+#pragma warning disable 4014
                 Zero();
+#pragma warning restore 4014
             }
 
             if (protocol.IsFaulted)
             {
                 _logger.Fatal(protocol.Exception, "Protocol processing returned with errors!");
+#pragma warning disable 4014
                 Zero();
+#pragma warning restore 4014
             }
         }
 
@@ -749,7 +754,9 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Warn($"Removing stale neighbor {staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Socket.RemotePort}");
                     _logger.Warn($"Replaced stale neighbor {keyStr}:{((IPEndPoint)extraData).Port}");
+#pragma warning disable 4014
                     staleNeighbor.Zero();
+#pragma warning restore 4014
                 }
 
                 if (!Node.Neighbors.TryGetValue(keyStr, out _))
@@ -795,7 +802,9 @@ namespace zero.cocoon.autopeer
                 if (Peer != null && (!Peer.IsArbitrating || !Peer.Source.IsOperational) && Direction != Kind.Undefined)
                 {
                     _logger.Warn($"Found zombie Peer, closing: {Peer.Id}");
+#pragma warning disable 4014
                     Peer.Zero();
+#pragma warning restore 4014
                 }
             }
         }
@@ -916,13 +925,13 @@ namespace zero.cocoon.autopeer
 
             ioCcPeer.AttachNeighbor(this);
 
-            _peerZeroSub = Peer.ZeroEvent(async (sender, args) =>
+            _peerZeroSub = Peer.ZeroEvent(async sender =>
             {
                 DetachPeer();
                 await SendPeerDropAsync();
             });
 
-            _neighborZeroSub = ZeroEvent((sender, args) => Peer?.Zero());
+            _neighborZeroSub = ZeroEvent(sender => Peer?.Zero());
         }
 
         /// <summary>

@@ -88,10 +88,7 @@ namespace zero.tangle
                     {
                         if (newNeighbor.Result != null)
                         {
-                            ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent((s, e) =>
-                            {
-                                newNeighbor.Result.Zero();
-                            });
+                            ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent(s => newNeighbor.Result.Zero());
 
                             if (newNeighbor.Result.Source.IsOperational)
 

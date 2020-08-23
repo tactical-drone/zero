@@ -93,6 +93,8 @@ namespace zero.core.network.ip
         {
             
             Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+
+            //TODO sec
             Socket.IOControl(
                 (IOControlCode)SIO_UDP_CONNRESET,
                 new byte[] { 0, 0, 0, 0 },
@@ -110,16 +112,19 @@ namespace zero.core.network.ip
                 // Prepare UDP connection orientated things                
                 _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
 
+                _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
                     await Task.Delay(5000);
                     if (!Socket?.IsBound ?? true)
                     {
                         _logger.Warn($"Found zombie udp socket state");
+#pragma warning disable 4014
                         Zero();
+#pragma warning restore 4014
                     }
-                        
                 }
+                _logger.Debug($"Stopped listening at {ListeningAddress}");
             }
             catch (Exception e)
             {

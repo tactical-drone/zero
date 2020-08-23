@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using NLog;
 
 namespace zero.core.patterns.misc
@@ -30,9 +32,10 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Zero
         /// </summary>
-        public void Zero()
+        public Task Zero()
         {
             Dispose();
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -41,14 +44,9 @@ namespace zero.core.patterns.misc
         private volatile bool _zeroed;
 
         /// <summary>
-        /// Emits the disposed event
-        /// </summary>
-        private event EventHandler _zeroEvent;
-
-        /// <summary>
         /// All subscriptions
         /// </summary>
-        private readonly ConcurrentBag<EventHandler> _subscribers = new ConcurrentBag<EventHandler>();
+        private readonly ConcurrentDictionary<Func<IIoZeroable, Task>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, Task>, object>();
 
         /// <summary>
         /// Indicate zero status
@@ -64,10 +62,13 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public EventHandler ZeroEvent(EventHandler sub)
+        public Func<IIoZeroable, Task> ZeroEvent(Func<IIoZeroable, Task> sub)
         {
-            _subscribers.Add(sub);
-            _zeroEvent += sub;
+            if (!_subscribers.TryAdd(sub, null))
+            {
+                LogManager.GetCurrentClassLogger().Warn($"Event already subscribed: Method = {sub.Method}, Target = {sub.Target}");
+            }
+
             return sub;
         }
 
@@ -75,9 +76,13 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        public void Unsubscribe(EventHandler sub)
+        public Func<IIoZeroable, Task> Unsubscribe(Func<IIoZeroable, Task> sub)
         {
-            _zeroEvent -= sub;
+            if (!_subscribers.TryRemove(sub, out _))
+            {
+                LogManager.GetCurrentClassLogger().Warn($"Cannot unsubscribe, event not found: Method = {sub.Method}, Target = {sub.Target}");
+            }
+            return sub;
         }
 
         /// <summary>
@@ -88,10 +93,10 @@ namespace zero.core.patterns.misc
         public T ZeroOnCascade<T>(T target, bool twoWay = false)
         where T:IIoZeroable
         {
-            ZeroEvent((sender, args) => target.Zero());
+            ZeroEvent((sender) => target.Zero());
             if (twoWay)
             {
-                target.ZeroEvent((sender, args) => Zero());
+                target.ZeroEvent((s) => Zero());
             }
                 
             return target;
@@ -111,16 +116,19 @@ namespace zero.core.patterns.misc
                 _zeroed = true;
             }
 
-            //zeroing event
-            try
+            //emit zero event
+            foreach (var handler in _subscribers.Keys)
             {
-                _zeroEvent?.Invoke(this, EventArgs.Empty);
+                try
+                {
+                    handler(this).Wait();
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal(e, $"[{ToString()}] returned with errors!");
+                }
             }
-            catch (Exception e)
-            {
-                LogManager.GetCurrentClassLogger().Fatal(e, $"[{ToString()}] {nameof(_zeroEvent)} returned with errors!");
-            }
-
+            
             //Dispose managed
             try
             {
@@ -145,11 +153,6 @@ namespace zero.core.patterns.misc
             }
 
             //clear out subscribers
-            foreach (var eventHandler in _subscribers)
-            {
-                _zeroEvent -= eventHandler;
-            }
-
             _subscribers.Clear();
         }
 

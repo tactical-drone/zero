@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace zero.core.patterns.misc
 {
@@ -7,20 +8,20 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Zero pattern
         /// </summary>
-        void Zero();
+        Task Zero();
 
         /// <summary>
         /// Subscribe to disposed event
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        EventHandler ZeroEvent(EventHandler sub);
+        Func<IIoZeroable, Task> ZeroEvent(Func<IIoZeroable, Task> sub);
 
         /// <summary>
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        void Unsubscribe(EventHandler sub);
+        Func<IIoZeroable, Task> Unsubscribe(Func<IIoZeroable, Task> sub);
 
         /// <summary>
         /// Cascade zeroed object

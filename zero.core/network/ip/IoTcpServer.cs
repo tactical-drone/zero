@@ -68,8 +68,8 @@ namespace zero.core.network.ip
         {
             if (!address.Validated)
                 return null;
+            //ZEROd later on inside net server once we know the connection succeeded 
             var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
-            //ioTcpclient.ClosedEvent((sender, args) => Close());
             return await base.ConnectAsync(address, ioTcpclient);
         }
     }

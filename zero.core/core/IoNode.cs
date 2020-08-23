@@ -75,12 +75,12 @@ namespace zero.core.core
         /// <summary>
         /// On Connected
         /// </summary>
-        protected EventHandler<IoNeighbor<TJob>> ConnectedEvent;
+        //protected EventHandler<IoNeighbor<TJob>> ConnectedEvent;
 
         /// <summary>
         /// 
         /// </summary>
-        protected EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
+        //protected EventHandler<IoNeighbor<TJob>> DisconnectedEvent;
 
         /// <summary>
         /// Threads per neighbor
@@ -110,43 +110,48 @@ namespace zero.core.core
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead);
             _netServer.ZeroOnCascade(this, true);
 
-            await _netServer.ListenAsync(async client =>
+            await _netServer.ListenAsync(async ioNetClient =>
             {
-                var newNeighbor = MallocNeighbor(this, client, null);
+                var newNeighbor = MallocNeighbor(this, ioNetClient, null);
 
                 //superclass specific mutations
                 try
                 {
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor))
                     {
-                        _logger.Debug($"Incoming connection from {client.Key} rejected.");
+                        _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
+#pragma warning disable 4014
                         newNeighbor.Zero();
+#pragma warning restore 4014
                         return;
                     }
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Accepting connection {client.Key} returned with errors");
+                    _logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
                     return;
                 }
 
                 // Remove from lists if closed
-                newNeighbor.ZeroEvent((s, e) =>
+                newNeighbor.ZeroEvent(s =>
                 {
-                    DisconnectedEvent?.Invoke(this, newNeighbor);
-                    if (Neighbors.TryRemove(((IoNeighbor<TJob>) s)?.Id, out var _))
+                    //DisconnectedEvent?.Invoke(this, newNeighbor);
+                    if (Neighbors.TryRemove(((IoNeighbor<TJob>)s)?.Id, out var _))
                         _logger.Debug($"Removed neighbor Id = {((IoNeighbor<TJob>)s)?.Id}");
+                    else
+                        _logger.Fatal($"Neighbor {((IoNeighbor<TJob>)s)?.Id} not found!");
+
+                    return Task.CompletedTask;
                 });
 
                 // Add new neighbor
                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
+#pragma warning disable 4014
                     newNeighbor.Zero();
-                    _logger.Warn($"Neighbor `{client.ListeningAddress}' already connected. Possible spoof investigate!");
+#pragma warning restore 4014
+                    _logger.Warn($"Neighbor `{ioNetClient.ListeningAddress}' already connected. Possible spoof investigate!");
                 }
-
-                // zero neighbors on zero
-                ZeroOnCascade(newNeighbor);
 
                 //New peer connection event
                 //ConnectedEvent?.Invoke(this, newNeighbor);
@@ -178,65 +183,65 @@ namespace zero.core.core
         /// <returns>The async task</returns>
         public async Task<IoNeighbor<TJob>> SpawnConnectionAsync(IoNodeAddress address, object extraData = null, bool retry = false, int retryTimeoutMs = 10000)
         {
-            IoNeighbor<TJob> newNeighbor = null;
-            bool connectedAtLeastOnce = false;
+            var connectedAtLeastOnce = false;
 
             while (!Spinners.IsCancellationRequested && !Zeroed() && !connectedAtLeastOnce)
             {
-                if (newNeighbor == null && !connectedAtLeastOnce)
+                
+                var newClient = await _netServer.ConnectAsync(address);
+                if (newClient != null && newClient.IsOperational)
                 {
-                    var newClient = await _netServer.ConnectAsync(address);
-
-                    if (newClient != null && newClient.IsOperational)
+                    IoNeighbor<TJob> newNeighbor = null;
+                    var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
+                    newNeighbor = neighbor;
+                    
+                    //TODO does this make sense?
+                    if (Neighbors.TryGetValue(newNeighbor.Id, out var zombieNeighbor))
+#pragma warning disable 4014
+                        zombieNeighbor.Zero();
+#pragma warning restore 4014
+                    
+                    if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                     {
-                        var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
-                        var id = newNeighbor.Id;
-                        //TODO does this make sense?
-                        if (Neighbors.TryGetValue(newNeighbor.Id, out var zombieNeighbor))
-                            zombieNeighbor.Zero();
-                        
-                        if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
-                        {
-                            //TODO
-                            neighbor.parm_producer_start_retry_time = 60000;
-                            neighbor.parm_consumer_wait_for_producer_timeout = 60000;
+                        //TODO
+                        neighbor.parm_producer_start_retry_time = 60000;
+                        neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
-                            newNeighbor.ZeroEvent((s, e) =>
+                        newNeighbor.ZeroEvent(s =>
+                        {
+                            if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s)?.Id, out _))
                             {
-                                if (!Neighbors.TryRemove(id, out _))
-                                {
-                                    _logger.Fatal($"Neighbor metadata expected for key `{newNeighbor.Id}'");
-                                }
-                            });
+                                _logger.Fatal($"Neighbor metadata expected for key `{((IoNeighbor<TJob>)s)?.Id}'");
+                            }
+                            else
+                            {
+                                _logger.Debug($"Dropped neigbor {((IoNeighbor<TJob>)s)?.Id}");
+                            }
 
-                            ZeroOnCascade(newNeighbor);
-                            
-                            _logger.Info($"Added {newNeighbor.Id}");
+                            return Task.CompletedTask;
+                        });
 
-                            ConnectedEvent?.Invoke(this, newNeighbor);
+                        _logger.Info($"Added {newNeighbor.Id}");
 
-                            return newNeighbor;
-                        }
-                        else //strange case
-                        {
-                            _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                            newNeighbor.Zero();
-                            newNeighbor = null;
-                        }
+                        //ConnectedEvent?.Invoke(this, newNeighbor);
 
-                        connectedAtLeastOnce = true;
+                        return newNeighbor;
                     }
-                    else
+                    else //strange case
                     {
-                        _logger.Error($"Failed to connect to: {address}, {address.ValidationErrorString}");
+                        _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
+#pragma warning disable 4014
+                        newNeighbor.Zero();
+#pragma warning restore 4014
                     }
+
+                    connectedAtLeastOnce = true;
                 }
                 else
                 {
-                    //TODO param
-                    await Task.Delay(retryTimeoutMs);
-                }                
-
+                    _logger.Error($"Failed to connect to: {address}, {address.ValidationErrorString}");
+                }
+                
                 if(!retry)
                     break;
             }
@@ -268,8 +273,8 @@ namespace zero.core.core
         /// </summary>
         protected override void ZeroUnmanaged()
         {
-            base.ZeroUnmanaged();
             Spinners.Dispose();
+            base.ZeroUnmanaged();
         }
 
         /// <summary>
@@ -284,7 +289,7 @@ namespace zero.core.core
 
             try
             {
-                _listernerTask.Wait();
+                _listernerTask?.Wait();
                 Task.WaitAll(_neighborTasks.ToArray());
             }
             catch
