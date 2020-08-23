@@ -11,11 +11,12 @@ namespace zero.cocoon.models
 {
     public class IoCcProtocolMessage : IoLoad<IoCcProtocolMessage>
     {
-        public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = 0)
+        public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = 0, bool zeroOnCascade = true)
             : base("channel", $"{nameof(IoCcProtocolMessage)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
-            _logger = LogManager.GetCurrentClassLogger();
+            if(zeroOnCascade)
+                _logger = LogManager.GetCurrentClassLogger();
         }
 
 

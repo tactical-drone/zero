@@ -19,9 +19,9 @@ namespace zero.core.core
         /// </summary>        
         /// <param name="node">The node this neighbor is connected to</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
-        /// <param name="mallocMessage">The callback that allocates new message buffer space</param>
-        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoLoad<TJob>> mallocMessage)
-            : base($"{node.GetType().Name} neighbor: `{ioNetClient.Description}'", ioNetClient, mallocMessage)
+        /// <param name="mallocJob">The callback that allocates new message buffer space</param>
+        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoLoad<TJob>> mallocJob)
+            : base($"{node.GetType().Name} neighbor: `{ioNetClient.Description}'", ioNetClient, mallocJob)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;

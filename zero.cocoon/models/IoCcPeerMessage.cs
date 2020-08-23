@@ -21,7 +21,8 @@ namespace zero.cocoon.models
 {
     public class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
     {
-        public IoCcPeerMessage(string loadDescription, string jobDescription, IoSource<IoCcPeerMessage> source) : base(loadDescription, jobDescription, source)
+        public IoCcPeerMessage(string loadDescription, string jobDescription, IoSource<IoCcPeerMessage> source) : base(
+            loadDescription, jobDescription, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -41,7 +42,8 @@ namespace zero.cocoon.models
                 Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
             }
 
-            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), true, protocol, userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), true, protocol,
+                userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
             ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             ProtocolChannel.parm_producer_start_retry_time = 0;
         }

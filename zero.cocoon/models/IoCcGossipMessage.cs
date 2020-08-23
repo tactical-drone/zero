@@ -34,18 +34,21 @@ namespace zero.cocoon.models
         /// <param name="jobDescription">Describe the source</param>
         /// <param name="loadDescription">Describe the sink</param>
         /// <param name="originatingSource">The source of the work</param>
-        public IoCcGossipMessage(string jobDescription, string loadDescription, IoSource<IoCcGossipMessage> originatingSource) : base(loadDescription, jobDescription, originatingSource)
+        /// <param name="zeroOnCascade">If false, don't allocate resources they will leak</param>
+        public IoCcGossipMessage(string jobDescription, string loadDescription, IoSource<IoCcGossipMessage> originatingSource, bool zeroOnCascade = true) : base(loadDescription, jobDescription, originatingSource)
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            if (zeroOnCascade)
+            {
+                _logger = LogManager.GetCurrentClassLogger();
 
-            
-            DatumSize = parm_max_datum_size;
+                DatumSize = parm_max_datum_size;
 
-            //Init buffers
-            BufferSize = DatumSize * parm_datums_per_buffer;
-            DatumProvisionLengthMax = DatumSize - 1;
-            DatumProvisionLength = DatumProvisionLengthMax;
-            Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+                //Init buffers
+                BufferSize = DatumSize * parm_datums_per_buffer;
+                DatumProvisionLengthMax = DatumSize - 1;
+                DatumProvisionLength = DatumProvisionLengthMax;
+                Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+            }
         }
 
         /// <summary>
@@ -134,7 +137,7 @@ namespace zero.cocoon.models
                     _producerStopwatch.Restart();
                     if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Spinners.Token))
                     {
-                        if (!Spinners.IsCancellationRequested)
+                        if (!Spinners.IsCancellationRequested && !Zeroed())
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
@@ -151,7 +154,7 @@ namespace zero.cocoon.models
                         return true;
                     }
 
-                    if (Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested || Zeroed())
                     {
                         ProcessState = State.ProdCancel;
                         return false;
@@ -202,7 +205,7 @@ namespace zero.cocoon.models
 #pragma warning restore 4014
                     }
 
-                    if (Spinners.IsCancellationRequested)
+                    if (Spinners.IsCancellationRequested || Zeroed())
                     {
                         ProcessState = State.Cancelled;
                         return false;

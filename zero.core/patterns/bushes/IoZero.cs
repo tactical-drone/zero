@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -27,11 +28,11 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="description">A description of the progress</param>
         /// <param name="source">The source of the work to be done</param>
-        /// <param name="mallocMessage">A callback to malloc individual consumer jobs from the heap</param>
+        /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
-        protected IoZero(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocMessage, bool sourceZeroCascade = true)
+        protected IoZero(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocJob, bool sourceZeroCascade = true)
         {
-            ConfigureProducer(description, source, mallocMessage, sourceZeroCascade);
+            ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -426,7 +427,6 @@ namespace zero.core.patterns.bushes
 
                 JobHeap.Return((IoLoad<TJob>)curJob.Previous);
             }
-                
         }
        
         /// <summary>
@@ -457,7 +457,7 @@ namespace zero.core.patterns.bushes
                     //Production timed out
                     if (sleepOnProducerLag)
                     {
-                        _logger.Warn($"Consumer `{Description}' [[ReadAheadBarrier]] timed out waiting on `{JobHeap.Make(null).Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Warn($"Consumer `{Description}' [[ReadAheadBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                     }
 
                     //Try again                    
@@ -477,7 +477,7 @@ namespace zero.core.patterns.bushes
                     //Production timed out
                     if (sleepOnProducerLag)
                     {                        
-                        _logger.Warn($"Consumer `{Description}' [[ConsumerBarrier]] timed out waiting on `{JobHeap.Make(null).Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Warn($"Consumer `{Description}' [[ConsumerBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                         await Task.Delay(parm_consumer_wait_for_producer_timeout/4);
                     }
                         
@@ -522,18 +522,18 @@ namespace zero.core.patterns.bushes
                     }
                     finally
                     {
-                        if (Source.BlockOnConsumeAheadBarrier)
-                            Source.ConsumeAheadBarrier.Release();
+                        try
+                        {
+                            if (Source.BlockOnConsumeAheadBarrier)
+                                Source.ConsumeAheadBarrier.Release();
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
 
                         //Consume success?
-                        if (curJob.ProcessState < IoJob<TJob>.State.Error)
-                        {                            
-                            curJob.ProcessState = IoJob<TJob>.State.Accept;                                                                    
-                        }
-                        else //Consume failed?
-                        {                            
-                            curJob.ProcessState = IoJob<TJob>.State.Reject;
-                        }
+                        curJob.ProcessState = curJob.ProcessState < IoJob<TJob>.State.Error ? IoJob<TJob>.State.Accept : IoJob<TJob>.State.Reject;
 
                         try
                         {
@@ -544,19 +544,32 @@ namespace zero.core.patterns.bushes
                         {
                             // ignored
                         }
+
                         finally
-                        {                            
-                            if ((curJob.Id % parm_stats_mod_count == 0))
+                        {
+                            try
                             {
-                                _logger.Debug("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-                                _logger.Debug($"`{Description}' {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
-                                curJob.Source.PrintCounters();
-                                _logger.Debug("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                if ((curJob.Id % parm_stats_mod_count == 0))
+                                {
+                                    _logger.Debug("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                    _logger.Debug($"`{Description}' {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                    curJob.Source.PrintCounters();
+                                    _logger.Debug("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                }
+                            }
+                            catch
+                            {
+                                // ignored
                             }
 
                             Free(curJob);
+                            curJob = null;
                         }                                                                        
                     }
+
+                    // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                    if (curJob != null)
+                        throw new ApplicationException($"{nameof(curJob)} must be null after consumption");
                 }
                 else
                 {
