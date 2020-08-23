@@ -48,7 +48,7 @@ namespace zero.cocoon.autopeer
                 while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
                     await Task.Delay(30000, Spinners.Token);
-                    if (!Spinners.IsCancellationRequested && Zeroed() && RemoteAddress != null)
+                    if (!Spinners.IsCancellationRequested && !Zeroed() && RemoteAddress != null)
                     {
                         if (!Verified)
                             await SendPingAsync();
@@ -73,6 +73,11 @@ namespace zero.cocoon.autopeer
         /// The gossip peer associated with this neighbor
         /// </summary>
         protected IoCcPeer Peer;
+
+        /// <summary>
+        /// Indicates whether we have successfully established a connection before
+        /// </summary>
+        protected volatile bool PeerConnectedAtLeastOnce;
 
         /// <summary>
         /// The neighbor address
@@ -465,8 +470,8 @@ namespace zero.cocoon.autopeer
                 {
                     if (Peer != null && (!Peer.Source.IsOperational || !Peer.IsArbitrating))
                     {
-                        _logger.Warn($"Found zombie peer: {Id}, closing peer = {Peer}, Operational = {Peer?.Source.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
-                        Peer.Zero();
+                        _logger.Warn($"Found zombie peer: {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
+                        Peer?.Zero();
                     }
                     else
                         _logger.Debug($"Peering stands {Direction}: {Id}");
@@ -508,17 +513,31 @@ namespace zero.cocoon.autopeer
 
             _logger.Trace($"{nameof(PeeringResponse)}: Got status = {response.Status}");
 
-            if (response.Status)
+            var alreadyOutbound = false;
+            lock (this)
             {
-                lock (this)
+                if (Direction == Kind.Undefined)
+                    Direction = response.Status? Kind.OutBound : Direction;
+                else if (Direction == Kind.Inbound)
                 {
-                    if (Direction == Kind.Undefined)
-                        Direction = Kind.OutBound;
-
-                    _logger.Info($"Peering negotiated {Direction}: {Id}");
+                    _logger.Debug($"{nameof(PeeringResponse)}: {nameof(Kind.OutBound)} request dropped, {nameof(Kind.Inbound)} received");
                 }
+                else if(Direction == Kind.OutBound)
+                {
+                    alreadyOutbound = true;
+                }
+            }
+
+            if (!alreadyOutbound)
+            {
+                _logger.Info($"{Kind.OutBound} peering request {(response.Status?"[ACCEPTED]":"[REJECTED]")}, currently {Direction}: {Id}");
+
                 if (Direction == Kind.OutBound)
                     CcNode.ConnectToPeer(this);
+            }
+            else
+            {
+                _logger.Fatal($"{nameof(PeeringResponse)}: Not expected, already {nameof(Kind.OutBound)}");
             }
         }
 
@@ -672,7 +691,17 @@ namespace zero.cocoon.autopeer
 
             if (RoutedRequest)
             {
-                await SendMessage(data:pong.ToByteString(), type:IoCcPeerMessage.MessageTypes.Pong);
+                await SendMessage(data: pong.ToByteString(), type: IoCcPeerMessage.MessageTypes.Pong);
+
+                Verified = true;
+                //set ext address as seen by neighbor
+                ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{ping.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
+
+                if (Peer == null && PeerConnectedAtLeastOnce && CcNode.Neighbors.Count <= CcNode.MaxClients) //TODO 
+                {
+                    _logger.Info($"RE-/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, DMZ = {ExtGossipAddress}");
+                    await SendPeerRequestAsync();
+                }
             }
             else//new neighbor 
             {
@@ -745,8 +774,8 @@ namespace zero.cocoon.autopeer
 
                 // remove stale neighbor PKs
                 var staleId = Node.Neighbors
-                    .Where(kv => ((IoCcNeighbor)kv.Value).RemoteAddress != null)
-                    .Where(kv => kv.Value.Source.Key.Contains(((IPEndPoint) extraData).Port.ToString()))
+                    .Where(kv => ((IoCcNeighbor)kv.Value).RoutedRequest)
+                    .Where(kv => ((IoCcNeighbor)kv.Value).RemoteAddress.Port == ((IPEndPoint) extraData).Port)
                     .Where(kv => !kv.Value.Source.Key.Contains(idCheck.PkString()))
                     .Select(kv => kv.Value.Id).FirstOrDefault();
 
@@ -801,10 +830,14 @@ namespace zero.cocoon.autopeer
                 //Just check everything is cool
                 if (Peer != null && (!Peer.IsArbitrating || !Peer.Source.IsOperational) && Direction != Kind.Undefined)
                 {
-                    _logger.Warn($"Found zombie Peer, closing: {Peer.Id}");
+                    _logger.Warn($"Found zombie Peer, closing: {Peer?.Id}");
 #pragma warning disable 4014
-                    Peer.Zero();
+                    Peer?.Zero();
 #pragma warning restore 4014
+                }
+                else
+                {
+                    await SendPeerRequestAsync();
                 }
             }
         }
@@ -909,6 +942,10 @@ namespace zero.cocoon.autopeer
             };
 
             await SendMessage(dest, dropRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringDrop);
+
+            //attempt to reconnect
+            if (RoutedRequest)
+                await SendPingAsync(dest);
         }
 
         //TODO complexity
@@ -922,6 +959,9 @@ namespace zero.cocoon.autopeer
                 return;
 
             Peer = ioCcPeer ?? throw new ArgumentNullException($"{nameof(ioCcPeer)}");
+
+            if(Peer.IsArbitrating && Peer.Source.IsOperational)
+                PeerConnectedAtLeastOnce = true;
 
             ioCcPeer.AttachNeighbor(this);
 
@@ -939,15 +979,20 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public void DetachPeer()
         {
+            var peer = Peer;
             if(Peer == null)
                 return;
-
-            Peer.Unsubscribe(_peerZeroSub);
-            Unsubscribe(_neighborZeroSub);
-            Peer.DetachNeighbor();
             Peer = null;
+
+            peer.Unsubscribe(_peerZeroSub);
+            Unsubscribe(_neighborZeroSub);
+            peer.DetachNeighbor();
             Direction = Kind.Undefined;
             Verified = false;
+            ExtGossipAddress = null;
+
+            if(peer != null)
+                _logger.Info($"Detached peer {Id}");
         }
     }
 }

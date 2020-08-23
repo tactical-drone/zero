@@ -117,7 +117,7 @@ namespace zero.core.core
                 //superclass specific mutations
                 try
                 {
-                    if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor))
+                    if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
 #pragma warning disable 4014
@@ -159,7 +159,7 @@ namespace zero.core.core
                 //Start the source consumer on the neighbor scheduler
                 try
                 {
-                    _neighborTasks.Add(Task.Factory.StartNew(async () => await newNeighbor.SpawnProcessingAsync(), Spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current));
+                    _neighborTasks.Add(Task.Factory.StartNew(async () => await newNeighbor.SpawnProcessingAsync().ConfigureAwait(false), Spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current));
 
                     //prune finished tasks
                     var remainTasks = _neighborTasks.Where(t => !t.IsCompleted).ToList();
@@ -188,7 +188,7 @@ namespace zero.core.core
             while (!Spinners.IsCancellationRequested && !Zeroed() && !connectedAtLeastOnce)
             {
                 
-                var newClient = await _netServer.ConnectAsync(address);
+                var newClient = await _netServer.ConnectAsync(address).ConfigureAwait(false);
                 if (newClient != null && newClient.IsOperational)
                 {
                     IoNeighbor<TJob> newNeighbor = null;
@@ -200,26 +200,30 @@ namespace zero.core.core
 #pragma warning disable 4014
                         zombieNeighbor.Zero();
 #pragma warning restore 4014
-                    
+
+                    var id = newNeighbor.Id;
+
                     if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                     {
-                        //TODO
-                        neighbor.parm_producer_start_retry_time = 60000;
-                        neighbor.parm_consumer_wait_for_producer_timeout = 60000;
-
+                        //Is this a race condition? Between subbing and being zeroed out?
                         newNeighbor.ZeroEvent(s =>
                         {
-                            if (!Neighbors.TryRemove(((IoNeighbor<TJob>)s)?.Id, out _))
+                            if (!Neighbors.TryRemove(id, out _))
                             {
-                                _logger.Fatal($"Neighbor metadata expected for key `{((IoNeighbor<TJob>)s)?.Id}'");
+                                _logger.Fatal($"Neighbor metadata expected for key `{id}'");
                             }
                             else
                             {
-                                _logger.Debug($"Dropped neigbor {((IoNeighbor<TJob>)s)?.Id}");
+                                _logger.Debug($"Dropped neigbor {id}");
                             }
 
                             return Task.CompletedTask;
                         });
+
+                        //TODO
+                        neighbor.parm_producer_start_retry_time = 60000;
+                        neighbor.parm_consumer_wait_for_producer_timeout = 60000;
+
 
                         _logger.Info($"Added {newNeighbor.Id}");
 

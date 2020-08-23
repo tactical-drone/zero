@@ -100,8 +100,8 @@ namespace zero.core.network.ip
 #pragma warning restore 4014
 
                 _connectionAttempts.TryRemove(address.Key, out _);
-                await Task.Delay(500);
-                return await ConnectAsync(address, ioNetClient);
+                await Task.Delay(500).ConfigureAwait(false);
+                return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
             }
 
             try
@@ -133,7 +133,7 @@ namespace zero.core.network.ip
                 }, Spinners.Token);
 
                 //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-                if (ioNetClient != null && await connectTask)
+                if (ioNetClient != null && await connectTask.ConfigureAwait(false))
                 {
                     ZeroOnCascade(ioNetClient);
                     return ioNetClient;

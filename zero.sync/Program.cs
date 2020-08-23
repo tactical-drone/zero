@@ -65,7 +65,7 @@ namespace zero.sync
                 IoNodeAddress.Create(peerAddress),
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress), 
-                TanglePeer<byte[]>.TcpReadAhead);
+                2);
 
 #pragma warning disable 4014
             var tangleNodeTask = cocoon.StartAsync();

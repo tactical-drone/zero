@@ -57,7 +57,7 @@ namespace zero.core.network.ip
         {
             IoSocket = new IoTcpSocket();
             IoSocket.ZeroOnCascade(this, true);
-            return await base.ConnectAsync();
+            return await base.ConnectAsync().ConfigureAwait(false);
         }
 
         /// <summary>

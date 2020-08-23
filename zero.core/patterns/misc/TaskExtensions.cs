@@ -26,7 +26,7 @@ namespace zero.core.patterns.misc
                 tcs.TrySetCanceled(), false);
             var cancellationTask = tcs.Task;
 
-            var readyTask = await Task.WhenAny(asyncTask, cancellationTask);
+            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(false);
             if (readyTask == cancellationTask)
 #pragma warning disable 4014
 

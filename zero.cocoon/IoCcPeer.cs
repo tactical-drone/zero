@@ -22,20 +22,20 @@ namespace zero.cocoon
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
-            Neighbor = neighbor;
 
-            if(Neighbor != null)
-                AttachNeighbor(Neighbor);
+            Neighbor = neighbor;
+            //if(Neighbor != null)
+            //    AttachNeighbor(Neighbor);
 
 
             //Testing
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
             Task.Run(async () =>
             {
-                return;
+                //return;
                 
                 await Task.Delay(rand.Next(120000) + 60000, Spinners.Token).ContinueWith(r =>
-                //await Task.Delay(rand.Next(60000), Spinners.Token).ContinueWith(r =>
+                //await Task.Delay(rand.Next(30000), Spinners.Token).ContinueWith(r =>
                 {
                     if (r.IsCompletedSuccessfully && !Spinners.IsCancellationRequested && !Zeroed())
                     {
@@ -82,9 +82,6 @@ namespace zero.cocoon
         /// <param name="neighbor"></param>
         public void AttachNeighbor(IoCcNeighbor neighbor)
         {
-            if (neighbor == Neighbor)
-                return;
-
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
 
             //Attach the other way

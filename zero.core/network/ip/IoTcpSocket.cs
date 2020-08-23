@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
@@ -36,7 +38,7 @@ namespace zero.core.network.ip
         {
             base.ZeroManaged();
 
-            _logger.Info($"Zeroed {ListeningAddress}");
+            _logger.Debug($"Zeroed {ListeningAddress}");
         }
 
         /// <summary>
@@ -63,16 +65,18 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
         {
-            if (!await base.ListenAsync(address, connectionHandler))
+            if (!await base.ListenAsync(address, connectionHandler).ConfigureAwait(false))
                 return false;
 
             try
             {
+                
                 Socket.Listen(parm_socket_listen_backlog);
+
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Socket listener `{ListeningAddress}' returned with errors:");
+                _logger.Error(e, $" listener `{ListeningAddress}' returned with errors:");
                 return false;
             }
 
@@ -97,7 +101,6 @@ namespace zero.core.network.ip
                                         $"Listener `{ListeningAddress}' returned with status `{t.Status}':");
                                     break;
                                 case TaskStatus.RanToCompletion:
-
 
                                     //ZERO control passed to connection handler
                                     var newSocket = new IoTcpSocket(t.Result, ListeningAddress)
@@ -135,7 +138,7 @@ namespace zero.core.network.ip
                                         $"Listener for `{ListeningAddress}' went into unknown state `{t.Status}'");
                                     break;
                             }
-                        }, Spinners.Token);
+                        }, Spinners.Token).ConfigureAwait(false);
                 }
                 catch (ObjectDisposedException){}
                 catch (OperationCanceledException) {}
@@ -156,7 +159,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async Task<bool> ConnectAsync(IoNodeAddress address)
         {
-            if (!await base.ConnectAsync(address))
+            if (!await base.ConnectAsync(address).ConfigureAwait(false))
                 return false;
 
             return await Socket.ConnectAsync(address.Ip, address.Port).ContinueWith(r =>
@@ -185,7 +188,7 @@ namespace zero.core.network.ip
                         return Task.FromResult(false);
                 }
                 return Task.FromResult(true);
-            }, Spinners.Token).Unwrap();
+            }, Spinners.Token).Unwrap().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -202,30 +205,40 @@ namespace zero.core.network.ip
             {
                 if (Zeroed())
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(1000).ConfigureAwait(false);
                     return 0;
                 }
 
-                var task = Task.Factory
-                    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
-                        Socket.EndSend);//.HandleCancellation(Spinners.Token); //TODO
-
-                await task.ContinueWith(t =>
+                //var task = Task.Factory
+                //    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
+                //        Socket.EndSend);//.HandleCancellation(Spinners.Token); //TODO
+                Task<int> task = null;
+                if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
                 {
-                    switch (t.Status)
-                    {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
-                            Zero();
-                            break;
-                        case TaskStatus.RanToCompletion:
-                            _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
-                            break;
-                    }
-                }, Spinners.Token).ConfigureAwait(false);
+                    task = Socket.SendAsync(arraySegment.Slice(offset, length), SocketFlags.None, Spinners.Token).AsTask();
+                }
 
-                return task.Result;
+                if (task != null)
+                {
+                    await task.ContinueWith(t =>
+                    {
+                        switch (t.Status)
+                        {
+                            case TaskStatus.Canceled:
+                            case TaskStatus.Faulted:
+                                _logger.Error(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
+                                Zero();
+                                break;
+                            case TaskStatus.RanToCompletion:
+                                _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
+                                break;
+                        }
+                    }, Spinners.Token).ConfigureAwait(false);
+
+                    return task.Result;
+                }
+
+                return 0;
             }
             catch (Exception e)
             {
@@ -252,7 +265,7 @@ namespace zero.core.network.ip
             {
                 if (Zeroed())
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(250, Spinners.Token).ConfigureAwait(false);
                     return 0;
                 }
 
@@ -260,19 +273,34 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    var read = await Task.Factory.FromAsync(
-                            Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
-                            Socket.EndReceive)
-                        .ConfigureAwait(false); //.HandleCancellation(Spinners.Token).ConfigureAwait(false); //TODO
-
-                    if (read == 0) //TODO does this make sense?
+                    int read = 0;
+                    //TODO 
+                    if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment)  && Socket.Available > 0)
                     {
-                        _logger.Fatal($"Read 0 bytes, closing {Key}");
+                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, Spinners.Token).AsTask();
+                        read = await t.ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Task.Delay(250, Spinners.Token).ConfigureAwait(false);
+                        return 0;
+                    }
+
+                    //var read = await Task.Factory.FromAsync(
+                    //        Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
+                    //        Socket.EndReceive)
+                    //    .ConfigureAwait(false); //.HandleCancellation(Spinners.Token).ConfigureAwait(false); //TODO
+
+                    //var read = Socket?.Receive(buffer, offset, length, SocketFlags.None);
+
+                    if (!Socket.Connected || !Socket.IsBound)
+                    {
+                        _logger.Debug($"{Key}: Connected = {Socket.Connected}, IsBound = {Socket.IsBound}");
 #pragma warning disable 4014
                         Zero();
 #pragma warning restore 4014
                     }
-
+                    
                     return read;
                 }
                 else if (timeout > 0)
@@ -284,7 +312,7 @@ namespace zero.core.network.ip
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
-                _logger.Trace(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
+                _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
 #pragma warning disable 4014
                 Zero();
 #pragma warning restore 4014

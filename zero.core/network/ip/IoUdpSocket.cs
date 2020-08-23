@@ -101,7 +101,7 @@ namespace zero.core.network.ip
                 null
             );
 
-            if (!await base.ListenAsync(address, callback))
+            if (!await base.ListenAsync(address, callback).ConfigureAwait(false))
                 return false;
 
             try
@@ -115,7 +115,7 @@ namespace zero.core.network.ip
                 _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Spinners.IsCancellationRequested && !Zeroed())
                 {
-                    await Task.Delay(5000);
+                    await Task.Delay(5000).ConfigureAwait(false);
                     if (!Socket?.IsBound ?? true)
                     {
                         _logger.Warn($"Found zombie udp socket state");
@@ -148,7 +148,7 @@ namespace zero.core.network.ip
         {
             if (Zeroed())
             {
-                await Task.Delay(1000);
+                await Task.Delay(1000).ConfigureAwait(false);
                 return 0;
             }
             
@@ -191,7 +191,7 @@ namespace zero.core.network.ip
 
                 if (!(Socket?.IsBound ?? false) || Zeroed())
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(1000).ConfigureAwait(false);
                     return 0;
                 }
 

@@ -121,7 +121,7 @@ namespace zero.core.models
         /// <returns></returns>
         public async Task<bool> WasProcessedRecentlyAsync(string key)
         {            
-            return await Source.RecentlyProcessed.KeyExistsAsync(key);            
+            return await Source.RecentlyProcessed.KeyExistsAsync(key).ConfigureAwait(false);            
         }
     }
 }

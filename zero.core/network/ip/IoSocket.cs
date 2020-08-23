@@ -271,8 +271,8 @@ namespace zero.core.network.ip
         protected override void ZeroManaged()
         {
             //Close the socket
-            if (Socket?.Connected ?? false)
-                Socket.Shutdown(SocketShutdown.Both);
+            //if (Socket?.Connected ?? false)
+            //    Socket.Shutdown(SocketShutdown.Both);
 
             Socket?.Close();
 
@@ -300,7 +300,6 @@ namespace zero.core.network.ip
         /// <param name="buffer">The buffer to read into</param>
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
-        /// <param name="timeout"></param>
         /// <returns>The amounts of bytes read</returns>
         public abstract Task<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0);
 

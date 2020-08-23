@@ -163,7 +163,7 @@ namespace zero.cocoon.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(rx =>
+                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(async rx =>
                             {
                                 switch (rx.Status)
                                 {
@@ -171,12 +171,19 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Zero();
+                                        await Source.Zero();
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
                                     case TaskStatus.RanToCompletion:
                                         BytesRead = rx.Result;
+
+                                        //TODO WTF
+                                        if (BytesRead == 0)
+                                        {
+                                            break;
+                                        }
+                                            
 
                                         //UDP signals source ip
                                         ProducerUserData = ((IoSocket)ioSocket).ExtraData();
@@ -196,7 +203,7 @@ namespace zero.cocoon.models
                                         ProcessState = State.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                                 }
-                            }, Spinners.Token);
+                            }, Spinners.Token).ConfigureAwait(false);
                     }
                     else
                     {
@@ -265,7 +272,7 @@ namespace zero.cocoon.models
             TransferPreviousBits();
 
             if (BytesRead == 0)
-                return ProcessState = State.ConInvalid;
+                return ProcessState = State.Consumed;
 
             var stream = ByteStream;
             try
@@ -282,7 +289,7 @@ namespace zero.cocoon.models
             }
             finally
             {
-
+                Interlocked.Add(ref BufferOffset, BytesRead);
             }
 
             //if (_protocolMsgBatch.Count > 0)

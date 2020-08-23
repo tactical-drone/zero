@@ -109,6 +109,10 @@ namespace zero.cocoon.models.sources
             {
                 return false;
             }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
             catch (Exception e)
             {
                 _logger.Error(e, $"Source `{Description}' callback failed:");

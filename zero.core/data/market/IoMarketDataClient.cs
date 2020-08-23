@@ -22,7 +22,7 @@ namespace zero.core.data.market
 
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(55)).Subscribe(async _ =>
                 {
-                    var newData = await FetchData();
+                    var newData = await FetchData().ConfigureAwait(false);
                     if (newData != null)
                         CurrentData = newData;
                 });
@@ -55,7 +55,7 @@ namespace zero.core.data.market
                     }
 
                     return null;
-                });
+                }).ConfigureAwait(false);
             return fetch;
         }
     }

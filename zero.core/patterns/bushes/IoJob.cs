@@ -231,6 +231,7 @@ namespace zero.core.patterns.bushes
                     if (CurrentState.State == State.Finished)
                     {
                         //PrintStateHistory();
+                        CurrentState.State = State.Reject;
                         throw new Exception($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
                     }
 
