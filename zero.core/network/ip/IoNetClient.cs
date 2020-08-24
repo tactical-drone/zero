@@ -186,7 +186,7 @@ namespace zero.core.network.ip
             {
                 if (t.Result)
                 {
-                    _logger.Info($"Connected to `{AddressString}'");                    
+                    _logger.Debug($"Connected to `{AddressString}'");                    
                 }
                 else
                 {

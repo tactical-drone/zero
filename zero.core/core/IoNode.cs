@@ -132,14 +132,17 @@ namespace zero.core.core
                     return;
                 }
 
+                //We use this locally captured variable as newNeighbor.Id dissapears on zero
+                string id = newNeighbor.Id;
+
                 // Remove from lists if closed
                 newNeighbor.ZeroEvent(s =>
                 {
                     //DisconnectedEvent?.Invoke(this, newNeighbor);
-                    if (Neighbors.TryRemove(((IoNeighbor<TJob>)s)?.Id, out var _))
-                        _logger.Debug($"Removed neighbor Id = {((IoNeighbor<TJob>)s)?.Id}");
+                    if (Neighbors.TryRemove(id, out var _))
+                        _logger.Debug($"Removed neighbor Id = {id}");
                     else
-                        _logger.Fatal($"Neighbor {((IoNeighbor<TJob>)s)?.Id} not found!");
+                        _logger.Fatal($"Neighbor {id} not found!");
 
                     return Task.CompletedTask;
                 });
@@ -201,6 +204,7 @@ namespace zero.core.core
                         zombieNeighbor.Zero();
 #pragma warning restore 4014
 
+                    //We capture a local varable here as newNeighbor.Id dissapears on zero
                     var id = newNeighbor.Id;
 
                     if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))

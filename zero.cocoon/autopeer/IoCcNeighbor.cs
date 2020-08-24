@@ -835,7 +835,7 @@ namespace zero.cocoon.autopeer
                     Peer?.Zero();
 #pragma warning restore 4014
                 }
-                else
+                else if(Peer == null && PeerConnectedAtLeastOnce) //TODO remove
                 {
                     await SendPeerRequestAsync();
                 }
@@ -858,7 +858,7 @@ namespace zero.cocoon.autopeer
                 Version = 0,
                 SrcAddr = "0.0.0.0", //TODO auto/manual option here
                 SrcPort = (uint)CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering].Port,
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()/20 * 20 + 20 //TODO workaround for ping/pong spam rejections?
             };
 
             if (RoutedRequest)
@@ -917,6 +917,9 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         private async Task SendPeerRequestAsync(IoNodeAddress dest = null)
         {
+            if(CcNode.OutboundCount >= CcNode.parm_max_outbound)
+                return;
+
             dest ??= RemoteAddress;
 
             _peerRequest = new PeeringRequest

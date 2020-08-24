@@ -180,7 +180,7 @@ namespace zero.core.network.ip
                             return Task.FromResult(false);
                         }
 
-                        _logger.Info($"Connected to `{ListeningAddress}'");
+                        _logger.Debug($"Connected to `{ListeningAddress}'");
                         break;
                     default:
                         _logger.Error($"Connecting to `{ListeningAddress}' returned with unknown state `{r.Status}'");

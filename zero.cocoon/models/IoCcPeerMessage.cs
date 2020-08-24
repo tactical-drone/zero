@@ -44,6 +44,7 @@ namespace zero.cocoon.models
 
             ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), true, protocol,
                 userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+            
             ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             ProtocolChannel.parm_producer_start_retry_time = 0;
         }

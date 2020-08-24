@@ -186,7 +186,7 @@ namespace zero.cocoon
             await base.SpawnListenerAsync(async neighbor =>
             {
                 //limit connects
-                if (InboundCount >= parm_max_inbound)
+                if (InboundCount > parm_max_inbound)
                     return false;
                 
                 return await HandshakeAsync((IoCcPeer)neighbor);
@@ -300,7 +300,7 @@ namespace zero.cocoon
                         }
 
                         //reject requests to invalid ext ip
-                        if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort)
+                        if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
                         {
                             _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
                             return false;
