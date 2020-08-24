@@ -78,6 +78,9 @@ namespace zero.core.patterns.misc
         /// <param name="sub">The original subscription</param>
         public Func<IIoZeroable, Task> Unsubscribe(Func<IIoZeroable, Task> sub)
         {
+            if (sub == null)
+                return null;
+
             if (!_subscribers.TryRemove(sub, out _))
             {
                 LogManager.GetCurrentClassLogger().Warn($"Cannot unsubscribe, event not found: Method = {sub.Method}, Target = {sub.Target}");

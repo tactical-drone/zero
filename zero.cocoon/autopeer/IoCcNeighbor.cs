@@ -72,7 +72,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The gossip peer associated with this neighbor
         /// </summary>
-        protected IoCcPeer Peer;
+        protected volatile IoCcPeer Peer;
 
         /// <summary>
         /// Indicates whether we have successfully established a connection before
@@ -150,7 +150,7 @@ namespace zero.cocoon.autopeer
         private volatile DiscoveryRequest _discoveryRequest;
 
 
-        private SemaphoreSlim _pingRequestAutoResetEvent = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim _pingRequestBarrier = new SemaphoreSlim(1);
         /// <summary>
         /// Used to Match requests
         /// </summary>
@@ -238,7 +238,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         protected override void ZeroUnmanaged()
         {
-            _pingRequestAutoResetEvent.Dispose();
+            _pingRequestBarrier.Dispose();
             base.ZeroUnmanaged();
         }
 
@@ -247,6 +247,8 @@ namespace zero.cocoon.autopeer
         /// </summary>
         protected override void ZeroManaged()
         {
+            Peer.DetachNeighbor();
+
             base.ZeroManaged();
             _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
@@ -743,8 +745,8 @@ namespace zero.cocoon.autopeer
             {
                 if (RoutedRequest)
                 {
-                    _logger.Debug($"{nameof(Pong)}({GetHashCode()}):  Unexpected! {Id}:{RemoteAddress.Port}");
-                    Node.Neighbors.ToList().ForEach(kv=>_logger.Trace($"{kv.Value.Id}:{((IoNetClient<IoCcPeerMessage>)kv.Value.Source).RemoteAddress.Port}"));
+                    _logger.Fatal($"{nameof(Pong)}({GetHashCode()}):  Unexpected! {Id}:{RemoteAddress.Port}");
+                    Node.Neighbors.Where(kv=> ((IoCcNeighbor)kv.Value).RoutedRequest).ToList().ForEach(kv=>_logger.Fatal($"{kv.Value.Id}:{((IoCcNeighbor)kv.Value).RemoteAddress.Port}"));
                 }
                 else { } //ignore
 
@@ -767,7 +769,7 @@ namespace zero.cocoon.autopeer
             //Unknown source IP
             if (!RoutedRequest)
             {
-                _pingRequestAutoResetEvent.Release();
+                _pingRequestBarrier.Release();
 
                 var idCheck = IoCcIdentity.FromPK(packet.PublicKey.Span);
                 var keyStr = MakeId(idCheck, IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData));
@@ -882,7 +884,7 @@ namespace zero.cocoon.autopeer
 
                 if (!ccNeighbor.RoutedRequest)
                 {
-                    if (!await _pingRequestAutoResetEvent.WaitAsync(parm_ping_timeout))
+                    if (!await _pingRequestBarrier.WaitAsync(parm_ping_timeout))
                     {
                         _logger.Debug($"{nameof(Ping)}:Probe failed {ccNeighbor.RemoteAddress ?? dest}");
                     }
@@ -988,7 +990,9 @@ namespace zero.cocoon.autopeer
             Peer = null;
 
             peer.Unsubscribe(_peerZeroSub);
+            _peerZeroSub = null;
             Unsubscribe(_neighborZeroSub);
+            _neighborZeroSub = null;
             peer.DetachNeighbor();
             Direction = Kind.Undefined;
             Verified = false;

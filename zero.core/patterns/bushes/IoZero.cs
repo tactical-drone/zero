@@ -619,7 +619,7 @@ namespace zero.core.patterns.bushes
                         break;
                     }
                 }
-            }, TaskCreationOptions.LongRunning);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //Consumer
             var consumerTask = Task.Factory.StartNew(async () =>
@@ -634,7 +634,7 @@ namespace zero.core.patterns.bushes
                         break;
                     }                            
                 }
-            }, TaskCreationOptions.LongRunning);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //Wait for tear down                
             var wait = Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
