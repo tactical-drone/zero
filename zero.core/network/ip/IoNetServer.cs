@@ -42,10 +42,20 @@ namespace zero.core.network.ip
         /// </summary>
         public IoNodeAddress ListeningAddress { get; protected set; }
 
+
+        private string _description;
         /// <summary>
         /// A description
         /// </summary>
-        public string Description => IoListenSocket?.ToString() ?? ListeningAddress.ToString();
+        public override string Description
+        {
+            get
+            {
+                if(_description == null) 
+                    return _description = IoListenSocket?.ToString() ?? ListeningAddress?.ToString();
+                return _description;
+            }
+        }
 
         /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped
@@ -91,12 +101,12 @@ namespace zero.core.network.ip
             {
                 _logger.Warn($"Cancelling existing connection attemp to `{address}'");
 #pragma warning disable 4014
-                _connectionAttempts[address.Key].Zero();
+                _connectionAttempts[address.Key].Zero(this);
 #pragma warning restore 4014
 
                 _connectionAttempts.TryRemove(address.Key, out _);
-                await Task.Delay(500).ConfigureAwait(false);
-                return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
+                await Task.Delay(500);
+                return await ConnectAsync(address, ioNetClient);
             }
 
             try
@@ -108,7 +118,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                             _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
-                            ioNetClient.Zero();
+                            ioNetClient.Zero(this);
                             break;
                         case TaskStatus.RanToCompletion:
                             if (ioNetClient.IsOperational)
@@ -119,7 +129,7 @@ namespace zero.core.network.ip
                             else // On connect failure
                             {
                                 _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
-                                ioNetClient.Zero();
+                                ioNetClient.Zero(this);
                                 return false;
                             }
                     }
@@ -128,7 +138,7 @@ namespace zero.core.network.ip
                 }, AsyncTasks.Token);
 
                 //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-                if (ioNetClient != null && await connectTask.ConfigureAwait(false))
+                if (ioNetClient != null && await connectTask)
                 {
                     ZeroOnCascade(ioNetClient);
                     return ioNetClient;
@@ -154,12 +164,24 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            ListeningAddress = null;
+            IoListenSocket = null;
+#endif
+        }
+
+        /// <summary>
         /// zero managed
         /// </summary>
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
-            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
 

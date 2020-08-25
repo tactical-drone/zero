@@ -64,7 +64,7 @@ namespace zero.cocoon
         /// </summary>
         protected override void ZeroManaged()
         {
-            Neighbors.ToList().ForEach(n=>n.Value.Zero());
+            Neighbors.ToList().ForEach(n=>n.Value.Zero(this));
 
             try
             {
@@ -76,7 +76,6 @@ namespace zero.cocoon
             }
 
             base.ZeroManaged();
-            _logger.Info($"Zeroed");
             GC.Collect(GC.MaxGeneration);
         }
 
@@ -87,7 +86,7 @@ namespace zero.cocoon
         private readonly IoNodeAddress _fpcAddress;
 
         /// <summary>
-        /// Reachable from DMZ
+        /// Reachable from NAT
         /// </summary>
         public IoNodeAddress ExtAddress { get; protected set; }
 
@@ -184,14 +183,15 @@ namespace zero.cocoon
             //start peering
             _autoPeeringTask = Task.Factory.StartNew(async () => await _autoPeering.StartAsync().ConfigureAwait(false), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
+            //DO the continuation inside this callback should always return on the same thread
             await base.SpawnListenerAsync(async neighbor =>
             {
                 //limit connects
                 if (InboundCount > parm_max_inbound)
                     return false;
                 
-                return await HandshakeAsync((IoCcPeer)neighbor);
-            });
+                return await HandshakeAsync((IoCcPeer)neighbor);//we don't ConfigureAwait(false) here
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -399,7 +399,7 @@ namespace zero.cocoon
         /// Opens an <see cref="IoCcNeighbor.Kind.OutBound"/> connection to a gossip peer
         /// </summary>
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
-        public void ConnectToPeer(IoCcNeighbor neighbor)
+        public async Task ConnectToPeer(IoCcNeighbor neighbor)
         {
             if (neighbor.RemoteAddress != null && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
                 OutboundCount < parm_max_outbound &&
@@ -408,7 +408,7 @@ namespace zero.cocoon
             {
                 if (neighbor.Direction == IoCcNeighbor.Kind.OutBound)
                 {
-                    SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor)
+                    await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor)
                         .ContinueWith(async (task) =>
                         {
                             switch (task.Status)
@@ -420,7 +420,7 @@ namespace zero.cocoon
                                         {
                                             _logger.Info($"Peer {neighbor.Direction}: Connected! ({task.Result.Id})");
                                             ((IoCcPeer)task.Result).AttachNeighbor(neighbor);
-                                            await task.Result.SpawnProcessingAsync();
+                                            NeighborTasks.Add(task.Result.SpawnProcessingAsync());
                                         }
                                     }
                                     break;

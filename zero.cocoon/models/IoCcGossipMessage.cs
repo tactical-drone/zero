@@ -135,7 +135,7 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
+                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
                     {
                         if (!Zeroed())
                         {
@@ -154,7 +154,7 @@ namespace zero.cocoon.models
                         return true;
                     }
 
-                    if (Zeroed())
+                    if(Zeroed())
                     {
                         ProcessState = State.ProdCancel;
                         return false;
@@ -171,7 +171,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        await Source.Zero();
+                                        await Source.Zero(this);
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -208,7 +208,7 @@ namespace zero.cocoon.models
                     else
                     {
 #pragma warning disable 4014
-                        Source.Zero();
+                        Source.Zero(this);
 #pragma warning restore 4014
                     }
 

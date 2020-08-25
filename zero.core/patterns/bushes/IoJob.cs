@@ -76,13 +76,23 @@ namespace zero.core.patterns.bushes
             ProduceTo,
             Cancelled,
             Timeout,
-            Oom
+            Oom,
+            Zeroed
         }
 
+        private string _description;
         /// <summary>
         /// A description of this kind of work
         /// </summary>
-        public virtual string Description => $"{Source.Description} | {_jobDescription}";
+        public override string Description
+        {
+            get
+            {
+                if(_description == null) 
+                    return _description = $"{Source.Description} | {_jobDescription}";
+                return _description;
+            }
+        }
 
         /// <summary>
         /// A description of the job and work
@@ -97,7 +107,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
         /// </summary>      
-        public readonly IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];//TODO what should this size be?
+        public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];//TODO what should this size be?
 
         /// <summary>
         /// The current state
@@ -138,12 +148,24 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            //CurrentState = null;
+            //StateTransitionHistory = null;
+#endif
+        }
+
+        /// <summary>
         /// zero managed
         /// </summary>
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
-            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>

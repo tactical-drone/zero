@@ -2,9 +2,11 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.misc
 {
@@ -20,24 +22,16 @@ namespace zero.core.patterns.misc
         {
             Zero(false);
         }
-        
-        /// <summary>
-        /// Zero pattern
-        /// </summary>
-        public void Dispose()
-        {
-            Zero(true);
-            GC.SuppressFinalize(this);
-        }
 
         /// <summary>
-        /// Zero
+        /// Description
         /// </summary>
-        public Task Zero()
-        {
-            Dispose();
-            return Task.CompletedTask;
-        }
+        public virtual string Description => $"{GetType().Name}";
+
+        /// <summary>
+        /// Who zeroed this object
+        /// </summary>
+        public IIoZeroable ZeroedFrom { get; protected set; }
 
         /// <summary>
         /// Cancellation token source
@@ -60,12 +54,55 @@ namespace zero.core.patterns.misc
         private readonly ConcurrentDictionary<Func<IIoZeroable, Task>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, Task>, object>();
 
         /// <summary>
+        /// Zero pattern
+        /// </summary>
+        public void Dispose()
+        {
+            Zero(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Zero
+        /// </summary>
+        public Task Zero(IIoZeroable from)
+        {
+            lock (this)
+            {
+                if (!_zeroed && from != this)
+                    ZeroedFrom = from;
+            }
+
+            Dispose();
+
+            return Task.CompletedTask;
+        }
+
+        private void PrintPathToZero()
+        {
+            var builder = new StringBuilder();
+            var cur = ZeroedFrom;
+            while (cur?.Zeroed() ?? false)
+            {
+                builder.Append($"/> {GetType().Name}({cur.Description})");
+                if (cur == this)
+                    break;
+                cur = cur.ZeroedFrom;
+            }
+
+            LogManager.GetCurrentClassLogger().Debug($"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
+        }
+
+        /// <summary>
         /// Indicate zero status
         /// </summary>
         /// <returns>True if zeroed out, false otherwise</returns>
         public bool Zeroed()
         {
-            return _zeroed;
+            lock (this)
+            {
+                return _zeroed;
+            }
         }
 
         /// <summary>
@@ -107,10 +144,10 @@ namespace zero.core.patterns.misc
         public T ZeroOnCascade<T>(T target, bool twoWay = false)
         where T:IIoZeroable
         {
-            ZeroEvent((sender) => target.Zero());
+            ZeroEvent((sender) => target.Zero(this));
             if (twoWay)
             {
-                target.ZeroEvent((s) => Zero());
+                target.ZeroEvent((s) => Zero(this));
             }
                 
             return target;
@@ -128,6 +165,7 @@ namespace zero.core.patterns.misc
                     return;
 
                 _zeroed = true;
+                PrintPathToZero();
             }
 
             //Cancel all async tasks first or they leak
@@ -167,6 +205,7 @@ namespace zero.core.patterns.misc
                     _asyncTasks.Dispose();
                     _asyncTasks = null;
                     ZeroUnmanaged();
+                    ZeroedFrom = null;
                 }
                 catch (Exception e)
                 {

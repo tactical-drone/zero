@@ -60,7 +60,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The remote address associated with this client
         /// </summary>
-        public readonly IoNodeAddress ListeningAddress;
+        public IoNodeAddress ListeningAddress;
 
         /// <summary>
         /// The client remote address
@@ -112,12 +112,36 @@ namespace zero.core.network.ip
         /// <returns>
         /// The unique key of this instance
         /// </returns>
-        public override string Key => IoSocket.Key;
+        public override string Key
+        {
+            get
+            {
+                if (_key != null)
+                    return _key;
 
+                _key = IoSocket.Key;
+                return _key;
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _key;
+
+        private string _description;
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => $"<{GetType().Name}>({IoSocket?.RemoteAddress?.ToString()??ListeningAddress.ToString()})";
+        public override string Description
+        {
+            get 
+            { 
+                if(_description == null)
+                    return _description = $"{IoSocket?.RemoteAddress?.ToString() ?? ListeningAddress.ToString()}";
+                return _description;
+            }
+        }
 
         /// <summary>
         /// A description of this client source. Currently the remote address
@@ -160,6 +184,10 @@ namespace zero.core.network.ip
         protected override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            IoSocket = null;
+#endif
         }
 
         /// <summary>
@@ -168,8 +196,6 @@ namespace zero.core.network.ip
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
-
-            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>
@@ -193,7 +219,7 @@ namespace zero.core.network.ip
                     _logger.Debug($"Failed to connect to `{AddressString}'");
                 }
                 return connectAsyncTask;
-            }).Unwrap().ConfigureAwait(false);
+            }).Unwrap();
         }
 
         /// <summary>
@@ -214,7 +240,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await callback(IoSocket).ConfigureAwait(false);
+                return await callback(IoSocket);//don't ;
             }
             catch (TimeoutException)
             {
@@ -262,7 +288,7 @@ namespace zero.core.network.ip
                             _logger.Warn($"Connection to `{ListeningAddress}' disconnected!");
 
                             //Do cleanup
-                            Zero();
+                            Zero(this);
 
                             return false;
                         }

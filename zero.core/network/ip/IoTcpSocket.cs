@@ -13,7 +13,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// The TCP flavor of <see cref="IoSocket"/>
     /// </summary>
-    class IoTcpSocket : IoNetSocket
+    sealed class IoTcpSocket : IoNetSocket
     {
         /// <summary>
         /// Constructs a new TCP socket
@@ -29,6 +29,10 @@ namespace zero.core.network.ip
         protected override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            RemoteNodeAddress = null;
+#endif
         }
 
         /// <summary>
@@ -37,8 +41,6 @@ namespace zero.core.network.ip
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
-
-            _logger.Debug($"Zeroed {ListeningAddress}");
         }
 
         /// <summary>
@@ -65,14 +67,12 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
         {
-            if (!await base.ListenAsync(address, connectionHandler).ConfigureAwait(false))
+            if (!await base.ListenAsync(address, connectionHandler))
                 return false;
 
             try
             {
-                
                 Socket.Listen(parm_socket_listen_backlog);
-
             }
             catch (Exception e)
             {
@@ -80,13 +80,11 @@ namespace zero.core.network.ip
                 return false;
             }
 
-            Task<Socket> acceptTask = null;
-
             // Accept incoming connections
             while (!Zeroed())
             {
                 _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
-                acceptTask = Socket?.AcceptAsync();
+                var acceptTask = Socket?.AcceptAsync();
 
                 try
                 {
@@ -118,8 +116,7 @@ namespace zero.core.network.ip
                                     //    break;
                                     //}
 
-                                    _logger.Debug(
-                                        $"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}'");
+                                    _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}' ({Description})");
 
                                     try
                                     {
@@ -159,7 +156,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async Task<bool> ConnectAsync(IoNodeAddress address)
         {
-            if (!await base.ConnectAsync(address).ConfigureAwait(false))
+            if (!await base.ConnectAsync(address))
                 return false;
 
             return await Socket.ConnectAsync(address.Ip, address.Port).ContinueWith(r =>
@@ -180,10 +177,10 @@ namespace zero.core.network.ip
                             return Task.FromResult(false);
                         }
 
-                        _logger.Debug($"Connected to `{ListeningAddress}'");
+                        _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
                         break;
                     default:
-                        _logger.Error($"Connecting to `{ListeningAddress}' returned with unknown state `{r.Status}'");
+                        _logger.Error($"Connecting to `{ListeningAddress}' returned with unknown state `{r.Status}' ({Description})");
                         Socket.Close();
                         return Task.FromResult(false);
                 }
@@ -205,7 +202,7 @@ namespace zero.core.network.ip
             {
                 if (Zeroed())
                 {
-                    await Task.Delay(1000).ConfigureAwait(false);
+                    await Task.Delay(1000);
                     return 0;
                 }
 
@@ -227,13 +224,13 @@ namespace zero.core.network.ip
                             case TaskStatus.Canceled:
                             case TaskStatus.Faulted:
                                 _logger.Error(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
-                                Zero();
+                                Zero(this);
                                 break;
                             case TaskStatus.RanToCompletion:
                                 _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
                                 break;
                         }
-                    }, AsyncTasks.Token).ConfigureAwait(false);
+                    }, AsyncTasks.Token);
 
                     return task.Result;
                 }
@@ -244,7 +241,7 @@ namespace zero.core.network.ip
             {
                 _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
 #pragma warning disable 4014
-                Zero();
+                Zero(this);
 #pragma warning restore 4014
                 return 0;
             }
@@ -265,7 +262,7 @@ namespace zero.core.network.ip
             {
                 if (Zeroed())
                 {
-                    await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay(250, AsyncTasks.Token);
                     return 0;
                 }
 
@@ -278,18 +275,18 @@ namespace zero.core.network.ip
                     if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment)  && Socket.Available > 0)
                     {
                         var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
-                        read = await t.ConfigureAwait(false);
+                        read = await t;
                     }
                     else
                     {
-                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(250, AsyncTasks.Token);
                         return 0;
                     }
 
                     //var read = await Task.Factory.FromAsync(
                     //        Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
                     //        Socket.EndReceive)
-                    //    .ConfigureAwait(false); //.HandleCancellation(AsyncTasks.Token).ConfigureAwait(false); //TODO
+                    //    ; //.HandleCancellation(AsyncTasks.Token); //TODO
 
                     //var read = Socket?.Receive(buffer, offset, length, SocketFlags.None);
 
@@ -297,7 +294,7 @@ namespace zero.core.network.ip
                     {
                         _logger.Debug($"{Key}: Connected = {Socket.Connected}, IsBound = {Socket.IsBound}");
 #pragma warning disable 4014
-                        Zero();
+                        Zero(this);
 #pragma warning restore 4014
                     }
                     
@@ -314,7 +311,7 @@ namespace zero.core.network.ip
             {
                 _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
 #pragma warning disable 4014
-                Zero();
+                Zero(this);
 #pragma warning restore 4014
             }
 

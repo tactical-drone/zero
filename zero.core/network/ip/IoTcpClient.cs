@@ -57,7 +57,7 @@ namespace zero.core.network.ip
         {
             IoSocket = new IoTcpSocket();
             IoSocket.ZeroOnCascade(this, true);
-            return await base.ConnectAsync().ConfigureAwait(false);
+            return await base.ConnectAsync();
         }
 
         /// <summary>
@@ -66,6 +66,13 @@ namespace zero.core.network.ip
         protected override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            IoSocket = null;
+            ListeningAddress = null;
+            IoChannels = null;
+#endif
+
         }
 
         /// <summary>
@@ -74,8 +81,6 @@ namespace zero.core.network.ip
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
-
-            _logger.Info($"Zeroed {Key}");
         }
     }
 }

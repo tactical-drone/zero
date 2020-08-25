@@ -149,8 +149,11 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private volatile DiscoveryRequest _discoveryRequest;
 
+        /// <summary>
+        /// Only one un-routed ping request allowed at a time. 
+        /// </summary>
+        private SemaphoreSlim _pingRequestBarrier = new SemaphoreSlim(1);
 
-        private readonly SemaphoreSlim _pingRequestBarrier = new SemaphoreSlim(1);
         /// <summary>
         /// Used to Match requests
         /// </summary>
@@ -265,6 +268,7 @@ namespace zero.cocoon.autopeer
         protected override void ZeroUnmanaged()
         {
             _pingRequestBarrier.Dispose();
+            _pingRequestBarrier = null;
             base.ZeroUnmanaged();
         }
 
@@ -274,10 +278,10 @@ namespace zero.cocoon.autopeer
         protected override void ZeroManaged()
         {
             Peer?.DetachNeighbor();
-            Peer?.Zero();
+            Peer?.Zero(this);
 
             base.ZeroManaged();
-            _logger.Debug($"{ToString()}: Zeroed {Description}");
+            _logger.Debug($"{GetType().Name}: Zeroed {Description}");
         }
 
         /// <summary>
@@ -287,16 +291,16 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         public override async Task SpawnProcessingAsync(bool spawnProducer = true)
         {
-            var neighbor = base.SpawnProcessingAsync(spawnProducer);
+            var processingAsync = base.SpawnProcessingAsync(spawnProducer);
             var protocol = ProcessAsync();
 
-            await Task.WhenAll(neighbor, protocol).ConfigureAwait(false);
+            await Task.WhenAll(processingAsync, protocol).ConfigureAwait(false);
 
-            if (neighbor.IsFaulted)
+            if (processingAsync.IsFaulted)
             {
-                _logger.Fatal(neighbor.Exception, "Neighbor processing returned with errors!");
+                _logger.Fatal(processingAsync.Exception, "Neighbor processing returned with errors!");
 #pragma warning disable 4014
-                Zero();
+                Zero(this);
 #pragma warning restore 4014
             }
 
@@ -304,7 +308,7 @@ namespace zero.cocoon.autopeer
             {
                 _logger.Fatal(protocol.Exception, "Protocol processing returned with errors!");
 #pragma warning disable 4014
-                Zero();
+                Zero(this);
 #pragma warning restore 4014
             }
         }
@@ -384,34 +388,36 @@ namespace zero.cocoon.autopeer
                             {
                                 IoCcNeighbor ccNeighbor = null;
                                 //TODO optimize
-                                Node.Neighbors.TryGetValue(MakeId(IoCcIdentity.FromPK(msg.Item3.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)msg.Item2)), out var n);
+                                Node.Neighbors.TryGetValue(
+                                    MakeId(IoCcIdentity.FromPK(msg.Item3.PublicKey.Span),
+                                        IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) msg.Item2)), out var n);
                                 if (n == null)
                                     ccNeighbor = this;
                                 else
-                                    ccNeighbor = (IoCcNeighbor)n;
+                                    ccNeighbor = (IoCcNeighbor) n;
 
                                 switch (msg.Item1.GetType().Name)
                                 {
                                     case nameof(Ping):
-                                        ccNeighbor.Process((Ping)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((Ping) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(Pong):
-                                        ccNeighbor.Process((Pong)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((Pong) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(DiscoveryRequest):
-                                        ccNeighbor.Process((DiscoveryRequest)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((DiscoveryRequest) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(DiscoveryResponse):
-                                        ccNeighbor.Process((DiscoveryResponse)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((DiscoveryResponse) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(PeeringRequest):
-                                        ccNeighbor.Process((PeeringRequest)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((PeeringRequest) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(PeeringResponse):
-                                        ccNeighbor.Process((PeeringResponse)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((PeeringResponse) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                     case nameof(PeeringDrop):
-                                        ccNeighbor.Process((PeeringDrop)msg.Item1, msg.Item2, msg.Item3);
+                                        ccNeighbor.Process((PeeringDrop) msg.Item1, msg.Item2, msg.Item3);
                                         break;
                                 }
                             }
@@ -421,14 +427,14 @@ namespace zero.cocoon.autopeer
                             }
 #pragma warning restore 4014
                             return Task.CompletedTask;
-                        }).ConfigureAwait(false);
+                        }); //dont'.ConfigureAwait(false);
                     }
                     finally
                     {
                         if (batch != null && batch.ProcessState != IoJob<IoCcProtocolMessage>.State.Consumed)
                             batch.ProcessState = IoJob<IoCcProtocolMessage>.State.ConsumeErr;
                     }
-                }).ConfigureAwait(false);
+                });//don't ConfigureAwait(false);
 
                 if (!_protocolChannel.Source.IsOperational)
                     break;
@@ -457,7 +463,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             _logger.Debug($"{nameof(PeeringDrop)}: {Direction} Peer= {Peer?.Id ?? "null"}");
-            Peer?.Zero();
+            Peer?.Zero(this);
             
             //Attempt reconnect
             await SendPingAsync();
@@ -500,7 +506,7 @@ namespace zero.cocoon.autopeer
                     if (Peer != null && (!Peer.Source.IsOperational || !Peer.IsArbitrating))
                     {
                         _logger.Warn($"Found zombie peer: {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
-                        Peer?.Zero();
+                        Peer?.Zero(this);
                     }
                     else
                         _logger.Debug($"Peering stands {Direction}: {Id}");
@@ -518,7 +524,7 @@ namespace zero.cocoon.autopeer
         /// <param name="response">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private void Process(PeeringResponse response, object extraData, Packet packet)
+        private async Task Process(PeeringResponse response, object extraData, Packet packet)
         {
             if (_peerRequest == null || RemoteAddress == null)
             {
@@ -562,7 +568,7 @@ namespace zero.cocoon.autopeer
                 _logger.Info($"{Kind.OutBound} peering request {(response.Status?"[ACCEPTED]":"[REJECTED]")}, currently {Direction}: {Id}");
 
                 if (Direction == Kind.OutBound)
-                    CcNode.ConnectToPeer(this);
+                    await CcNode.ConnectToPeer(this);
             }
             else
             {
@@ -728,7 +734,7 @@ namespace zero.cocoon.autopeer
 
                 if (Peer == null && PeerConnectedAtLeastOnce && CcNode.Neighbors.Count <= CcNode.MaxClients) //TODO 
                 {
-                    _logger.Info($"RE-/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, DMZ = {ExtGossipAddress}");
+                    _logger.Info($"RE-/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, NAT = {ExtGossipAddress}");
                     await SendPeerRequestAsync();
                 }
             }
@@ -813,7 +819,7 @@ namespace zero.cocoon.autopeer
                     _logger.Warn($"Removing stale neighbor {staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Socket.RemotePort}");
                     _logger.Warn($"Replaced stale neighbor {keyStr}:{((IPEndPoint)extraData).Port}");
 #pragma warning disable 4014
-                    staleNeighbor.Zero();
+                    staleNeighbor.Zero(this);
 #pragma warning restore 4014
                 }
 
@@ -850,7 +856,7 @@ namespace zero.cocoon.autopeer
 
                 if (CcNode.Neighbors.Count <= CcNode.MaxClients) //TODO 
                 {
-                    _logger.Info($"Discovered/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, DMZ = {ExtGossipAddress}");
+                    _logger.Info($"Discovered/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, NAT = {ExtGossipAddress}");
                     await SendPeerRequestAsync();
                 }
             }
@@ -861,7 +867,7 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Warn($"Found zombie Peer, closing: {Peer?.Id}");
 #pragma warning disable 4014
-                    Peer?.Zero();
+                    Peer?.Zero(this);
 #pragma warning restore 4014
                 }
                 else if(Peer == null && PeerConnectedAtLeastOnce) //TODO remove
@@ -1003,7 +1009,7 @@ namespace zero.cocoon.autopeer
                 await SendPeerDropAsync();
             });
 
-            _neighborZeroSub = ZeroEvent(sender => Peer?.Zero());
+            _neighborZeroSub = ZeroEvent(sender => Peer?.Zero(this));
         }
 
         /// <summary>

@@ -16,11 +16,6 @@ namespace zero.core.patterns.bushes.contracts
         string Key { get; }
 
         /// <summary>
-        /// Description of the source
-        /// </summary>
-        string Description { get; }
-
-        /// <summary>
         /// Source URI
         /// </summary>
         string SourceUri { get; }

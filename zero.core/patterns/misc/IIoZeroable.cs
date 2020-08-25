@@ -1,14 +1,25 @@
 ﻿using System;
 using System.Threading.Tasks;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.misc
 {
     public interface IIoZeroable
     {
         /// <summary>
+        /// A description of this object
+        /// </summary>
+        string Description { get; }
+
+        /// <summary>
+        /// The source of zero
+        /// </summary>
+        IIoZeroable ZeroedFrom { get; }
+
+        /// <summary>
         /// Zero pattern
         /// </summary>
-        Task Zero();
+        Task Zero(IIoZeroable @from);
 
         /// <summary>
         /// Subscribe to disposed event

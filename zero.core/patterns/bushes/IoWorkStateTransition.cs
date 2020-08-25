@@ -84,6 +84,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public string DefaultPadded => IoJob<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
 
+        /// <summary>
+        /// Used in debugger
+        /// </summary>
+        /// <returns>Previous -> Current -> Next</returns>
         public override string ToString()
         {
             return $"[{Previous?.State}] => ({State}) => [{Next?.State}]";

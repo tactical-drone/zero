@@ -43,7 +43,7 @@ namespace zero.core.network.ip
         {
             IoSocket = new IoUdpSocket();
             IoSocket.ZeroOnCascade(this, true);
-            return await base.ConnectAsync().ConfigureAwait(false);
+            return await base.ConnectAsync();
         }
     }
 }

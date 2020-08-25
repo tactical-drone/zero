@@ -522,7 +522,7 @@ namespace zero.tangle.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Zero();
+                                        Source.Zero(this);
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -572,7 +572,7 @@ namespace zero.tangle.models
                     else
                     {
 #pragma warning disable 4014
-                        Source.Zero();
+                        Source.Zero(this);
 #pragma warning restore 4014
                     }
 

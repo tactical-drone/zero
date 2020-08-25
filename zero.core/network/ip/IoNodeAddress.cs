@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
 using NLog;
+using zero.core.core;
 
 namespace zero.core.network.ip
 {
@@ -298,6 +299,10 @@ namespace zero.core.network.ip
 
         public static IoNodeAddress CreateFromEndpoint(string protocol, EndPoint udpRemoteEndpointInfo)
         {
+            if (udpRemoteEndpointInfo == null)
+            {
+                return IoNodeAddress.Create("udp://0.0.0.0:0");
+            }
             var retval = new IoNodeAddress($"{protocol}://{((IPEndPoint)udpRemoteEndpointInfo).Address}:{((IPEndPoint)udpRemoteEndpointInfo).Port}");
             retval.IpEndPoint = (IPEndPoint) udpRemoteEndpointInfo;
             return retval;

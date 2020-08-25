@@ -148,7 +148,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The local endpoint
         /// </summary>
-        public IPEndPoint LocalEndPoint => (IPEndPoint) Socket.LocalEndPoint;
+        public IPEndPoint LocalEndPoint => (IPEndPoint) Socket?.LocalEndPoint;
 
         /// <summary>
         /// Returns the local address as a string ip:port
@@ -174,7 +174,6 @@ namespace zero.core.network.ip
         /// Parses the url string and returns either a TCP or UDP <see cref="IoSocket"/>
         /// </summary>
         /// <param name="url">The url</param>
-        /// <param name="spinner">A hook to cancel blockers</param>
         /// <returns></returns>
         public static IoSocket GetKindFromUrl(string url)
         {
@@ -211,11 +210,11 @@ namespace zero.core.network.ip
                 try
                 {
                     Socket.Bind(ListeningAddress.IpEndPoint);
-                    _logger.Debug($"Bound port `{ListeningAddress}'");
+                    _logger.Debug($"Bound port `{ListeningAddress}' ({Description})");
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Unable to bind socket at `{ListeningAddress}':");
+                    _logger.Error(e, $"({Description}) Unable to bind socket at `{ListeningAddress}':");
                     return Task.FromResult(false);
                 }
 
@@ -237,6 +236,7 @@ namespace zero.core.network.ip
         public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
 #pragma warning restore 1998
         {
+            
             if (Socket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
@@ -256,7 +256,14 @@ namespace zero.core.network.ip
         protected override void ZeroUnmanaged()
         {
             Socket.Dispose();
+
             base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            ListeningAddress = null;
+            RemoteNodeAddress = null;
+            Socket = null;
+#endif
         }
 
         /// <summary>
@@ -267,11 +274,9 @@ namespace zero.core.network.ip
             //Close the socket
             //if (Socket?.Connected ?? false)
             //    Socket.Shutdown(SocketShutdown.Both);
-
+            
             Socket?.Close();
             base.ZeroManaged();
-
-            _logger.Debug($"{ToString()}: Zeroed {Key}");
         }
 
         /// <summary>

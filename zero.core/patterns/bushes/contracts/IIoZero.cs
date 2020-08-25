@@ -12,7 +12,6 @@ namespace zero.core.patterns.bushes.contracts
     {
         IIoSource IoSource { get; }
         public object IoJobHeap { get; }
-        string Description { get; }
         bool IsArbitrating { get; set; }
         Task<bool> ProduceAsync(bool sleepOnConsumerLag = true);
         //Task<Task> ConsumeAsync(Func<IoLoad<IIoJob>, Task> inlineCallback = null, bool sleepOnProducerLag = true);

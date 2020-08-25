@@ -40,7 +40,7 @@ namespace zero.core.core
         /// <summary>
         /// The listening address of this node
         /// </summary>
-        private readonly IoNodeAddress _address;
+        private IoNodeAddress _address;
 
         /// <summary>
         /// Used to allocate peers when connections are made
@@ -60,12 +60,12 @@ namespace zero.core.core
         /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        public readonly ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<string, IoNeighbor<TJob>>();
+        public ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<string, IoNeighbor<TJob>>();
 
         /// <summary>
         /// Allowed clients
         /// </summary>
-        private readonly ConcurrentDictionary<string, IoNodeAddress> _whiteList = new ConcurrentDictionary<string, IoNodeAddress>();
+        private ConcurrentDictionary<string, IoNodeAddress> _whiteList = new ConcurrentDictionary<string, IoNodeAddress>();
 
         /// <summary>
         /// On Connected
@@ -91,8 +91,15 @@ namespace zero.core.core
         // ReSharper disable once InconsistentNaming
         protected int parm_tcp_readahead = 2;
 
-        private Task _listernerTask;
-        private ConcurrentBag<Task> _neighborTasks = new ConcurrentBag<Task>();
+        /// <summary>
+        /// 
+        /// </summary>
+        private Task _listenerTask;
+
+        /// <summary>
+        /// A set of all node tasks that are currently running
+        /// </summary>
+        protected ConcurrentBag<Task> NeighborTasks = new ConcurrentBag<Task>();
 
         /// <summary>
         /// Starts the node's listener
@@ -116,7 +123,7 @@ namespace zero.core.core
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
 #pragma warning disable 4014
-                        newNeighbor.Zero();
+                        newNeighbor.Zero(this);
 #pragma warning restore 4014
                         return;
                     }
@@ -127,7 +134,7 @@ namespace zero.core.core
                     return;
                 }
 
-                //We use this locally captured variable as newNeighbor.Id dissapears on zero
+                //We use this locally captured variable as newNeighbor.Id disappears on zero
                 string id = newNeighbor.Id;
 
                 // Remove from lists if closed
@@ -146,7 +153,7 @@ namespace zero.core.core
                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
 #pragma warning disable 4014
-                    newNeighbor.Zero();
+                    newNeighbor.Zero(this);
 #pragma warning restore 4014
                     _logger.Warn($"Neighbor `{ioNetClient.ListeningAddress}' already connected. Possible spoof investigate!");
                 }
@@ -157,12 +164,12 @@ namespace zero.core.core
                 //Start the source consumer on the neighbor scheduler
                 try
                 {
-                    _neighborTasks.Add(Task.Factory.StartNew(async () => await newNeighbor.SpawnProcessingAsync().ConfigureAwait(false), AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current));
+                    NeighborTasks.Add(newNeighbor.SpawnProcessingAsync());
 
                     //prune finished tasks
-                    var remainTasks = _neighborTasks.Where(t => !t.IsCompleted).ToList();
-                    _neighborTasks.Clear();
-                    remainTasks.ForEach(_neighborTasks.Add);
+                    var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();
+                    NeighborTasks.Clear();
+                    remainTasks.ForEach(NeighborTasks.Add);
                 }
                 catch (Exception e)
                 {
@@ -187,7 +194,7 @@ namespace zero.core.core
             {
                 
                 var newClient = await _netServer.ConnectAsync(address).ConfigureAwait(false);
-                if (newClient != null && newClient.IsOperational)
+                if (newClient?.IsOperational??false)
                 {
                     IoNeighbor<TJob> newNeighbor = null;
                     var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
@@ -196,7 +203,7 @@ namespace zero.core.core
                     //TODO does this make sense?
                     if (Neighbors.TryGetValue(newNeighbor.Id, out var zombieNeighbor))
 #pragma warning disable 4014
-                        zombieNeighbor.Zero();
+                        zombieNeighbor.Zero(this);
 #pragma warning restore 4014
 
                     //We capture a local varable here as newNeighbor.Id dissapears on zero
@@ -234,7 +241,7 @@ namespace zero.core.core
                     {
                         _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
 #pragma warning disable 4014
-                        newNeighbor.Zero();
+                        newNeighbor.Zero(this);
 #pragma warning restore 4014
                     }
 
@@ -260,10 +267,10 @@ namespace zero.core.core
             _logger.Info($"Unimatrix Zero - Launching cube: {ToString()}");
             try
             {
-                _listernerTask = SpawnListenerAsync();
-                await _listernerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})")).ConfigureAwait(false);
+                _listenerTask = SpawnListenerAsync();
+                await _listenerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})")).ConfigureAwait(false);
 
-                _logger.Info($"{ToString()}: Resistance is futile, {(_listernerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listernerTask.Status})");
+                _logger.Info($"{GetType().Name}: Resistance is futile, {(_listenerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listenerTask.Status})");
             }
             catch (Exception e)
             {
@@ -272,17 +279,33 @@ namespace zero.core.core
         }
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            Neighbors = null;
+            NeighborTasks = null;
+            _netServer = null;
+            _address = null;
+            _whiteList = null;
+#endif
+        }
+
+        /// <summary>
         /// zero managed
         /// </summary>
         protected override void ZeroManaged()
         {
-            Neighbors.ToList().ForEach(kv=>kv.Value.Zero());
+            Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
             Neighbors.Clear();
 
             try
             {
-                _listernerTask?.Wait();
-                Task.WaitAll(_neighborTasks.ToArray());
+                _listenerTask?.Wait();
+                Task.WaitAll(NeighborTasks.ToArray());
             }
             catch
             {
@@ -290,7 +313,6 @@ namespace zero.core.core
             }
 
             base.ZeroManaged();
-            _logger.Debug($"{ToString()}: Zeroed");
         }
 
         public bool WhiteList(IoNodeAddress address)
@@ -319,7 +341,7 @@ namespace zero.core.core
                     keys.Add(n.Source.Key);
                 });
 
-                Neighbors[address.ToString()].Zero();
+                Neighbors[address.ToString()].Zero(this);
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;
             }

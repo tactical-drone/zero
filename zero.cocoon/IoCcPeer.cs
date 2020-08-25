@@ -40,7 +40,7 @@ namespace zero.cocoon
                     if (r.IsCompletedSuccessfully && !Zeroed())
                     {
                         _logger.Fatal($"Testing SOCKET FAILURE {Id}");
-                        Zero();
+                        Zero(this);
                         GC.Collect(GC.MaxGeneration);
                     }
                 });
@@ -73,9 +73,8 @@ namespace zero.cocoon
         protected override void ZeroManaged()
         {
             DetachNeighbor();
-            Source.Zero();
+            Source.Zero(this);
             base.ZeroManaged();
-            _logger.Info($"Zeroed {Description} ({Id})");
         }
 
         /// <summary>

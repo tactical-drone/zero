@@ -53,9 +53,8 @@ namespace zero.cocoon.autopeer
         /// </summary>
         protected override void ZeroManaged()
         {
-            Neighbors.ToList().ForEach(n => n.Value.Zero());
+            Neighbors.ToList().ForEach(n => n.Value.Zero(this));
             base.ZeroManaged();
-            _logger.Info($"Zeroed");
         }
     }
 }

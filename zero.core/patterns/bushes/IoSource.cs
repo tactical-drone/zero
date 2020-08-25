@@ -61,11 +61,6 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Description used as a key
         /// </summary>
-        public abstract string Description { get; }
-
-        /// <summary>
-        /// Description used as a key
-        /// </summary>
         public abstract string SourceUri { get; }
 
         /// <summary>
@@ -174,6 +169,14 @@ namespace zero.core.patterns.bushes
             ProduceAheadBarrier.Dispose();
 
             base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            ConsumerBarrier = null;
+            ConsumeAheadBarrier = null;
+            ProduceAheadBarrier = null;
+            RecentlyProcessed = null;
+            IoChannels = null;
+#endif
         }
 
         /// <summary>
@@ -182,9 +185,9 @@ namespace zero.core.patterns.bushes
         protected override void ZeroManaged()
         {
             IoChannels.Clear();
+            RecentlyProcessed?.Zero(this);
+            
             base.ZeroManaged();
-
-            _logger.Debug($"{ToString()}: Zeroed {Description}");
         }
 
         /// <summary>

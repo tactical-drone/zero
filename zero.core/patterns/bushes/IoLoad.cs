@@ -27,12 +27,21 @@ namespace zero.core.patterns.bushes
         /// </summary>
         private readonly string _loadDescription;
 
+        private string _description;
         /// <inheritdoc />
         /// <summary>
         /// The overall description of the work that needs to be done and the job that is doing it
         /// </summary>
         //public override string ProductionDescription => $"{Source.ChannelSource?.Description} {Source.Description} {LoadDescription} {base.Description}";
-        public override string Description => $"{base.Description} | {_loadDescription}";
+        public override string Description
+        {
+            get
+            {
+                if(_description == null)
+                    return _description = $"{base.Description} | {_loadDescription}";
+                return _description;
+            }
+        }
 
         /// <summary>
         /// Zero
@@ -44,5 +53,26 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>The state of the consumption</returns>
         public abstract Task<State> ConsumeAsync();
+
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            IoZero = null;
+#endif
+        }
+
+        /// <summary>
+        /// Zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+        }
     }
 }

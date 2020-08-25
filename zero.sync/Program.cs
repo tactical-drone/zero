@@ -37,8 +37,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero();
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero();
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(null);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(null);
                 tangleNodeTask.Wait();
             }
             else
@@ -51,8 +51,8 @@ namespace zero.sync
                 var tangleNodeTask = tangleNode.StartAsync();
 #pragma warning restore 4014
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero();
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero();
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(null);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(null);
                 tangleNodeTask.Wait();
             }
         }
@@ -70,11 +70,11 @@ namespace zero.sync
 #pragma warning disable 4014
             var tangleNodeTask = cocoon.StartAsync();
 
-            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Zero();
+            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => cocoon.Zero(null);
 
             Console.CancelKeyPress += (sender, args) =>
             {
-                cocoon.Zero();
+                cocoon.Zero(null);
                 args.Cancel = true;
             };
 

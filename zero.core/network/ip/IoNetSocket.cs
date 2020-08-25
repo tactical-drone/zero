@@ -14,15 +14,36 @@ namespace zero.core.network.ip
     {
         protected IoNetSocket(SocketType socketType, ProtocolType protocolType) : base(socketType, protocolType)
         {
+            
         }
 
         protected IoNetSocket(Socket socket, IoNodeAddress listeningAddress) : base(socket, listeningAddress)
         {
+
         }
 
-        public string Description => $"{this.GetType().Name} `{base.LocalAddress}'";
-        public string SourceUri => $"{base.ListeningAddress}";
-        public bool IsOperational => NativeSocket.Connected;
-        public IIoDupChecker RecentlyProcessed { get; set; }
+        /// <summary>
+        /// Description
+        /// </summary>
+        private string _description;
+
+        /// <summary>
+        /// Description
+        /// </summary>
+        public override string Description
+        {
+            get
+            {
+                if (_description == null && (ListeningAddress != null || LocalEndPoint != null))
+                {
+                    if (Kind == Connection.Listener)
+                        return _description = $"{ListeningAddress}";
+                    else
+                        return _description = $"<{ListeningAddress}><{LocalIpAndPort}>";
+                }
+                
+                return _description;
+            }
+        } 
     }
 }

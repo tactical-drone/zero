@@ -74,17 +74,18 @@ namespace zero.tangle.models.sources
         //}
         protected override void ZeroUnmanaged()
         {
-            base.ZeroUnmanaged();
             TxQueue.Dispose();
+
+            base.ZeroUnmanaged();
             TxQueue = null;
         }
 
+        /// <summary>
+        /// zero managed
+        /// </summary>
         protected override void ZeroManaged()
         {
-            
             base.ZeroManaged();
-
-            _logger.Info($"Zeroed {Description}");
         }
 
         /// <summary>

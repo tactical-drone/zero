@@ -140,7 +140,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public void Clear()
         {
-            _buffer.ToList().ForEach(j=>j.Zero());
+            _buffer.ToList().ForEach(j=>j.Zero(null));
             _buffer.Clear();
         }
 

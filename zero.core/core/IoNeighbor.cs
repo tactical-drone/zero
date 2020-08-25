@@ -42,5 +42,25 @@ namespace zero.core.core
         /// </summary>
         /// <returns></returns>
         public virtual string Id => Source.Key;
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            Node = null;
+#endif
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+        }
     }
 }

@@ -39,7 +39,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
         {
-            await base.ListenAsync(connectionReceivedAction, readAhead).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, readAhead);
 
             IoListenSocket = new IoTcpSocket();
             IoListenSocket.ZeroOnCascade(this, true);
@@ -53,9 +53,9 @@ namespace zero.core.network.ip
                 catch (Exception e)
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
-                    newConnectionSocket.Zero();
+                    newConnectionSocket.Zero(this);
                 }
-            }).ConfigureAwait(false);
+            });
         }
 
         /// <summary>
@@ -70,7 +70,7 @@ namespace zero.core.network.ip
                 return null;
             //ZEROd later on inside net server once we know the connection succeeded 
             var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
-            return await base.ConnectAsync(address, ioTcpclient).ConfigureAwait(false);
+            return await base.ConnectAsync(address, ioTcpclient);
         }
     }
 }

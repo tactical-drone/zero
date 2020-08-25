@@ -158,7 +158,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
-                                        Source.Zero();
+                                        Source.Zero(this);
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -189,7 +189,7 @@ namespace zero.cocoon.models
                     else
                     {
 #pragma warning disable 4014
-                        Source.Zero();
+                        Source.Zero(this);
 #pragma warning restore 4014
                     }
 
@@ -199,7 +199,7 @@ namespace zero.cocoon.models
                         return false;
                     }
                     return true;
-                });
+                });//don't .ConfigureAwait(false);
             }
             catch (Exception e)
             {

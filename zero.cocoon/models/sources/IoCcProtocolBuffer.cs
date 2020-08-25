@@ -71,19 +71,25 @@ namespace zero.cocoon.models.sources
         /// </value>
         public override bool IsOperational => this == ChannelSource || (ChannelSource?.IsOperational??false);
 
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
         protected override void ZeroUnmanaged()
         {
             MessageQueue.Dispose();
+             base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+MessageQueue = null;
+#endif
         }
 
+        /// <summary>
+        /// zero managed
+        /// </summary>
         protected override void ZeroManaged()
         {
-            _logger.Debug($"{ToString()}: Zeroed {Description}");
-        }
-
-        protected override void Zero(bool disposing)
-        {
-            base.Zero(disposing);
+            base.ZeroManaged();
         }
 
         /// <summary>

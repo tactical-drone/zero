@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Threading.Tasks;
+using zero.core.patterns.misc;
 
 namespace zero.core.data.contracts
 {
-    public interface IIoDupChecker
+    public interface IIoDupChecker :IIoZeroable
     {
         /// <summary>
         /// True if the backend is operational
