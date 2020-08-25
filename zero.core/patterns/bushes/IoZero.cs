@@ -455,11 +455,14 @@ namespace zero.core.patterns.bushes
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="sleepOnProducerLag">if set to <c>true</c> [sleep on source lag].</param>
         /// <returns></returns>
-        public async Task<Task> ConsumeAsync(Func<IoLoad<TJob>,Task> inlineCallback = null, bool sleepOnProducerLag = true)
+        public async Task ConsumeAsync(Func<IoLoad<TJob>,Task> inlineCallback = null, bool sleepOnProducerLag = true)
         {
             try
             {
                 //_logger.Trace($"{nameof(ConsumeAsync)}: `{Description}' [ENTER]");
+
+                if (Volatile.Read(ref Source) == null) //TODO why does this happen so often?
+                    return;
 
                 if (Source.BlockOnConsumeAheadBarrier && !await Source.ConsumeAheadBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, AsyncTasks.Token))
                 {
@@ -467,7 +470,7 @@ namespace zero.core.patterns.bushes
                     if (Zeroed())
                     {
                         _logger.Debug($"Consumer `{Description}' is shutting down");
-                        return Task.CompletedTask;
+                        return;
                     }
 
                     //Production timed out
@@ -477,7 +480,7 @@ namespace zero.core.patterns.bushes
                     }
 
                     //Try again                    
-                    return Task.CompletedTask;
+                    return;
                 }
 
                 //Waiting for a job to be produced. Did production fail?
@@ -487,7 +490,7 @@ namespace zero.core.patterns.bushes
                     if (Zeroed())
                     {
                         _logger.Debug($"Consumer `{Description}' is shutting down");
-                        return Task.CompletedTask;
+                        return;
                     }
                     
                     //Production timed out
@@ -499,7 +502,7 @@ namespace zero.core.patterns.bushes
                         
 
                     //Try again
-                    return Task.CompletedTask;
+                    return;
                 }
 
                 //A job was produced. Dequeue it and process
@@ -608,8 +611,6 @@ namespace zero.core.patterns.bushes
             {
                 _logger.Error(e, $"Consumer `{Description}' dequeue returned with errors:");
             }
-
-            return Task.CompletedTask;
         }
 
         /// <summary>
