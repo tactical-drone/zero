@@ -14,7 +14,8 @@ namespace zero.core.patterns.heap
     /// Basic heap construct
     /// </summary>
     /// <typeparam name="T">The type of item managed</typeparam>
-    public class IoHeap<T> where T:class,IIoZeroable
+    public class IoHeap<T> : IoZeroable
+        where T:class,IIoZeroable
     {               
         /// <summary>
         /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
@@ -34,7 +35,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private readonly ConcurrentBag<T> _buffer = new ConcurrentBag<T>();
+        private ConcurrentBag<T> _buffer = new ConcurrentBag<T>();
 
         /// <summary>
         /// The current WorkHeap size
@@ -87,35 +88,64 @@ namespace zero.core.patterns.heap
         }
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            _buffer = null;
+            Make = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            _buffer.ToList().ForEach(h=>h.Zero(this));
+            _buffer.Clear();
+
+            base.ZeroManaged();
+        }
+
+        /// <summary>
         /// Checks the heap for a free item and returns it. If no free items exists make a new one if we have capacity for it.
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
         public virtual T Take(Func<T,T> parms = null, object userData = null)
         {
-            if (parms == null)
-                parms = arg => arg;
-
-            //If the heap is empty
-            if (!_buffer.TryTake(out var item))
+            parms ??= arg => arg;
+            try
             {
-                //And we can allocate more heap space
-                if (Interlocked.Read(ref CurrentHeapSize) < _maxSize)
+//If the heap is empty
+                if (!_buffer.TryTake(out var item))
                 {
-                    //Allocate and return
-                    Interlocked.Increment(ref CurrentHeapSize);
-                    Interlocked.Increment(ref ReferenceCount);
-                    return parms(Make(userData));
+                    //And we can allocate more heap space
+                    if (Interlocked.Read(ref CurrentHeapSize) < _maxSize)
+                    {
+                        //Allocate and return
+                        Interlocked.Increment(ref CurrentHeapSize);
+                        Interlocked.Increment(ref ReferenceCount);
+                        return parms(Make(userData));
+                    }
+                    else //we have run out of capacity
+                    {
+                        return null;
+                    }
                 }
-                else //we have run out of capacity
+                else //take the item from the heap
                 {
-                    return null;
+                    Interlocked.Increment(ref ReferenceCount);
+                    return item;
                 }
             }
-            else //take the item from the heap
+            catch (NullReferenceException)
             {
-                Interlocked.Increment(ref ReferenceCount);
-                return item;
+                return null;
             }
         }
 
@@ -125,24 +155,22 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         public void Return(T item)
         {
-            IoFpsCounter.Tick();
-            _buffer.Add(item);
-            Interlocked.Add(ref ReferenceCount, -1);
+            try
+            {
+                IoFpsCounter.Tick();
+                _buffer.Add(item);
+                Interlocked.Add(ref ReferenceCount, -1);
+            }
+            catch (NullReferenceException)
+            {
+                item.Zero(this);
+            }
         }
 
         /// <summary>
         /// Makes a new item
         /// </summary>
         public Func<object,T> Make;
-
-        /// <summary>
-        /// Flushes the buffer
-        /// </summary>
-        public void Clear()
-        {
-            _buffer.ToList().ForEach(j=>j.Zero(null));
-            _buffer.Clear();
-        }
 
         /// <summary>
         /// Returns the amount of space left in the buffer
@@ -155,8 +183,5 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <returns>The number of unused heap items</returns>
         public long CacheSize() => _buffer.Count;
-
-       
-        
     }
 }

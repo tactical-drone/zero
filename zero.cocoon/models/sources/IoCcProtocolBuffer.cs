@@ -80,7 +80,7 @@ namespace zero.cocoon.models.sources
              base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-MessageQueue = null;
+            MessageQueue = null;
 #endif
         }
 

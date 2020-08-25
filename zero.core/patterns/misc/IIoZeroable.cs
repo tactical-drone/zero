@@ -32,7 +32,7 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        Func<IIoZeroable, Task> Unsubscribe(Func<IIoZeroable, Task> sub);
+        Task Unsubscribe(Func<IIoZeroable, Task> sub);
 
         /// <summary>
         /// Cascade zeroed object

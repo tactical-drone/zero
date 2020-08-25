@@ -70,6 +70,7 @@ namespace zero.core.patterns.bushes
         {
             _description = description;
             JobHeap = new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage };
+            JobHeap.ZeroOnCascade(this, true);
 
             Source = source;
             Source.ZeroOnCascade(this, sourceZeroCascade);
@@ -215,6 +216,8 @@ namespace zero.core.patterns.bushes
 
 #if SAFE_RELEASE
             Source = null;
+            JobHeap = null;
+            _queue = null;
 #endif
 
         }
@@ -224,12 +227,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroManaged()
         {
-            JobHeap.Clear();
-
-            foreach (var ioLoad in _queue)
-            {
-                ioLoad.Zero(this);
-            }
+            _queue.ToList().ForEach(q=>q.Zero(this));
             _queue.Clear();
             
             if (IsArbitrating || !Source.IsOperational)
@@ -261,18 +259,17 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Allocate a job from the heap
-                        if (!Zeroed() && (nextJob = JobHeap.Take()) != null) //TODO 
+                        if ((nextJob = JobHeap.Take()) != null) //TODO 
                         {
                             nextJob.IoZero = this;
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
 
-                            while (nextJob.Source.BlockOnProduceAheadBarrier)
+                            while (nextJob.Source.BlockOnProduceAheadBarrier && !Zeroed())
                             {
                                 if (!await nextJob.Source.ProduceAheadBarrier.WaitAsync(-1, AsyncTasks.Token))
                                 {
-                                    if(!Zeroed())
-                                        Interlocked.Increment(ref nextJob.Source.NextProducerId());
+                                    Interlocked.Increment(ref nextJob.Source.NextProducerId());
                                     return false;
                                 }
 
@@ -286,7 +283,7 @@ namespace zero.core.patterns.bushes
                                 nextJob.Source.ProduceAheadBarrier.Release();
                             }
 
-                            if(!Zeroed())
+                            //if(!Zeroed())
                             {
 //sanity check _previousJobFragment
                                 if (_previousJobFragment.Count > 100)
@@ -328,8 +325,8 @@ namespace zero.core.patterns.bushes
                             
                                     //if (!_queue.Contains(nextJob))
                                     {
-                                        jobSafeReleased = true;
                                         _queue.Enqueue(nextJob);
+                                        jobSafeReleased = true;
                                     }                                
                                     //else
                                     //{
@@ -358,7 +355,6 @@ namespace zero.core.patterns.bushes
 
                                     Source?.ProducerBarrier.Release(1);
 
-                                    jobSafeReleased = true;
                                     if (nextJob.Previous?.StillHasUnprocessedFragments??false)
                                     {
                                         _previousJobFragment.TryAdd(nextJob.Id, (IoLoad<TJob>)nextJob.Previous);
@@ -368,7 +364,9 @@ namespace zero.core.patterns.bushes
                                         JobHeap?.Return(nextJob);
                                         await nextJob.Zero(this);
                                     }
-                                
+                                    jobSafeReleased = true;
+
+
                                     if (nextJob.ProcessState == IoJob<TJob>.State.Cancelled ||
                                         nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
                                     {
@@ -387,7 +385,8 @@ namespace zero.core.patterns.bushes
                             _logger.Fatal($"Production for: `{Description}` failed. Cannot allocate job resources!");
                             await Task.Delay(parm_error_timeout, AsyncTasks.Token);
                         }
-                    }                    
+                    }
+                    catch (NullReferenceException) {}
                     catch (ObjectDisposedException) { }
                     catch (TimeoutException) { }
                     catch (OperationCanceledException) { }
@@ -400,12 +399,14 @@ namespace zero.core.patterns.bushes
                         //prevent leaks
                         if (nextJob != null && !jobSafeReleased)
                         {
-                            _logger.Warn("Job resources were not freed. BUG!");
+                            _logger.Debug("Job resources were not freed...");
                             //TODO Double check this hack
                             if (nextJob.ProcessState != IoJob<TJob>.State.Finished)
                                 nextJob.ProcessState = IoJob<TJob>.State.Reject;
 
-                            Free(nextJob);                        
+                            Free(nextJob);
+
+                            nextJob.Previous?.Zero(this);
                         }
                     }
                 }
@@ -420,6 +421,7 @@ namespace zero.core.patterns.bushes
             }
             catch(OperationCanceledException){}
             catch(ObjectDisposedException){}
+            catch(NullReferenceException){}
             catch(Exception e)
             {
                 _logger.Fatal(e, $"{Description}: ");
@@ -443,6 +445,7 @@ namespace zero.core.patterns.bushes
                 }
 
                 JobHeap.Return((IoLoad<TJob>)job.Previous);
+                job.Previous = null;
             }
         }
        
@@ -456,9 +459,6 @@ namespace zero.core.patterns.bushes
         {
             try
             {
-                if (Source == null)
-                    return Task.CompletedTask;
-
                 //_logger.Trace($"{nameof(ConsumeAsync)}: `{Description}' [ENTER]");
 
                 if (Source.BlockOnConsumeAheadBarrier && !await Source.ConsumeAheadBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, AsyncTasks.Token))
@@ -526,6 +526,7 @@ namespace zero.core.patterns.bushes
                             //_observer?.OnNext(job);
                         }                        
                     }
+                    catch (NullReferenceException) {}
                     catch (ArgumentNullException e)
                     {
                         _logger.Trace(e.InnerException ?? e,
@@ -585,7 +586,9 @@ namespace zero.core.patterns.bushes
 
                     // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                     if (curJob != null)
-                        throw new ApplicationException($"{nameof(curJob)} must be null after consumption");
+                    {
+                        await curJob.Zero(this);
+                    }
                 }
                 else
                 {
@@ -597,6 +600,7 @@ namespace zero.core.patterns.bushes
                         Source.ConsumeAheadBarrier.Release(1);                    
                 }
             }            
+            catch (NullReferenceException) { }
             catch (ObjectDisposedException) { }
             catch (TimeoutException) { }
             catch (OperationCanceledException) { }

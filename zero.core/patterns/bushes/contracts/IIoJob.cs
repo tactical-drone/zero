@@ -1,11 +1,10 @@
 ﻿using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoJob : IIoHeapItem
+    public interface IIoJob : IIoHeapItem, IIoZeroable
     {
-        string Description { get; }
-
         long Id { get; }
         IIoJob Previous { get; }
         IIoSource Source { get; }

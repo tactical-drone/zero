@@ -51,7 +51,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private readonly ConcurrentDictionary<Func<IIoZeroable, Task>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, Task>, object>();
+        private ConcurrentDictionary<Func<IIoZeroable, Task>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, Task>, object>();
 
         /// <summary>
         /// Zero pattern
@@ -124,7 +124,7 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        public Func<IIoZeroable, Task> Unsubscribe(Func<IIoZeroable, Task> sub)
+        public Task Unsubscribe(Func<IIoZeroable, Task> sub)
         {
             if (sub == null)
                 return null;
@@ -133,21 +133,27 @@ namespace zero.core.patterns.misc
             {
                 LogManager.GetCurrentClassLogger().Warn($"Cannot unsubscribe, event not found: Method = {sub.Method}, Target = {sub.Target}");
             }
-            return sub;
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// Cascade zero the <see cref="target"/>
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
-        /// <param name="twoWay">If the zeroing out goes both ways</param>
+        /// <param name="twoWay">Enforces mutual zero</param>
         public T ZeroOnCascade<T>(T target, bool twoWay = false)
         where T:IIoZeroable
         {
-            ZeroEvent((sender) => target.Zero(this));
-            if (twoWay)
+            var sub = ZeroEvent((sender) => target.Zero(this));
+
+            if (twoWay) //zero
             {
-                target.ZeroEvent((s) => Zero(this));
+                target.ZeroEvent((s) => Zero(target));
+            }
+            else //Release
+            {
+                target.ZeroEvent(z=>Unsubscribe(sub));
             }
                 
             return target;
@@ -167,8 +173,7 @@ namespace zero.core.patterns.misc
                 _zeroed = true;
                 PrintPathToZero();
             }
-
-            //Cancel all async tasks first or they leak
+            
             AsyncTasks.Cancel();
 
             //emit zero event
@@ -186,7 +191,7 @@ namespace zero.core.patterns.misc
 
             //clear out subscribers
             _subscribers.Clear();
-
+            
             //Dispose managed
             try
             {
@@ -203,9 +208,12 @@ namespace zero.core.patterns.misc
                 try
                 {
                     _asyncTasks.Dispose();
-                    _asyncTasks = null;
+                    
                     ZeroUnmanaged();
+
+                    _asyncTasks = null;
                     ZeroedFrom = null;
+                    _subscribers = null;
                 }
                 catch (Exception e)
                 {

@@ -36,7 +36,7 @@ namespace zero.core.patterns.heap
                     return null;
 
                 //Construct
-                next = ((T)next).Constructor();
+                next = ((T) next).Constructor();
 
                 //The constructor signals a flush by returning null
                 while (next == null)
@@ -45,15 +45,19 @@ namespace zero.core.patterns.heap
                     _logger.Trace($"Flushing `{GetType()}'");
 
                     //Return another item from the heap
-                    if ((next = (T) base.Take(parms,userData)) == null)
+                    if ((next = (T) base.Take(parms, userData)) == null)
                     {
                         _logger.Error($"`{GetType()}', unable to allocate memory");
                         return null;
                     }
 
                     //Try the next one
-                    next = ((T)next).Constructor();                                        
-                } 
+                    next = ((T) next).Constructor();
+                }
+            }
+            catch (NullReferenceException)
+            {
+                return null;
             }
             catch (Exception e)
             {
