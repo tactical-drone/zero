@@ -83,7 +83,7 @@ namespace zero.core.network.ip
             Task<Socket> acceptTask = null;
 
             // Accept incoming connections
-            while (!Spinners.Token.IsCancellationRequested && !Zeroed())
+            while (!Zeroed())
             {
                 _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
                 acceptTask = Socket?.AcceptAsync();
@@ -138,7 +138,7 @@ namespace zero.core.network.ip
                                         $"Listener for `{ListeningAddress}' went into unknown state `{t.Status}'");
                                     break;
                             }
-                        }, Spinners.Token).ConfigureAwait(false);
+                        }, AsyncTasks.Token).ConfigureAwait(false);
                 }
                 catch (ObjectDisposedException){}
                 catch (OperationCanceledException) {}
@@ -188,7 +188,7 @@ namespace zero.core.network.ip
                         return Task.FromResult(false);
                 }
                 return Task.FromResult(true);
-            }, Spinners.Token).Unwrap().ConfigureAwait(false);
+            }, AsyncTasks.Token).Unwrap().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -211,11 +211,11 @@ namespace zero.core.network.ip
 
                 //var task = Task.Factory
                 //    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
-                //        Socket.EndSend);//.HandleCancellation(Spinners.Token); //TODO
+                //        Socket.EndSend);//.HandleCancellation(AsyncTasks.Token); //TODO
                 Task<int> task = null;
                 if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
                 {
-                    task = Socket.SendAsync(arraySegment.Slice(offset, length), SocketFlags.None, Spinners.Token).AsTask();
+                    task = Socket.SendAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
                 }
 
                 if (task != null)
@@ -233,7 +233,7 @@ namespace zero.core.network.ip
                                 _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
                                 break;
                         }
-                    }, Spinners.Token).ConfigureAwait(false);
+                    }, AsyncTasks.Token).ConfigureAwait(false);
 
                     return task.Result;
                 }
@@ -265,7 +265,7 @@ namespace zero.core.network.ip
             {
                 if (Zeroed())
                 {
-                    await Task.Delay(250, Spinners.Token).ConfigureAwait(false);
+                    await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
                     return 0;
                 }
 
@@ -277,19 +277,19 @@ namespace zero.core.network.ip
                     //TODO 
                     if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment)  && Socket.Available > 0)
                     {
-                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, Spinners.Token).AsTask();
+                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
                         read = await t.ConfigureAwait(false);
                     }
                     else
                     {
-                        await Task.Delay(250, Spinners.Token).ConfigureAwait(false);
+                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
                         return 0;
                     }
 
                     //var read = await Task.Factory.FromAsync(
                     //        Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
                     //        Socket.EndReceive)
-                    //    .ConfigureAwait(false); //.HandleCancellation(Spinners.Token).ConfigureAwait(false); //TODO
+                    //    .ConfigureAwait(false); //.HandleCancellation(AsyncTasks.Token).ConfigureAwait(false); //TODO
 
                     //var read = Socket?.Receive(buffer, offset, length, SocketFlags.None);
 

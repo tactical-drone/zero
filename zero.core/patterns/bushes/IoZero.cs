@@ -53,7 +53,7 @@ namespace zero.core.patterns.bushes
             //ObservableRouter.Connect();
 
             //Configure cancellations
-            //Spinners.Token.Register(() => ObservableRouter.Connect().Dispose());         
+            //AsyncTasks.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
             parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
         }
@@ -121,11 +121,6 @@ namespace zero.core.patterns.bushes
         private readonly ILogger _logger;
 
         /// <summary>
-        /// Stops this source consumer
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
-        /// <summary>
         /// The current observer, there can only be one
         /// </summary>
         //private IObserver<IoLoad<TJob>> _observer;
@@ -165,7 +160,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_stats_mod_count = 1000;
+        public int parm_stats_mod_count = 100;
 
         /// <summary>
         /// Used to rate limit this queue, in ms. Set to -1 for max rate
@@ -206,16 +201,6 @@ namespace zero.core.patterns.bushes
         // ReSharper disable once InconsistentNaming
         public int parm_producer_start_retry_time = 1000;
 
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        protected override void ZeroUnmanaged()
-        {
-            Spinners.Dispose();
-            base.ZeroUnmanaged();
-        }
-
         /// <summary>
         /// zero managed
         /// </summary>
@@ -230,8 +215,6 @@ namespace zero.core.patterns.bushes
             }
 
             _previousJobFragment.ToList().ForEach(pair => pair.Value.Zero());
-
-            Spinners.Cancel();
 
             base.ZeroManaged();
 
@@ -263,7 +246,7 @@ namespace zero.core.patterns.bushes
                                 IsArbitrating = true;
                             while (nextJob.Source.BlockOnProduceAheadBarrier)
                             {
-                                if (!await nextJob.Source.ProduceAheadBarrier.WaitAsync(-1, Spinners.Token).ConfigureAwait(false))
+                                if (!await nextJob.Source.ProduceAheadBarrier.WaitAsync(-1, AsyncTasks.Token).ConfigureAwait(false))
                                 {
                                     Interlocked.Increment(ref nextJob.Source.NextProducerId());
                                     return false;
@@ -375,7 +358,7 @@ namespace zero.core.patterns.bushes
                         else
                         {                        
                             _logger.Fatal($"Production for: `{Description}` failed. Cannot allocate job resources!");
-                            await Task.Delay(parm_error_timeout, Spinners.Token).ConfigureAwait(false);
+                            await Task.Delay(parm_error_timeout, AsyncTasks.Token).ConfigureAwait(false);
                         }
                     }                    
                     catch (ObjectDisposedException) { }
@@ -404,7 +387,7 @@ namespace zero.core.patterns.bushes
                     if (sleepOnConsumerLag)
                     {
                         _logger.Warn($"Source for `{Description}' is waiting for consumer to catch up! parm_max_q_size = `{parm_max_q_size}'");
-                        await Task.Delay(parm_producer_consumer_throttle_delay, Spinners.Token).ConfigureAwait(false);
+                        await Task.Delay(parm_producer_consumer_throttle_delay, AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }                
             }
@@ -451,10 +434,10 @@ namespace zero.core.patterns.bushes
 
                 //_logger.Trace($"{nameof(ConsumeAsync)}: `{Description}' [ENTER]");
 
-                if (Source.BlockOnConsumeAheadBarrier && !await Source.ConsumeAheadBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token).ConfigureAwait(false))
+                if (Source.BlockOnConsumeAheadBarrier && !await Source.ConsumeAheadBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, AsyncTasks.Token).ConfigureAwait(false))
                 {
                     //Was shutdown requested?
-                    if (Spinners.IsCancellationRequested || Zeroed())
+                    if (Zeroed())
                     {
                         _logger.Debug($"Consumer `{Description}' is shutting down");
                         return Task.CompletedTask;
@@ -471,10 +454,10 @@ namespace zero.core.patterns.bushes
                 }
 
                 //Waiting for a job to be produced. Did production fail?
-                if (!await Source.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, Spinners.Token).ConfigureAwait(false))
+                if (!await Source.ConsumerBarrier.WaitAsync(parm_consumer_wait_for_producer_timeout, AsyncTasks.Token).ConfigureAwait(false))
                 {
                     //Was shutdown requested?
-                    if (Spinners.IsCancellationRequested || Zeroed())
+                    if (Zeroed())
                     {
                         _logger.Debug($"Consumer `{Description}' is shutting down");
                         return Task.CompletedTask;
@@ -610,7 +593,7 @@ namespace zero.core.patterns.bushes
             var producerTask = Task.Factory.StartNew(async () =>
             {
                 //While not cancellation requested
-                while (!Spinners.IsCancellationRequested && !Zeroed() && spawnProducer)
+                while (!Zeroed() && spawnProducer)
                 {                        
                     await ProduceAsync().ConfigureAwait(false);
                     if (!Source.IsOperational)
@@ -625,7 +608,7 @@ namespace zero.core.patterns.bushes
             var consumerTask = Task.Factory.StartNew(async () =>
             {
                 //While supposed to be working
-                while (!Spinners.IsCancellationRequested && !Zeroed())
+                while (!Zeroed())
                 {                        
                     await ConsumeAsync().ConfigureAwait(false);
                     if (!Source.IsOperational)

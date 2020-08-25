@@ -113,7 +113,7 @@ namespace zero.core.network.ip
                 _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
 
                 _logger.Debug($"Started listener at {ListeningAddress}");
-                while (!Spinners.IsCancellationRequested && !Zeroed())
+                while (!Zeroed())
                 {
                     await Task.Delay(5000).ConfigureAwait(false);
                     if (!Socket?.IsBound ?? true)
@@ -172,7 +172,7 @@ namespace zero.core.network.ip
                             _logger.Trace($"Sent {length} bytes to udp://{endPoint} from {Socket.LocalPort()}");
                             break;
                     }
-                }, Spinners.Token).ConfigureAwait(false);
+                }, AsyncTasks.Token).ConfigureAwait(false);
             return length;
         }
 
@@ -206,7 +206,7 @@ namespace zero.core.network.ip
                         {
                             try
                             {
-                                if (Spinners.IsCancellationRequested || Zeroed())
+                                if (Zeroed())
                                     return 0;
 
                                 if (Socket != null && Socket.IsBound)

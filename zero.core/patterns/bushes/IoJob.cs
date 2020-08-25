@@ -34,11 +34,6 @@ namespace zero.core.patterns.bushes
         private readonly Logger _logger;
 
         /// <summary>
-        /// Cancellation token
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
-        /// <summary>
         /// A unique id for this work
         /// </summary>
         public long Id { get; private set; }
@@ -142,22 +137,11 @@ namespace zero.core.patterns.bushes
             return this;
         }
 
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        protected override void ZeroUnmanaged()
-        {
-            Spinners.Dispose();
-            base.ZeroUnmanaged();
-        }
-
         /// <summary>
         /// zero managed
         /// </summary>
         protected override void ZeroManaged()
         {
-            Spinners.Cancel();
             base.ZeroManaged();
             _logger.Debug($"{ToString()}: Zeroed {Description}");
         }

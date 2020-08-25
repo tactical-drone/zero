@@ -121,9 +121,9 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, Spinners.Token))
+                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
                     {
-                        if (!Spinners.IsCancellationRequested && !Zeroed())
+                        if (!Zeroed())
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
@@ -140,7 +140,7 @@ namespace zero.cocoon.models
                         return true;
                     }
 
-                    if (Spinners.IsCancellationRequested || Zeroed())
+                    if (Zeroed())
                     {
                         ProcessState = State.ProdCancel;
                         return false;
@@ -184,7 +184,7 @@ namespace zero.cocoon.models
                                         ProcessState = State.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                                 }
-                            }, Spinners.Token);
+                            }, AsyncTasks.Token);
                     }
                     else
                     {
@@ -193,7 +193,7 @@ namespace zero.cocoon.models
 #pragma warning restore 4014
                     }
 
-                    if (Spinners.IsCancellationRequested || Zeroed())
+                    if (Zeroed())
                     {
                         ProcessState = State.Cancelled;
                         return false;

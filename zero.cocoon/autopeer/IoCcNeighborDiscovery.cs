@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,19 +49,11 @@ namespace zero.cocoon.autopeer
         public IoCcService Services => CcNode.Services;
 
         /// <summary>
-        /// zero managed
-        /// </summary>
-        protected override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-        }
-
-        /// <summary>
         /// zero unmanaged
         /// </summary>
         protected override void ZeroManaged()
         {
-            CcNode = null;
+            Neighbors.ToList().ForEach(n => n.Value.Zero());
             base.ZeroManaged();
             _logger.Info($"Zeroed");
         }

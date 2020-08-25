@@ -53,13 +53,13 @@ namespace zero.tangle.models
                     return false;                    
                 }
 
-                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, Spinners.Token))
+                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token))
                 {
-                    ProcessState = !Spinners.IsCancellationRequested ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = !Zeroed() ? State.ProduceTo : State.ProdCancel;
                     return false;
                 }
 
-                if (Spinners.IsCancellationRequested)
+                if (Zeroed())
                 {
                     ProcessState = State.ProdCancel;
                     return false;

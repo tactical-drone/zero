@@ -24,7 +24,7 @@ namespace zero.tangle
         public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();            
-            Milestones = new Milestone<TKey>(Spinners.Token);
+            Milestones = new Milestone<TKey>(AsyncTasks.Token);
         }
 
         private readonly Logger _logger;

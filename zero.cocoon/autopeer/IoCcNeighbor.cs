@@ -45,10 +45,10 @@ namespace zero.cocoon.autopeer
 
             Task.Run(async () =>
             {
-                while (!Spinners.IsCancellationRequested && !Zeroed())
+                while (!Zeroed())
                 {
-                    await Task.Delay(30000, Spinners.Token);
-                    if (!Spinners.IsCancellationRequested && !Zeroed() && RemoteAddress != null)
+                    await Task.Delay(30000, AsyncTasks.Token);
+                    if (!Zeroed() && RemoteAddress != null)
                     {
                         if (!Verified)
                             await SendPingAsync();
@@ -107,12 +107,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether the node has been verified
         /// </summary>
-        public bool Verified { get; set; } = false;
+        public bool Verified { get; protected set; }
 
         /// <summary>
         /// Who contacted who?
         /// </summary>
-        public Kind Direction { get; set; } = Kind.Undefined;
+        public Kind Direction { get; protected set; } = Kind.Undefined;
 
         /// <summary>
         /// inbound
@@ -161,15 +161,37 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private volatile PeeringRequest _peerRequest;
 
+
+        /// <summary>
+        /// salt timestamp
+        /// </summary>
+        private long _curSaltStamp = DateTimeOffset.UnixEpoch.ToUnixTimeSeconds();
+
         /// <summary>
         /// Current salt value
         /// </summary>
-        private ByteString _curSalt;
+        private volatile ByteString _curSalt;
 
         /// <summary>
         /// Generates a new salt
         /// </summary>
-        private ByteString GetSalt => _curSalt = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(Encoding.ASCII.GetBytes((DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 120 * 60).ToString())), 0, parm_salt_length);
+        //private ByteString GetSalt => _curSalt = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(Encoding.ASCII.GetBytes((DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 120 * 60).ToString())), 0, parm_salt_length);
+
+        private ByteString GetSalt
+        {
+            get
+            {
+                if (_curSalt == null || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _curSaltStamp > parm_ping_timeout)
+                {
+                    using var rand = new RNGCryptoServiceProvider();
+                    _curSalt = ByteString.CopyFrom(new byte[parm_salt_length]);
+                    rand.GetNonZeroBytes(_curSalt.ToByteArray());
+                    _curSaltStamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                }
+
+                return _curSalt;
+            }
+        }
 
         /// <summary>
         /// Create an CcId string
@@ -195,6 +217,10 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_salt_length = 20;
+
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_salt_ttl = 2 * 60 * 60;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -247,7 +273,8 @@ namespace zero.cocoon.autopeer
         /// </summary>
         protected override void ZeroManaged()
         {
-            Peer.DetachNeighbor();
+            Peer?.DetachNeighbor();
+            Peer?.Zero();
 
             base.ZeroManaged();
             _logger.Debug($"{ToString()}: Zeroed {Description}");
@@ -336,7 +363,7 @@ namespace zero.cocoon.autopeer
                 _protocolChannel = Source.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
 
             _logger.Debug($"Processing peer msgs: `{Description}'");
-            while (!Spinners.IsCancellationRequested && !Zeroed())
+            while (!Zeroed())
             {
                 if (_protocolChannel == null)
                 {

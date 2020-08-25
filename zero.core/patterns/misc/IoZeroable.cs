@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 
@@ -37,6 +38,16 @@ namespace zero.core.patterns.misc
             Dispose();
             return Task.CompletedTask;
         }
+
+        /// <summary>
+        /// Cancellation token source
+        /// </summary>
+        private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
+
+        /// <summary>
+        /// Used by superclass to manage all async calls
+        /// </summary>
+        protected CancellationTokenSource AsyncTasks => _asyncTasks;
 
         /// <summary>
         /// Are we disposed?
@@ -119,6 +130,9 @@ namespace zero.core.patterns.misc
                 _zeroed = true;
             }
 
+            //Cancel all async tasks first or they leak
+            AsyncTasks.Cancel();
+
             //emit zero event
             foreach (var handler in _subscribers.Keys)
             {
@@ -131,7 +145,10 @@ namespace zero.core.patterns.misc
                     LogManager.GetCurrentClassLogger().Fatal(e, $"[{ToString()}] returned with errors!");
                 }
             }
-            
+
+            //clear out subscribers
+            _subscribers.Clear();
+
             //Dispose managed
             try
             {
@@ -147,6 +164,8 @@ namespace zero.core.patterns.misc
             {
                 try
                 {
+                    _asyncTasks.Dispose();
+                    _asyncTasks = null;
                     ZeroUnmanaged();
                 }
                 catch (Exception e)
@@ -154,9 +173,6 @@ namespace zero.core.patterns.misc
                     LogManager.GetCurrentClassLogger().Error(e,$"[{ToString()}] {nameof(ZeroUnmanaged)} returned with errors!");
                 }
             }
-
-            //clear out subscribers
-            _subscribers.Clear();
         }
 
         /// <summary>

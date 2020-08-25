@@ -53,11 +53,6 @@ namespace zero.core.network.ip
         protected IoSocket IoListenSocket;
 
         /// <summary>
-        /// Cancel all listener tasks
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
-        /// <summary>
         /// A set of currently connecting net clients
         /// </summary>
         private readonly ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
@@ -130,7 +125,7 @@ namespace zero.core.network.ip
                     }
 
                     return false;
-                }, Spinners.Token);
+                }, AsyncTasks.Token);
 
                 //ioNetClient will never be null, the null in the parameter is needed for the interface contract
                 if (ioNetClient != null && await connectTask.ConfigureAwait(false))
@@ -159,20 +154,10 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        protected override void ZeroUnmanaged()
-        {
-            Spinners.Dispose();
-            base.ZeroUnmanaged();
-        }
-
-        /// <summary>
         /// zero managed
         /// </summary>
         protected override void ZeroManaged()
         {
-            Spinners.Cancel();
             base.ZeroManaged();
             _logger.Debug($"{ToString()}: Zeroed {Description}");
         }

@@ -68,11 +68,6 @@ namespace zero.core.core
         private readonly ConcurrentDictionary<string, IoNodeAddress> _whiteList = new ConcurrentDictionary<string, IoNodeAddress>();
 
         /// <summary>
-        /// Used to cancel downstream processes
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
-        /// <summary>
         /// On Connected
         /// </summary>
         //protected EventHandler<IoNeighbor<TJob>> ConnectedEvent;
@@ -162,7 +157,7 @@ namespace zero.core.core
                 //Start the source consumer on the neighbor scheduler
                 try
                 {
-                    _neighborTasks.Add(Task.Factory.StartNew(async () => await newNeighbor.SpawnProcessingAsync().ConfigureAwait(false), Spinners.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current));
+                    _neighborTasks.Add(Task.Factory.StartNew(async () => await newNeighbor.SpawnProcessingAsync().ConfigureAwait(false), AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current));
 
                     //prune finished tasks
                     var remainTasks = _neighborTasks.Where(t => !t.IsCompleted).ToList();
@@ -188,7 +183,7 @@ namespace zero.core.core
         {
             var connectedAtLeastOnce = false;
 
-            while (!Spinners.IsCancellationRequested && !Zeroed() && !connectedAtLeastOnce)
+            while (!Zeroed() && !connectedAtLeastOnce)
             {
                 
                 var newClient = await _netServer.ConnectAsync(address).ConfigureAwait(false);
@@ -277,23 +272,12 @@ namespace zero.core.core
         }
 
         /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        protected override void ZeroUnmanaged()
-        {
-            Spinners.Dispose();
-            base.ZeroUnmanaged();
-        }
-
-        /// <summary>
         /// zero managed
         /// </summary>
         protected override void ZeroManaged()
         {
             Neighbors.ToList().ForEach(kv=>kv.Value.Zero());
             Neighbors.Clear();
-
-            Spinners.Cancel();
 
             try
             {

@@ -87,7 +87,7 @@ namespace zero.tangle
             var transactionArbiter = Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
 
             _logger.Debug($"Starting persistence for `{Description}'");
-            while (!Spinners.IsCancellationRequested)
+            while (!Zeroed())
             {
                 if (transactionArbiter == null)
                 {

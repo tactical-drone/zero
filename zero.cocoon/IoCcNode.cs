@@ -43,9 +43,9 @@ namespace zero.cocoon
 
             Task.Run(async () =>
             {
-                while (!Spinners.IsCancellationRequested && !Zeroed())
+                while (!Zeroed())
                 {
-                    await Task.Delay(60000, Spinners.Token);
+                    await Task.Delay(60000, AsyncTasks.Token);
                     _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
                 }
             });
@@ -64,6 +64,7 @@ namespace zero.cocoon
         /// </summary>
         protected override void ZeroManaged()
         {
+            Neighbors.ToList().ForEach(n=>n.Value.Zero());
 
             try
             {
@@ -181,7 +182,7 @@ namespace zero.cocoon
         protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcGossipMessage>, Task<bool>> acceptConnection = null)
         {
             //start peering
-            _autoPeeringTask = Task.Factory.StartNew(async () => await _autoPeering.StartAsync().ConfigureAwait(false), TaskCreationOptions.LongRunning);
+            _autoPeeringTask = Task.Factory.StartNew(async () => await _autoPeering.StartAsync().ConfigureAwait(false), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             await base.SpawnListenerAsync(async neighbor =>
             {

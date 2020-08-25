@@ -121,11 +121,6 @@ namespace zero.core.network.ip
         public bool Egress => Kind == Connection.Egress;
 
         /// <summary>
-        /// Cancellation sources.
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
-        /// <summary>
         /// Public access to remote address (used for logging)
         /// </summary>
         public string RemoteAddressFallback => Socket?.RemoteAddress()?.ToString() ?? ListeningAddress.IpEndPoint?.Address?.ToString() ?? ListeningAddress.Url;
@@ -261,7 +256,6 @@ namespace zero.core.network.ip
         protected override void ZeroUnmanaged()
         {
             Socket.Dispose();
-            Spinners.Dispose();
             base.ZeroUnmanaged();
         }
 
@@ -275,10 +269,6 @@ namespace zero.core.network.ip
             //    Socket.Shutdown(SocketShutdown.Both);
 
             Socket?.Close();
-
-            //Cancel everything that is running
-            Spinners.Cancel();
-
             base.ZeroManaged();
 
             _logger.Debug($"{ToString()}: Zeroed {Key}");

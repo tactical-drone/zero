@@ -34,13 +34,14 @@ namespace zero.cocoon
             {
                 return;
                 
-                await Task.Delay(rand.Next(120000) + 60000, Spinners.Token).ContinueWith(r =>
-                //await Task.Delay(rand.Next(30000), Spinners.Token).ContinueWith(r =>
+                await Task.Delay(rand.Next(120000) + 60000, AsyncTasks.Token).ContinueWith(r =>
+                //await Task.Delay(rand.Next(30000), AsyncTasks.Token).ContinueWith(r =>
                 {
-                    if (r.IsCompletedSuccessfully && !Spinners.IsCancellationRequested && !Zeroed())
+                    if (r.IsCompletedSuccessfully && !Zeroed())
                     {
                         _logger.Fatal($"Testing SOCKET FAILURE {Id}");
                         Zero();
+                        GC.Collect(GC.MaxGeneration);
                     }
                 });
             });
@@ -72,6 +73,7 @@ namespace zero.cocoon
         protected override void ZeroManaged()
         {
             DetachNeighbor();
+            Source.Zero();
             base.ZeroManaged();
             _logger.Info($"Zeroed {Description} ({Id})");
         }

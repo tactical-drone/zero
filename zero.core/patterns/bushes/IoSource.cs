@@ -38,11 +38,6 @@ namespace zero.core.patterns.bushes
         private readonly Logger _logger;
 
         /// <summary>
-        /// Used to signal shutdown
-        /// </summary>
-        protected readonly CancellationTokenSource Spinners = new CancellationTokenSource();
-
-        /// <summary>
         /// The forwarding channel
         /// </summary>
         public IoChannel<TJob> Channel { get; protected set; }
@@ -172,8 +167,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroUnmanaged()
         {
-            Spinners.Dispose();
-
             //Unblock any blockers
             ProducerBarrier.Dispose();
             ConsumerBarrier.Dispose();
@@ -189,8 +182,6 @@ namespace zero.core.patterns.bushes
         protected override void ZeroManaged()
         {
             IoChannels.Clear();
-            Spinners.Cancel();
-
             base.ZeroManaged();
 
             _logger.Debug($"{ToString()}: Zeroed {Description}");
