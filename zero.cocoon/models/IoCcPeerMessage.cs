@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Microsoft.AspNetCore.SignalR.Protocol;
@@ -90,6 +92,29 @@ namespace zero.cocoon.models
         // ReSharper disable once InconsistentNaming
         public int parm_datums_per_buffer = 250;
 
+        /// <summary>
+        /// Maximum number of datums this buffer can hold
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_ave_sec_ms = 10;
+
+        /// <summary>
+        /// Maximum number of datums this buffer can hold
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_ave_msg_sec_hist = 10 * 2;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private int _msgCount = 0;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private long _msgRateCheckpoint = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         /// <summary>
         /// Userdata in the source
@@ -163,6 +188,35 @@ namespace zero.cocoon.models
                                         break;
                                     //Success
                                     case TaskStatus.RanToCompletion:
+
+                                        //Drop zero reads
+                                        if (rx.GetAwaiter().GetResult() == 0)
+                                        {
+                                            BytesRead = 0;
+                                            ProcessState = State.ProduceTo;
+                                            return;
+                                        }
+                                        
+                                        //rate limit
+                                        _msgCount++;
+                                        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                        var delta = now - _msgRateCheckpoint;
+                                        if (delta == 0 || _msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms )
+                                        {
+                                            BytesRead = 0;
+                                            ProcessState = State.ProduceTo;
+                                            _logger.Fatal($"Dropping spam {_msgCount}");
+                                            _msgCount -= 2;
+                                            return;
+                                        }
+
+                                        //hist reset
+                                        if (delta > parm_ave_msg_sec_hist * 1000)
+                                        {
+                                            _msgRateCheckpoint = now;
+                                            _msgCount = 0;
+                                        }
+
                                         BytesRead = rx.Result;
 
                                         //UDP signals source ip
@@ -284,7 +338,7 @@ namespace zero.cocoon.models
                         //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                         var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
                         packet.Type = packet.Data[0];
-                        _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{Source.Description}'");
+                        _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{(IPEndPoint)ProducerUserData}'");
 
                         //Don't process unsigned or unknown messages
                         if(!verified || messageType == null)
@@ -293,24 +347,25 @@ namespace zero.cocoon.models
                         switch (messageType)
                         {
                             case nameof(MessageTypes.Ping):
-                                ProcessRequest<Ping>(packet, packetMsgRaw);
+                                ProcessRequest<Ping>(packet);
                                 break;
                             case nameof(MessageTypes.Pong):
-                                ProcessRequest<Pong>(packet, packetMsgRaw);
+                                ProcessRequest<Pong>(packet);
                                 break;
                             case nameof(MessageTypes.DiscoveryRequest):
-                                ProcessRequest<DiscoveryRequest>(packet, packetMsgRaw);
+                                ProcessRequest<DiscoveryRequest>(packet);
                                 break;
                             case nameof(MessageTypes.DiscoveryResponse):
+                                ProcessRequest<DiscoveryResponse>(packet);
                                 break;
                             case nameof(MessageTypes.PeeringRequest):
-                                ProcessRequest<PeeringRequest>(packet, packetMsgRaw);
+                                ProcessRequest<PeeringRequest>(packet);
                                 break;
                             case nameof(MessageTypes.PeeringResponse):
-                                ProcessRequest<PeeringResponse>(packet, packetMsgRaw);
+                                ProcessRequest<PeeringResponse>(packet);
                                 break;
                             case nameof(MessageTypes.PeeringDrop):
-                                ProcessRequest<PeeringDrop>(packet, packetMsgRaw);
+                                ProcessRequest<PeeringDrop>(packet);
                                 break;
                             default:
                                 _logger.Debug($"Unknown auto peer msg type = {Buffer[BufferOffset - 1]}");
@@ -336,14 +391,12 @@ namespace zero.cocoon.models
             return ProcessState = State.Consumed;
         }
 
-        private void ProcessRequest<T>(Packet packet, byte[] packetMsgRaw)
+        private void ProcessRequest<T>(Packet packet)
         where T : IMessage<T>, new()
         {
             try
             {
                 var parser = new MessageParser<T>(() => new T());
-                //var requestRaw = packet.Data.Span.Slice(1, packet.Data.Length - 1).ToArray();
-                var requestRaw = packet.Data.Span.Slice(0, packet.Data.Length).ToArray();
                 var request = parser.ParseFrom(packet.Data);
 
                 if (request != null)

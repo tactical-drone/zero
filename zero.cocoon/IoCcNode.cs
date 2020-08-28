@@ -43,10 +43,17 @@ namespace zero.cocoon
 
             Task.Run(async () =>
             {
+                var inbound = 0;
+                var outbound = 0;
                 while (!Zeroed())
                 {
-                    await Task.Delay(60000, AsyncTasks.Token);
-                    _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
+                    if (InboundCount != inbound || OutboundCount != outbound)
+                    {
+                        _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
+                        inbound = InboundCount;
+                        outbound = OutboundCount;
+                    }
+                    await Task.Delay(1000, AsyncTasks.Token);
                 }
             });
         }
@@ -184,13 +191,20 @@ namespace zero.cocoon
             _autoPeeringTask = Task.Factory.StartNew(async () => await _autoPeering.StartAsync().ConfigureAwait(false), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //DO the continuation inside this callback should always return on the same thread
-            await base.SpawnListenerAsync(async neighbor =>
+            await base.SpawnListenerAsync(async peer =>
             {
                 //limit connects
                 if (InboundCount > parm_max_inbound)
                     return false;
-                
-                return await HandshakeAsync((IoCcPeer)neighbor);//we don't ConfigureAwait(false) here
+
+                if (await HandshakeAsync((IoCcPeer) peer))
+                {
+                    _logger.Info($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id})");
+                    return true;
+                }
+
+                return false;
+
             }).ConfigureAwait(false);
         }
 
@@ -394,6 +408,8 @@ namespace zero.cocoon
             }
             return true;
         }
+
+        
 
         /// <summary>
         /// Opens an <see cref="IoCcNeighbor.Kind.OutBound"/> connection to a gossip peer

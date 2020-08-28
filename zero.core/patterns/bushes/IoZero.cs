@@ -362,7 +362,8 @@ namespace zero.core.patterns.bushes
                                     else
                                     {
                                         JobHeap?.Return(nextJob);
-                                        await nextJob.Zero(this);
+                                        if( JobHeap == null )
+                                            await nextJob.Zero(this);
                                     }
                                     jobSafeReleased = true;
 
@@ -476,7 +477,7 @@ namespace zero.core.patterns.bushes
                     //Production timed out
                     if (sleepOnProducerLag)
                     {
-                        _logger.Warn($"Consumer `{Description}' [[ReadAheadBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Debug($"Consumer `{Description}' [[ReadAheadBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                     }
 
                     //Try again                    
@@ -496,7 +497,7 @@ namespace zero.core.patterns.bushes
                     //Production timed out
                     if (sleepOnProducerLag)
                     {                        
-                        _logger.Warn($"Consumer `{Description}' [[ConsumerBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Debug($"Consumer `{Description}' [[ConsumerBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                         await Task.Delay(parm_consumer_wait_for_producer_timeout/4);
                     }
                         

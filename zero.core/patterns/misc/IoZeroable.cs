@@ -112,7 +112,7 @@ namespace zero.core.patterns.misc
         /// <returns>The handler</returns>
         public Func<IIoZeroable, Task> ZeroEvent(Func<IIoZeroable, Task> sub)
         {
-            if (!_subscribers.TryAdd(sub, null))
+            if (!_subscribers?.TryAdd(sub, null)??false)//TODO race condition?
             {
                 LogManager.GetCurrentClassLogger().Warn($"Event already subscribed: Method = {sub.Method}, Target = {sub.Target}");
             }
@@ -129,7 +129,7 @@ namespace zero.core.patterns.misc
             if (sub == null)
                 return null;
 
-            if (!_subscribers.TryRemove(sub, out _))
+            if (!_subscribers?.TryRemove(sub, out _)??false)
             {
                 LogManager.GetCurrentClassLogger().Warn($"Cannot unsubscribe, event not found: Method = {sub.Method}, Target = {sub.Target}");
             }
@@ -181,7 +181,7 @@ namespace zero.core.patterns.misc
             {
                 try
                 {
-                    handler(this).Wait();
+                    handler(this)?.GetAwaiter().GetResult();
                 }
                 catch (Exception e)
                 {

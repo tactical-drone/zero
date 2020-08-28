@@ -304,7 +304,7 @@ namespace zero.core.core
 
             try
             {
-                _listenerTask?.Wait();
+                _listenerTask?.GetAwaiter().GetResult();
                 Task.WaitAll(NeighborTasks.ToArray());
             }
             catch

@@ -13,13 +13,6 @@ namespace zero.core.network.ip
         where TJob : IIoJob
         
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
-        /// </summary>
-        public IoTcpClient()
-        {
-            _logger = LogManager.GetCurrentClassLogger();
-        }
 
         /// <summary>
         /// The logger

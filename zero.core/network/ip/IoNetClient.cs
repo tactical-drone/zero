@@ -20,14 +20,6 @@ namespace zero.core.network.ip
     
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoNetClient{TJob}"/> class.
-        /// </summary>
-        protected IoNetClient()
-        {
-            
-        }
-
-        /// <summary>
         /// Constructor for incoming connections used by the listener
         /// </summary>
         /// <param name="socket">The new socket</param>
@@ -119,7 +111,7 @@ namespace zero.core.network.ip
                 if (_key != null)
                     return _key;
 
-                _key = IoSocket.Key;
+                _key = IoSocket?.Key;
                 return _key;
             }
         }
@@ -161,7 +153,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns the host address URL in the format tcp://IP:port
         /// </summary>
-        public string AddressString => $"{ListeningAddress.Url}";
+        public string AddressString => $"{ListeningAddress?.Url}";
 
         /// <summary>
         /// Transmit timeout in ms

@@ -65,7 +65,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A set of currently connecting net clients
         /// </summary>
-        private readonly ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
+        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
 
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
@@ -73,6 +73,14 @@ namespace zero.core.network.ip
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_read_ahead = 1;
+
+
+        /// <summary>
+        /// The amount of socket reads the producer is allowed to lead the consumer
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_connection_timeout = 1000;
 
         /// <summary>
         /// Listens for new connections
@@ -99,14 +107,17 @@ namespace zero.core.network.ip
         {
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
-                _logger.Warn($"Cancelling existing connection attemp to `{address}'");
+                await Task.Delay(parm_connection_timeout);
+                if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
+                {
+                    _logger.Warn($"Cancelling existing connection attemp to `{address}'");
 #pragma warning disable 4014
-                _connectionAttempts[address.Key].Zero(this);
+                    _connectionAttempts[address.Key].Zero(this);
 #pragma warning restore 4014
 
-                _connectionAttempts.TryRemove(address.Key, out _);
-                await Task.Delay(500);
-                return await ConnectAsync(address, ioNetClient);
+                    _connectionAttempts.TryRemove(address.Key, out _);
+                    return await ConnectAsync(address, ioNetClient);
+                }
             }
 
             try
@@ -115,11 +126,7 @@ namespace zero.core.network.ip
                 {
                     switch (t.Status)
                     {
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
-                            ioNetClient.Zero(this);
-                            break;
+                        
                         case TaskStatus.RanToCompletion:
                             if (ioNetClient.IsOperational)
                             {
@@ -129,9 +136,14 @@ namespace zero.core.network.ip
                             else // On connect failure
                             {
                                 _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
-                                ioNetClient.Zero(this);
                                 return false;
                             }
+                        case TaskStatus.Canceled:
+                        case TaskStatus.Faulted:
+                        default:
+                            ioNetClient.Zero(this);
+                            _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
+                            break;
                     }
 
                     return false;
@@ -150,14 +162,14 @@ namespace zero.core.network.ip
             {
                 if (!_connectionAttempts.TryRemove(address.Key, out _))
                 {
-                    _logger.Fatal($"Expected key `{address.Key}'");
+                    _logger.Debug($"Expected key `{address.Key}'");
                 }
 
-                if (_connectionAttempts.Count > 0)
-                {
-                    _logger.Warn($"Empty connection attempts expected!");
-                    _connectionAttempts.Clear();
-                }
+                //if (_connectionAttempts.Count > 0)
+                //{
+                //    _logger.Warn($"Empty connection attempts expected!");
+                //    _connectionAttempts.Clear();
+                //}
             }
 
             return null;
@@ -173,6 +185,7 @@ namespace zero.core.network.ip
 #if SAFE_RELEASE
             ListeningAddress = null;
             IoListenSocket = null;
+            _connectionAttempts = null;
 #endif
         }
 
@@ -181,6 +194,7 @@ namespace zero.core.network.ip
         /// </summary>
         protected override void ZeroManaged()
         {
+            _connectionAttempts.Clear();
             base.ZeroManaged();
         }
 

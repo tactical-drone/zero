@@ -148,7 +148,20 @@ namespace zero.core.network.ip
         /// <summary>
         /// The local endpoint
         /// </summary>
-        public IPEndPoint LocalEndPoint => (IPEndPoint) Socket?.LocalEndPoint;
+        public IPEndPoint LocalEndPoint
+        {
+            get
+            {
+                try
+                {
+                    return (IPEndPoint) Socket?.LocalEndPoint;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return null;
+                }
+            }
+        }
 
         /// <summary>
         /// Returns the local address as a string ip:port

@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Google.Protobuf.Collections;
 using NLog;
 using Proto;
 using zero.cocoon.identity;
@@ -42,27 +43,48 @@ namespace zero.cocoon.autopeer
             }
             
             NeighborDiscoveryNode = (IoCcNeighborDiscovery)node;
-
-            Task.Run(async () =>
+            if (RoutedRequest)
             {
-                while (!Zeroed())
+                Task.Factory.StartNew(async () =>
                 {
-                    await Task.Delay(30000, AsyncTasks.Token);
-                    if (!Zeroed() && RemoteAddress != null)
+                    while (!Zeroed())
                     {
-                        if (!Verified)
+                        await Task.Delay(Random.Next(parm_zombie_max_ttl / 4) * 1000 + parm_zombie_max_ttl / 8 * 1000, AsyncTasks.Token);
+                        if (!Zeroed() && RemoteAddress != null && PeerConnectedAtLeastOnce)
+                        {
+                            if (!Verified)
+                                await SendPingAsync();
+                            else if (Direction == Kind.OutBound && Peer == null || (!Peer?.IsArbitrating ?? true) || (!Peer?.Source?.IsOperational ?? true))
+                                await SendPingAsync();
+                        }
+                        else if (!PeerConnectedAtLeastOnce && _secondsSinceValid > parm_zombie_max_ttl / 2)
+                        {
                             await SendPingAsync();
-                        else if (Direction == Kind.OutBound && Peer == null || (!Peer?.IsArbitrating??true) || (!Peer?.Source?.IsOperational??true))
-                            await SendPingAsync();
+                        }
+                        else if (_secondsSinceValid > parm_zombie_max_ttl)
+                        {
+                            _logger.Info($"Zeroing zombie peer {Id}");
+                            await Zero(this);
+                        }
+                        else if (Peer == null && (PeerConnectedAtLeastOnce || Direction == Kind.OutBound))
+                        {
+                            await SendPeerRequestAsync();
+                        }
                     }
-                }
-            });
+                }, TaskCreationOptions.LongRunning);
+            }
+            
         }
 
         /// <summary>
         /// logger
         /// </summary>
         private readonly Logger _logger;
+
+        /// <summary>
+        /// Random number generator
+        /// </summary>
+        private static readonly Random Random = new Random((int) DateTimeOffset.Now.Ticks);
 
         /// <summary>
         /// Discovery services
@@ -147,7 +169,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Used to Match requests
         /// </summary>
-        private volatile DiscoveryRequest _discoveryRequest;
+        private DiscoveryRequest _discoveryRequest;
 
         /// <summary>
         /// Only one un-routed ping request allowed at a time. 
@@ -155,14 +177,24 @@ namespace zero.cocoon.autopeer
         private SemaphoreSlim _pingRequestBarrier = new SemaphoreSlim(1);
 
         /// <summary>
-        /// Used to Match requests
+        /// Seconds since valid
         /// </summary>
-        private volatile Ping _pingRequest;
+        private long _secondsSinceValid = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        /// <summary>
+        /// Seconds since valid
+        /// </summary>
+        public long SecondsSinceValid => DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _secondsSinceValid;
 
         /// <summary>
         /// Used to Match requests
         /// </summary>
-        private volatile PeeringRequest _peerRequest;
+        private Ping _pingRequest;
+
+        /// <summary>
+        /// Used to Match requests
+        /// </summary>
+        private PeeringRequest _peerRequest;
 
 
         /// <summary>
@@ -228,6 +260,34 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_ping_timeout = 1000;
+
+        /// <summary>
+        /// Maximum number of peers in discovery response
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_discovery_peers = 6;
+
+        /// <summary>
+        /// Maximum number of services supported
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_services = 3;
+
+        /// <summary>
+        /// Maximum number of services supported
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_time_error = 20;
+
+        /// <summary>
+        /// Maximum number of services supported
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_zombie_max_ttl = 120;
 
         /// <summary>
         /// Handle to peer zero sub
@@ -477,9 +537,9 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task Process(PeeringRequest request, object extraData, Packet packet)
         {
-            if (RemoteAddress == null)
+            if (!RoutedRequest)
             {
-                _logger.Trace($"{nameof(PeeringRequest)}: Dropped request, not verified! ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
+                _logger.Trace($"{nameof(PeeringRequest)}({(RoutedRequest?"R":"L")}): Dropped request, not verified! ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
                 return;
             }
 
@@ -526,7 +586,7 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task Process(PeeringResponse response, object extraData, Packet packet)
         {
-            if (_peerRequest == null || RemoteAddress == null)
+            if ((_peerRequest = Volatile.Read(ref _peerRequest )) == null || !RoutedRequest)
             {
                 _logger.Trace($"{nameof(PeeringResponse)}: Unexpected response from {extraData}, {RemoteAddress}");
                 return;
@@ -568,7 +628,10 @@ namespace zero.cocoon.autopeer
                 _logger.Info($"{Kind.OutBound} peering request {(response.Status?"[ACCEPTED]":"[REJECTED]")}, currently {Direction}: {Id}");
 
                 if (Direction == Kind.OutBound)
+                {
                     await CcNode.ConnectToPeer(this);
+                    await SendDiscoveryRequestAsync();
+                }
             }
             else
             {
@@ -594,14 +657,25 @@ namespace zero.cocoon.autopeer
                 Type = (uint)type
             };
 
-            packet.Signature =
-                ByteString.CopyFrom(CcNode.CcId.Sign(packet.Data.ToByteArray(), 0, packet.Data.Length));
+            packet.Signature = ByteString.CopyFrom(CcNode.CcId.Sign(packet.Data.ToByteArray(), 0, packet.Data.Length));
 
             var msgRaw = packet.ToByteArray();
 
-            var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint);
-            _logger.Debug($"{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}: Sent {sent} bytes to {dest.IpEndPoint} ({Id})");
-            return (sent, packet);
+            if (!Zeroed())
+            {
+                try
+                {
+                    var sent = await ((IoUdpClient<IoCcPeerMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint);
+                    _logger.Debug($"{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}: Sent {sent} bytes ({(RoutedRequest?"R":"L")}) to {dest.IpEndPoint} ({Id})");
+                    return (sent, packet);
+                }
+                catch( NullReferenceException )
+                {
+                    // ignored
+                }
+            }
+
+            return (0, null);
         }
 
         /// <summary>
@@ -612,30 +686,84 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task Process(DiscoveryResponse response, object extraData, Packet packet)
         {
-            if (_discoveryRequest == null || RemoteAddress == null)
+            if ((_discoveryRequest = Volatile.Read( ref _discoveryRequest )) == null || !RoutedRequest || response.Peers.Count > parm_max_discovery_peers)
             {
-                _logger.Debug($"{nameof(DiscoveryResponse)}: Dropped! Got unexpected response from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest}");
+                _logger.Debug($"{nameof(DiscoveryResponse)}: Dropped! Got unexpected response count = ({response.Peers.Count}) from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest}");
                 return;
             }
 
-            if (response.ReqHash.SequenceEqual(IoCcIdentity.Sha256.ComputeHash(_discoveryRequest.ToByteArray())))
+            if (!response.ReqHash.SequenceEqual(IoCcIdentity.Sha256.ComputeHash(_discoveryRequest.ToByteArray())))
             {
-                _logger.Debug($"{nameof(DiscoveryResponse)}: Got invalid request from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}");
+                _logger.Debug($"{nameof(DiscoveryResponse)}: Got request hash from {Id}");
                 return;
             }
 
             _discoveryRequest = null;
 
-            _logger.Debug($"{nameof(PeeringResponse)}: Got {response.Peers.Count} peers ");
+            _logger.Debug($"{nameof(PeeringResponse)}: Got {response.Peers.Count} new peer addresses");
+            var count = 0;
             foreach (var responsePeer in response.Peers)
             {
-                var idCheck = IoCcIdentity.FromPK(responsePeer.PublicKey.Span);
-                var remoteServices = IoNodeAddress.Create($"{responsePeer.Services.Map[IoCcService.Keys.gossip.ToString()].Network}://{responsePeer.Ip}:{responsePeer.Services.Map[IoCcService.Keys.gossip.ToString()].Port}");
-                var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices));
+                //Any services attached?
+                if(responsePeer.Services == null)
+                    continue;
+
+                //ignore strange services
+                if (responsePeer.Services.Map.Count > parm_max_services)
+                    continue;
+
+                //Never add ourselves (by NAT)
+                if (responsePeer.Services.Map.ContainsKey(IoCcService.Keys.peering.ToString()) &&
+                    responsePeer.Ip == ExtGossipAddress.Ip &&
+                    CcNode.ExtAddress.Port == responsePeer.Services.Map[IoCcService.Keys.peering.ToString()].Port)
+                    continue;
+
+                //Never add ourselves (by ID)
+                if(responsePeer.PublicKey.SequenceEqual(CcNode.CcId.PublicKey))
+                    continue;
+
+                var services = new IoCcService {IoCcRecord = new IoCcRecord()};
+                var newRemoteEp = new IPEndPoint(IPAddress.Parse(responsePeer.Ip), (int)responsePeer.Services.Map[IoCcService.Keys.peering.ToString()].Port);
+
+                if (responsePeer.Services.Map.Count <= parm_max_services)
+                {
+                    foreach (var kv in responsePeer.Services.Map)
+                    {
+                        services.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(kv.Key), IoNodeAddress.Create($"{kv.Value.Network}://{responsePeer.Ip}:{kv.Value.Port}"));
+                    }
+                }
+                else
+                {
+                    _logger.Debug($"{nameof(PeeringResponse)}: Max service supported {parm_max_services}, got {responsePeer.Services.Map.Count}");
+                    services = null;
+                    break;
+                }
+
+                //sanity check
+                if(services == null || services.IoCcRecord.Endpoints.Count == 0)
+                    continue;
+
+                //create neighbor
+                var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(IoCcIdentity.FromPK(responsePeer.PublicKey.Span), services, newRemoteEp));
                 if (Node.Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
-                    _logger.Debug($"Exchanged new peer info: {newNeighbor.Id}@{remoteServices}");
-                    await newNeighbor.SendPingAsync(IoNodeAddress.CreateFromEndpoint("udp", (EndPoint)extraData));
+                    Node.ZeroOnCascade(newNeighbor);
+
+#pragma warning disable 4014
+                    Task.Factory.StartNew(async () =>
+#pragma warning restore 4014
+                    {
+                        await Task.Delay(parm_ping_timeout * count++);
+                        if (!newNeighbor.Verified)
+                        {
+                            _logger.Info($"Suggested: {newNeighbor.Id} from {Id}");
+                            await newNeighbor.SendPingAsync();
+                        }
+                    }, TaskCreationOptions.LongRunning);
+                }
+                else
+                {
+                   //await newNeighbor.Zero(this);
                 }
             }
         }
@@ -649,29 +777,36 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task Process(DiscoveryRequest request, object extraData, Packet packet)
         {
-            if (RemoteAddress == null || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20)
+            if (RemoteAddress == null || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > parm_max_time_error)
             {
-                _logger.Trace($"{nameof(DiscoveryRequest)}: Dropped request, not verified! ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
+                _logger.Trace($"{nameof(DiscoveryRequest)}: Dropped request, not verified! ({DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp} > {parm_max_time_error}?) ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
                 return;
             }
 
             //TODO accuracy param
-            if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > 20 || request.Timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 20)
+            if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp > parm_max_time_error || request.Timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + parm_max_time_error)
             {
-                _logger.Trace($"{nameof(DiscoveryRequest)}: Dropped misstimed request ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
+                _logger.Trace($"{nameof(DiscoveryRequest)}: Dropped old request ({DateTimeOffset.FromUnixTimeSeconds(request.Timestamp)})");
                 return;
             }
 
             var discoveryResponse = new DiscoveryResponse
             {
                 ReqHash = ByteString.CopyFrom(SHA256.Create().ComputeHash(packet.Data.ToByteArray())),
-                Peers = { new Peer { PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey), Ip = Source.SourceUri, Services = new ServiceMap { Map = { new Dictionary<string, NetworkAddress> { { IoCcService.Keys.peering.ToString(), new NetworkAddress { Network = CcNode.ExtAddress.Ip, Port = (uint)CcNode.ExtAddress.Port } } } } } } }
+                //Peers = { new Peer { PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey), Ip = ExtGossipAddress.Ip, Services = new ServiceMap { Map = { new Dictionary<string, NetworkAddress> { { IoCcService.Keys.peering.ToString(), new NetworkAddress { Network = "tcp", Port = (uint)CcNode.ExtAddress.Port } } } } } } }
             };
 
-            foreach (var ioNeighbor in NeighborDiscoveryNode.Neighbors)
+            int count = 0;
+            foreach (var ioNeighbor in NeighborDiscoveryNode.Neighbors.Where(n=>((IoCcNeighbor)n.Value).Verified))
             {
-                if (ioNeighbor.Value == this || ((IoCcNeighbor)ioNeighbor.Value).RemoteAddress == null)
+                if (ioNeighbor.Value == this || ((IoCcNeighbor)ioNeighbor.Value).RemoteAddress == null || count == parm_max_discovery_peers)
                     continue;
+
+                if (((IoCcNeighbor) ioNeighbor.Value).RemoteAddress.Equals(CcNode.ExtAddress))
+                {
+                    _logger.Fatal($"Found us {((IoCcNeighbor)ioNeighbor.Value).RemoteAddress} in neighbors");
+                    continue;
+                }
 
                 discoveryResponse.Peers.Add(new Peer
                 {
@@ -679,6 +814,7 @@ namespace zero.cocoon.autopeer
                     Services = ((IoCcNeighbor)ioNeighbor.Value).ServiceMap,
                     Ip = ((IoCcNeighbor)ioNeighbor.Value).RemoteAddress.Ip
                 });
+                count++;
             }
 
             await SendMessage(RemoteAddress, discoveryResponse.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryResponse);
@@ -694,7 +830,7 @@ namespace zero.cocoon.autopeer
         {
             var remoteEp = (IPEndPoint)extraData;
             var age = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ping.Timestamp;
-            if (age > 20 || age < -20) //TODO params
+            if (age > parm_max_time_error || age < -parm_max_time_error) //TODO params
             {
                 _logger.Trace($"{nameof(Ping)}: message dropped, to old. age = {age}s");
                 return;
@@ -755,13 +891,12 @@ namespace zero.cocoon.autopeer
 
                 if (toAddress.Ip != toProxyAddress.Ip)
                     await SendMessage(toAddress, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
-            }
 
-            if (!Node.Neighbors.ContainsKey(id))
-            {
+                
                 _logger.Info($"Probing new destination {toAddress}");
                 await SendPingAsync(toAddress);
-                if (CcNode.UdpTunnelSupport && toProxyAddress != null && toProxyAddress.Ip != toAddress.Ip)
+
+                if (CcNode.UdpTunnelSupport && toProxyAddress.Ip != toAddress.Ip)
                     await SendPingAsync(toProxyAddress);
             }
         }
@@ -774,12 +909,14 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task Process(Pong pong, object extraData, Packet packet)
         {
-            if (_pingRequest == null)
+            if ((_pingRequest = Volatile.Read(ref _pingRequest)) == null)
             {
                 if (RoutedRequest)
                 {
-                    _logger.Fatal($"{nameof(Pong)}({GetHashCode()}):  Unexpected! {Id}:{RemoteAddress.Port}");
-                    Node.Neighbors.Where(kv=> ((IoCcNeighbor)kv.Value).RoutedRequest).ToList().ForEach(kv=>_logger.Fatal($"{kv.Value.Id}:{((IoCcNeighbor)kv.Value).RemoteAddress.Port}"));
+                    if(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _secondsSinceValid > 1)
+                        _logger.Debug($"{nameof(Pong)}({GetHashCode()}):  Unexpected!, s = {DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _secondsSinceValid}, r = { RoutedRequest}, id = {Id}:{RemoteAddress.Port}");
+                    //Node.Neighbors.Where(kv=> ((IoCcNeighbor)kv.Value).RoutedRequest).ToList().ForEach(kv=>_logger.Fatal($"{kv.Value.Id}:{((IoCcNeighbor)kv.Value).RemoteAddress.Port}"));
+                    _pingRequestBarrier.Release();
                 }
                 else { } //ignore
 
@@ -794,11 +931,16 @@ namespace zero.cocoon.autopeer
                     ? $"{nameof(Pong)}: Got invalid request from {MakeId(IoCcIdentity.FromPK(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData))}"
                     : $"{nameof(Pong)}: Got invalid request hash from {extraData} <=> {_pingRequest}, {Convert.ToBase64String(hash)} - {Convert.ToBase64String(pong.ReqHash.ToByteArray())}");
 
+                _pingRequestBarrier.Release();
                 return;
             }
 
             _pingRequest = null;
-            
+            _secondsSinceValid = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            if (RoutedRequest)
+                _logger.Trace($"{nameof(Pong)}({GetHashCode()}): PONG! {Id}:{RemoteAddress.Port}");
+
             //Unknown source IP
             if (!RoutedRequest)
             {
@@ -836,7 +978,6 @@ namespace zero.cocoon.autopeer
                         Node.Neighbors.TryAdd(keyStr, newNeighbor))
                     {
                         await newNeighbor.SendPingAsync();
-                        await newNeighbor.SendDiscoveryRequestAsync(newNeighbor.RemoteAddress);
                     }
                     else
                     {
@@ -870,7 +1011,7 @@ namespace zero.cocoon.autopeer
                     Peer?.Zero(this);
 #pragma warning restore 4014
                 }
-                else if(Peer == null && PeerConnectedAtLeastOnce) //TODO remove
+                else if(Peer == null && (PeerConnectedAtLeastOnce || Direction == Kind.OutBound && SecondsSinceValid < parm_zombie_max_ttl)) //TODO remove
                 {
                     await SendPeerRequestAsync();
                 }
@@ -893,13 +1034,13 @@ namespace zero.cocoon.autopeer
                 Version = 0,
                 SrcAddr = "0.0.0.0", //TODO auto/manual option here
                 SrcPort = (uint)CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering].Port,
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()/20 * 20 + 20 //TODO workaround for ping/pong spam rejections?
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()/ parm_max_time_error * parm_max_time_error + parm_max_time_error / 2 //TODO workaround for ping/pong spam rejections?
             };
 
             if (RoutedRequest)
             {
-                _pingRequest = pingRequest;
-                await SendMessage(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+                Volatile.Write(ref _pingRequest, pingRequest);
+                await SendMessage(dest, _pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
             }
             else
             {
@@ -917,14 +1058,27 @@ namespace zero.cocoon.autopeer
 
                 if (!ccNeighbor.RoutedRequest)
                 {
-                    if (!await _pingRequestBarrier.WaitAsync(parm_ping_timeout))
+                    if (!await _pingRequestBarrier.WaitAsync(parm_ping_timeout/4))
                     {
-                        _logger.Debug($"{nameof(Ping)}:Probe failed {ccNeighbor.RemoteAddress ?? dest}");
+                        //_logger.Warn($"{nameof(Ping)}:Probe failed {ccNeighbor.RemoteAddress ?? dest}, timed out!");
+#pragma warning disable 4014
+                        Task.Factory.StartNew(async () =>
+#pragma warning restore 4014
+                        {
+                            var sw = Stopwatch.StartNew();
+                            if (!await _pingRequestBarrier.WaitAsync( Random.Next(parm_ping_timeout * 2) + parm_ping_timeout))
+                            {
+                                sw.Stop();
+                                _logger.Fatal($"{nameof(Ping)} ({sw.ElapsedMilliseconds}):Probe failed {ccNeighbor.RemoteAddress ?? dest}, timed out! ({_pingRequestBarrier.CurrentCount})");
+                                _pingRequestBarrier.Release();
+                            }
+                        }, TaskCreationOptions.LongRunning);
+                        return;
                     }
                 }
 
                 ccNeighbor._pingRequest = pingRequest;
-                await ccNeighbor.SendMessage( ccNeighbor.RemoteAddress??dest,pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+                await ccNeighbor.SendMessage( ccNeighbor.RemoteAddress??dest, ccNeighbor._pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
                 //_logger.Warn($"{nameof(Ping)}({ccNeighbor.GetHashCode()}): SENT! {Id}:{RemoteAddress?.Port}");
             }
         }
@@ -934,14 +1088,17 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="dest">The destination address</param>
         /// <returns>Task</returns>
-        private async Task SendDiscoveryRequestAsync(IoNodeAddress dest)
+        private async Task SendDiscoveryRequestAsync(IoNodeAddress dest = null)
         {
+            if(!RoutedRequest)
+                throw new ApplicationException($"Can only send discovery requests from verified peers!");
+
             dest ??= RemoteAddress;
 
-            _discoveryRequest = new DiscoveryRequest
+            Volatile.Write(ref _discoveryRequest, new DiscoveryRequest
             {
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-            };
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error * parm_max_time_error + parm_max_time_error / 2
+            });
 
             await SendMessage(dest, _discoveryRequest.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryRequest);
         }
@@ -957,12 +1114,12 @@ namespace zero.cocoon.autopeer
 
             dest ??= RemoteAddress;
 
-            _peerRequest = new PeeringRequest
+            Volatile.Write(ref _peerRequest, new PeeringRequest
             {
                 Salt = new Salt { ExpTime = (ulong)DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeSeconds(), Bytes = GetSalt },
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-            };
-
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error * parm_max_time_error + parm_max_time_error / 2
+            });
+            
             await SendMessage(dest, _peerRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringRequest);
         }
 
@@ -976,7 +1133,7 @@ namespace zero.cocoon.autopeer
 
             var dropRequest = new PeeringDrop
             {
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error * parm_max_time_error + parm_max_time_error / 2
             };
 
             await SendMessage(dest, dropRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringDrop);
@@ -1009,7 +1166,10 @@ namespace zero.cocoon.autopeer
                 await SendPeerDropAsync();
             });
 
-            _neighborZeroSub = ZeroEvent(sender => Peer?.Zero(this));
+            _neighborZeroSub = ZeroEvent(sender =>
+            {
+                return Peer?.Zero(this);
+            });
         }
 
         /// <summary>
@@ -1030,6 +1190,7 @@ namespace zero.cocoon.autopeer
             Direction = Kind.Undefined;
             Verified = false;
             ExtGossipAddress = null;
+            RemoteAddress = null;
 
             if(peer != null)
                 _logger.Info($"Detached peer {Id}");
