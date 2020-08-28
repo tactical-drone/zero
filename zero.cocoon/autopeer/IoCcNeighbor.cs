@@ -938,9 +938,6 @@ namespace zero.cocoon.autopeer
             _pingRequest = null;
             _secondsSinceValid = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-            if (RoutedRequest)
-                _logger.Trace($"{nameof(Pong)}({GetHashCode()}): PONG! {Id}:{RemoteAddress.Port}");
-
             //Unknown source IP
             if (!RoutedRequest)
             {
@@ -965,7 +962,7 @@ namespace zero.cocoon.autopeer
 #pragma warning restore 4014
                 }
 
-                if (!Node.Neighbors.TryGetValue(keyStr, out _))
+                if (Node.Neighbors.Count <= CcNode.MaxClients * 2 && !Node.Neighbors.TryGetValue(keyStr, out _))
                 {
                     var remoteServices = new IoCcService();
                     foreach (var key in pong.Services.Map.Keys.ToList())
@@ -984,7 +981,7 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"Create new neighbor {keyStr} skipped!");
                     }
                 }
-                else
+                else if(Node.Neighbors.Count <= CcNode.MaxClients * 2)
                 {
                     throw new ApplicationException($"Neighbor UDP router failed! BUG!");
                 }
@@ -1004,9 +1001,9 @@ namespace zero.cocoon.autopeer
             else if (Verified)
             {
                 //Just check everything is cool
-                if (Peer != null && (!Peer.IsArbitrating || !Peer.Source.IsOperational) && Direction != Kind.Undefined)
+                if (Peer != null && (/*!Peer.IsArbitrating ||*/ !Peer.Source.IsOperational) && Direction != Kind.Undefined)
                 {
-                    _logger.Warn($"Found zombie Peer, closing: {Peer?.Id}");
+                    _logger.Warn($"Found zombie {Peer?.Neighbor?.Direction} Peer, closing: {Peer?.Id}");
 #pragma warning disable 4014
                     Peer?.Zero(this);
 #pragma warning restore 4014

@@ -49,7 +49,7 @@ namespace zero.cocoon
                 {
                     if (InboundCount != inbound || OutboundCount != outbound)
                     {
-                        _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}");
+                        _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}, Known = {_autoPeering.Neighbors.Count - 1}");
                         inbound = InboundCount;
                         outbound = OutboundCount;
                     }
