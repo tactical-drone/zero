@@ -45,15 +45,36 @@ namespace zero.cocoon
             {
                 var inbound = 0;
                 var outbound = 0;
+                var available = 0;
+                var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 while (!Zeroed())
                 {
-                    if (InboundCount != inbound || OutboundCount != outbound)
-                    {
-                        _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}, Known = {_autoPeering.Neighbors.Count - 1}");
-                        inbound = InboundCount;
-                        outbound = OutboundCount;
-                    }
                     await Task.Delay(1000, AsyncTasks.Token);
+
+                    try
+                    {
+                        if (InboundCount != inbound || OutboundCount != outbound || _autoPeering.Neighbors.Count - 1 != available)
+                        {
+                            _logger.Fatal($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}, Available = {_autoPeering.Neighbors.Count - 1}");
+                            inbound = InboundCount;
+                            outbound = OutboundCount;
+                            available = _autoPeering.Neighbors.Count - 1;
+                        }
+
+                        //Search for peers
+                        if (Neighbors.Count < MaxClients && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_time_e)
+                        {
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values)
+                            {
+                                await ((IoCcNeighbor) autoPeeringNeighbor).EnsurePeerAsync();
+                            }
+                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");
+                    }
                 }
             });
         }
@@ -167,7 +188,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_response_timeout = 20;
+        public int parm_time_e = 20;
 
 
         /// <summary>
@@ -301,23 +322,23 @@ namespace zero.cocoon
                     {
                         //reject old handshake requests
                         if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp) >
-                            parm_response_timeout)
+                            parm_time_e)
                         {
-                            _logger.Debug($"Rejected old handshake request from {socket.Key} - {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
+                            _logger.Error($"Rejected old handshake request from {socket.Key} - {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
                             return false;
                         }
 
                         //reject invalid protocols
                         if (handshakeRequest.Version != parm_version)
                         {
-                            _logger.Debug($"Invalid handshake protocol version from  {socket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
+                            _logger.Error($"Invalid handshake protocol version from  {socket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
                             return false;
                         }
 
                         //reject requests to invalid ext ip
                         if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
                         {
-                            _logger.Debug($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
+                            _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
                             return false;
                         }
 
@@ -379,7 +400,7 @@ namespace zero.cocoon
                             peer.AttachNeighbor((IoCcNeighbor)neighbor);
                         else
                         {
-                            _logger.Debug($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
+                            _logger.Error($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
                             //await ((IoCcNeighbor) neighbor).SendPingAsync();
                             return false;
                         }
@@ -387,7 +408,7 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        _logger.Debug($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
+                        _logger.Error($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
                         return false;
                     }
 

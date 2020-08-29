@@ -49,31 +49,11 @@ namespace zero.cocoon.autopeer
                 {
                     while (!Zeroed())
                     {
-                        await Task.Delay(Random.Next(parm_zombie_max_ttl / 4) * 1000 + parm_zombie_max_ttl / 8 * 1000, AsyncTasks.Token);
-                        if (!Zeroed() && RemoteAddress != null && PeerConnectedAtLeastOnce)
-                        {
-                            if (!Verified)
-                                await SendPingAsync();
-                            else if (Direction == Kind.OutBound && Peer == null || (!Peer?.IsArbitrating ?? true) || (!Peer?.Source?.IsOperational ?? true))
-                                await SendPingAsync();
-                        }
-                        else if (!PeerConnectedAtLeastOnce && _secondsSinceValid > parm_zombie_max_ttl / 2)
-                        {
-                            await SendPingAsync();
-                        }
-                        else if (_secondsSinceValid > parm_zombie_max_ttl)
-                        {
-                            _logger.Info($"Zeroing zombie peer {Id}");
-                            await Zero(this);
-                        }
-                        else if (Peer == null && (PeerConnectedAtLeastOnce || Direction == Kind.OutBound))
-                        {
-                            await SendPeerRequestAsync();
-                        }
+                        await Task.Delay(Random.Next(parm_zombie_max_ttl / 8) * 1000 + parm_zombie_max_ttl / 16 * 1000, AsyncTasks.Token).ConfigureAwait(false);
+                        await EnsurePeerAsync().ConfigureAwait(false);
                     }
                 }, TaskCreationOptions.LongRunning);
             }
-            
         }
 
         /// <summary>
@@ -179,12 +159,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Seconds since valid
         /// </summary>
-        private long _secondsSinceValid = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        private long _keepAliveSec;
 
         /// <summary>
         /// Seconds since valid
         /// </summary>
-        public long SecondsSinceValid => DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _secondsSinceValid;
+        public long LastKeepAliveReceived => DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _keepAliveSec;
 
         /// <summary>
         /// Used to Match requests
@@ -342,6 +322,47 @@ namespace zero.cocoon.autopeer
 
             base.ZeroManaged();
             _logger.Debug($"{GetType().Name}: Zeroed {Description}");
+        }
+
+
+        /// <summary>
+        /// Ensures that the peer is running
+        /// </summary>
+        public async Task EnsurePeerAsync()
+        {
+            if(!RoutedRequest || _keepAliveSec > 0 && LastKeepAliveReceived < parm_zombie_max_ttl / 2)
+                return;
+            
+            if (_keepAliveSec > 0 && LastKeepAliveReceived > parm_zombie_max_ttl)
+            {
+                _logger.Info($"Zeroing zombie neighbor {Id}");
+                await Zero(this);
+            }
+
+            if (!Verified)
+            {
+                await SendPingAsync();
+                return;
+            }
+            else 
+            {
+                if (PeerConnectedAtLeastOnce && Direction != Kind.Inbound && (Peer == null || !(Peer.Source?.IsOperational??false)))
+                {
+                    _logger.Info($"RE-/Requesting to peer with neighbor {Id}:{RemoteAddress.Port}...");
+                    await SendPeerRequestAsync();
+                }
+                else
+                {
+                    if (LastKeepAliveReceived > parm_zombie_max_ttl / 2)
+                        await SendPingAsync();
+                    else if (Direction != Kind.Inbound)
+                    {
+                        _logger.Info($"RE-/Requesting to peer with neighbor {Id}:{RemoteAddress.Port}...");
+                        await SendPeerRequestAsync();
+                    }
+                }
+                
+            }
         }
 
         /// <summary>
@@ -526,7 +547,7 @@ namespace zero.cocoon.autopeer
             Peer?.Zero(this);
             
             //Attempt reconnect
-            await SendPingAsync();
+            await EnsurePeerAsync();
         }
 
         /// <summary>
@@ -757,7 +778,7 @@ namespace zero.cocoon.autopeer
                         if (!newNeighbor.Verified)
                         {
                             _logger.Info($"Suggested: {newNeighbor.Id} from {Id}");
-                            await newNeighbor.SendPingAsync();
+                            await newNeighbor.EnsurePeerAsync();
                         }
                     }, TaskCreationOptions.LongRunning);
                 }
@@ -892,8 +913,7 @@ namespace zero.cocoon.autopeer
                 if (toAddress.Ip != toProxyAddress.Ip)
                     await SendMessage(toAddress, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
 
-                
-                _logger.Info($"Probing new destination {toAddress}");
+                _logger.Info($"Probing new destination Id = {id}@{toAddress}:{ping.SrcPort}");
                 await SendPingAsync(toAddress);
 
                 if (CcNode.UdpTunnelSupport && toProxyAddress.Ip != toAddress.Ip)
@@ -913,8 +933,8 @@ namespace zero.cocoon.autopeer
             {
                 if (RoutedRequest)
                 {
-                    if(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _secondsSinceValid > 1)
-                        _logger.Debug($"{nameof(Pong)}({GetHashCode()}):  Unexpected!, s = {DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _secondsSinceValid}, r = { RoutedRequest}, id = {Id}:{RemoteAddress.Port}");
+                    if(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _keepAliveSec > 1)
+                        _logger.Debug($"{nameof(Pong)}({GetHashCode()}):  Unexpected!, s = {DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _keepAliveSec}, r = { RoutedRequest}, id = {Id}:{RemoteAddress.Port}");
                     //Node.Neighbors.Where(kv=> ((IoCcNeighbor)kv.Value).RoutedRequest).ToList().ForEach(kv=>_logger.Fatal($"{kv.Value.Id}:{((IoCcNeighbor)kv.Value).RemoteAddress.Port}"));
                     _pingRequestBarrier.Release();
                 }
@@ -936,7 +956,7 @@ namespace zero.cocoon.autopeer
             }
 
             _pingRequest = null;
-            _secondsSinceValid = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            _keepAliveSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             //Unknown source IP
             if (!RoutedRequest)
@@ -974,11 +994,11 @@ namespace zero.cocoon.autopeer
                         newNeighbor.RemoteAddress.IpEndPoint.Port == ((IPEndPoint)extraData).Port &&
                         Node.Neighbors.TryAdd(keyStr, newNeighbor))
                     {
-                        await newNeighbor.SendPingAsync();
+                        await newNeighbor.EnsurePeerAsync();
                     }
                     else
                     {
-                        _logger.Trace($"Create new neighbor {keyStr} skipped!");
+                        _logger.Warn($"Create new neighbor {keyStr} skipped!");
                     }
                 }
                 else if(Node.Neighbors.Count <= CcNode.MaxClients * 2)
@@ -1008,7 +1028,7 @@ namespace zero.cocoon.autopeer
                     Peer?.Zero(this);
 #pragma warning restore 4014
                 }
-                else if(Peer == null && (PeerConnectedAtLeastOnce || Direction == Kind.OutBound && SecondsSinceValid < parm_zombie_max_ttl)) //TODO remove
+                else if(Peer == null && (PeerConnectedAtLeastOnce || Direction != Kind.Inbound && LastKeepAliveReceived < parm_zombie_max_ttl)) //TODO remove
                 {
                     await SendPeerRequestAsync();
                 }
@@ -1134,10 +1154,6 @@ namespace zero.cocoon.autopeer
             };
 
             await SendMessage(dest, dropRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringDrop);
-
-            //attempt to reconnect
-            if (RoutedRequest)
-                await SendPingAsync(dest);
         }
 
         //TODO complexity
@@ -1161,6 +1177,7 @@ namespace zero.cocoon.autopeer
             {
                 DetachPeer();
                 await SendPeerDropAsync();
+                await EnsurePeerAsync();
             });
 
             _neighborZeroSub = ZeroEvent(sender =>
@@ -1187,7 +1204,7 @@ namespace zero.cocoon.autopeer
             Direction = Kind.Undefined;
             Verified = false;
             ExtGossipAddress = null;
-            RemoteAddress = null;
+            _keepAliveSec = 0;
 
             if(peer != null)
                 _logger.Info($"Detached peer {Id}");
