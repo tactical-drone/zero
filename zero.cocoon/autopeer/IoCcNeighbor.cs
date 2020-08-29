@@ -1105,10 +1105,10 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="dest">The destination address</param>
         /// <returns>Task</returns>
-        private async Task SendDiscoveryRequestAsync(IoNodeAddress dest = null)
+        public async Task SendDiscoveryRequestAsync(IoNodeAddress dest = null)
         {
-            if(!RoutedRequest)
-                throw new ApplicationException($"Can only send discovery requests from verified peers!");
+            if(!RoutedRequest && !Verified)
+                return;
 
             dest ??= RemoteAddress;
 
@@ -1126,7 +1126,7 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         private async Task SendPeerRequestAsync(IoNodeAddress dest = null)
         {
-            if(CcNode.OutboundCount >= CcNode.parm_max_outbound)
+            if(CcNode.OutboundCount >= CcNode.parm_max_outbound || !Verified)
                 return;
 
             dest ??= RemoteAddress;
@@ -1146,6 +1146,9 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task SendPeerDropAsync(IoNodeAddress dest = null)
         {
+            if(!Verified)
+                return;
+
             dest ??= RemoteAddress;
 
             var dropRequest = new PeeringDrop
@@ -1175,8 +1178,8 @@ namespace zero.cocoon.autopeer
 
             _peerZeroSub = Peer.ZeroEvent(async sender =>
             {
-                DetachPeer();
                 await SendPeerDropAsync();
+                DetachPeer();
                 await EnsurePeerAsync();
             });
 

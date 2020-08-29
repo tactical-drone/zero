@@ -62,11 +62,12 @@ namespace zero.cocoon
                         }
 
                         //Search for peers
-                        if (Neighbors.Count < MaxClients && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_time_e)
+                        if (Neighbors.Count < MaxClients && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay && _autoPeering.Neighbors.Count - 1 < MaxClients)
                         {
+                            _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients}, trying to discover new ones...");
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values)
                             {
-                                await ((IoCcNeighbor) autoPeeringNeighbor).EnsurePeerAsync();
+                                await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync();
                             }
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }
@@ -190,6 +191,13 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
         public int parm_time_e = 20;
 
+
+        /// <summary>
+        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="MaxClients"/>
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_discovery_force_time_delay = 60;
 
         /// <summary>
         /// Maximum clients allowed
