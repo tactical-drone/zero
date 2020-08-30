@@ -259,7 +259,7 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Allocate a job from the heap
-                        if ((nextJob = JobHeap.Take(parms: load =>
+                        if (!Zeroed() && (nextJob = JobHeap.Take(parms: load =>
                         {
                             ((IoLoad<TJob>) load).IoZero = this;
                             return load;
@@ -326,7 +326,7 @@ namespace zero.core.patterns.bushes
                                 nextJob.ProcessState = IoJob<TJob>.State.Producing;
 
                                 //Fetch a job from TProducer. Did we get one?
-                                if (await nextJob.ProduceAsync() == IoJob<TJob>.State.Produced)
+                                if (await nextJob.ProduceAsync() == IoJob<TJob>.State.Produced && !Zeroed())
                                 {
                                     IsArbitrating = true;
 
@@ -372,8 +372,16 @@ namespace zero.core.patterns.bushes
                                 {
                                     //IsArbitrating = false;
 
+                                    if (Zeroed())
+                                        return false;
+
                                     if (nextJob.ProcessState == IoJob<TJob>.State.Producing)
-                                        throw new ApplicationException($"ProcessState remained {IoJob<TJob>.State.Producing}");
+                                    {
+                                        _logger.Warn($"ProcessState remained {IoJob<TJob>.State.Producing}");
+                                        nextJob.ProcessState = IoJob<TJob>.State.Cancelled;
+                                    }
+                                    
+                                    //throw new ApplicationException();
 
                                     var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                                     var releaseBarrier = nextJob.Source?.BlockOnProduceAheadBarrier ?? false;
@@ -423,7 +431,7 @@ namespace zero.core.patterns.bushes
                         //prevent leaks
                         if (nextJob != null)
                         {
-                            _logger.Fatal("[FATAL] Job resources were not freed...");
+                            _logger.Trace("[FATAL] Job resources were not freed...");
                             //TODO Double check this hack
                             if (nextJob.ProcessState != IoJob<TJob>.State.Finished)
                                 nextJob.ProcessState = IoJob<TJob>.State.Reject;
@@ -586,7 +594,7 @@ namespace zero.core.patterns.bushes
                 }
 
                 //A job was produced. Dequeue it and process
-                if (_queue.TryDequeue(out var curJob))
+                if (!Zeroed() && _queue.TryDequeue(out var curJob))
                 {
                     
                     curJob.ProcessState = IoJob<TJob>.State.Dequeued;
@@ -594,7 +602,7 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Consume the job
-                        if (await curJob.ConsumeAsync() == IoJob<TJob>.State.Consumed || curJob.ProcessState == IoJob<TJob>.State.ConInlined)
+                        if (await curJob.ConsumeAsync() == IoJob<TJob>.State.Consumed && !Zeroed() || curJob.ProcessState == IoJob<TJob>.State.ConInlined)
                         {
                             consumed = true;
 

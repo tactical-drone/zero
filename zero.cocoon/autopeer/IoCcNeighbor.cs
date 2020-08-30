@@ -612,18 +612,11 @@ namespace zero.cocoon.autopeer
                 else if (Direction == Kind.OutBound) //If it is outbound say no
                 {
                     _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering {Kind.Inbound} Rejected: {Id} is already {Kind.OutBound}");
-                    peeringResponse.Status = false; //TODO does this work?
+                    peeringResponse.Status = false;
                 }
-                else if (peeringResponse.Status && Direction == Kind.Inbound) //Double check existing conditions 
+                else if (Direction == Kind.Inbound)
                 {
                     wasInbound = true;
-                    if (Peer != null && (!Peer.Source.IsOperational || !Peer.IsArbitrating))
-                    {
-                        _logger.Warn($"{(RoutedRequest ? "V>" : "X>")}Found zombie {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}) peer: {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
-                        Peer?.Zero(this);
-                    }
-                    else
-                        _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Peering stands. {Direction} ({(PeerConnectedAtLeastOnce?"C":"DC")}), {Id}");
                 }
             }
 
@@ -635,9 +628,18 @@ namespace zero.cocoon.autopeer
                 if( Direction == Kind.Inbound)
                     await SendDiscoveryRequestAsync();
             }
+            else
+            {
+                if (Peer != null && (!Peer.Source.IsOperational || !Peer.IsArbitrating))
+                {
+                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Found zombie {Direction} peer({(PeerConnectedAtLeastOnce ? "C" : "DC")}) {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
+                    Peer?.Zero(this);
+                }
+                else if (Peer == null)
+                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Peering stands. {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
+            }
 
             _logger.Trace($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Sent Allow Status = {peeringResponse.Status}, Capacity = {-CcNode.Neighbors.Count + CcNode.MaxClients}");
-
             await SendMessage(RemoteAddress, peeringResponse.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringResponse);
         }
 
@@ -702,7 +704,18 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                _logger.Fatal($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Not expected, already {nameof(Kind.OutBound)}");
+                //_logger.Fatal($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Not expected, already {nameof(Kind.OutBound)}");
+                if (Peer != null && (!Peer.Source.IsOperational || !Peer.IsArbitrating))
+                {
+                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Found zombie {Direction} peer({(PeerConnectedAtLeastOnce ? "C" : "DC")}) {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
+                    Peer?.Zero(this);
+                }
+                else if (Peer == null)
+                {
+                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Peering stands. {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
+                    await CcNode.ConnectToPeer(this);
+                    await SendDiscoveryRequestAsync();
+                }
             }
         }
 
@@ -739,6 +752,9 @@ namespace zero.cocoon.autopeer
                 return (sent, packet);
             }
             catch (NullReferenceException) { }
+            catch (TaskCanceledException){ }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
             catch (Exception e)
             {
                 _logger.Error(e, $"Failed to send message {Id}");
@@ -1252,9 +1268,12 @@ namespace zero.cocoon.autopeer
         {
             lock (this)
             {
-                if (Peer == ioCcPeer)
+                if (Peer == ioCcPeer || Peer != null)
+                {
+                    _logger.Warn($"{GetType().Name}: Peer id = {Peer?.Id} already attached!");
                     return false;
-
+                }
+                
                 Peer = ioCcPeer ?? throw new ArgumentNullException($"{(RoutedRequest?"V>":"X>")}{nameof(ioCcPeer)}");
             }
             
@@ -1267,8 +1286,8 @@ namespace zero.cocoon.autopeer
 
             _peerZeroSub = Peer.ZeroEvent(async sender =>
             {
-                await SendPeerDropAsync();
                 DetachPeer();
+                await SendPeerDropAsync();
             });
 
             _neighborZeroSub = ZeroEvent(sender =>
@@ -1284,11 +1303,10 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public void DetachPeer()
         {
-            IoCcPeer peer;
+            IoCcPeer peer = Peer;
 
             lock (this)
             {
-                peer = Peer;
                 if (Peer == null)
                     return;
                 Peer = null;
@@ -1304,8 +1322,7 @@ namespace zero.cocoon.autopeer
             ExtGossipAddress = null;
             _keepAliveSec = 0;
 
-            if (peer != null)
-                _logger.Info($"Detached peer {Id}");
+            _logger.Info($"Detached peer {Id} ({peer.Source?.Key})");
         }
     }
 }

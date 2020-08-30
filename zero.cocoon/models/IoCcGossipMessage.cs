@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -172,7 +173,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Faulted:
                                         ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
                                         await Source.Zero(this);
-                                        _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
+                                        _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
                                     case TaskStatus.RanToCompletion:
@@ -220,7 +221,11 @@ namespace zero.cocoon.models
                     return true;
                 });
             }
-            catch (Exception e)
+            catch (TaskCanceledException) { }
+            catch (NullReferenceException) {}
+            catch (ObjectDisposedException) {}
+            catch (OperationCanceledException) {}
+            catch  (Exception e)
             {
                 _logger.Warn(e, $"{TraceDescription} Producing job returned with errors:");
             }

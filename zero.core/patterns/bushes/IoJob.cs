@@ -233,6 +233,9 @@ namespace zero.core.patterns.bushes
             get => CurrentState.State;
             set
             {
+                if(Source?.Zeroed()??true)
+                    return;
+
                 //Update the previous state's exit time
                 if (CurrentState != null)
                 {
