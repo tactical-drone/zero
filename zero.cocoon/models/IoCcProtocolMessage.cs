@@ -11,12 +11,11 @@ namespace zero.cocoon.models
 {
     public class IoCcProtocolMessage : IoLoad<IoCcProtocolMessage>
     {
-        public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = 0, bool zeroOnCascade = true)
+        public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = -1)
             : base("channel", $"{nameof(IoCcProtocolMessage)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
-            if(zeroOnCascade)
-                _logger = LogManager.GetCurrentClassLogger();
+            _logger = LogManager.GetCurrentClassLogger();
         }
 
 
@@ -46,7 +45,7 @@ namespace zero.cocoon.models
 
                 if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token))
                 {
-                    ProcessState = Zeroed() ? State.ProduceTo : State.ProdCancel;
+                    ProcessState = Zeroed() ? State.ProdCancel : State.ProduceTo;
                     return false;
                 }
 

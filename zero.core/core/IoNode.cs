@@ -109,8 +109,7 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead);
-            _netServer.ZeroOnCascade(this, true);
+            _netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead), true);
 
             await _netServer.ListenAsync(async ioNetClient =>
             {
@@ -134,6 +133,14 @@ namespace zero.core.core
                     return;
                 }
 
+                // Add new neighbor
+                if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                {
+                    await newNeighbor.Zero(this);
+                    _logger.Warn($"{GetType().Name}: Neighbor `{newNeighbor.Id}' already connected, dropping...");
+                    return;
+                }
+
                 //We use this locally captured variable as newNeighbor.Id disappears on zero
                 string id = newNeighbor.Id;
 
@@ -148,15 +155,6 @@ namespace zero.core.core
 
                     return Task.CompletedTask;
                 });
-
-                // Add new neighbor
-                if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
-                {
-#pragma warning disable 4014
-                    newNeighbor.Zero(this);
-#pragma warning restore 4014
-                    _logger.Warn($"Neighbor `{ioNetClient.ListeningAddress}' already connected. Possible spoof investigate!");
-                }
 
                 //New peer connection event
                 //ConnectedEvent?.Invoke(this, newNeighbor);
@@ -220,7 +218,7 @@ namespace zero.core.core
                             }
                             else
                             {
-                                _logger.Debug($"Dropped neigbor {id}");
+                                _logger.Debug($"{GetType().Name}: Dropped peer {id} from node {Description}");
                             }
 
                             return Task.CompletedTask;
@@ -231,7 +229,7 @@ namespace zero.core.core
                         neighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
 
-                        _logger.Info($"Added {newNeighbor.Id}");
+                        _logger.Debug($"Added {newNeighbor.Id}");
 
                         //ConnectedEvent?.Invoke(this, newNeighbor);
 
@@ -301,7 +299,7 @@ namespace zero.core.core
         {
             Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
             Neighbors.Clear();
-
+            
             try
             {
                 _listenerTask?.GetAwaiter().GetResult();

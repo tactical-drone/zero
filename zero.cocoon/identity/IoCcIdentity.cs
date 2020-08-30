@@ -61,9 +61,9 @@ namespace zero.cocoon.identity
             
             Ed25519.GeneratePublicKey(skBuf, 0, pkBuf, 0);
 
-            Console.WriteLine($"SK = {Base58CheckEncoding.Encode(skBuf)}");
-            Console.WriteLine($"PK = {Base58CheckEncoding.EncodePlain(pkBuf)}");
-            Console.WriteLine($"ID = {Base58CheckEncoding.EncodePlain(Sha256.ComputeHash(pkBuf).AsSpan().Slice(0,8).ToArray())}");
+            //Console.WriteLine($"SK = {Base58CheckEncoding.Encode(skBuf)}");
+            //Console.WriteLine($"PK = {Base58CheckEncoding.EncodePlain(pkBuf)}");
+            //Console.WriteLine($"ID = {Base58CheckEncoding.EncodePlain(Sha256.ComputeHash(pkBuf).AsSpan().Slice(0,8).ToArray())}");
 
             return new IoCcIdentity
             {

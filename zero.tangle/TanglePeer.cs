@@ -199,17 +199,17 @@ namespace zero.tangle
             try
             {
                 //drop duplicates fast if redis is present supported
-                if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
-                {
-                    var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Source.ChannelSource.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
-                    if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
-                    {
-                        stopwatch.Stop();
-                        _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
-                        consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.SlowDup;
-                        return;
-                    }
-                }
+                //if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
+                //{
+                //    var oldTxCutOffValue = new DateTimeOffset(DateTime.Now - transactionArbiter.Source.ChannelSource.RecentlyProcessed.DupCheckWindow).ToUnixTimeMilliseconds(); //TODO update to allow older tx if we are not in sync or we requested this tx etc.                            
+                //    if (transaction.GetAttachmentTime() < oldTxCutOffValue && await dataSource.TransactionExistsAsync(transaction.Hash))
+                //    {
+                //        stopwatch.Stop();
+                //        _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
+                //        consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.SlowDup;
+                //        return;
+                //    }
+                //}
                                 
                 // Update milestone mechanics
                 await ((TangleNode<IoTangleMessage<TKey>, TKey>)Node).Milestones.UpdateIndexAsync((TangleNode<IoTangleMessage<TKey>, TKey>)Node, (IoTangleCassandraDb<TKey>)dataSource, transaction);
@@ -233,8 +233,8 @@ namespace zero.tangle
                     transactionArbiter.IsArbitrating = false;
                     consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.DbError;
 
-                    if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
-                        await transactionArbiter.Source.ChannelSource.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
+                    //if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
+                    //    await transactionArbiter.Source.ChannelSource.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
                 }                
             }            
         }               

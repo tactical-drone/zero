@@ -48,8 +48,7 @@ namespace zero.core.network.ip
         /// </returns>
         public override async Task<bool> ConnectAsync()
         {
-            IoSocket = new IoTcpSocket();
-            IoSocket.ZeroOnCascade(this, true);
+            IoSocket = ZeroOnCascade(new IoTcpSocket(), true);
             return await base.ConnectAsync();
         }
 

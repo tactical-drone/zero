@@ -130,6 +130,7 @@ namespace zero.core.models
 
 #if SAFE_RELEASE
             Buffer = null;
+            StateTransitionHistory = null;
 #endif
         }
     }

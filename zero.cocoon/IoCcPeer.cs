@@ -52,20 +52,58 @@ namespace zero.cocoon
         /// </summary>
         private readonly Logger _logger;
 
+
+        private string _description;
+
+        /// <summary>
+        /// A description of this peer
+        /// </summary>
+        public override string Description
+        {
+            get
+            {
+                if (_description != null)
+                    return _description;
+                return _description = $"Peer: {Source.Key}";
+            }
+        }
+
         /// <summary>
         /// The attached neighbor
         /// </summary>
         public IoCcNeighbor Neighbor { get; private set; }
 
+        private string _id;
         /// <summary>
         /// CcId
         /// </summary>
-        public override string Id => Neighbor?.Id??"null";
+        public override string Id
+        {
+            get
+            {
+                if (_id != null)
+                    return _id;
+                return _id = Neighbor?.Id ?? "null";
+            }
+        }
 
         /// <summary>
         /// Helper
         /// </summary>
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+#if SAFE_RELEASE
+            IoNetClient = null;
+            Neighbor = null;
+            
+#endif
+        }
 
         /// <summary>
         /// zero unmanaged
@@ -83,7 +121,15 @@ namespace zero.cocoon
         /// <param name="neighbor"></param>
         public void AttachNeighbor(IoCcNeighbor neighbor)
         {
-            Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
+            lock (this)
+            {
+                if (Neighbor == neighbor)
+                    return;
+
+                Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
+            }
+            
+            _logger.Debug($"{GetType().Name}: Attached to neighbor {neighbor.Description}");
 
             //Attach the other way
             Neighbor.AttachPeer(this);

@@ -130,7 +130,7 @@ namespace zero.core.network.ip
                         case TaskStatus.RanToCompletion:
                             if (ioNetClient.IsOperational)
                             {
-                                _logger.Info($"Connection established to `{ioNetClient.AddressString}'");
+                                _logger.Debug($"Connection established to `{ioNetClient.AddressString}'");
                                 return true;
                             }
                             else // On connect failure

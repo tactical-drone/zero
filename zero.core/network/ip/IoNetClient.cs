@@ -26,9 +26,8 @@ namespace zero.core.network.ip
         /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         protected IoNetClient(IoSocket socket,int readAheadBufferSize) : base(readAheadBufferSize)
         {
-            IoSocket = (IoNetSocket)socket;
-            IoSocket.ZeroOnCascade(this, true);
-            
+            IoSocket = ZeroOnCascade((IoNetSocket)socket, true);
+
             _logger = LogManager.GetCurrentClassLogger();
             ListeningAddress = socket.ListeningAddress; 
         }
@@ -232,7 +231,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await callback(IoSocket);//don't ;
+                return await callback(IoSocket).ConfigureAwait(true);//true not false
             }
             catch (TimeoutException)
             {

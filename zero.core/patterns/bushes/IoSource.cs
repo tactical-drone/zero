@@ -38,16 +38,6 @@ namespace zero.core.patterns.bushes
         private readonly Logger _logger;
 
         /// <summary>
-        /// The forwarding channel
-        /// </summary>
-        public IoChannel<TJob> Channel { get; protected set; }
-
-        /// <summary>
-        /// The upstream source (useful)
-        /// </summary>
-        public IIoSource ChannelSource => Channel?.Source;
-
-        /// <summary>
         /// A dictionary of downstream channels
         /// </summary>
         protected ConcurrentDictionary<string, IIoChannel> IoChannels = new ConcurrentDictionary<string, IIoChannel>();
@@ -216,7 +206,9 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel = new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc);
                     if (IoChannels.TryAdd(id, newChannel))
-                        newChannel.ZeroOnCascade(this, cascade);
+                    {
+                        //ZeroOnCascade(newChannel, cascade);
+                    }
                 }
             }
 
@@ -279,15 +271,5 @@ namespace zero.core.patterns.bushes
         /// <param name="func">The function.</param>
         /// <returns></returns>
         public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
-
-        /// <summary>
-        /// Associate a channel with this source
-        /// </summary>
-        /// <param name="channel">The channel to add</param>
-        public virtual void SetUpstreamChannel(IoChannel<TJob> channel)
-        {
-            Channel = channel;
-            _logger.Debug($"Setting input channel: from = `{Description}', to = `{channel.Description}'");
-        }
     }
 }

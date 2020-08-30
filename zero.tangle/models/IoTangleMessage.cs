@@ -299,7 +299,7 @@ namespace zero.tangle.models
             });
 
             //forward transactions
-            if (!await NodeServicesArbiter.ProduceAsync( sleepOnConsumerLag: false))
+            if (!await NodeServicesArbiter.ProduceAsync( blockOnConsumerCongestion: false))
             {
                 _logger.Warn($"{TraceDescription} Failed to forward to `{NodeServicesArbiter.Source.Description}'");
             }
@@ -310,10 +310,10 @@ namespace zero.tangle.models
             //cog the source
             await _neighborProducer.ProduceAsync(source =>
             {
-                if (_neighborProducer.Channel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                    ((IoTangleTransactionSource<TKey>)source).TxQueue.Add(newInteropTransactions);
-                else
-                    ((IoTangleTransactionSource<TKey>)source).TxQueue.TryAdd(newInteropTransactions);
+                //if (_neighborProducer.Channel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
+                //    ((IoTangleTransactionSource<TKey>)source).TxQueue.Add(newInteropTransactions);
+                //else
+                //    ((IoTangleTransactionSource<TKey>)source).TxQueue.TryAdd(newInteropTransactions);
 
                 return Task.FromResult(true);
             });

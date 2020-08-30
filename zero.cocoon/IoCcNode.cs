@@ -23,23 +23,23 @@ namespace zero.cocoon
     /// </summary>
     public class IoCcNode : IoNode<IoCcGossipMessage>
     {
-        public IoCcNode(IoNodeAddress gossipAddress, IoNodeAddress peerAddress, IoNodeAddress fpcAddress, IoNodeAddress extAddress, int tcpReadAhead)
+        public IoCcNode(IoCcIdentity ioCcIdentity, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
+            IoNodeAddress fpcAddress, IoNodeAddress extAddress, IoNodeAddress boostrap, int tcpReadAhead)
             : base(gossipAddress, (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, (IoCcNeighbor)extraData, ioNetClient), tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
             _peerAddress = peerAddress;
             _fpcAddress = fpcAddress;
+            _bootstrap = boostrap;
             ExtAddress = extAddress;
+            CcId = ioCcIdentity;
 
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.peering, _peerAddress);
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.gossip, _gossipAddress);
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = new IoCcNeighborDiscovery(this, _peerAddress,
-                (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead);
-
-            _autoPeering.ZeroOnCascade(this, true);
+            _autoPeering = ZeroOnCascade(new IoCcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead), true);
 
             Task.Run(async () =>
             {
@@ -62,9 +62,9 @@ namespace zero.cocoon
                         }
 
                         //Search for peers
-                        if (Neighbors.Count < MaxClients && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay && _autoPeering.Neighbors.Count - 1 < MaxClients)
+                        if (Neighbors.Count < MaxClients / 2 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay && _autoPeering.Neighbors.Count - 1 < MaxClients)
                         {
-                            _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients}, trying to discover new ones...");
+                            _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients / 2}, trying to discover new ones...");
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values)
                             {
                                 await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync();
@@ -86,6 +86,12 @@ namespace zero.cocoon
         protected override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
+#if SAFE_RELEASE
+            _autoPeering = null;
+            _autoPeeringTask = null;
+            CcId = null;
+            Services = null;
+#endif
         }
 
         /// <summary>
@@ -95,6 +101,7 @@ namespace zero.cocoon
         {
             Neighbors.ToList().ForEach(n=>n.Value.Zero(this));
 
+            Services.IoCcRecord.Endpoints.Clear();
             try
             {
                 _autoPeeringTask?.Wait();
@@ -106,13 +113,32 @@ namespace zero.cocoon
 
             base.ZeroManaged();
             GC.Collect(GC.MaxGeneration);
+            _logger.Info($"Closed node ({Description})");
         }
 
         private readonly Logger _logger;
-        private readonly IoNode<IoCcPeerMessage> _autoPeering;
+
+        private string _description;
+        public override string Description
+        {
+            get
+            {
+                if (_description != null)
+                    return _description;
+                return _description = $"{GetType().Name}: listen = {_peerAddress}, boot = {_bootstrap}";
+            }
+        }
+
+        private IoNode<IoCcPeerMessage> _autoPeering;
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
         private readonly IoNodeAddress _fpcAddress;
+        private readonly IoNodeAddress _bootstrap;
+
+        /// <summary>
+        /// Bootstrap
+        /// </summary>
+        public IoNodeAddress BootstrapAddress => _bootstrap;
 
         /// <summary>
         /// Reachable from NAT
@@ -228,7 +254,7 @@ namespace zero.cocoon
 
                 if (await HandshakeAsync((IoCcPeer) peer))
                 {
-                    _logger.Info($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id})");
+                    _logger.Info($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
                     return true;
                 }
 

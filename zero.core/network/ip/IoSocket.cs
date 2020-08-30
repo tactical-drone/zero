@@ -84,8 +84,12 @@ namespace zero.core.network.ip
                 if (RemoteNodeAddress != null)
                     return RemoteNodeAddress;
 
-                if(Socket != null && Socket.Connected && Socket.RemoteEndPoint != null)
-                    return RemoteNodeAddress = Socket.RemoteNodeAddress();
+                try
+                {
+                    if(Socket != null && Socket.Connected && Socket.RemoteEndPoint != null)
+                        return RemoteNodeAddress = Socket.RemoteNodeAddress();
+                }
+                catch { }
 
                 if (Egress)
                     return ListeningAddress;

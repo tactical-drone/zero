@@ -162,7 +162,7 @@ namespace zero.tangle.api.controllers.generic
                                     }
 
                                     return Task.CompletedTask;                                    
-                                }, sleepOnProducerLag: false);
+                                }, blockOnProduction: false);
                             }
                             stopwatch.Stop();
                             outstanding = relaySource.JobHeap.ReferenceCount;

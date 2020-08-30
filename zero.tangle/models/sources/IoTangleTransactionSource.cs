@@ -41,7 +41,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => ChannelSource.Key;
+        public override string Key => SourceUri;
 
         /// <summary>
         /// Description of this upstream
@@ -51,7 +51,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// The original source URI
         /// </summary>
-        public override string SourceUri => ChannelSource.SourceUri;
+        public override string SourceUri => "";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -59,7 +59,7 @@ namespace zero.tangle.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => ChannelSource.IsOperational;
+        public override bool IsOperational => false;
 
         /// <inheritdoc />        
         //public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,

@@ -48,12 +48,19 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public IoCcService Services => CcNode.Services;
 
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+#if SAFE_RELEASE
+            CcNode = null;
+#endif
+        }
+
         /// <summary>
         /// zero unmanaged
         /// </summary>
         protected override void ZeroManaged()
         {
-            Neighbors.ToList().ForEach(n => n.Value.Zero(this));
             base.ZeroManaged();
         }
     }

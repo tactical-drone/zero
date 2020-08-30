@@ -44,8 +44,7 @@ namespace zero.core.patterns.bushes.contracts
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
         bool BlockOnConsumeAheadBarrier { get; }
-    
-
+        
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
@@ -111,6 +110,7 @@ namespace zero.core.patterns.bushes.contracts
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
+        /// <param name="cascade"></param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>

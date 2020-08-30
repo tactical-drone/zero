@@ -41,8 +41,8 @@ namespace zero.core.network.ip
         {
             await base.ListenAsync(connectionReceivedAction, readAhead);
 
-            IoListenSocket = new IoTcpSocket();
-            IoListenSocket.ZeroOnCascade(this, true);
+            IoListenSocket = ZeroOnCascade(new IoTcpSocket());
+
 
             await IoListenSocket.ListenAsync(ListeningAddress, newConnectionSocket =>
             {

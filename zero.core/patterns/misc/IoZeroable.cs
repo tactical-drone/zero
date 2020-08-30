@@ -84,7 +84,7 @@ namespace zero.core.patterns.misc
             var cur = ZeroedFrom;
             while (cur?.Zeroed() ?? false)
             {
-                builder.Append($"/> {GetType().Name}({cur.Description})");
+                builder.Append($"/> {cur.GetType().Name}({cur.Description})");
                 if (cur == this)
                     break;
                 cur = cur.ZeroedFrom;
@@ -114,7 +114,8 @@ namespace zero.core.patterns.misc
         {
             if (!_subscribers?.TryAdd(sub, null)??false)//TODO race condition?
             {
-                LogManager.GetCurrentClassLogger().Warn($"Event already subscribed: Method = {sub.Method}, Target = {sub.Target}");
+                if(_subscribers != null)
+                    LogManager.GetCurrentClassLogger().Warn($"Event already subscribed: Method = {sub.Method}, Target = {sub.Target}");
             }
 
             return sub;

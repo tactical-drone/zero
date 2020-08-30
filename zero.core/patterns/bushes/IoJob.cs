@@ -22,10 +22,9 @@ namespace zero.core.patterns.bushes
         protected IoJob(string description, IoSource<TJob> source)
         {            
             _logger = LogManager.GetCurrentClassLogger();
+            source.ZeroOnCascade(this);
             Source = source;
             _jobDescription = description;
-
-            Source?.ZeroOnCascade(this);
         }
 
         /// <summary>
@@ -57,10 +56,10 @@ namespace zero.core.patterns.bushes
             Consuming,            
             Consumed,
             ConInlined,
+            Error,
             Accept,
             Reject,
-            Finished,            
-            Error,
+            Finished,
             Syncing,
             RSync,
             ProduceErr,
@@ -102,7 +101,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The ultimate source of workload
         /// </summary>
-        public IIoSource Source { get; }
+        public IIoSource Source { get; protected set; }
 
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
@@ -157,6 +156,8 @@ namespace zero.core.patterns.bushes
 #if SAFE_RELEASE
             //CurrentState = null;
             //StateTransitionHistory = null;
+            Source = null;
+            Previous = null;
 #endif
         }
 
@@ -166,6 +167,7 @@ namespace zero.core.patterns.bushes
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
+            Previous?.Zero(this);
         }
 
         /// <summary>

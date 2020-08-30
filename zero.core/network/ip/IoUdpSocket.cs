@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
@@ -19,7 +20,7 @@ namespace zero.core.network.ip
         public IoUdpSocket() : base(SocketType.Dgram, ProtocolType.Udp)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
+            _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 99);
         }
 
         /// <inheritdoc />
@@ -114,13 +115,13 @@ namespace zero.core.network.ip
                 callback(this);
 
                 // Prepare UDP connection orientated things                
-                _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, LocalPort);
+                _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 88);
 
                 _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Zeroed())
                 {
                     await Task.Delay(5000);
-                    if (!Socket?.IsBound ?? true)
+                    if (!Socket?.IsBound ?? false)
                     {
                         _logger.Warn($"Found zombie udp socket state");
 #pragma warning disable 4014
@@ -169,7 +170,7 @@ namespace zero.core.network.ip
                     {
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception, $"Sending to udp://{endPoint} failed");
+                            _logger.Error(t.Exception?.InnerException, $"Sending to udp://{endPoint} failed");
                             Zero(this);
                             break;
                         case TaskStatus.RanToCompletion:
@@ -180,6 +181,8 @@ namespace zero.core.network.ip
             return length;
         }
 
+
+        private EndPoint _dummyEndPoint = new IPEndPoint(IPAddress.Any, 0);
         /// <summary>
         /// Read from the socket
         /// </summary>
@@ -204,8 +207,7 @@ namespace zero.core.network.ip
                 if (timeout == 0)
                 {
                     read = await Task.Factory.FromAsync(
-                        Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo,
-                            null, null),
+                        Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
                         result =>
                         {
                             try
@@ -213,8 +215,24 @@ namespace zero.core.network.ip
                                 if (Zeroed())
                                     return 0;
 
-                                if (Socket != null && Socket.IsBound)
-                                    return Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+                                if (Socket != null && Socket.IsBound && result.IsCompleted)
+                                {
+                                    var r = Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
+
+                                    //Set the remote address
+                                    if (RemoteNodeAddress == null)
+                                    {
+                                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                                        //_udpRemoteEndpointInfo = Socket.RemoteEndPoint;
+                                        //RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", Socket.RemoteEndPoint);
+                                    }
+                                    else
+                                        RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+                                    //RemoteAddress.Update((IPEndPoint)Socket.RemoteEndPoint);
+
+                                    return r;
+                                }
+                                    
                                 
                                 return 0;
                             }
@@ -229,19 +247,22 @@ namespace zero.core.network.ip
                 else if (timeout > 0)
                 {
                     read = Socket.ReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo );
+
+                    //Set the remote address
+                    if (RemoteNodeAddress == null)
+                    {
+                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                        //_udpRemoteEndpointInfo = Socket.RemoteEndPoint;
+                        //RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", Socket.RemoteEndPoint);
+                    }
+                    else
+                        RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+                    //RemoteAddress.Update((IPEndPoint)Socket.RemoteEndPoint);
                 }
                 else
                 {
                     return 0;
                 }
-
-                //Set the remote address
-                if (RemoteNodeAddress == null)
-                {
-                    RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
-                }
-                else
-                    RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
 
                 return read;
             }
@@ -264,7 +285,7 @@ namespace zero.core.network.ip
 
         public override object ExtraData()
         {
-            return _udpRemoteEndpointInfo;
+            return RemoteAddress?.IpEndPoint;
         }
     }
 }

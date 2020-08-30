@@ -34,7 +34,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => this != ChannelSource ? $"{ChannelSource.Key}":$"{SourceUri}";
+        public override string Key => $"{SourceUri}";
 
         /// <summary>
         /// Description of upstream channel
@@ -61,7 +61,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// The original source URI
         /// </summary>
-        public override string SourceUri => this!=ChannelSource? ChannelSource?.SourceUri : $"chan://{GetType().Name}";
+        public override string SourceUri => $"chan://{GetType().Name}";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -69,7 +69,7 @@ namespace zero.cocoon.models.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => this == ChannelSource || (ChannelSource?.IsOperational??false);
+        public override bool IsOperational => true;
 
         /// <summary>
         /// zero unmanaged

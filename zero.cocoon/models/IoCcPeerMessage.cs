@@ -37,14 +37,11 @@ namespace zero.cocoon.models
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
             IoCcProtocolBuffer protocol = null;
-            //forward to neighbor
-            if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
-            {
-                protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
-                Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
-            }
 
-            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), true, protocol,
+            protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
+            Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
+
+            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), false, protocol,
                 userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
             
             ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
@@ -97,7 +94,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_ave_sec_ms = 10;
+        public int parm_ave_sec_ms = 100;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -133,6 +130,28 @@ namespace zero.cocoon.models
             PeeringDrop = 22
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+#if SAFE_RELEASE
+            ProducerUserData = null;
+            ProtocolChannel = null;
+
+
+#endif
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+        }
+
         public override async Task<State> ProduceAsync()
         {
             try
@@ -146,13 +165,13 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
+                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
                     {
                         if (!Zeroed())
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                            _logger.Warn($"{TraceDescription} timed out waiting for PRODUCER, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
                                          $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
@@ -162,7 +181,7 @@ namespace zero.cocoon.models
                         }
                         else
                             ProcessState = State.ProdCancel;
-                        return true;
+                        return false;
                     }
 
                     if (Zeroed())
@@ -189,6 +208,9 @@ namespace zero.cocoon.models
                                     //Success
                                     case TaskStatus.RanToCompletion:
 
+                                        //UDP signals source ip
+                                        ProducerUserData = ((IoSocket)ioSocket).ExtraData();
+
                                         //Drop zero reads
                                         if (rx.GetAwaiter().GetResult() == 0)
                                         {
@@ -201,7 +223,7 @@ namespace zero.cocoon.models
                                         _msgCount++;
                                         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                                         var delta = now - _msgRateCheckpoint;
-                                        if (delta == 0 || _msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms )
+                                        if (_msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms )
                                         {
                                             BytesRead = 0;
                                             ProcessState = State.ProduceTo;
@@ -218,9 +240,6 @@ namespace zero.cocoon.models
                                         }
 
                                         BytesRead = rx.Result;
-
-                                        //UDP signals source ip
-                                        ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
                                         //Set how many datums we have available to process
                                         DatumCount = BytesLeftToProcess / DatumSize;

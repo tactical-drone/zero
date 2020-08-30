@@ -151,7 +151,7 @@ namespace zero.cocoon.models
                         }
                         else
                             ProcessState = State.ProdCancel;
-                        return true;
+                        return false;
                     }
 
                     if(Zeroed())
