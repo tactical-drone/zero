@@ -136,8 +136,30 @@ namespace zero.core.core
                 // Add new neighbor
                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                 {
+                    if (Neighbors.TryGetValue(newNeighbor.Id, out var existingNeighbor))
+                    {
+                        if (existingNeighbor.Source.IsOperational)
+                        {
+                            await newNeighbor.Zero(this);
+                            _logger.Warn($"{GetType().Name}: Neighbor `{newNeighbor.Id}' already connected, dropping...");
+                            return;
+                        }
+                        else
+                        {
+                            await existingNeighbor.Zero(this);
+                            if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                            {
+                                await newNeighbor.Zero(this);
+                                _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
+                                return;
+                            }
+                            else
+                            {
+                                _logger.Warn($"{GetType().Name}: Previous stale peer closed and reconnected {newNeighbor.Id}!");
+                            }
+                        }
+                    }
                     await newNeighbor.Zero(this);
-                    _logger.Warn($"{GetType().Name}: Neighbor `{newNeighbor.Id}' already connected, dropping...");
                     return;
                 }
 

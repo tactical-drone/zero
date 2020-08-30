@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Base58Check;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using NLog;
@@ -233,7 +234,7 @@ namespace zero.cocoon
         /// <summary>
         /// The node id
         /// </summary>
-        public IoCcIdentity CcId { get; protected set; } = IoCcIdentity.Generate(true);
+        public IoCcIdentity CcId { get; protected set;}
 
         /// <summary>
         /// Spawn the node listeners
@@ -257,9 +258,8 @@ namespace zero.cocoon
                     _logger.Info($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
                     return true;
                 }
-
+                
                 return false;
-
             }).ConfigureAwait(false);
         }
 
@@ -331,22 +331,23 @@ namespace zero.cocoon
                         return false;
 
                     //Verify the connection 
-                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPK(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
+                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
                     if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
                     {
-                        if(((IoCcNeighbor)neighbor).Verified)
+                        if (((IoCcNeighbor) neighbor).Verified &&
+                            ((IoCcNeighbor) neighbor).Direction == IoCcNeighbor.Kind.Inbound)
+                        {
                             peer.AttachNeighbor((IoCcNeighbor)neighbor);
+                        }
                         else
                         {
-                            _logger.Debug($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
-                            //await ((IoCcNeighbor)neighbor).SendPingAsync();
+                            _logger.Debug($"Handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}, d = {((IoCcNeighbor)neighbor).Direction}");
                             return false;
                         }
-                            
                     }
                     else
                     {
-                        _logger.Debug($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
+                        _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.Inbound} connection from {socket.RemoteAddress}");
                         return false;
                     }
                     
@@ -418,7 +419,7 @@ namespace zero.cocoon
                             packet.Signature.ToByteArray(), 0);
                     }
 
-                    _logger.Debug($"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
+                    _logger.Trace($"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified)
@@ -427,22 +428,23 @@ namespace zero.cocoon
                     }
 
                     //Verify the connection 
-                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPK(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
+                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
                     if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
                     {
-                        if (((IoCcNeighbor)neighbor).Verified)
+                        if (((IoCcNeighbor) neighbor).Verified &&
+                            ((IoCcNeighbor) neighbor).Direction == IoCcNeighbor.Kind.OutBound)
+                        {
                             peer.AttachNeighbor((IoCcNeighbor)neighbor);
+                        }
                         else
                         {
-                            _logger.Error($"Neighbor {id} not verified, dropping connection from {socket.RemoteAddress}");
-                            //await ((IoCcNeighbor) neighbor).SendPingAsync();
+                            _logger.Debug($"Handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}, d = {((IoCcNeighbor)neighbor).Direction}");
                             return false;
                         }
-                            
                     }
                     else
                     {
-                        _logger.Error($"Neighbor {id} not found, dropping connection from {socket.RemoteAddress}");
+                        _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.OutBound} connection to {socket.RemoteAddress}");
                         return false;
                     }
 
@@ -472,7 +474,7 @@ namespace zero.cocoon
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
         public async Task ConnectToPeer(IoCcNeighbor neighbor)
         {
-            if (neighbor.RemoteAddress != null && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
+            if (neighbor.RoutedRequest && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
                 OutboundCount < parm_max_outbound &&
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
@@ -480,25 +482,28 @@ namespace zero.cocoon
                 if (neighbor.Direction == IoCcNeighbor.Kind.OutBound)
                 {
                     await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor)
-                        .ContinueWith(async (task) =>
+                        .ContinueWith(async (peer) =>
                         {
-                            switch (task.Status)
+                            switch (peer.Status)
                             {
                                 case TaskStatus.RanToCompletion:
-                                    if (task.Result != null)
+                                    if (peer.Result != null)
                                     {
-                                        if (await HandshakeAsync((IoCcPeer)task.Result))
+                                        if (await HandshakeAsync((IoCcPeer)peer.Result))
                                         {
-                                            _logger.Info($"Peer {neighbor.Direction}: Connected! ({task.Result.Id})");
-                                            ((IoCcPeer)task.Result).AttachNeighbor(neighbor);
-                                            NeighborTasks.Add(task.Result.SpawnProcessingAsync());
+                                            _logger.Info($"Peer {neighbor.Direction}: Connected! ({peer.Result.Id})");
+                                            NeighborTasks.Add(peer.Result.SpawnProcessingAsync());
+                                        }
+                                        else
+                                        {
+                                            await peer.Result.Zero(this);
                                         }
                                     }
                                     break;
                                 case TaskStatus.Canceled:
                                 case TaskStatus.Faulted:
                                     neighbor.DetachPeer();
-                                    _logger.Error(task.Exception, $"Peer select {neighbor.RemoteAddress} failed");
+                                    _logger.Error(peer.Exception, $"Peer select {neighbor.RemoteAddress} failed");
                                     break;
                             }
                         }).ConfigureAwait(false);

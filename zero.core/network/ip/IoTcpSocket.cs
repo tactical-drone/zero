@@ -272,21 +272,21 @@ namespace zero.core.network.ip
                 {
                     int read = 0;
                     //TODO 
-                    if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment)  && Socket.Available > 0)
-                    {
-                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
-                        read = await t;
-                    }
-                    else
-                    {
-                        await Task.Delay(250, AsyncTasks.Token);
-                        return 0;
-                    }
+                    //if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment)  && Socket.Available > 0)
+                    //{
+                    //    var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
+                    //    read = await t;
+                    //}
+                    //else
+                    //{
+                    //    await Task.Delay(250, AsyncTasks.Token);
+                    //    return 0;
+                    //}
 
-                    //var read = await Task.Factory.FromAsync(
-                    //        Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
-                    //        Socket.EndReceive)
-                    //    ; //.HandleCancellation(AsyncTasks.Token); //TODO
+                    read = await Task.Factory.FromAsync(
+                            Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
+                            Socket.EndReceive)
+                        ; //.HandleCancellation(AsyncTasks.Token); //TODO
 
                     //var read = Socket?.Receive(buffer, offset, length, SocketFlags.None);
 

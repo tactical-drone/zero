@@ -13,7 +13,9 @@ namespace zero.cocoon.identity
 {
     public class IoCcIdentity
     {
-        public static SHA256 Sha256 = SHA256.Create();
+        [ThreadStatic]
+        private static SHA256 _sha256;
+        public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
         public byte[] Id { get; set; }
         public byte[] PublicKey { get; set; }
         public byte[] SecretKey { get; set; }
@@ -31,22 +33,13 @@ namespace zero.cocoon.identity
             return Base58CheckEncoding.EncodePlain(PublicKey);
         }
 
-        public static IoCcIdentity FromPK(string pk)
+        public static IoCcIdentity FromPubKey(ReadOnlySpan<byte> pk)
         {
-            var pkBuf = Encoding.ASCII.GetBytes(pk);
+            var a = pk.ToArray();
             return new IoCcIdentity
             {
-                PublicKey = pkBuf,
-                Id = Sha256.ComputeHash(pkBuf.AsSpan().Slice(0,8).ToArray())
-            };
-        }
-
-        public static IoCcIdentity FromPK(ReadOnlySpan<byte> pk)
-        {
-            return new IoCcIdentity
-            {
-                PublicKey = pk.ToArray(),
-                Id = Sha256.ComputeHash(pk.Slice(0, 8).ToArray())
+                PublicKey = a,
+                Id = Sha256.ComputeHash(a)
             };
         }
 

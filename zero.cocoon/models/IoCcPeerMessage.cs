@@ -357,7 +357,7 @@ namespace zero.cocoon.models
                         //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                         var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
                         packet.Type = packet.Data[0];
-                        _logger.Debug($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{(IPEndPoint)ProducerUserData}'");
+                        _logger.Trace($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{(IPEndPoint)ProducerUserData}'");
 
                         //Don't process unsigned or unknown messages
                         if(!verified || messageType == null)

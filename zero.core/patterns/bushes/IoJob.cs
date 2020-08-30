@@ -240,7 +240,7 @@ namespace zero.core.patterns.bushes
                     {
                         //PrintStateHistory();
                         CurrentState.State = State.Reject;
-                        throw new Exception($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
+                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
                     }
 
                     if (CurrentState.State == value)

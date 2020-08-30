@@ -170,7 +170,7 @@ namespace zero.core.network.ip
                     {
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
-                            _logger.Error(t.Exception?.InnerException, $"Sending to udp://{endPoint} failed");
+                            _logger.Trace(t.Exception?.InnerException, $"Sending to udp://{endPoint} failed");
                             Zero(this);
                             break;
                         case TaskStatus.RanToCompletion:

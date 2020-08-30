@@ -124,9 +124,9 @@ namespace zero.cocoon
             lock (this)
             {
                 if (Neighbor == neighbor)
-                    return;
+                    throw new ApplicationException($"{neighbor.Id}");
 
-                Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)}");
+                Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             }
             
             _logger.Debug($"{GetType().Name}: Attached to neighbor {neighbor.Description}");

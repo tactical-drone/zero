@@ -32,7 +32,7 @@ namespace zero.sync
             var tasks = new ConcurrentBag<Task>();
             tasks.Add(CoCoon(IoCcIdentity.Generate(true), "tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627", "udp://192.168.88.253:14626"));
             tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667}", $"udp://0.0.0.0:{15627}", null, "udp://192.168.88.253:15627", "udp://192.168.88.253:14627"));
-            for (int i = 1; i < 200; i++)
+            for (int i = 1; i < 20; i++)
             {
                 tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + i}", $"udp://0.0.0.0:{15627+i}", null, $"udp://192.168.88.253:{15627 + i}", $"udp://192.168.88.253:{15627 + i - 1}"));
             }
@@ -50,7 +50,12 @@ namespace zero.sync
                     args.Cancel = true;
                 };
 
-            tasks.ToList().ForEach(t=>t.Wait());
+            Console.ReadLine();
+
+            _nodes.ToList().ForEach(n => Task.Run(() => n.Zero(null)));
+            _nodes.Clear();
+
+            Thread.Sleep(10000);
 
             //var c1 = CoCoon(IoCcIdentity.Generate(true), "tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627", "udp://192.168.88.253:15627");
             //var c2 = CoCoon(IoCcIdentity.Generate(), "tcp://0.0.0.0:15667", "udp://0.0.0.0:15627", null, "udp://192.168.88.253:15627", "udp://192.168.88.253:14627");
