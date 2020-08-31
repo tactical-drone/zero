@@ -223,7 +223,7 @@ namespace zero.core.network.ip
                         {
                             case TaskStatus.Canceled:
                             case TaskStatus.Faulted:
-                                _logger.Error(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
+                                _logger.Debug(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
                                 Zero(this);
                                 break;
                             case TaskStatus.RanToCompletion:
@@ -305,14 +305,19 @@ namespace zero.core.network.ip
                     return Socket.Receive(buffer, offset, length, SocketFlags.None);
                 }
             }
-            catch (ObjectDisposedException) { }
-            catch (OperationCanceledException) { }
+            catch (NullReferenceException) { return 0; }
+            catch (TaskCanceledException) { return 0; }
+            catch (OperationCanceledException) { return 0; }
+            catch (ObjectDisposedException) { return 0; }
+            catch (SocketException e)
+            {
+                _logger.Debug(e, $"Unable to read from {ListeningAddress}");
+                await Zero(this);
+            }
             catch (Exception e)
             {
                 _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
-#pragma warning disable 4014
-                Zero(this);
-#pragma warning restore 4014
+                await Zero(this);
             }
 
             return 0;

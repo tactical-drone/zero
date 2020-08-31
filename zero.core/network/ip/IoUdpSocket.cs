@@ -222,18 +222,29 @@ namespace zero.core.network.ip
                                     //Set the remote address
                                     if (RemoteNodeAddress == null)
                                     {
-                                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                                        RemoteNodeAddress =
+                                            IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
                                         //_udpRemoteEndpointInfo = Socket.RemoteEndPoint;
                                         //RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", Socket.RemoteEndPoint);
                                     }
                                     else
-                                        RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+                                        RemoteAddress.Update((IPEndPoint) _udpRemoteEndpointInfo);
                                     //RemoteAddress.Update((IPEndPoint)Socket.RemoteEndPoint);
 
                                     return r;
                                 }
-                                    
-                                
+
+
+                                return 0;
+                            }
+                            catch (NullReferenceException) { return 0; }
+                            catch (TaskCanceledException) { return 0; }
+                            catch (OperationCanceledException) { return 0; }
+                            catch (ObjectDisposedException) { return 0; }
+                            catch (SocketException e)
+                            {
+                                _logger.Debug(e, $"Unable to read from {ListeningAddress}");
+                                Zero(this);
                                 return 0;
                             }
                             catch (Exception e)
