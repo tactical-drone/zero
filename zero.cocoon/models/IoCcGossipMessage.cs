@@ -127,6 +127,9 @@ namespace zero.cocoon.models
         {
             try
             {
+                if (Zeroed())
+                    return ProcessState = State.ProdCancel;
+
                 var sourceTaskSuccess = await Source.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------

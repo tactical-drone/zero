@@ -1132,6 +1132,9 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         public async Task SendPingAsync(IoNodeAddress dest = null)
         {
+            if(Zeroed())
+                return;
+
             dest ??= RemoteAddress;
 
             var pingRequest = new Ping
@@ -1207,7 +1210,7 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         public async Task SendDiscoveryRequestAsync(IoNodeAddress dest = null)
         {
-            if(!RoutedRequest && !Verified)
+            if(Zeroed() && !RoutedRequest && !Verified)
                 return;
 
             dest ??= RemoteAddress;
@@ -1224,9 +1227,9 @@ namespace zero.cocoon.autopeer
         /// Sends a peer request
         /// </summary>
         /// <returns>Task</returns>
-        private async Task SendPeerRequestAsync(IoNodeAddress dest = null)
+        public async Task SendPeerRequestAsync(IoNodeAddress dest = null)
         {
-            if(!RoutedRequest || CcNode.OutboundCount >= CcNode.parm_max_outbound || !Verified)
+            if(Zeroed() && !RoutedRequest || CcNode.OutboundCount >= CcNode.parm_max_outbound || !Verified)
                 return;
 
             dest ??= RemoteAddress;
@@ -1246,7 +1249,7 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task SendPeerDropAsync(IoNodeAddress dest = null)
         {
-            if(!RoutedRequest)
+            if(Zeroed() || !RoutedRequest)
                 return;
 
             dest ??= RemoteAddress;
@@ -1322,7 +1325,7 @@ namespace zero.cocoon.autopeer
             ExtGossipAddress = null;
             _keepAliveSec = 0;
 
-            _logger.Info($"Detached peer {Id} ({peer.Source?.Key})");
+            _logger.Info($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached, {Id} ({peer.Source?.Key})");
         }
     }
 }

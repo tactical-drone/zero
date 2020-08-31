@@ -63,9 +63,15 @@ namespace zero.cocoon
                         }
 
                         //Search for peers
-                        if (Neighbors.Count < MaxClients / 2 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay && _autoPeering.Neighbors.Count - 1 < MaxClients)
+                        if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay && _autoPeering.Neighbors.Count - 1 < MaxClients)
                         {
-                            _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients / 2}, trying to discover new ones...");
+                            _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, trying to discover new ones...");
+
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n=> ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined))
+                            {
+                                await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync();
+                            }
+
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values)
                             {
                                 await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync();
