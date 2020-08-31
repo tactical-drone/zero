@@ -48,9 +48,11 @@ namespace zero.cocoon
                 var outbound = 0;
                 var available = 0;
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                while (!Zeroed())
+                while (true)
                 {
                     await Task.Delay(1000, AsyncTasks.Token);
+                    if (Zeroed())
+                        break;
 
                     try
                     {
@@ -63,20 +65,24 @@ namespace zero.cocoon
                         }
 
                         //Search for peers
-                        if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay && _autoPeering.Neighbors.Count - 1 < MaxClients)
+                        if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay)
                         {
+                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, trying to discover new ones...");
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n=> ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined))
                             {
+                                if (Zeroed())
+                                    break;
                                 await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync();
                             }
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values)
                             {
+                                if (Zeroed())
+                                    break;
                                 await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync();
                             }
-                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }
                     }
                     catch (Exception e)
