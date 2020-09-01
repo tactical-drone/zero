@@ -292,7 +292,7 @@ namespace zero.core.network.ip
             //if (Socket?.Connected ?? false)
             //    Socket.Shutdown(SocketShutdown.Both);
             
-            Socket?.Close();
+            Socket?.Close(1000);
             base.ZeroManaged();
         }
 
@@ -303,8 +303,9 @@ namespace zero.core.network.ip
         /// <param name="offset">Start at offset</param>
         /// <param name="length">The number of bytes to send</param>
         /// <param name="endPoint">endpoint when required by the socket</param>
+        /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public abstract Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null);
+        public abstract Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
 
         /// <summary>
         /// Reads a message from the socket

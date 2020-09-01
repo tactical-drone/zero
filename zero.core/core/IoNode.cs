@@ -121,9 +121,8 @@ namespace zero.core.core
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
-#pragma warning disable 4014
-                        newNeighbor.Zero(this);
-#pragma warning restore 4014
+                        await newNeighbor.Zero(this);
+
                         return;
                     }
                 }
@@ -133,50 +132,65 @@ namespace zero.core.core
                     return;
                 }
 
-                // Add new neighbor
-                if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                try
                 {
-                    if (Neighbors.TryGetValue(newNeighbor.Id, out var existingNeighbor))
+
+
+                    // Add new neighbor
+                    if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                     {
-                        if (existingNeighbor.Source.IsOperational)
+                        if (Neighbors.TryGetValue(newNeighbor.Id, out var existingNeighbor))
                         {
-                            await newNeighbor.Zero(this);
-                            _logger.Warn($"{GetType().Name}: Neighbor `{newNeighbor.Id}' already connected, dropping...");
-                            return;
-                        }
-                        else
-                        {
-                            await existingNeighbor.Zero(this);
-                            if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                            if (existingNeighbor.Source.IsOperational)
                             {
                                 await newNeighbor.Zero(this);
-                                _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
+                                _logger.Warn(
+                                    $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
                                 return;
                             }
                             else
                             {
-                                _logger.Warn($"{GetType().Name}: Previous stale peer closed and reconnected {newNeighbor.Id}!");
+                                await existingNeighbor.Zero(this);
+                                if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                                {
+                                    await newNeighbor.Zero(this);
+                                    _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
+                                    return;
+                                }
+                                else
+                                {
+                                    _logger.Warn(
+                                        $"{GetType().Name}: Previous stale peer closed and reconnected {newNeighbor.Id}!");
+                                }
                             }
                         }
+
+                        await newNeighbor.Zero(this);
+                        return;
                     }
-                    await newNeighbor.Zero(this);
-                    return;
+
+                    //We use this locally captured variable as newNeighbor.Id disappears on zero
+                    string id = newNeighbor.Id;
+
+                    // Remove from lists if closed
+                    newNeighbor.ZeroEvent(s =>
+                    {
+                        //DisconnectedEvent?.Invoke(this, newNeighbor);
+                        if (Neighbors.TryRemove(id, out var _))
+                            _logger.Debug($"Removed neighbor Id = {id}");
+                        else
+                            _logger.Fatal($"Neighbor {id} not found!");
+
+                        return Task.CompletedTask;
+                    });
                 }
+                catch (NullReferenceException) { return;  }
+                catch (TaskCanceledException) { return; }
+                catch (OperationCanceledException) { return; }
+                catch (ObjectDisposedException) { return; }
+                
 
-                //We use this locally captured variable as newNeighbor.Id disappears on zero
-                string id = newNeighbor.Id;
-
-                // Remove from lists if closed
-                newNeighbor.ZeroEvent(s =>
-                {
-                    //DisconnectedEvent?.Invoke(this, newNeighbor);
-                    if (Neighbors.TryRemove(id, out var _))
-                        _logger.Debug($"Removed neighbor Id = {id}");
-                    else
-                        _logger.Fatal($"Neighbor {id} not found!");
-
-                    return Task.CompletedTask;
-                });
+               
 
                 //New peer connection event
                 //ConnectedEvent?.Invoke(this, newNeighbor);
@@ -219,14 +233,8 @@ namespace zero.core.core
                     IoNeighbor<TJob> newNeighbor = null;
                     var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
                     newNeighbor = neighbor;
-                    
-                    //TODO does this make sense?
-                    if (Neighbors.TryGetValue(newNeighbor.Id, out var zombieNeighbor))
-#pragma warning disable 4014
-                        zombieNeighbor.Zero(this);
-#pragma warning restore 4014
 
-                    //We capture a local varable here as newNeighbor.Id dissapears on zero
+                    //We capture a local variable here as newNeighbor.Id disappears on zero
                     var id = newNeighbor.Id;
 
                     if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
@@ -260,9 +268,7 @@ namespace zero.core.core
                     else //strange case
                     {
                         _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-#pragma warning disable 4014
-                        newNeighbor.Zero(this);
-#pragma warning restore 4014
+                        await newNeighbor.Zero(this);
                     }
 
                     connectedAtLeastOnce = true;

@@ -266,6 +266,12 @@ namespace zero.core.network.ip
             {
                 try
                 {
+                    if (Zeroed())
+                        return false;
+
+                    if (IoSocket == null)
+                        return false;
+
                     if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket)
                     {
                         //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";

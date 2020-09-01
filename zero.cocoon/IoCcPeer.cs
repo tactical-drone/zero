@@ -110,6 +110,7 @@ namespace zero.cocoon
         /// </summary>
         protected override void ZeroManaged()
         {
+            
             DetachNeighbor();
             Source.Zero(this);
             base.ZeroManaged();

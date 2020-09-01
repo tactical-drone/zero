@@ -148,8 +148,9 @@ namespace zero.core.network.ip
         /// <param name="offset">Start offset into the buffer</param>
         /// <param name="length">The length of the data</param>
         /// <param name="endPoint">A destination, used for UDP connections</param>
+        /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
+        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
             if (Zeroed())
             {

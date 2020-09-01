@@ -26,15 +26,20 @@ namespace zero.sync
         static void Main(string[] args)
         {
             LogManager.LoadConfiguration("nlog.config");
+            var portOffset = 1000;
+
+#if DEBUG
+            portOffset = 0;   
+#endif
 
             //Tangle("tcp://192.168.1.2:15600");
 
             var tasks = new ConcurrentBag<Task>();
-            tasks.Add(CoCoon(IoCcIdentity.Generate(true), "tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627", "udp://192.168.88.253:14626"));
-            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667}", $"udp://0.0.0.0:{15627}", null, "udp://192.168.88.253:15627", "udp://192.168.88.253:14627"));
-            for (int i = 1; i < 200; i++)
+            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://0.0.0.0:{14667 + portOffset}", $"udp://0.0.0.0:{14627 + portOffset}", null, $"udp://192.168.88.253:{14627 + portOffset}", $"udp://192.168.88.253:{14626 + portOffset}"));
+            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset}", $"udp://0.0.0.0:{15627 + portOffset}", null, $"udp://192.168.88.253:{15627 + portOffset}", $"udp://192.168.88.253:{14627 + portOffset}"));
+            for (int i = 1; i < 10; i++)
             {
-                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + i}", $"udp://0.0.0.0:{15627+i}", null, $"udp://192.168.88.253:{15627 + i}", $"udp://192.168.88.253:{15627 + i - 1}"));
+                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset + i}", $"udp://0.0.0.0:{15627 + portOffset + i}", null, $"udp://192.168.88.253:{15627 + portOffset + i}", $"udp://192.168.88.253:{15627 +portOffset + i - 1}"));
             }
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
@@ -50,8 +55,62 @@ namespace zero.sync
                     args.Cancel = true;
                 };
 
-            Console.ReadLine();
+            var running = true;
+            var outBound = 0;
+            var inBound = 0;
+            var available = 0;
+            var logger = LogManager.GetCurrentClassLogger();
+            Task.Factory.StartNew(() =>
+            {
+                var ooutBound = 0;
+                var oinBound = 0;
+                var oavailable = 0;
+                long uptime = 0;
+                long uptimeCount = 1;
+                long peers = 0;
+                while (running)
+                {
+                    ooutBound = 0;
+                    oinBound = 0;
+                    oavailable = 0;
+                    uptime = 0;
+                    uptimeCount = 1;
+                    peers = 0;
+                    foreach (var ioCcNode in _nodes)
+                    {
+                        peers += ioCcNode.Neighbors.Count;
+                        ooutBound += ioCcNode.OutboundCount;
+                        oinBound += ioCcNode.InboundCount;
+                        oavailable += ioCcNode.DiscoveryService.Neighbors.Count;
+                        if(ioCcNode.DiscoveryService.Neighbors.Count > 0)
+                        uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
+                        {
+                            if (((IoCcNeighbor) n).Uptime > 0)
+                            {
+                                uptimeCount++;
+                                return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ((IoCcNeighbor)n).Uptime;
+                            }
+                            return 0;
+                        }).Average());
+                    }
 
+                    if (outBound != ooutBound || inBound != oinBound || available != oavailable)
+                    {
+                        var oldTotal = outBound + inBound;
+                        outBound = ooutBound;
+                        inBound = oinBound;
+                        available = oavailable;
+                        Console.ForegroundColor = oldTotal <= inBound + outBound? ConsoleColor.Green : ConsoleColor.Red;
+                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}, {(peers) /(_nodes.Count * 8.0)*100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days");
+                        Console.ResetColor();
+                    }
+                        
+                    Thread.Sleep(1000);
+                }
+            }, TaskCreationOptions.LongRunning);
+
+            Console.ReadLine();
+            running = false;
             _nodes.ToList().ForEach(n => Task.Run(() => n.Zero(null)));
             _nodes.Clear();
 

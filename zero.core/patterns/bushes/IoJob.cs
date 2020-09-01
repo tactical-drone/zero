@@ -57,6 +57,7 @@ namespace zero.core.patterns.bushes
             Consumed,
             ConInlined,
             Error,
+            Race,
             Accept,
             Reject,
             Finished,
@@ -242,8 +243,9 @@ namespace zero.core.patterns.bushes
                     if (CurrentState.State == State.Finished)
                     {
                         //PrintStateHistory();
-                        CurrentState.State = State.Reject;
-                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
+                        //CurrentState.State = State.Reject;
+                        //throw new ApplicationException($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
+                        CurrentState.State = State.Race; //TODO
                     }
 
                     if (CurrentState.State == value)

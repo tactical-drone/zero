@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using Base58Check;
 using MathNet.Numerics;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
@@ -13,6 +14,12 @@ namespace zero.cocoon.identity
 {
     public class IoCcIdentity
     {
+        static IoCcIdentity()
+        {
+            Thread.Sleep(1);
+            SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
+        }
+
         [ThreadStatic]
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
@@ -43,14 +50,15 @@ namespace zero.cocoon.identity
             };
         }
 
+        private static readonly SecureRandom SecureRandom = SecureRandom.GetInstance("SHA256PRNG");
         public static IoCcIdentity Generate(bool devMode = false)
         {
             //var skBuf = new byte[Ed25519.SecretKeySize];
             var skBuf = Base58CheckEncoding.Decode(DevKey);
             var pkBuf = new byte[Ed25519.PublicKeySize];
-
+            
             if(!devMode)
-                Ed25519.GeneratePrivateKey(SecureRandom.GetInstance("SHA256PRNG"), skBuf);
+                Ed25519.GeneratePrivateKey(SecureRandom, skBuf);
             
             Ed25519.GeneratePublicKey(skBuf, 0, pkBuf, 0);
 

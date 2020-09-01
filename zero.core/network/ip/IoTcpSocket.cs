@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -84,7 +85,11 @@ namespace zero.core.network.ip
             while (!Zeroed())
             {
                 _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
-                var acceptTask = Socket?.AcceptAsync();
+
+                //var acceptTask = Socket?.AcceptAsync();
+                var acceptTask = Task.Factory
+                    .FromAsync<Socket>(Socket.BeginAccept(null, null),
+                        Socket.EndAccept);//.HandleCancellation(AsyncTasks.Token); //TODO
 
                 try
                 {
@@ -149,6 +154,14 @@ namespace zero.core.network.ip
             return true;
         }
 
+
+        private Stopwatch _sw = Stopwatch.StartNew();
+
+        /// <summary>
+        /// Connecting
+        /// </summary>
+        private int WSAEWOULDBLOCK = 10035;
+
         /// <summary>
         /// Connect to a remote endpoint
         /// </summary>
@@ -159,16 +172,50 @@ namespace zero.core.network.ip
             if (!await base.ConnectAsync(address))
                 return false;
 
+            Socket.Blocking = false;
+            
+            _sw.Restart();
             return await Socket.ConnectAsync(address.Ip, address.Port).ContinueWith(r =>
             {
                 switch (r.Status)
                 {
                     case TaskStatus.Canceled:
                     case TaskStatus.Faulted:
-                        //_logger.Error(r.Exception, $"Connecting to `{Address}' failed:");
-                        Socket.Close();
-                        return Task.FromResult(false);
+                        SocketException exception = null;
+                        if ((exception = (SocketException) r.Exception.InnerExceptions.FirstOrDefault(e=>e is SocketException)) != default)
+                        {
+                            if (exception.ErrorCode == WSAEWOULDBLOCK)
+                            {
+                                while (_sw.ElapsedMilliseconds < 10000 &&
+                                       !Socket.Poll(10000, SelectMode.SelectError) &&
+                                       !Socket.Poll(10000, SelectMode.SelectWrite)) 
+                                {}
+
+                                if (_sw.ElapsedMilliseconds > 10000)
+                                {
+                                    Socket.Close();
+                                    return Task.FromResult(false);
+                                }
+                            }
+                        }
+
+                        Socket.Blocking = true;
+                        //Do some pointless sanity checking
+                        if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
+                        {
+                            _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                            Socket.Close();
+                            return Task.FromResult(false);
+                        }
+
+                        _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
+
+                        break;
+                        
+                    //_logger.Error(r.Exception, $"Connecting to `{Address}' failed:");
+
                     case TaskStatus.RanToCompletion:
+                        Socket.Blocking = true;
                         //Do some pointless sanity checking
                         if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
                         {
@@ -196,7 +243,7 @@ namespace zero.core.network.ip
         /// <param name="length">The length of the data to be sent</param>
         /// <param name="endPoint">not used</param>
         /// <returns>The amount of bytes sent</returns>
-        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null)
+        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
@@ -206,33 +253,41 @@ namespace zero.core.network.ip
                     return 0;
                 }
 
-                //var task = Task.Factory
-                //    .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
-                //        Socket.EndSend);//.HandleCancellation(AsyncTasks.Token); //TODO
-                Task<int> task = null;
-                if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
+                if (timeout == 0)
                 {
-                    task = Socket.SendAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
-                }
+                    var task = Task.Factory
+                        .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
+                            Socket.EndSend); //.HandleCancellation(AsyncTasks.Token); //TODO
+                    //Task<int> task = null;
+                    //if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
+                    //{
+                    //    task = Socket.SendAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
+                    //}
 
-                if (task != null)
-                {
-                    await task.ContinueWith(t =>
+                    if (task != null)
                     {
-                        switch (t.Status)
+                        await task.ContinueWith(t =>
                         {
-                            case TaskStatus.Canceled:
-                            case TaskStatus.Faulted:
-                                _logger.Debug(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
-                                Zero(this);
-                                break;
-                            case TaskStatus.RanToCompletion:
-                                _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
-                                break;
-                        }
-                    }, AsyncTasks.Token);
+                            switch (t.Status)
+                            {
+                                case TaskStatus.Canceled:
+                                case TaskStatus.Faulted:
+                                    _logger.Debug(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
+                                    Zero(this);
+                                    break;
+                                case TaskStatus.RanToCompletion:
+                                    _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
+                                    break;
+                            }
+                        }, AsyncTasks.Token);
 
-                    return task.Result;
+                        return task.Result;
+                    }
+                }
+                else
+                {
+                    Socket.SendTimeout = timeout;
+                    return Socket.Send(buffer, offset, length, SocketFlags.None);
                 }
 
                 return 0;
@@ -244,6 +299,10 @@ namespace zero.core.network.ip
                 Zero(this);
 #pragma warning restore 4014
                 return 0;
+            }
+            finally
+            {
+                Socket.SendTimeout = 0;
             }
         }
 
@@ -266,15 +325,14 @@ namespace zero.core.network.ip
                     return 0;
                 }
 
-                Socket.ReceiveTimeout = timeout;
-
                 if (timeout == 0)
                 {
                     int read = 0;
                     //TODO 
                     if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment) && Socket.Available > 0)
                     {
-                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
+                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None,
+                            AsyncTasks.Token).AsTask();
                         read = await t;
                     }
                     else
@@ -293,31 +351,46 @@ namespace zero.core.network.ip
                     if (!Socket.Connected || !Socket.IsBound)
                     {
                         _logger.Debug($"{Key}: Connected = {Socket.Connected}, IsBound = {Socket.IsBound}");
-#pragma warning disable 4014
-                        Zero(this);
-#pragma warning restore 4014
+                        await Zero(this);
                     }
-                    
+
                     return read;
                 }
                 else if (timeout > 0)
                 {
+                    Socket.ReceiveTimeout = timeout;
                     return Socket.Receive(buffer, offset, length, SocketFlags.None);
                 }
             }
-            catch (NullReferenceException) { return 0; }
-            catch (TaskCanceledException) { return 0; }
-            catch (OperationCanceledException) { return 0; }
-            catch (ObjectDisposedException) { return 0; }
+            catch (NullReferenceException)
+            {
+                return 0;
+            }
+            catch (TaskCanceledException)
+            {
+                return 0;
+            }
+            catch (OperationCanceledException)
+            {
+                return 0;
+            }
+            catch (ObjectDisposedException)
+            {
+                return 0;
+            }
             catch (SocketException e)
             {
                 _logger.Debug(e, $"Unable to read from {ListeningAddress}");
-                await Zero(this);
+                //await Zero(this);
             }
             catch (Exception e)
             {
                 _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
                 await Zero(this);
+            }
+            finally
+            {
+                Socket.ReceiveTimeout = 0; //TODO?
             }
 
             return 0;
