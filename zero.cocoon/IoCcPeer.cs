@@ -120,20 +120,23 @@ namespace zero.cocoon
         /// Attaches a neighbor to this peer
         /// </summary>
         /// <param name="neighbor"></param>
-        public void AttachNeighbor(IoCcNeighbor neighbor)
+        public bool AttachNeighbor(IoCcNeighbor neighbor)
         {
             lock (this)
             {
-                if (Neighbor == neighbor)
-                    throw new ApplicationException($"{neighbor.Id}");
-
+                //if (Neighbor == neighbor || Neighbor != null)
+                //{
+                //    _logger.Fatal($"Peer id = {Neighbor?.Id} already attached!");
+                //    return false;
+                //}
+                
                 Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             }
             
-            _logger.Debug($"{GetType().Name}: Attached to neighbor {neighbor.Description}");
+            _logger.Debug($" Attached to neighbor {neighbor.Description}");
 
             //Attach the other way
-            Neighbor.AttachPeer(this);
+            return Neighbor.AttachPeer(this);
         }
 
         /// <summary>

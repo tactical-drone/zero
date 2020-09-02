@@ -69,7 +69,7 @@ namespace zero.cocoon
                         if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            _logger.Warn($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, trying to discover new ones...");
+                            _logger.Debug($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, trying to discover new ones...");
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl))
                             {
@@ -358,29 +358,6 @@ namespace zero.cocoon
                     if (!verified)
                         return false;
 
-                    //Verify the connection 
-                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
-                    if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
-                    {
-                        var direction = ((IoCcNeighbor) neighbor).Direction;
-                        if (((IoCcNeighbor) neighbor).Verified &&
-                            ((IoCcNeighbor) neighbor).Direction == IoCcNeighbor.Kind.Inbound &&
-                            !((IoCcNeighbor)neighbor).Peered())
-                        {
-                            peer.AttachNeighbor((IoCcNeighbor)neighbor);
-                        }
-                        else
-                        {
-                            _logger.Debug($"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}");
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.Inbound} connection from {socket.RemoteAddress}");
-                        return false;
-                    }
-                    
                     //process handshake request 
                     var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
                     if (handshakeRequest != null)
@@ -401,11 +378,11 @@ namespace zero.cocoon
                         }
 
                         //reject requests to invalid ext ip
-                        if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
-                        {
-                            _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
-                            return false;
-                        }
+                        //if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
+                        //{
+                        //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
+                        //    return false;
+                        //}
 
                         //send response
                         var handshakeResponse = new HandshakeResponse
@@ -426,8 +403,29 @@ namespace zero.cocoon
                         }
                     }
 
+                    //Verify the connection 
+                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
+                    if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
+                    {
+                        var direction = ((IoCcNeighbor) neighbor).Direction;
+                        if (((IoCcNeighbor) neighbor).Verified &&
+                            ((IoCcNeighbor) neighbor).Direction == IoCcNeighbor.Kind.Inbound &&
+                            !((IoCcNeighbor)neighbor).Peered())
+                        {
+                            return peer.AttachNeighbor((IoCcNeighbor)neighbor);
+                        }
+                        else
+                        {
+                            _logger.Debug($"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.Inbound} connection from {socket.RemoteAddress}");
+                        return false;
+                    }
                 }
-                return true;
             }
             else if (((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket.Egress)//Outbound
             {
@@ -484,29 +482,6 @@ namespace zero.cocoon
                         return false;
                     }
 
-                    //Verify the connection 
-                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
-                    if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
-                    {
-                        var direction = ((IoCcNeighbor) neighbor).Direction;
-                        if (((IoCcNeighbor) neighbor).Verified &&
-                            ((IoCcNeighbor) neighbor).Direction == IoCcNeighbor.Kind.OutBound &&
-                            !((IoCcNeighbor)neighbor).Peered())
-                        {
-                            peer.AttachNeighbor((IoCcNeighbor)neighbor);
-                        }
-                        else
-                        {
-                            _logger.Debug($"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}");
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.OutBound} connection to {socket.RemoteAddress}");
-                        return false;
-                    }
-
                     //validate handshake response
                     var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
 
@@ -520,9 +495,33 @@ namespace zero.cocoon
                             return false;
                         }
                     }
+
+                    //Verify the connection 
+                    var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
+                    if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
+                    {
+                        var direction = ((IoCcNeighbor) neighbor).Direction;
+                        if (((IoCcNeighbor) neighbor).Verified &&
+                            ((IoCcNeighbor) neighbor).Direction == IoCcNeighbor.Kind.OutBound &&
+                            !((IoCcNeighbor)neighbor).Peered())
+                        {
+                            return peer.AttachNeighbor((IoCcNeighbor)neighbor);
+                        }
+                        else
+                        {
+                            _logger.Debug($"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.OutBound} connection to {socket.RemoteAddress}");
+                        return false;
+                    }
                 }
             }
-            return true;
+
+            return false;
         }
 
         

@@ -252,14 +252,9 @@ namespace zero.core.core
                         //Is this a race condition? Between subbing and being zeroed out?
                         newNeighbor.ZeroEvent(s =>
                         {
-                            if (!Neighbors.TryRemove(id, out _))
-                            {
-                                _logger.Fatal($"Neighbor metadata expected for key `{id}'");
-                            }
-                            else
-                            {
-                                _logger.Debug($"{GetType().Name}: Dropped peer {id} from node {Description}");
-                            }
+                            _logger.Debug(!Neighbors.TryRemove(id, out _)
+                                ? $"Neighbor metadata expected for key `{id}'"
+                                : $"{GetType().Name}: Dropped peer {id} from node {Description}");
 
                             return Task.CompletedTask;
                         });

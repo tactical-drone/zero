@@ -322,6 +322,11 @@ namespace zero.cocoon.autopeer
         private Func<IIoZeroable, Task> _neighborZeroSub;
 
         /// <summary>
+        /// Number of connection attempts
+        /// </summary>
+        private long _connectionAttempts;
+
+        /// <summary>
         /// A servicemap helper
         /// </summary>
         protected ServiceMap ServiceMap
@@ -717,6 +722,7 @@ namespace zero.cocoon.autopeer
                 {
                     if(await CcNode.ConnectToPeer(this))
                         await SendDiscoveryRequestAsync();
+                    Interlocked.Increment(ref _connectionAttempts);
                 }
             }
             else
@@ -727,11 +733,15 @@ namespace zero.cocoon.autopeer
                     _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Found zombie {Direction} peer({(PeerConnectedAtLeastOnce ? "C" : "DC")}) {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
                     Peer?.Zero(this);
                 }
-                else if (Peer == null)
+                else if (Peer == null && Interlocked.Read(ref _connectionAttempts) > 0)
                 {
-                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering reconnecting... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
+                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering reconnecting attempts {Interlocked.Read(ref _connectionAttempts)}... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
                     if (await CcNode.ConnectToPeer(this))
                         await SendDiscoveryRequestAsync();
+                    else
+                    {
+                        Interlocked.Increment(ref _connectionAttempts);
+                    }
                 }
             }
         }
@@ -1357,7 +1367,7 @@ namespace zero.cocoon.autopeer
             {
                 if (Peer == ioCcPeer || Peer != null)
                 {
-                    _logger.Fatal($"{GetType().Name}: Peer id = {Peer?.Id} already attached!");
+                    _logger.Fatal($"Peer id = {Peer?.Id} already attached!");
                     return false;
                 }
                 
