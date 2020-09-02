@@ -491,7 +491,7 @@ namespace zero.tangle.models
                         {
                             ProcessState = State.ProduceTo;
                             _producerStopwatch.Stop();
-                            _logger.Warn($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                            _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
                                          $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed

@@ -59,7 +59,7 @@ namespace zero.cocoon
                     {
                         if (InboundCount != inbound || OutboundCount != outbound || _autoPeering.Neighbors.Count - 1 != available)
                         {
-                            _logger.Info($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}, Available = {_autoPeering.Neighbors.Count - 1}");
+                            //_logger.Info($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}, Available = {_autoPeering.Neighbors.Count - 1}");
                             inbound = InboundCount;
                             outbound = OutboundCount;
                             available = _autoPeering.Neighbors.Count - 1;
@@ -531,7 +531,7 @@ namespace zero.cocoon
         /// Opens an <see cref="IoCcNeighbor.Kind.OutBound"/> connection to a gossip peer
         /// </summary>
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
-        public async Task ConnectToPeer(IoCcNeighbor neighbor)
+        public async Task<bool> ConnectToPeer(IoCcNeighbor neighbor)
         {
             if (neighbor.RoutedRequest && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
                 OutboundCount < parm_max_outbound &&
@@ -540,7 +540,7 @@ namespace zero.cocoon
             {
                 if (neighbor.Direction == IoCcNeighbor.Kind.OutBound)
                 {
-                    await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor)
+                    var neighborConnection = await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor)
                         .ContinueWith(async (peer) =>
                         {
                             switch (peer.Status)
@@ -566,6 +566,9 @@ namespace zero.cocoon
                                     break;
                             }
                         }).ConfigureAwait(false);
+
+                    //Connect success?
+                    return neighborConnection != null;
                 }
                 else
                 {
@@ -577,8 +580,10 @@ namespace zero.cocoon
             {
                 neighbor.DetachPeer();
                 _logger.Trace($"Handled {neighbor.Description}");
+                return false;
             }
 
+            return false;
         }
     }
 }

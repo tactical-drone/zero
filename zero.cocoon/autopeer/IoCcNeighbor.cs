@@ -715,8 +715,8 @@ namespace zero.cocoon.autopeer
 
                 if (Direction == Kind.OutBound)
                 {
-                    await CcNode.ConnectToPeer(this);
-                    await SendDiscoveryRequestAsync();
+                    if(await CcNode.ConnectToPeer(this))
+                        await SendDiscoveryRequestAsync();
                 }
             }
             else
@@ -729,9 +729,9 @@ namespace zero.cocoon.autopeer
                 }
                 else if (Peer == null)
                 {
-                    await CcNode.ConnectToPeer(this);
-                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Peering reconnecting... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
-                    await SendDiscoveryRequestAsync();
+                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering reconnecting... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
+                    if (await CcNode.ConnectToPeer(this))
+                        await SendDiscoveryRequestAsync();
                 }
             }
         }

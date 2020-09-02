@@ -237,6 +237,16 @@ namespace zero.core.core
                     //We capture a local variable here as newNeighbor.Id disappears on zero
                     var id = newNeighbor.Id;
 
+                    if (Neighbors.TryGetValue(newNeighbor.Id, out var staleNeighbor))
+                    {
+                        if (Neighbors.TryRemove(staleNeighbor.Id, out _))
+                        {
+                            await staleNeighbor.Zero(this);
+                        }
+
+                        _logger.Debug($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
+                    }
+
                     if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                     {
                         //Is this a race condition? Between subbing and being zeroed out?
