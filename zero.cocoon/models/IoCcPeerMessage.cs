@@ -36,16 +36,21 @@ namespace zero.cocoon.models
             DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
-            IoCcProtocolBuffer protocol = null;
+            IoCcProtocolBuffer protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
+            if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+            {
+                Source.ZeroOnCascade(protocol);
 
-            protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
-            Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol);
+                ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), false, protocol,
+                    userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
 
-            ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), false, protocol,
-                userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
-            
-            ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
-            ProtocolChannel.parm_producer_start_retry_time = 0;
+                ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+                ProtocolChannel.parm_producer_start_retry_time = 0;
+            }
+            else
+            {
+                ProtocolChannel = Source.AttachProducer<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+            }
         }
 
         /// <summary>

@@ -643,7 +643,7 @@ namespace zero.cocoon.autopeer
             //Discovery request
             if (!wasInbound)
             {
-                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound?"Open":"FULL")}) ({(CcNode.InboundCount < CcNode.parm_max_inbound?"Open":"FULL")}), currently {Direction}: {Id}");
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound?"Open":"FULL")}), currently {Direction}: {Id}");
 
                 if( Direction == Kind.Inbound)
                     await SendDiscoveryRequestAsync();

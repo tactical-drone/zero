@@ -166,6 +166,7 @@ namespace zero.core.patterns.bushes
             ProduceAheadBarrier = null;
             RecentlyProcessed = null;
             IoChannels = null;
+            ObjectStorage = null;
 #endif
         }
 
@@ -174,6 +175,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroManaged()
         {
+            ObjectStorage.Clear();
             IoChannels.Clear();
             RecentlyProcessed?.Zero(this);
             
@@ -207,7 +209,7 @@ namespace zero.core.patterns.bushes
                     var newChannel = new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc);
                     if (IoChannels.TryAdd(id, newChannel))
                     {
-                        //ZeroOnCascade(newChannel, cascade);
+                        ZeroOnCascade(newChannel, cascade);
                     }
                 }
             }

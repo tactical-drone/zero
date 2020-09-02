@@ -89,6 +89,7 @@ namespace zero.cocoon.models.sources
         /// </summary>
         protected override void ZeroManaged()
         {
+            while(MessageQueue.Take() != null){}
             base.ZeroManaged();
         }
 
