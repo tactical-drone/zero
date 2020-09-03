@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -459,11 +460,14 @@ namespace zero.cocoon.autopeer
 
             try
             {
-                var protocolMsgs = ((IoCcProtocolMessage)consumer).Messages;
+                var protocolMsgs = ((IoCcProtocolMessage) consumer).Messages;
 
                 //_logger.Trace($"{consumer.TraceDescription} Processing `{protocolMsgs.Count}' protocol messages");
                 foreach (var message in protocolMsgs)
                 {
+                    if (message == null)
+                        break;
+
                     try
                     {
                         await processCallback(message, msgArbiter).ConfigureAwait(true);
@@ -474,14 +478,19 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
+
                 consumer.ProcessState = IoJob<IoCcProtocolMessage>.State.Consumed;
 
                 stopwatch.Stop();
                 //_logger.Trace($"{(RoutedRequest ? "V>" : "X>")} Processed `{protocolMsgs.Count}' consumer: t = `{stopwatch.ElapsedMilliseconds:D}', `{protocolMsgs.Count * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} t/s'");
             }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Error processing message batch");
+            }
             finally
             {
-                ((IoCcProtocolMessage)consumer).Messages = null;
+                ArrayPool<Tuple<IMessage, object, Proto.Packet>>.Shared.Return(((IoCcProtocolMessage)consumer).Messages);
             }
         }
 

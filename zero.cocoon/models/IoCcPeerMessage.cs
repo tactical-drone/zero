@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -27,6 +28,8 @@ namespace zero.cocoon.models
             loadDescription, jobDescription, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
+
+            _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
 
             DatumSize = 508;
 
@@ -87,7 +90,7 @@ namespace zero.cocoon.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length = 4;
+        public int parm_forward_queue_length = 20;
 
 
         /// <summary>
@@ -110,6 +113,13 @@ namespace zero.cocoon.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_ave_msg_sec_hist = 10 * 2;
+
+        /// <summary>
+        /// Maximum number of datums this buffer can hold
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_msg_batch_size = 10;
 
         /// <summary>
         /// 
@@ -148,8 +158,6 @@ namespace zero.cocoon.models
 #if SAFE_RELEASE
             ProducerUserData = null;
             ProtocolChannel = null;
-
-
 #endif
         }
 
@@ -158,6 +166,7 @@ namespace zero.cocoon.models
         /// </summary>
         protected override void ZeroManaged()
         {
+
             base.ZeroManaged();
         }
 
@@ -362,7 +371,7 @@ namespace zero.cocoon.models
                     return ProcessState = State.ConInvalid;
 
                 var verified = false;
-                _protocolMsgBatch = new List<Tuple<IMessage, object, Packet>>();
+                //_protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(1000);
                 for (var i = 0; i <= DatumCount; i++)
                 {
                     var read = stream.Position;
@@ -391,30 +400,32 @@ namespace zero.cocoon.models
                         switch (messageType)
                         {
                             case nameof(MessageTypes.Ping):
-                                ProcessRequest<Ping>(packet);
+                                await ProcessRequest<Ping>(packet);
                                 break;
                             case nameof(MessageTypes.Pong):
-                                ProcessRequest<Pong>(packet);
+                                await ProcessRequest<Pong>(packet);
                                 break;
                             case nameof(MessageTypes.DiscoveryRequest):
-                                ProcessRequest<DiscoveryRequest>(packet);
+                                await ProcessRequest<DiscoveryRequest>(packet);
                                 break;
                             case nameof(MessageTypes.DiscoveryResponse):
-                                ProcessRequest<DiscoveryResponse>(packet);
+                                await ProcessRequest<DiscoveryResponse>(packet);
                                 break;
                             case nameof(MessageTypes.PeeringRequest):
-                                ProcessRequest<PeeringRequest>(packet);
+                                await ProcessRequest<PeeringRequest>(packet);
                                 break;
                             case nameof(MessageTypes.PeeringResponse):
-                                ProcessRequest<PeeringResponse>(packet);
+                                await ProcessRequest<PeeringResponse>(packet);
                                 break;
                             case nameof(MessageTypes.PeeringDrop):
-                                ProcessRequest<PeeringDrop>(packet);
+                                await ProcessRequest<PeeringDrop>(packet);
                                 break;
                             default:
                                 _logger.Debug($"Unknown auto peer msg type = {Buffer[BufferOffset - 1]}");
                                 break;
                         }
+
+                        await ForwardToNeighborAsync();
                     }
                 }
             }
@@ -427,15 +438,17 @@ namespace zero.cocoon.models
                 UpdateBufferMetaData();
             }
 
-            if (_protocolMsgBatch.Count > 0)
-            {
-                await ForwardToNeighborAsync(_protocolMsgBatch);
-            }
+            //if (_protocolMsgBatch.Count > 0)
+            //{
+            //    await ForwardToNeighborAsync(_protocolMsgBatch);
+            //}
 
             return ProcessState = State.Consumed;
         }
 
-        private void ProcessRequest<T>(Packet packet)
+        private int _protocolMsgBatchIndex = 0;
+
+        private async Task ProcessRequest<T>(Packet packet)
         where T : IMessage<T>, new()
         {
             try
@@ -447,7 +460,12 @@ namespace zero.cocoon.models
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
 
-                    _protocolMsgBatch.Add(Tuple.Create((IMessage)request, ProducerUserData, packet));
+                    if(_protocolMsgBatchIndex < parm_max_msg_batch_size)
+                        _protocolMsgBatch[_protocolMsgBatchIndex++] = Tuple.Create((IMessage)request, ProducerUserData, packet);
+                    else
+                    {
+                        await ForwardToNeighborAsync();
+                    }
                 }
             }
             catch (Exception e)
@@ -456,15 +474,25 @@ namespace zero.cocoon.models
             }
         }
 
-        private async Task ForwardToNeighborAsync(List<Tuple<IMessage, object, Packet>> newInteropTransactions)
+        private async Task ForwardToNeighborAsync()
         {
+            if(_protocolMsgBatchIndex == 0)
+                return;
+
+            if (_protocolMsgBatchIndex < parm_max_msg_batch_size )
+                _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
+
             //cog the source
             await ProtocolChannel.Source.ProduceAsync(source =>
             {
                 if (ProtocolChannel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                    ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(newInteropTransactions);
+                    ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(_protocolMsgBatch);
                 else
-                    ((IoCcProtocolBuffer)source).MessageQueue.Add(newInteropTransactions);
+                    ((IoCcProtocolBuffer)source).MessageQueue.Add(_protocolMsgBatch);
+
+                _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
+
+                _protocolMsgBatchIndex = 0;
 
                 return Task.FromResult(true);
             }).ConfigureAwait(true);
@@ -476,6 +504,6 @@ namespace zero.cocoon.models
             }
         }
 
-        List<Tuple<IMessage, object, Packet>> _protocolMsgBatch = new List<Tuple<IMessage, object, Packet>>();
+        private Tuple<IMessage, object, Packet>[] _protocolMsgBatch;
     }
 }

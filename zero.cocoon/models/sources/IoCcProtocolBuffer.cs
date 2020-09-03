@@ -18,7 +18,7 @@ namespace zero.cocoon.models.sources
         {
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
-            MessageQueue = new BlockingCollection<List<Tuple<IMessage, object, Packet>>>(bufferSize);
+            MessageQueue = new BlockingCollection<Tuple<IMessage, object, Packet>[]>(bufferSize);
         }
 
         /// <summary>
@@ -29,7 +29,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public BlockingCollection<List<Tuple<IMessage, object, Packet>>> MessageQueue;
+        public BlockingCollection<Tuple<IMessage, object, Packet>[]> MessageQueue;
 
         /// <summary>
         /// Keys this instance.
@@ -46,7 +46,7 @@ namespace zero.cocoon.models.sources
                 try
                 {
                     if(!Zeroed())
-                        return $"{MessageQueue.Select(m => m.Count > 0 ? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
+                        return $"{MessageQueue.Select(m => m.Length > 0 ? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
                 }
                 catch (Exception e)
                 {

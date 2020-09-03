@@ -25,7 +25,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public List<Tuple<IMessage,object, Proto.Packet>> Messages;
+        public Tuple<IMessage,object, Proto.Packet>[] Messages;
 
         /// <summary>
         /// Callback the generates the next job
