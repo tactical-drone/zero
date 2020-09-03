@@ -47,7 +47,7 @@ namespace zero.cocoon.models
                 //Init buffers
                 BufferSize = DatumSize * parm_datums_per_buffer;
                 DatumProvisionLengthMax = DatumSize - 1;
-                DatumProvisionLength = DatumProvisionLengthMax;
+                //DatumProvisionLength = DatumProvisionLengthMax;
                 Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             }
         }
@@ -201,7 +201,7 @@ namespace zero.cocoon.models
 
                                         ProcessState = State.Produced;
 
-                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
+                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
                                         break;
                                     default:
                                         ProcessState = State.ProduceErr;
@@ -252,7 +252,7 @@ namespace zero.cocoon.models
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
                     Interlocked.Add(ref BufferOffset, -bytesToTransfer);
-                    Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
+                    //Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
                     StillHasUnprocessedFragments = DatumFragmentLength > 0;
@@ -277,7 +277,7 @@ namespace zero.cocoon.models
 
         public override async Task<State> ConsumeAsync()
         {
-            TransferPreviousBits();
+            //TransferPreviousBits();
 
             if (BytesRead == 0)
                 return ProcessState = State.Consumed;

@@ -33,19 +33,22 @@ namespace zero.cocoon.models
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
-            DatumProvisionLength = DatumProvisionLengthMax;
+            //DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
-            IoCcProtocolBuffer protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
-            if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+            if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
-                Source.ZeroOnCascade(protocol);
+                var protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
+                if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+                {
+                    Source.ZeroOnCascade(protocol);
 
-                ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), false, protocol,
-                    userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+                    ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), false, protocol,
+                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
 
-                ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
-                ProtocolChannel.parm_producer_start_retry_time = 0;
+                    ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+                    ProtocolChannel.parm_producer_start_retry_time = 0;
+                }
             }
             else
             {
@@ -92,7 +95,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 250;
+        public int parm_datums_per_buffer = 2;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -224,12 +227,12 @@ namespace zero.cocoon.models
                                             ProcessState = State.ProduceTo;
                                             return;
                                         }
-                                        
+
                                         //rate limit
                                         _msgCount++;
                                         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                                         var delta = now - _msgRateCheckpoint;
-                                        if (_msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms )
+                                        if (_msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms)
                                         {
                                             BytesRead = 0;
                                             ProcessState = State.ProduceTo;
@@ -247,16 +250,11 @@ namespace zero.cocoon.models
 
                                         BytesRead = rx.Result;
 
-                                        //Set how many datums we have available to process
-                                        DatumCount = BytesLeftToProcess / DatumSize;
-                                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
-
-                                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                                        UpdateBufferMetaData();
 
                                         ProcessState = State.Produced;
 
-                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
+                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
                                         break;
                                     default:
@@ -295,60 +293,81 @@ namespace zero.cocoon.models
             return ProcessState;
         }
 
-        private void TransferPreviousBits()
+        /// <summary>
+        /// Updates buffer meta data
+        /// </summary>
+        private void UpdateBufferMetaData()
         {
-            if (Previous?.StillHasUnprocessedFragments ?? false)
-            {
-                var previousJobFragment = (IoMessage<IoCcPeerMessage>)Previous;
-                try
-                {
-                    var bytesToTransfer = previousJobFragment.DatumFragmentLength;
-                    BufferOffset -= bytesToTransfer;
-                    DatumProvisionLength -= bytesToTransfer;
-                    DatumCount = BytesLeftToProcess / DatumSize;
-                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
+            //Set how many datums we have available to process
+            DatumCount = BytesLeftToProcess / DatumSize;
+            DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                    //TODO
-                    Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
-                }
-                catch (Exception e) // we de-synced 
-                {
-                    _logger.Warn(e, $"{TraceDescription} We desynced!:");
-
-                    Source.Synced = false;
-                    DatumCount = 0;
-                    BytesRead = 0;
-                    ProcessState = State.Consumed;
-                    DatumFragmentLength = 0;
-                    StillHasUnprocessedFragments = false;
-                }
-            }
-
+            //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+            StillHasUnprocessedFragments = DatumFragmentLength > 0;
         }
 
+        /// <summary>
+        /// Handle fragments
+        /// </summary>
+        private void TransferPreviousBits()
+        {
+            if (!(Previous?.StillHasUnprocessedFragments ?? false)) return;
 
-        protected IoCcNode CcNode => ((IoCcNeighbor) IoZero).CcNode;
+            var p = (IoMessage<IoCcPeerMessage>)Previous;
+            try
+            {
+                var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
+                Interlocked.Add(ref BufferOffset, -bytesToTransfer);
+                Interlocked.Add(ref BytesRead, bytesToTransfer);
+                
+                UpdateBufferMetaData();
 
-        //public static IoCcIdentity CcId = IoCcIdentity.Generate(true);
+                Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0), Buffer, BufferOffset, bytesToTransfer);
+            }
+            catch (Exception e) // we de-synced 
+            {
+                _logger.Warn(e, $"{TraceDescription} We desynced!:");
+
+                Source.Synced = false;
+                DatumCount = 0;
+                BytesRead = 0;
+                ProcessState = State.ConInvalid;
+                DatumFragmentLength = 0;
+                StillHasUnprocessedFragments = false;
+            }
+        }
+
+        /// <summary>
+        /// CC Node
+        /// </summary>
+        protected IoCcNode CcNode => ((IoCcNeighbor)IoZero).CcNode;
+
+        /// <summary>
+        /// Cc Identity
+        /// </summary>
         public IoCcIdentity CcId => CcNode.CcId;
 
+        /// <summary>
+        /// Message sink
+        /// </summary>
+        /// <returns>Processing state</returns>
         public override async Task<State> ConsumeAsync()
         {
-            //TransferPreviousBits();
-
-            if (BytesRead == 0)
-                return ProcessState = State.ConInvalid;
-
             var stream = ByteStream;
             try
             {
+                //TransferPreviousBits();
+
+                if (BytesRead == 0)
+                    return ProcessState = State.ConInvalid;
+
                 var verified = false;
                 _protocolMsgBatch = new List<Tuple<IMessage, object, Packet>>();
                 for (var i = 0; i <= DatumCount; i++)
                 {
+                    var read = stream.Position;
                     var packet = Packet.Parser.ParseFrom(stream);
-
+                    Interlocked.Add(ref BufferOffset, (int) (stream.Position - read));
 
                     if (packet.Data != null && packet.Data.Length > 0)
                     {
@@ -363,10 +382,10 @@ namespace zero.cocoon.models
                         //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                         var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
                         packet.Type = packet.Data[0];
-                        _logger.Trace($"{messageType??"Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{(IPEndPoint)ProducerUserData}'");
+                        _logger.Trace($"{messageType ?? "Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, source = `{(IPEndPoint)ProducerUserData}'");
 
                         //Don't process unsigned or unknown messages
-                        if(!verified || messageType == null)
+                        if (!verified || messageType == null)
                             continue;
 
                         switch (messageType)
@@ -405,7 +424,7 @@ namespace zero.cocoon.models
             }
             finally
             {
-                //BufferOffset += Math.Min(BytesLeftToProcess, DatumSize);
+                UpdateBufferMetaData();
             }
 
             if (_protocolMsgBatch.Count > 0)
@@ -448,10 +467,10 @@ namespace zero.cocoon.models
                     ((IoCcProtocolBuffer)source).MessageQueue.Add(newInteropTransactions);
 
                 return Task.FromResult(true);
-            }).ConfigureAwait(false);
+            }).ConfigureAwait(true);
 
             //forward transactions
-            if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
+            if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(true))
             {
                 _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
             }

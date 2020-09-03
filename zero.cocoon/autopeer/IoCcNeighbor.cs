@@ -131,10 +131,12 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public bool Verified { get; protected set; }
 
+        private volatile int _direction;
         /// <summary>
         /// Who contacted who?
         /// </summary>
-        public Kind Direction { get; protected set; } = Kind.Undefined;
+        //public Kind Direction { get; protected set; } = Kind.Undefined;
+        public Kind Direction => (Kind) _direction;
 
         /// <summary>
         /// inbound
@@ -464,7 +466,7 @@ namespace zero.cocoon.autopeer
                 {
                     try
                     {
-                        await processCallback(message, msgArbiter).ConfigureAwait(false);
+                        await processCallback(message, msgArbiter).ConfigureAwait(true);
                     }
                     catch (Exception e)
                     {
@@ -553,14 +555,14 @@ namespace zero.cocoon.autopeer
                             }
 #pragma warning restore 4014
                             return Task.CompletedTask;
-                        }); //dont'.ConfigureAwait(false);
+                        }).ConfigureAwait(true); //dont'.ConfigureAwait(false);
                     }
                     finally
                     {
                         if (batch != null && batch.ProcessState != IoJob<IoCcProtocolMessage>.State.Consumed)
                             batch.ProcessState = IoJob<IoCcProtocolMessage>.State.ConsumeErr;
                     }
-                });//don't ConfigureAwait(false);
+                }).ConfigureAwait(true);//don't ConfigureAwait(false);
 
                 if (!_protocolChannel.Source.IsOperational)
                     break;
@@ -620,37 +622,21 @@ namespace zero.cocoon.autopeer
                 ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.ToByteArray())),
                 Status = Direction == Kind.Inbound || CcNode.InboundCount < CcNode.parm_max_inbound
             };
-            var wasInbound = false;
+            var wasInbound = Direction == Kind.Inbound ;
 
-            lock (this)
+
+            if (peeringResponse.Status && Interlocked.CompareExchange(ref _direction, (int) Kind.Inbound, (int) Kind.Undefined) == (int)Kind.Undefined)
             {
-                //If not selected, select inbound
-                if (Direction == Kind.Undefined)
-                {
-                    Direction = peeringResponse.Status? Kind.Inbound : Direction;
-                }
-                else if (Direction == Kind.OutBound) //If it is outbound say no
-                {
-                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering {Kind.Inbound} Rejected: {Id} is already {Kind.OutBound}");
-                    peeringResponse.Status = false;
-                }
-                else if (Direction == Kind.Inbound)
-                {
-                    wasInbound = true;
-                }
+                await SendDiscoveryRequestAsync();
             }
-
-            //Discovery request
-            if (!wasInbound)
+            else if (Direction == Kind.OutBound) //If it is outbound say no
             {
-                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound?"Open":"FULL")}), currently {Direction}: {Id}");
-
-                if( Direction == Kind.Inbound)
-                    await SendDiscoveryRequestAsync();
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering {Kind.Inbound} Rejected: {Id} is already {Kind.OutBound}");
+                peeringResponse.Status = false;
             }
-            else
+            else if (wasInbound)
             {
-                if (Peer != null && PeerConnectedAtLeastOnce && (!Peer.Source.IsOperational ))// || !Peer.IsArbitrating)) //TODO
+                if (Peer != null && PeerConnectedAtLeastOnce && (!Peer.Source.IsOperational))// || !Peer.IsArbitrating)) //TODO
                 {
                     _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Found zombie {Direction} peer({(PeerConnectedAtLeastOnce ? "C" : "DC")}) {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
                     Peer?.Zero(this);
@@ -660,6 +646,7 @@ namespace zero.cocoon.autopeer
                     _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Peering Re-/Authorized... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
                 }
             }
+            _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound ? "Open" : "FULL")}), currently {Direction}: {Id}");
 
             _logger.Trace($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Sent Allow Status = {peeringResponse.Status}, Capacity = {-CcNode.Neighbors.Count + CcNode.MaxClients}");
             await SendMessage(RemoteAddress, peeringResponse.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringResponse);
@@ -696,39 +683,21 @@ namespace zero.cocoon.autopeer
 
             _logger.Trace($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Got status = {response.Status}");
 
-            var alreadyOutbound = false;
-            lock (this)
+            var alreadyOutbound = Direction == Kind.OutBound;
+            if (response.Status && Interlocked.CompareExchange(ref _direction, (int)Kind.OutBound, (int)Kind.Undefined) == (int)Kind.Undefined)
             {
-                if (Direction == Kind.Undefined)
-                    Direction = response.Status? Kind.OutBound : Direction;
-                else if (Direction == Kind.Inbound)
-                {
-                    _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: {nameof(Kind.OutBound)} request dropped, {nameof(Kind.Inbound)} received");
-                }
-                else if(Direction == Kind.OutBound)
-                {
-                    alreadyOutbound = true;
-                }
+                if (await CcNode.ConnectToPeer(this))
+                    await SendDiscoveryRequestAsync();
+                Interlocked.Increment(ref _connectionAttempts);
             }
-
-            if (!alreadyOutbound)
+            else if (Direction == Kind.Inbound)
             {
-                //if(response.Status && Direction == Kind.OutBound)
-                //    _logger.Info($"{Kind.OutBound} peering request {(response.Status?"[ACCEPTED]":"[REJECTED]")}, currently {Direction}: {Id}");
-                //else
-                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.OutBound} peering request {(response.Status ? "[ACCEPTED]" : "[REJECTED]")}, currently {Direction}: {Id}");
-
-                if (Direction == Kind.OutBound)
-                {
-                    if(await CcNode.ConnectToPeer(this))
-                        await SendDiscoveryRequestAsync();
-                    Interlocked.Increment(ref _connectionAttempts);
-                }
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}{nameof(PeeringResponse)}: {nameof(Kind.OutBound)} request dropped, {nameof(Kind.Inbound)} received");
             }
-            else
+            else if (alreadyOutbound)
             {
                 //_logger.Fatal($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Not expected, already {nameof(Kind.OutBound)}");
-                if (Peer != null && PeerConnectedAtLeastOnce && (!Peer.Source.IsOperational ))// || !Peer.IsArbitrating))
+                if (Peer != null && PeerConnectedAtLeastOnce && (!Peer.Source.IsOperational))// || !Peer.IsArbitrating))
                 {
                     _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Found zombie {Direction} peer({(PeerConnectedAtLeastOnce ? "C" : "DC")}) {Id}, Operational = {Peer?.Source?.IsOperational}, Arbitrating = {Peer?.IsArbitrating}");
                     Peer?.Zero(this);
@@ -1212,7 +1181,7 @@ namespace zero.cocoon.autopeer
                             var task = Task.Factory.StartNew(async () =>
                             {
                                 var sw = Stopwatch.StartNew();
-                                if (!await _pingRequestBarrier.WaitAsync( _random.Next(parm_ping_timeout * 2) + parm_ping_timeout * _pingRequestBarrier.CurrentCount).ConfigureAwait(false))
+                                if (!await _pingRequestBarrier.WaitAsync( _random.Next(parm_ping_timeout * 2) + parm_ping_timeout * _pingRequestBarrier.CurrentCount).ConfigureAwait(true))
                                 {
                                     sw.Stop();
                                     _logger.Debug($"{(RoutedRequest?"V>":"X>")} {nameof(Ping)}:Probe {ccNeighbor.RemoteAddress ?? dest}, timed out! waited = {sw.ElapsedMilliseconds}ms, blokers = {_pingRequestBarrier.CurrentCount}");
@@ -1418,7 +1387,7 @@ namespace zero.cocoon.autopeer
                 Unsubscribe(_neighborZeroSub);
             _neighborZeroSub = null;
             peer?.DetachNeighbor();
-            Direction = Kind.Undefined;
+            Interlocked.Exchange(ref _direction, 0);
             Verified = false;
             ExtGossipAddress = null;
             KeepAliveSec = 0;

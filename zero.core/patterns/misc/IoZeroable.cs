@@ -46,7 +46,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Are we disposed?
         /// </summary>
-        private volatile bool _zeroed;
+        private volatile int _zeroed;
 
         /// <summary>
         /// All subscriptions
@@ -67,11 +67,11 @@ namespace zero.core.patterns.misc
         /// </summary>
         public Task Zero(IIoZeroable from)
         {
-            lock (this)
-            {
-                if (!_zeroed && from != this)
-                    ZeroedFrom = from;
-            }
+            if (_zeroed > 0)
+                return Task.CompletedTask;
+
+            if (from != this)
+                ZeroedFrom = from;
 
             Dispose();
 
@@ -101,7 +101,7 @@ namespace zero.core.patterns.misc
         {
             lock (this)
             {
-                return _zeroed;
+                return _zeroed > 0;
             }
         }
 
@@ -164,16 +164,19 @@ namespace zero.core.patterns.misc
         /// Our dispose implementation
         /// </summary>
         /// <param name="disposing">Whether we are disposing unmanaged objects</param>
-        protected virtual void Zero(bool disposing)
+        protected virtual async void Zero(bool disposing)
         {
-            lock (this)
-            {
-                if (_zeroed)
-                    return;
+            if( Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0 )
+                return;
 
-                _zeroed = true;
-                PrintPathToZero();
-            }
+            //lock (this)
+            //{
+            //    if (_zeroed > 0)
+            //        return;
+
+            //    Interlocked.Increment(ref _zeroed);
+            //    //PrintPathToZero();
+            //}
             
             AsyncTasks.Cancel();
 
@@ -182,7 +185,7 @@ namespace zero.core.patterns.misc
             {
                 try
                 {
-                    handler(this)?.GetAwaiter().GetResult();
+                    await handler(this).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {

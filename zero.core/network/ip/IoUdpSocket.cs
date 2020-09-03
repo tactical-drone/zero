@@ -278,9 +278,19 @@ namespace zero.core.network.ip
 
                 return read;
             }
+            catch (NullReferenceException) { await Zero(this); return 0; }
+            catch (TaskCanceledException) { await Zero(this); return 0; }
+            catch (OperationCanceledException) { await Zero(this); return 0; }
+            catch (ObjectDisposedException) { await Zero(this); return 0; }
+            catch (SocketException e)
+            {
+                _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+                return 0;
+            }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+                await Zero(this);
                 return 0;
             }
         }

@@ -38,18 +38,15 @@ namespace zero.core.models
         /// </summary>
         public sbyte[] Buffer;
 
-
         /// <summary>
         /// A <see cref="byte"/> span of the input buffer
         /// </summary>
         public ReadOnlySpan<byte> BufferSpan => ByteBuffer.AsSpan();
 
-
         /// <summary>
         /// A byte array cast of the buffer
         /// </summary>
         public byte[] ByteBuffer => (byte[]) (Array) Buffer;
-
 
         /// <summary>
         /// Stream access to the input
@@ -67,7 +64,7 @@ namespace zero.core.models
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
 
         /// <summary>
-        /// The number of bytes processed from the buffer
+        /// The current offset
         /// </summary>
         public volatile int BufferOffset;
 
@@ -91,10 +88,10 @@ namespace zero.core.models
         /// </summary>
         public volatile int DatumProvisionLengthMax;
 
-        /// <summary>
-        /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
-        /// </summary>
-        public volatile int DatumProvisionLength;
+        ///// <summary>
+        ///// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
+        ///// </summary>
+        //public volatile int DatumProvisionLength;
 
         /// <summary>
         /// Message receive buffer size
@@ -108,7 +105,7 @@ namespace zero.core.models
         public override IIoHeapItem Constructor()
         {
             BytesRead = 0;
-            DatumProvisionLength = DatumProvisionLengthMax;
+            //DatumProvisionLength = DatumProvisionLengthMax;
             BufferOffset = DatumProvisionLengthMax;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?

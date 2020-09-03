@@ -292,6 +292,10 @@ namespace zero.core.network.ip
 
                 return 0;
             }
+            catch (NullReferenceException) { await Zero(this); return 0; }
+            catch (TaskCanceledException) { await Zero(this); return 0; }
+            catch (OperationCanceledException) { await Zero(this); return 0; }
+            catch (ObjectDisposedException) { await Zero(this); return 0; }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
@@ -364,18 +368,22 @@ namespace zero.core.network.ip
             }
             catch (NullReferenceException)
             {
+                await Zero(this);
                 return 0;
             }
             catch (TaskCanceledException)
             {
+                await Zero(this);
                 return 0;
             }
             catch (OperationCanceledException)
             {
+                await Zero(this);
                 return 0;
             }
             catch (ObjectDisposedException)
             {
+                await Zero(this);
                 return 0;
             }
             catch (SocketException e)

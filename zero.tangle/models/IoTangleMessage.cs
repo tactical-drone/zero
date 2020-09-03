@@ -44,7 +44,7 @@ namespace zero.tangle.models
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
-            DatumProvisionLength = DatumProvisionLengthMax;
+            //DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
 
             //forward to node services
@@ -208,7 +208,7 @@ namespace zero.tangle.models
                                     _logger.Trace($"{TraceDescription} Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
                                                   $"imported = `{((IoTangleMessage<TKey>)Previous).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
-                                                  $"BufferOffset = `{BufferOffset - DatumProvisionLength}', " +
+                                                  $"BufferOffset = `{BufferOffset - DatumProvisionLengthMax}', " +
                                                   $"BytesLeftToProcess = `{BytesLeftToProcess}', " +
                                                   $"DatumFragmentLength = `{DatumFragmentLength}', " +                                                  
                                                   $"PB = `{Source.ProducerBarrier.CurrentCount}', " +
@@ -432,7 +432,7 @@ namespace zero.tangle.models
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;                    
                     BufferOffset -= bytesToTransfer;                    
-                    DatumProvisionLength -= bytesToTransfer;
+                    //DatumProvisionLength -= bytesToTransfer;
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
                     StillHasUnprocessedFragments = DatumFragmentLength > 0;
@@ -560,7 +560,7 @@ namespace zero.tangle.models
 
                                         ProcessState = State.Produced;
 
-                                        _logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLength}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLength) * 100)}%'");
+                                        _logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
                                         break;
                                     default:

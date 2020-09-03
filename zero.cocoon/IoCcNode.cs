@@ -91,6 +91,10 @@ namespace zero.cocoon
                             }
                         }
                     }
+                    catch (NullReferenceException) { }
+                    catch (TaskCanceledException) { }
+                    catch (OperationCanceledException) { }
+                    catch (ObjectDisposedException) { }
                     catch (Exception e)
                     {
                         _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");
@@ -273,7 +277,7 @@ namespace zero.cocoon
 
                 if (await HandshakeAsync((IoCcPeer) peer))
                 {
-                    _logger.Info($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
+                    _logger.Debug($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
                     return true;
                 }
                 
@@ -549,7 +553,7 @@ namespace zero.cocoon
                                     {
                                         if (await HandshakeAsync((IoCcPeer)peer.Result))
                                         {
-                                            _logger.Info($"Peer {neighbor.Direction}: Connected! ({peer.Result.Id}:{neighbor.RemoteAddress.Port})");
+                                            _logger.Debug($"Peer {neighbor.Direction}: Connected! ({peer.Result.Id}:{neighbor.RemoteAddress.Port})");
                                             NeighborTasks.Add(peer.Result.SpawnProcessingAsync());
                                         }
                                         else
@@ -581,8 +585,6 @@ namespace zero.cocoon
                 _logger.Trace($"Handled {neighbor.Description}");
                 return false;
             }
-
-            return false;
         }
     }
 }
