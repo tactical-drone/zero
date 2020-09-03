@@ -72,6 +72,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
+        //public int parm_producer_wait_for_consumer_timeout = 10*60 * 1000; //TODO make this adapting    
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting    
 
         /// <summary>
@@ -185,6 +186,7 @@ namespace zero.cocoon.models
                                         //TODO WTF
                                         if (BytesRead == 0)
                                         {
+                                            ProcessState = State.ProduceTo;
                                             break;
                                         }
                                             
@@ -207,7 +209,7 @@ namespace zero.cocoon.models
                                         ProcessState = State.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                                 }
-                            }, AsyncTasks.Token).ConfigureAwait(false);
+                            }, AsyncTasks.Token).ConfigureAwait(true);
                     }
                     else
                     {

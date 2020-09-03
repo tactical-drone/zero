@@ -46,8 +46,13 @@ namespace zero.cocoon.models
                 {
                     Source.ZeroOnCascade(protocol);
 
-                    ProtocolChannel = Source.AttachProducer(nameof(IoCcNeighbor), false, protocol,
-                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/));
+                    ProtocolChannel = Source.AttachProducer(
+                        nameof(IoCcNeighbor), 
+                        false, 
+                        protocol,
+                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/), 
+                        1,2
+                        );
 
                     ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
                     ProtocolChannel.parm_producer_start_retry_time = 0;
@@ -90,7 +95,7 @@ namespace zero.cocoon.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length = 20;
+        public int parm_forward_queue_length = 1000;
 
 
         /// <summary>
@@ -158,6 +163,8 @@ namespace zero.cocoon.models
 #if SAFE_RELEASE
             ProducerUserData = null;
             ProtocolChannel = null;
+            Buffer = null;
+            _protocolMsgBatch = null;
 #endif
         }
 
@@ -166,7 +173,8 @@ namespace zero.cocoon.models
         /// </summary>
         protected override void ZeroManaged()
         {
-
+            if(_protocolMsgBatch != null)
+                ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Return(_protocolMsgBatch);
             base.ZeroManaged();
         }
 
@@ -230,11 +238,11 @@ namespace zero.cocoon.models
                                         ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
                                         //Drop zero reads
-                                        if (rx.GetAwaiter().GetResult() == 0)
+                                        if (rx.Result == 0)
                                         {
                                             BytesRead = 0;
                                             ProcessState = State.ProduceTo;
-                                            return;
+                                            break;
                                         }
 
                                         //rate limit
@@ -247,7 +255,7 @@ namespace zero.cocoon.models
                                             ProcessState = State.ProduceTo;
                                             _logger.Fatal($"Dropping spam {_msgCount}");
                                             _msgCount -= 2;
-                                            return;
+                                            break;
                                         }
 
                                         //hist reset
@@ -263,20 +271,20 @@ namespace zero.cocoon.models
 
                                         ProcessState = State.Produced;
 
-                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                                        _logger.Trace($"RX=> {GetType().Name} ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
                                         break;
                                     default:
                                         ProcessState = State.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
                                 }
-                            }, AsyncTasks.Token);
+                            }, AsyncTasks.Token).ConfigureAwait(true);
                     }
                     else
                     {
-#pragma warning disable 4014
-                        Source.Zero(this);
-#pragma warning restore 4014
+                        _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
+                        ProcessState = State.Cancelled;
+                        await Source.Zero(this);
                     }
 
                     if (Zeroed())
@@ -285,7 +293,7 @@ namespace zero.cocoon.models
                         return false;
                     }
                     return true;
-                });//don't .ConfigureAwait(false);
+                }).ConfigureAwait(true);//don't .ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -421,13 +429,15 @@ namespace zero.cocoon.models
                                 await ProcessRequest<PeeringDrop>(packet);
                                 break;
                             default:
-                                _logger.Debug($"Unknown auto peer msg type = {Buffer[BufferOffset - 1]}");
+                                _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
                                 break;
                         }
 
                         await ForwardToNeighborAsync();
                     }
                 }
+
+                ProcessState = State.Consumed;
             }
             catch (Exception e)
             {
@@ -435,6 +445,8 @@ namespace zero.cocoon.models
             }
             finally
             {
+                if (ProcessState == State.Consuming)
+                    ProcessState = State.ConsumeErr;
                 UpdateBufferMetaData();
             }
 
@@ -443,7 +455,7 @@ namespace zero.cocoon.models
             //    await ForwardToNeighborAsync(_protocolMsgBatch);
             //}
 
-            return ProcessState = State.Consumed;
+            return ProcessState;
         }
 
         private int _protocolMsgBatchIndex = 0;

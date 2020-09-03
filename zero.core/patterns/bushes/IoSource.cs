@@ -191,9 +191,11 @@ namespace zero.core.patterns.bushes
         /// <param name="cascade">ZeroOnCascade close events</param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
+        /// /// <param name="producers">Nr of concurrent producers</param>
+        /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
         public IoChannel<TFJob> AttachProducer<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
-            Func<object, IoLoad<TFJob>> jobMalloc = null)
+            Func<object, IoLoad<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
         where TFJob : IIoJob
         {
             if (!IoChannels.ContainsKey(id))
@@ -206,7 +208,7 @@ namespace zero.core.patterns.bushes
 
                 lock (this)
                 {
-                    var newChannel = new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc);
+                    var newChannel = new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc, producers, consumers);
                     if (IoChannels.TryAdd(id, newChannel))
                     {
                         ZeroOnCascade(newChannel, cascade);

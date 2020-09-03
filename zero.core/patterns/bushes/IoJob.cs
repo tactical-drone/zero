@@ -106,13 +106,23 @@ namespace zero.core.patterns.bushes
 
         /// <summary>
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
-        /// </summary>      
+        /// </summary>
+#if DEBUG
         public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];//TODO what should this size be?
+#else 
+        public IoWorkStateTransition<TJob>[] StateTransitionHistory;
+#endif
+
 
         /// <summary>
         /// The current state
         /// </summary>
+#if DEBUG
         public volatile IoWorkStateTransition<TJob> CurrentState;
+#else
+        public volatile IoWorkStateTransition<TJob> CurrentState = new IoWorkStateTransition<TJob>();
+#endif
+
 
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
@@ -130,19 +140,28 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>This instance</returns>
         public virtual IIoHeapItem Constructor()
-        {            
+        {
+#if DEBUG
             CurrentState = null;
+            Previous = null;
+#else
+            CurrentState.State = State.Undefined;
+            Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]);
+#endif
 
             ProcessState = State.Undefined;
             StillHasUnprocessedFragments = false;
 
-            var curState = 0;
-            while (StateTransitionHistory[curState] != null)
-            {
-                var prevState = curState;
-                curState = (int) StateTransitionHistory[curState].State;
-                StateTransitionHistory[prevState] = null;
-            }
+            //var curState = 0;
+#if DEBUG
+            Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
+#endif
+            //while (StateTransitionHistory[curState] != null)
+            //{
+            //    var prevState = curState;
+            //    curState = (int) StateTransitionHistory[curState].State;
+            //    StateTransitionHistory[prevState] = null;
+            //}
 
             return this;
         }
@@ -184,6 +203,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public void PrintStateHistory()
         {
+#if !DEBUG
+            return;
+#endif
             var curState = StateTransitionHistory[0];
 
             while (curState != null)
@@ -243,9 +265,8 @@ namespace zero.core.patterns.bushes
                     if (CurrentState.State == State.Finished)
                     {
                         //PrintStateHistory();
-                        //CurrentState.State = State.Reject;
-                        //throw new ApplicationException($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
                         CurrentState.State = State.Race; //TODO
+                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
                     }
 
                     if (CurrentState.State == value)
@@ -266,10 +287,12 @@ namespace zero.core.patterns.bushes
                         //PrintStateHistory();
                         throw new Exception($"{TraceDescription} First state transition history's first transition should be `{State.Undefined}', but is `{value}'");                        
                     }
-                }                                
-                
+                }
+
+#if DEBUG
                 //Allocate memory for a new current state
                 var prevState = CurrentState;
+
                 var newState = new IoWorkStateTransition<TJob>
                 {
                     Previous = prevState,
@@ -283,10 +306,16 @@ namespace zero.core.patterns.bushes
                 //Configure the current state
                 if (prevState != null)
                 {                    
-                    prevState.Next = CurrentState;                    
+                    prevState.Next = CurrentState;
+
                     StateTransitionHistory[(int)prevState.State] = CurrentState;
+
                 }
-                
+#else
+                CurrentState.State = value;
+                CurrentState.EnterTime = DateTime.Now;
+                CurrentState.ExitTime = DateTime.Now;
+#endif
                 //generate a unique id
                 if (value == State.Undefined)
                 {

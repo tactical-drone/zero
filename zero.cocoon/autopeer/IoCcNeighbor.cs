@@ -26,7 +26,7 @@ namespace zero.cocoon.autopeer
 {
     public class IoCcNeighbor : IoNeighbor<IoCcPeerMessage>
     {
-        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient))
+        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 1,5)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -206,6 +206,11 @@ namespace zero.cocoon.autopeer
         /// Seconds since valid
         /// </summary>
         public long LastKeepAliveReceived => DateTimeOffset.UtcNow.ToUnixTimeSeconds() - KeepAliveSec;
+
+        /// <summary>
+        /// loss
+        /// </summary>
+        private long _keepAliveLoss;
 
         /// <summary>
         /// Used to Match requests
@@ -490,7 +495,7 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                ArrayPool<Tuple<IMessage, object, Proto.Packet>>.Shared.Return(((IoCcProtocolMessage)consumer).Messages);
+                ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Return(((IoCcProtocolMessage)consumer).Messages);
             }
         }
 
@@ -504,6 +509,8 @@ namespace zero.cocoon.autopeer
                 _protocolChannel = Source.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
 
             _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Processing peer msgs: `{Description}'");
+
+            Task[] channelTasks = null;
             while (!Zeroed())
             {
                 if (_protocolChannel == null)
@@ -513,68 +520,77 @@ namespace zero.cocoon.autopeer
                     await Task.Delay(2000);//TODO config
                     continue;
                 }
-
-                await _protocolChannel.ConsumeAsync(async batch =>
+                else if( channelTasks == null )
                 {
-                    try
+                    channelTasks = new Task[_protocolChannel.ConsumerCount];
+                }
+
+                for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
+                {
+                    channelTasks[i] = _protocolChannel.ConsumeAsync(async batch =>
                     {
-                        await ProcessMsgBatchAsync(batch, _protocolChannel, (msg, forward) =>
+                        try
                         {
+                            await ProcessMsgBatchAsync(batch, _protocolChannel, (msg, forward) =>
+                            {
 #pragma warning disable 4014
-                            try
-                            {
-                                IoCcNeighbor ccNeighbor = null;
-                                //TODO optimize
-                                Node.Neighbors.TryGetValue(
-                                    MakeId(IoCcIdentity.FromPubKey(msg.Item3.PublicKey.Span),
-                                        IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) msg.Item2)), out var n);
-                                if (n == null)
-                                    ccNeighbor = this;
-                                else
-                                    ccNeighbor = (IoCcNeighbor) n;
-
-                                switch (msg.Item1.GetType().Name)
+                                try
                                 {
-                                    case nameof(Ping):
-                                        ccNeighbor.Process((Ping) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                    case nameof(Pong):
-                                        ccNeighbor.Process((Pong) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                    case nameof(DiscoveryRequest):
-                                        ccNeighbor.Process((DiscoveryRequest) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                    case nameof(DiscoveryResponse):
-                                        ccNeighbor.Process((DiscoveryResponse) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                    case nameof(PeeringRequest):
-                                        ccNeighbor.Process((PeeringRequest) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                    case nameof(PeeringResponse):
-                                        ccNeighbor.Process((PeeringResponse) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                    case nameof(PeeringDrop):
-                                        ccNeighbor.Process((PeeringDrop) msg.Item1, msg.Item2, msg.Item3);
-                                        break;
-                                }
-                            }
-                            catch (Exception e)
-                            {
-                                _logger.Error(e, "Unable to process protocol message");
-                            }
-#pragma warning restore 4014
-                            return Task.CompletedTask;
-                        }).ConfigureAwait(true); //dont'.ConfigureAwait(false);
-                    }
-                    finally
-                    {
-                        if (batch != null && batch.ProcessState != IoJob<IoCcProtocolMessage>.State.Consumed)
-                            batch.ProcessState = IoJob<IoCcProtocolMessage>.State.ConsumeErr;
-                    }
-                }).ConfigureAwait(true);//don't ConfigureAwait(false);
+                                    IoCcNeighbor ccNeighbor = null;
+                                    //TODO optimize
+                                    Node.Neighbors.TryGetValue(
+                                        MakeId(IoCcIdentity.FromPubKey(msg.Item3.PublicKey.Span),
+                                            IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) msg.Item2)), out var n);
+                                    if (n == null)
+                                        ccNeighbor = this;
+                                    else
+                                        ccNeighbor = (IoCcNeighbor) n;
 
-                if (!_protocolChannel.Source.IsOperational)
-                    break;
+                                    switch (msg.Item1.GetType().Name)
+                                    {
+                                        case nameof(Ping):
+                                            ccNeighbor.Process((Ping) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                        case nameof(Pong):
+                                            ccNeighbor.Process((Pong) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                        case nameof(DiscoveryRequest):
+                                            ccNeighbor.Process((DiscoveryRequest) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                        case nameof(DiscoveryResponse):
+                                            ccNeighbor.Process((DiscoveryResponse) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                        case nameof(PeeringRequest):
+                                            ccNeighbor.Process((PeeringRequest) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                        case nameof(PeeringResponse):
+                                            ccNeighbor.Process((PeeringResponse) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                        case nameof(PeeringDrop):
+                                            ccNeighbor.Process((PeeringDrop) msg.Item1, msg.Item2, msg.Item3);
+                                            break;
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    _logger.Error(e, "Unable to process protocol message");
+                                }
+#pragma warning restore 4014
+                                return Task.CompletedTask;
+                            }).ConfigureAwait(true); //dont'.ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            if (batch != null && batch.ProcessState != IoJob<IoCcProtocolMessage>.State.Consumed)
+                                batch.ProcessState = IoJob<IoCcProtocolMessage>.State.ConsumeErr;
+                        }
+                    });//don't ConfigureAwait(false);
+
+                    if (!_protocolChannel.Source.IsOperational)
+                        break;
+                }
+
+                await Task.WhenAll(channelTasks).ConfigureAwait(true);
             }
 
             _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Stopped processing peer msgs: `{Description}'");
@@ -954,7 +970,6 @@ namespace zero.cocoon.autopeer
                 }
             };
 
-            IoNodeAddress toProxyAddress = null;
             IoNodeAddress toAddress = IoNodeAddress.Create($"udp://{remoteEp.Address}:{ping.SrcPort}");
             var id = MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), toAddress);
 
@@ -975,6 +990,7 @@ namespace zero.cocoon.autopeer
             }
             else//new neighbor 
             {
+                IoNodeAddress toProxyAddress = null;
                 if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)
                 {
                     toProxyAddress = IoNodeAddress.Create($"udp://{ping.SrcAddr}:{ping.SrcPort}");
@@ -988,7 +1004,7 @@ namespace zero.cocoon.autopeer
 
                 await SendMessage(toAddress, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
 
-                if (toAddress.Ip != toProxyAddress.Ip)
+                if (CcNode.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
                     await SendMessage(toAddress, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong);
 
                 _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Probing new destination Id = {id}:{ping.SrcPort}, to = {toAddress}");
@@ -1016,7 +1032,7 @@ namespace zero.cocoon.autopeer
                 if (RoutedRequest)
                 {
                     if(KeepAlives > 0)
-                        _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}({GetHashCode()}):  Unexpected!, t = {KeepAlives},  s = {LastKeepAliveReceived}, d = {(Uptime>0? (Uptime - KeepAliveSec).ToString():"N/A")}, v = {Verified}, id = {Id}:{RemoteAddress.Port}");
+                        _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}({GetHashCode()}):  Unexpected!, t = {KeepAlives},  s = {LastKeepAliveReceived}, l = {Interlocked.Read(ref _keepAliveLoss)}, d = {(Uptime>0? (Uptime - KeepAliveSec).ToString():"N/A")}, v = {Verified}, id = {Id}:{RemoteAddress.Port}");
                     //Node.Neighbors.Where(kv=> ((IoCcNeighbor)kv.Value).RoutedRequest).ToList().ForEach(kv=>_logger.Fatal($"{kv.Value.Id}:{((IoCcNeighbor)kv.Value).RemoteAddress.Port}"));
                 }
                 else { } //ignore
@@ -1039,6 +1055,7 @@ namespace zero.cocoon.autopeer
 
             KeepAliveSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             Interlocked.Increment(ref _keepAlives);
+            Interlocked.Decrement(ref _keepAliveLoss);
 
             //Unknown source IP
             if (!RoutedRequest)
@@ -1162,8 +1179,12 @@ namespace zero.cocoon.autopeer
                     await SendMessage(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping).ContinueWith(
                         r =>
                         {
-                            if(r.IsCompletedSuccessfully)
+                            if (r.IsCompletedSuccessfully)
+                            {
                                 _pingRequest = pingRequest;
+                                Interlocked.Increment(ref _keepAliveLoss);
+                            }
+                                
                         });
                 }
                 else
@@ -1201,7 +1222,11 @@ namespace zero.cocoon.autopeer
                                     r =>
                                     {
                                         if (r.IsCompletedSuccessfully)
+                                        {
                                             ccNeighbor._pingRequest = pingRequest;
+                                            Interlocked.Increment(ref ccNeighbor._keepAliveLoss);
+                                        }
+                                            
                                     }).ConfigureAwait(false);
 
                             }, TaskCreationOptions.LongRunning).ConfigureAwait(false);
@@ -1212,7 +1237,10 @@ namespace zero.cocoon.autopeer
                             r =>
                             {
                                 if (r.IsCompletedSuccessfully)
+                                {
                                     ccNeighbor._pingRequest = pingRequest;
+                                    Interlocked.Increment(ref ccNeighbor._keepAliveLoss);
+                                }
                             });
                         return;
                     }

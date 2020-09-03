@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime;
 using System.Threading;
+using Microsoft.AspNetCore.Mvc;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.misc;
@@ -143,10 +144,13 @@ namespace zero.core.patterns.heap
                     return item;
                 }
             }
-            catch (NullReferenceException)
+            catch (NullReferenceException) { }
+            catch (Exception e)
             {
-                return null;
+                _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
             }
+
+            return null;
         }
 
         /// <summary>

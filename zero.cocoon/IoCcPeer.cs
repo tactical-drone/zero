@@ -122,7 +122,7 @@ namespace zero.cocoon
         /// <param name="neighbor"></param>
         public bool AttachNeighbor(IoCcNeighbor neighbor)
         {
-            lock (this)
+            //lock (this)
             {
                 //if (Neighbor == neighbor || Neighbor != null)
                 //{

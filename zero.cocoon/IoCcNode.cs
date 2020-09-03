@@ -43,7 +43,7 @@ namespace zero.cocoon
 
             _autoPeering = ZeroOnCascade(new IoCcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead), true);
 
-            Task.Run(async () =>
+            Task.Factory.StartNew(async () =>
             {
                 var inbound = 0;
                 var outbound = 0;
@@ -51,7 +51,7 @@ namespace zero.cocoon
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 while (true)
                 {
-                    await Task.Delay(1000, AsyncTasks.Token);
+                    await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
@@ -75,9 +75,9 @@ namespace zero.cocoon
                             {
                                 if (Zeroed())
                                     break;
-                                await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync();
+                                await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync().ConfigureAwait(false);
 
-                                await Task.Delay(1000, AsyncTasks.Token);
+                                await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
                             }
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl))
@@ -85,9 +85,9 @@ namespace zero.cocoon
                                 if (Zeroed())
                                     break;
 
-                                await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync();
+                                await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
 
-                                await Task.Delay(1000, AsyncTasks.Token);
+                                await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
                             }
                         }
                     }
@@ -100,7 +100,7 @@ namespace zero.cocoon
                         _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");
                     }
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         /// <summary>
@@ -127,7 +127,7 @@ namespace zero.cocoon
             Services.IoCcRecord.Endpoints.Clear();
             try
             {
-                _autoPeeringTask?.Wait();
+                //_autoPeeringTask?.Wait();
             }
             catch
             {
@@ -172,7 +172,7 @@ namespace zero.cocoon
         /// Experimental support for detection of tunneled UDP connections (WSL)
         /// </summary>
         [IoParameter]
-        public bool UdpTunnelSupport = true;
+        public bool UdpTunnelSupport = false;
 
         /// <summary>
         /// Maximum size of a handshake message

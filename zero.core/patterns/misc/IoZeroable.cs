@@ -99,10 +99,7 @@ namespace zero.core.patterns.misc
         /// <returns>True if zeroed out, false otherwise</returns>
         public bool Zeroed()
         {
-            lock (this)
-            {
-                return _zeroed > 0;
-            }
+            return _zeroed > 0;
         }
 
         /// <summary>

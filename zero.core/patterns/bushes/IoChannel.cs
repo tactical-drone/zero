@@ -19,7 +19,9 @@ namespace zero.core.patterns.bushes
         /// <param name="description">A description of the channel destination</param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
-        public IoChannel(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocJob) : base(description, source, mallocJob, true)
+        /// /// <param name="producers">Nr of concurrent producers</param>
+        /// <param name="consumers">Nr of concurrent consumers</param>
+        public IoChannel(string description, IoSource<TJob> source, Func<object, IoLoad<TJob>> mallocJob, int producers = 1, int consumers = 1) : base(description, source, mallocJob, true, producers, consumers)
         {
             
         }

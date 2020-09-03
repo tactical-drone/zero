@@ -113,9 +113,11 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="cascade"></param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
+        /// <param name="producers">Nr of concurrent producers</param>
+        /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
         IoChannel<TFJob> AttachProducer<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
-            Func<object, IoLoad<TFJob>> jobMalloc = null)
+            Func<object, IoLoad<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
             where TFJob : IIoJob;
     }
 }
