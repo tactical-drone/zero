@@ -388,7 +388,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async Task EnsurePeerAsync()
         {
-            if(!RoutedRequest || KeepAliveSec > 0 && LastKeepAliveReceived < parm_zombie_max_ttl / 2)
+            if( Zeroed() || CcNode.Zeroed() || CcNode.DiscoveryService.Zeroed() || !RoutedRequest || KeepAliveSec > 0 && LastKeepAliveReceived < parm_zombie_max_ttl / 2)
                 return;
 
             if (KeepAliveSec > 0 && LastKeepAliveReceived > parm_zombie_max_ttl * 2)
