@@ -370,7 +370,7 @@ namespace zero.cocoon
                         if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp) >
                             parm_time_e)
                         {
-                            _logger.Error($"Rejected old handshake request from {socket.Key} - {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
+                            _logger.Error($"Rejected old handshake request from {socket.Key} - d = {Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp)}s, {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
                             return false;
                         }
 

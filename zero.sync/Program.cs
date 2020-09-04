@@ -32,14 +32,15 @@ namespace zero.sync
             portOffset = 0;   
 #endif
 
-            //Tangle("tcp://192.168.1.2:15600");
 
+            //Tangle("tcp://192.168.1.2:15600");
+            int total = 2000;
             var tasks = new ConcurrentBag<Task>();
-            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://0.0.0.0:{14667 + portOffset}", $"udp://0.0.0.0:{14627 + portOffset}", null, $"udp://192.168.88.253:{14627 + portOffset}", $"udp://192.168.88.253:{14626 + portOffset}"));
-            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset}", $"udp://0.0.0.0:{15627 + portOffset}", null, $"udp://192.168.88.253:{15627 + portOffset}", $"udp://192.168.88.253:{14627 + portOffset}"));
-            for (int i = 1; i < 2000; i++)
+            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://0.0.0.0:{14667 + portOffset}", $"udp://0.0.0.0:{14627 + portOffset}", null, $"udp://192.168.88.253:{14627 + portOffset}", $"udp://192.168.88.253:{14626 + portOffset}", 0));
+            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset}", $"udp://0.0.0.0:{15627 + portOffset}", null, $"udp://192.168.88.253:{15627 + portOffset}", $"udp://192.168.88.253:{14627 + portOffset}", 1));
+            for (int i = 1; i < total; i++)
             {
-                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset + i}", $"udp://0.0.0.0:{15627 + portOffset + i}", null, $"udp://192.168.88.253:{15627 + portOffset + i}", $"udp://192.168.88.253:{15627 +portOffset + i - 1}"));
+                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset + i}", $"udp://0.0.0.0:{15627 + portOffset + i}", null, $"udp://192.168.88.253:{15627 + portOffset + i}", $"udp://192.168.88.253:{15627 +portOffset + i - 1}", i));
             }
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
@@ -160,8 +161,9 @@ namespace zero.sync
             }
         }
 
+        private static int _count;
         private static Task CoCoon(IoCcIdentity ioCcIdentity, string gossipAddress, string peerAddress,
-            string fpcAddress, string extAddress, string bootStrapAddress)
+            string fpcAddress, string extAddress, string bootStrapAddress, int total)
         {
 
             var cocoon = new IoCcNode(ioCcIdentity,
@@ -175,7 +177,11 @@ namespace zero.sync
             _nodes.Add(cocoon);
 
 #pragma warning disable 4014
-            var tangleNodeTask = Task.Factory.StartNew(async () => await cocoon.StartAsync(), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            var tangleNodeTask = Task.Factory.StartNew(async () =>
+            {
+                await Task.Delay(total * 20);
+                await cocoon.StartAsync();
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             //{

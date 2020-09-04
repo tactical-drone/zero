@@ -178,10 +178,11 @@ namespace zero.core.patterns.misc
             AsyncTasks.Cancel();
 
             //emit zero event
-            foreach (var handler in _subscribers.Keys)
+            foreach (var handler in _subscribers.Keys.Reverse())
             {
                 try
                 {
+                    await Task.Delay(1000).ConfigureAwait(false);
                     await handler(this).ConfigureAwait(false);
                 }
                 catch (Exception e)

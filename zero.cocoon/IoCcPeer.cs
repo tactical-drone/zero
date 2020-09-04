@@ -32,15 +32,16 @@ namespace zero.cocoon
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
             Task.Run(async () =>
             {
-                return;
+                //return;
                 
-                await Task.Delay(rand.Next(120000) + 60000, AsyncTasks.Token).ContinueWith(r =>
-                //await Task.Delay(rand.Next(30000), AsyncTasks.Token).ContinueWith(r =>
+                await Task.Delay(rand.Next(60000000), AsyncTasks.Token).ContinueWith(r =>
+                //await Task.Delay(rand.Next(30000), AsyncT
+                //asks.Token).ContinueWith(r =>
                 {
                     if (r.IsCompletedSuccessfully && !Zeroed())
                     {
                         _logger.Fatal($"Testing SOCKET FAILURE {Id}");
-                        Zero(this);
+                        Source.Zero(this);
                         GC.Collect(GC.MaxGeneration);
                     }
                 });

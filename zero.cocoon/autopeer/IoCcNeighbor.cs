@@ -388,8 +388,15 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async Task EnsurePeerAsync()
         {
-            if( Zeroed() || CcNode.Zeroed() || CcNode.DiscoveryService.Zeroed() || !RoutedRequest || KeepAliveSec > 0 && LastKeepAliveReceived < parm_zombie_max_ttl / 2)
+            if( Zeroed() || CcNode.Zeroed() || CcNode.DiscoveryService.Zeroed() ||  KeepAliveSec > 0 && LastKeepAliveReceived < parm_zombie_max_ttl / 2)
                 return;
+
+            if (!RoutedRequest && Node.Neighbors.Count < 2)
+            {
+                _logger.Info($"{(RoutedRequest ? "V>" : "X>")} {Id} Boostrapping from {CcNode.BootstrapAddress}");
+                await SendPingAsync(((IoCcNeighborDiscovery)Node).CcNode.BootstrapAddress);
+                return;
+            }
 
             if (KeepAliveSec > 0 && LastKeepAliveReceived > parm_zombie_max_ttl * 2)
             {
@@ -401,7 +408,7 @@ namespace zero.cocoon.autopeer
 
             if (PeerConnectedAtLeastOnce && Direction != Kind.Inbound && (Peer == null || !(Peer?.Source?.IsOperational??false)))
             {
-                _logger.Info($"{(RoutedRequest ? "V>" : "X>")} RE-/Requesting to peer with neighbor {Id}:{RemoteAddress.Port}...");
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} RE-/Requesting to peer with neighbor {Id}:{RemoteAddress.Port}...");
                 DetachPeer(true);
                 await SendPingAsync();
             }
@@ -668,7 +675,7 @@ namespace zero.cocoon.autopeer
                 }
                 else if (Peer == null)
                 {
-                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Peering Re-/Authorized... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
+                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering Re-/Authorized... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Id}");
                 }
             }
             _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound ? "Open" : "FULL")}), currently {Direction}: {Id}");
@@ -984,7 +991,7 @@ namespace zero.cocoon.autopeer
 
                 if (Peer == null && PeerConnectedAtLeastOnce && CcNode.Neighbors.Count <= CcNode.MaxClients) //TODO 
                 {
-                    _logger.Info($"RE-/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, NAT = {ExtGossipAddress}");
+                    _logger.Debug($"RE-/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, NAT = {ExtGossipAddress}");
                     await SendPeerRequestAsync();
                 }
             }
@@ -1098,7 +1105,7 @@ namespace zero.cocoon.autopeer
                             try
                             {
                                 if (Node.Neighbors.TryRemove(id, out var n))
-                                    _logger.Info($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} neighbor dropped {n.Id}:{port} from node {Description}");
+                                    _logger.Debug($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} neighbor dropped {n.Id}:{port} from node {Description}");
                             }
                             catch { }
 
@@ -1431,7 +1438,7 @@ namespace zero.cocoon.autopeer
             Uptime = 0;
             KeepAlives = 0;
 
-            _logger.Info($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached, {Id} ({peer?.Source?.Key})");
+            _logger.Debug($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached, {Id} ({peer?.Source?.Key})");
         }
 
 
