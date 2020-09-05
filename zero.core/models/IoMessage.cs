@@ -119,7 +119,7 @@ namespace zero.core.models
         /// <returns></returns>
         public async Task<bool> WasProcessedRecentlyAsync(string key)
         {            
-            return await Source.RecentlyProcessed.KeyExistsAsync(key);//don't .ConfigureAwait(false);            
+            return await Source.RecentlyProcessed.KeyExistsAsync(key).ConfigureAwait(false);
         }
 
         protected override void ZeroUnmanaged()

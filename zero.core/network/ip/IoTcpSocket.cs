@@ -68,7 +68,7 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
         {
-            if (!await base.ListenAsync(address, connectionHandler))
+            if (!await base.ListenAsync(address, connectionHandler).ConfigureAwait(false))
                 return false;
 
             try
@@ -169,7 +169,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async Task<bool> ConnectAsync(IoNodeAddress address)
         {
-            if (!await base.ConnectAsync(address))
+            if (!await base.ConnectAsync(address).ConfigureAwait(false))
                 return false;
 
             Socket.Blocking = false;
@@ -243,59 +243,22 @@ namespace zero.core.network.ip
         /// <param name="length">The length of the data to be sent</param>
         /// <param name="endPoint">not used</param>
         /// <returns>The amount of bytes sent</returns>
-        public override async Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
+        public override async ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
-                if (Zeroed())
-                {
-                    await Task.Delay(1000);
-                    return 0;
-                }
-
                 if (timeout == 0)
                 {
-                    var task = Task.Factory
-                        .FromAsync<int>(Socket.BeginSend(buffer, offset, length, SocketFlags.None, null, null)!,
-                            Socket.EndSend); //.HandleCancellation(AsyncTasks.Token); //TODO
-                    //Task<int> task = null;
-                    //if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
-                    //{
-                    //    task = Socket.SendAsync(arraySegment.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).AsTask();
-                    //}
-
-                    if (task != null)
-                    {
-                        await task.ContinueWith(t =>
-                        {
-                            switch (t.Status)
-                            {
-                                case TaskStatus.Canceled:
-                                case TaskStatus.Faulted:
-                                    _logger.Debug(t.Exception, $"Sending to `tcp://{RemoteIpAndPort}' failed:");
-                                    Zero(this);
-                                    break;
-                                case TaskStatus.RanToCompletion:
-                                    _logger.Trace($"TX => `{length}' bytes to `tpc://{RemoteIpAndPort}'");
-                                    break;
-                            }
-                        }, AsyncTasks.Token);
-
-                        return task.Result;
-                    }
+                    return await Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
                 }
-                else
-                {
-                    Socket.SendTimeout = timeout;
-                    return Socket.Send(buffer, offset, length, SocketFlags.None);
-                }
-
-                return 0;
+                
+                Socket.SendTimeout = timeout;
+                return Socket.Send(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException) { await Zero(this); return 0; }
-            catch (TaskCanceledException) { await Zero(this); return 0; }
-            catch (OperationCanceledException) { await Zero(this); return 0; }
-            catch (ObjectDisposedException) { await Zero(this); return 0; }
+            catch (NullReferenceException) { await Zero(this).ConfigureAwait(false); return 0; }
+            catch (TaskCanceledException) { await Zero(this).ConfigureAwait(false); return 0; }
+            catch (OperationCanceledException) { await Zero(this).ConfigureAwait(false); return 0; }
+            catch (ObjectDisposedException) { await Zero(this).ConfigureAwait(false); return 0; }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to send bytes to socket `tcp://{RemoteIpAndPort}' :");
@@ -303,10 +266,6 @@ namespace zero.core.network.ip
                 Zero(this);
 #pragma warning restore 4014
                 return 0;
-            }
-            finally
-            {
-                Socket.SendTimeout = 0;
             }
         }
 
@@ -319,72 +278,23 @@ namespace zero.core.network.ip
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async ValueTask<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
+        public override async ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
         {
             try
             {
-                if (Zeroed())
-                {
-                    await Task.Delay(250, AsyncTasks.Token);
-                    return 0;
-                }
-
                 if (timeout == 0)
                 {
-                    int read = 0;
-                    //TODO 
-                    //if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
-                    {
-                        read = await Socket.ReceiveAsync(new Memory<byte>(buffer).Slice(offset, length), SocketFlags.None,
-                            AsyncTasks.Token);
-                    }
-                    //else
-                    //{
-                    //    await Task.Delay(250, AsyncTasks.Token);
-                    //    return 0;
-                    //}
-
-                    //read = await Task.Factory.FromAsync(
-                    //        Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,
-                    //        Socket.EndReceive)
-                    //    ; //.HandleCancellation(AsyncTasks.Token); //TODO
-
-                    //var read = Socket?.Receive(buffer, offset, length, SocketFlags.None);
-
-                    if (!Socket.Connected || !Socket.IsBound)
-                    {
-                        _logger.Debug($"{Key}: Connected = {Socket.Connected}, IsBound = {Socket.IsBound}");
-                        await Zero(this);
-                    }
-
-                    return read;
+                    return await Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,
+                            AsyncTasks.Token).ConfigureAwait(false);
                 }
-                else if (timeout > 0)
-                {
-                    Socket.ReceiveTimeout = timeout;
-                    return Socket.Receive(buffer, offset, length, SocketFlags.None);
-                }
+                
+                Socket.ReceiveTimeout = timeout;
+                return Socket.Receive(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException)
-            {
-                await Zero(this);
-                return 0;
-            }
-            catch (TaskCanceledException)
-            {
-                await Zero(this);
-                return 0;
-            }
-            catch (OperationCanceledException)
-            {
-                await Zero(this);
-                return 0;
-            }
-            catch (ObjectDisposedException)
-            {
-                await Zero(this);
-                return 0;
-            }
+            catch (NullReferenceException) { }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
             catch (SocketException e)
             {
                 _logger.Debug(e, $"Unable to read from {ListeningAddress}");
@@ -393,11 +303,7 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
-                await Zero(this);
-            }
-            finally
-            {
-                Socket.ReceiveTimeout = 0; //TODO?
+                await Zero(this).ConfigureAwait(false);
             }
 
             return 0;

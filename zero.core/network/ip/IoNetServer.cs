@@ -107,7 +107,7 @@ namespace zero.core.network.ip
         {
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
-                await Task.Delay(parm_connection_timeout);
+                await Task.Delay(parm_connection_timeout).ConfigureAwait(false);
                 if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 {
                     _logger.Warn($"Cancelling existing connection attemp to `{address}'");
@@ -116,7 +116,7 @@ namespace zero.core.network.ip
 #pragma warning restore 4014
 
                     _connectionAttempts.TryRemove(address.Key, out _);
-                    return await ConnectAsync(address, ioNetClient);
+                    return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
                 }
             }
 

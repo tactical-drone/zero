@@ -120,7 +120,7 @@ namespace zero.cocoon.models
 
             var msgRaw = responsePacket.ToByteArray();
 
-            var sent = await ((IoTcpClient<IoCcGossipMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length);
+            var sent = await ((IoTcpClient<IoCcGossipMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length).ConfigureAwait(false);
             _logger.Debug($"{nameof(IoCcGossipMessage)}: Sent {sent} bytes to {((IoTcpClient<IoCcGossipMessage>)Source).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
             return sent;
         }
@@ -141,7 +141,7 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
+                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
                     {
                         if (!Zeroed())
                         {
@@ -177,7 +177,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        await Source.Zero(this);
+                                        await Source.Zero(this).ConfigureAwait(false);
                                         _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -210,7 +210,7 @@ namespace zero.cocoon.models
                                         State = JobState.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
                                 }
-                            }, AsyncTasks.Token).ConfigureAwait(true);
+                            }, AsyncTasks.Token).ConfigureAwait(false);
                     }
                     else
                     {
@@ -225,7 +225,7 @@ namespace zero.cocoon.models
                         return false;
                     }
                     return true;
-                });
+                }).ConfigureAwait(false);
             }
             catch (TaskCanceledException) { }
             catch (NullReferenceException) {}
@@ -291,17 +291,22 @@ namespace zero.cocoon.models
                         ((IoCcPeer)IoZero).AccountingBit = ++val;
 
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, 4), ref val);
-                        await ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(ByteBuffer, BufferOffset, 4);
+                        await ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(ByteBuffer, BufferOffset, 4).ConfigureAwait(false);
                         if ((val % 1000000) == 0)
                             _logger.Info($"4M>> {((IoCcPeer)IoZero).AccountingBit}");
 
                         Interlocked.Add(ref BufferOffset, DatumSize);
-                        await Task.Delay(1, AsyncTasks.Token);
+                        if(Id % 10 == 0)
+                            await Task.Delay(1, AsyncTasks.Token).ConfigureAwait(false);
                     }
                     else
                         _logger.Fatal($"{val} != {((IoCcPeer)IoZero).AccountingBit}");
                 }
             }
+            catch (NullReferenceException) { }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) {  }
+            catch (ObjectDisposedException) { }
             catch (Exception e)
             {
                 _logger.Error(e, "Unmarshal Packet failed!");

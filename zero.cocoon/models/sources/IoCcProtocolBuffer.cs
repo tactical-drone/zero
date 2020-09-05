@@ -102,7 +102,7 @@ namespace zero.cocoon.models.sources
         {
             try
             {
-                return await callback(this);
+                return await callback(this).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

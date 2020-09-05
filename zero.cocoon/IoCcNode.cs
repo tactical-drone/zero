@@ -275,7 +275,7 @@ namespace zero.cocoon
                 if (InboundCount > parm_max_inbound)
                     return false;
 
-                if (await HandshakeAsync((IoCcPeer) peer))
+                if (await HandshakeAsync((IoCcPeer) peer).ConfigureAwait(false))
                 {
                     _logger.Debug($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
                     return true;
@@ -305,7 +305,7 @@ namespace zero.cocoon
 
             var msgRaw = responsePacket.ToByteArray();
 
-            var sent = await ((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket.SendAsync(msgRaw, 0, msgRaw.Length, timeout: timeout);
+            var sent = await ((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket.SendAsync(msgRaw, 0, msgRaw.Length, timeout: timeout).ConfigureAwait(false);
             _logger.Trace($"{nameof(HandshakeAsync)}: Sent {sent} bytes to {((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
             return sent;
         }
@@ -328,7 +328,7 @@ namespace zero.cocoon
 
                 _sw.Restart();
                 //read from the socket
-                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length, parm_handshake_timeout);
+                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length, parm_handshake_timeout).ConfigureAwait(false);
 
                 if (bytesRead == 0)
                 {
@@ -396,7 +396,7 @@ namespace zero.cocoon
 
                         var sent = 0;
                         _sw.Restart();
-                        if ((sent = await SendMessage(peer, handshakeResponse.ToByteString(), parm_handshake_timeout)) == 0)
+                        if ((sent = await SendMessage(peer, handshakeResponse.ToByteString(), parm_handshake_timeout).ConfigureAwait(false)) == 0)
                         {
                             _logger.Debug($"Failed to send inbound handshake challange response, tried for = {_sw.ElapsedMilliseconds}ms");
                             return false;
@@ -443,7 +443,7 @@ namespace zero.cocoon
                 var sent = 0;
                 _sw.Restart();
                 //Send challenge
-                if ((sent = await SendMessage(peer, handshakeRequest.ToByteString(), parm_handshake_timeout)) == 0)
+                if ((sent = await SendMessage(peer, handshakeRequest.ToByteString(), parm_handshake_timeout).ConfigureAwait(false)) == 0)
                 {
                     _logger.Debug($"Failed to send handshake challange request, tried for = {_sw.ElapsedMilliseconds}ms, socket = {socket.Description}");
                 }
@@ -453,7 +453,7 @@ namespace zero.cocoon
                 }
 
                 //Read challenge response 
-                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length, parm_handshake_timeout);
+                var bytesRead = await socket.ReadAsync(handshakeBuffer, 0, handshakeBuffer.Length, parm_handshake_timeout).ConfigureAwait(false);
                 if (bytesRead == 0)
                 {
                     _logger.Debug($"Failed to read outbound handshake challange response, waited = {_sw.ElapsedMilliseconds}ms, address = {socket.RemoteAddress}");
@@ -551,14 +551,14 @@ namespace zero.cocoon
                                 case TaskStatus.RanToCompletion:
                                     if (peer.Result != null)
                                     {
-                                        if (await HandshakeAsync((IoCcPeer)peer.Result))
+                                        if (await HandshakeAsync((IoCcPeer)peer.Result).ConfigureAwait(false))
                                         {
                                             _logger.Debug($"Peer {neighbor.Direction}: Connected! ({peer.Result.Id}:{neighbor.RemoteAddress.Port})");
                                             NeighborTasks.Add(peer.Result.SpawnProcessingAsync());
                                         }
                                         else
                                         {
-                                            await peer.Result.Zero(this);
+                                            await peer.Result.Zero(this).ConfigureAwait(false);
                                         }
                                     }
                                     break;

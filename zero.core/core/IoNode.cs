@@ -121,7 +121,7 @@ namespace zero.core.core
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
-                        await newNeighbor.Zero(this);
+                        await newNeighbor.Zero(this).ConfigureAwait(false);
 
                         return;
                     }
@@ -143,17 +143,17 @@ namespace zero.core.core
                         {
                             if (existingNeighbor.Source.IsOperational)
                             {
-                                await newNeighbor.Zero(this);
+                                await newNeighbor.Zero(this).ConfigureAwait(false);
                                 _logger.Warn(
                                     $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
                                 return;
                             }
                             else
                             {
-                                await existingNeighbor.Zero(this);
+                                await existingNeighbor.Zero(this).ConfigureAwait(false);
                                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                                 {
-                                    await newNeighbor.Zero(this);
+                                    await newNeighbor.Zero(this).ConfigureAwait(false);
                                     _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
                                     return;
                                 }
@@ -165,7 +165,7 @@ namespace zero.core.core
                             }
                         }
 
-                        await newNeighbor.Zero(this);
+                        await newNeighbor.Zero(this).ConfigureAwait(false);
                         return;
                     }
 
@@ -241,7 +241,7 @@ namespace zero.core.core
                     {
                         if (Neighbors.TryRemove(staleNeighbor.Id, out _))
                         {
-                            await staleNeighbor.Zero(this);
+                            await staleNeighbor.Zero(this).ConfigureAwait(false);
                         }
 
                         _logger.Debug($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
@@ -273,7 +273,7 @@ namespace zero.core.core
                     else //strange case
                     {
                         _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                        await newNeighbor.Zero(this);
+                        await newNeighbor.Zero(this).ConfigureAwait(false);
                     }
 
                     connectedAtLeastOnce = true;

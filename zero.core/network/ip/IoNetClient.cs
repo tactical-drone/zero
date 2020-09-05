@@ -210,7 +210,7 @@ namespace zero.core.network.ip
                     _logger.Debug($"Failed to connect to `{AddressString}'");
                 }
                 return connectAsyncTask;
-            }).Unwrap();
+            }).Unwrap().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -231,7 +231,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await callback(IoSocket).ConfigureAwait(true);//true not false
+                return await callback(IoSocket).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

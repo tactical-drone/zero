@@ -173,15 +173,6 @@ namespace zero.core.patterns.misc
             if( Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0 )
                 return;
 
-            //lock (this)
-            //{
-            //    if (_zeroed > 0)
-            //        return;
-
-            //    Interlocked.Increment(ref _zeroed);
-            //    //PrintPathToZero();
-            //}
-            
             AsyncTasks.Cancel();
 
             //emit zero event
@@ -189,7 +180,6 @@ namespace zero.core.patterns.misc
             {
                 try
                 {
-                    await Task.Delay(1000).ConfigureAwait(false);
                     await handler(this).ConfigureAwait(false);
                 }
                 catch (NullReferenceException) { }

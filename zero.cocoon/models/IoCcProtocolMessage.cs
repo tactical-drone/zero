@@ -43,7 +43,7 @@ namespace zero.cocoon.models
                     return false;
                 }
 
-                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token))
+                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token).ConfigureAwait(false))
                 {
                     State = Zeroed() ? JobState.ProdCancel : JobState.ProduceTo;
                     return false;
@@ -67,7 +67,7 @@ namespace zero.cocoon.models
                 //}
                 
                 return true;
-            });
+            }).ConfigureAwait(false);
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;

@@ -38,7 +38,7 @@ namespace zero.core.patterns.misc
 
             registration.Dispose();
 
-            return await readyTask;
+            return await readyTask.ConfigureAwait(false);
         }
 
         public static async Task ForEachAsync<T>(this List<T> enumerable, Action<T> action)

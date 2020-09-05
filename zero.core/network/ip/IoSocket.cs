@@ -305,7 +305,7 @@ namespace zero.core.network.ip
         /// <param name="endPoint">endpoint when required by the socket</param>
         /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public abstract Task<int> SendAsync(byte[] buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
+        public abstract ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
 
         /// <summary>
         /// Reads a message from the socket
@@ -314,7 +314,7 @@ namespace zero.core.network.ip
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract ValueTask<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0);
+        public abstract ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0);
 
         /// <summary>
         /// Connection status

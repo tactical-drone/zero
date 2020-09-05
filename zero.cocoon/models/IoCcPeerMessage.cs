@@ -191,7 +191,7 @@ namespace zero.cocoon.models
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
                     _producerStopwatch.Restart();
-                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
+                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
                     {
                         if (!Zeroed())
                         {
@@ -278,13 +278,13 @@ namespace zero.cocoon.models
                                         State = JobState.ProduceErr;
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
                                 }
-                            }, AsyncTasks.Token).ConfigureAwait(true);
+                            }, AsyncTasks.Token).ConfigureAwait(false);
                     }
                     else
                     {
                         _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
                         State = JobState.Cancelled;
-                        await Source.Zero(this);
+                        await Source.Zero(this).ConfigureAwait(false);
                     }
 
                     if (Zeroed())
@@ -293,7 +293,7 @@ namespace zero.cocoon.models
                         return false;
                     }
                     return true;
-                }).ConfigureAwait(true);//don't .ConfigureAwait(false);
+                }).ConfigureAwait(false);//don't .ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -395,32 +395,32 @@ namespace zero.cocoon.models
                         switch (messageType)
                         {
                             case nameof(MessageTypes.Ping):
-                                await ProcessRequest<Ping>(packet);
+                                await ProcessRequest<Ping>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.Pong):
-                                await ProcessRequest<Pong>(packet);
+                                await ProcessRequest<Pong>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.DiscoveryRequest):
-                                await ProcessRequest<DiscoveryRequest>(packet);
+                                await ProcessRequest<DiscoveryRequest>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.DiscoveryResponse):
-                                await ProcessRequest<DiscoveryResponse>(packet);
+                                await ProcessRequest<DiscoveryResponse>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.PeeringRequest):
-                                await ProcessRequest<PeeringRequest>(packet);
+                                await ProcessRequest<PeeringRequest>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.PeeringResponse):
-                                await ProcessRequest<PeeringResponse>(packet);
+                                await ProcessRequest<PeeringResponse>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.PeeringDrop):
-                                await ProcessRequest<PeeringDrop>(packet);
+                                await ProcessRequest<PeeringDrop>(packet).ConfigureAwait(false);
                                 break;
                             default:
                                 _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
                                 break;
                         }
 
-                        await ForwardToNeighborAsync();
+                        await ForwardToNeighborAsync().ConfigureAwait(false);
                     }
                 }
 
@@ -463,7 +463,7 @@ namespace zero.cocoon.models
                         _protocolMsgBatch[_protocolMsgBatchIndex++] = Tuple.Create((IMessage)request, ProducerUserData, packet);
                     else
                     {
-                        await ForwardToNeighborAsync();
+                        await ForwardToNeighborAsync().ConfigureAwait(false);
                     }
                 }
             }
@@ -494,10 +494,10 @@ namespace zero.cocoon.models
                 _protocolMsgBatchIndex = 0;
 
                 return Task.FromResult(true);
-            }).ConfigureAwait(true);
+            }).ConfigureAwait(false);
 
             //forward transactions
-            if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(true))
+            if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
             {
                 _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
             }

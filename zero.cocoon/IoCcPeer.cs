@@ -46,7 +46,7 @@ namespace zero.cocoon
                         GC.Collect(GC.MaxGeneration);
                     }
                 });
-            });
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
