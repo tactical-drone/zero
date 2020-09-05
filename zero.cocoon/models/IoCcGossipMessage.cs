@@ -6,6 +6,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -93,7 +94,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_datum_size = 1280;
+        public int parm_max_datum_size = 4;
 
         /// <summary>
         /// Userdata in the source
@@ -124,12 +125,12 @@ namespace zero.cocoon.models
             return sent;
         }
 
-        public override async Task<State> ProduceAsync()
+        public override async Task<JobState> ProduceAsync()
         {
             try
             {
                 if (Zeroed())
-                    return ProcessState = State.ProdCancel;
+                    return State = JobState.ProdCancel;
 
                 var sourceTaskSuccess = await Source.ProduceAsync(async ioSocket =>
                 {
@@ -144,38 +145,38 @@ namespace zero.cocoon.models
                     {
                         if (!Zeroed())
                         {
-                            ProcessState = State.ProduceTo;
+                            State = JobState.ProduceTo;
                             _producerStopwatch.Stop();
                             _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
                                          $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) State.Consumed]) /
-                            //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
+                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
+                            //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
                         }
                         else
-                            ProcessState = State.ProdCancel;
+                            State = JobState.ProdCancel;
                         return false;
                     }
 
                     if(Zeroed())
                     {
-                        ProcessState = State.ProdCancel;
+                        State = JobState.ProdCancel;
                         return false;
                     }
 
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(async rx =>
+                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
                             {
                                 switch (rx.Status)
                                 {
                                     //Canceled
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
-                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
+                                        State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
                                         await Source.Zero(this);
                                         _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
@@ -186,7 +187,7 @@ namespace zero.cocoon.models
                                         //TODO WTF
                                         if (BytesRead == 0)
                                         {
-                                            ProcessState = State.ProduceTo;
+                                            State = JobState.ProduceTo;
                                             break;
                                         }
                                             
@@ -201,13 +202,13 @@ namespace zero.cocoon.models
                                         //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
                                         StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
-                                        ProcessState = State.Produced;
+                                        State = JobState.Produced;
 
                                         _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
                                         break;
                                     default:
-                                        ProcessState = State.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
+                                        State = JobState.ProduceErr;
+                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
                                 }
                             }, AsyncTasks.Token).ConfigureAwait(true);
                     }
@@ -220,7 +221,7 @@ namespace zero.cocoon.models
 
                     if (Zeroed())
                     {
-                        ProcessState = State.Cancelled;
+                        State = JobState.Cancelled;
                         return false;
                     }
                     return true;
@@ -236,20 +237,20 @@ namespace zero.cocoon.models
             }
             finally
             {
-                if (ProcessState == State.Producing)
+                if (State == JobState.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
-                    ProcessState = State.ProduceErr;
+                    State = JobState.ProduceErr;
                 }
             }
-            return ProcessState;
+            return State;
         }
 
         private void TransferPreviousBits()
         {
-            if (Previous?.StillHasUnprocessedFragments ?? false)
+            if (PreviousJob?.StillHasUnprocessedFragments ?? false)
             {
-                var previousJobFragment = (IoMessage<IoCcGossipMessage>)Previous;
+                var previousJobFragment = (IoMessage<IoCcGossipMessage>)PreviousJob;
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
@@ -269,7 +270,7 @@ namespace zero.cocoon.models
                     Source.Synced = false;
                     DatumCount = 0;
                     BytesRead = 0;
-                    ProcessState = State.Consumed;
+                    State = JobState.Consumed;
                     DatumFragmentLength = 0;
                     StillHasUnprocessedFragments = false;
                 }
@@ -277,20 +278,28 @@ namespace zero.cocoon.models
 
         }
 
-        public override async Task<State> ConsumeAsync()
-        {
-            //TransferPreviousBits();
-
-            if (BytesRead == 0)
-                return ProcessState = State.Consumed;
-
-            var stream = ByteStream;
+        public override async Task<JobState> ConsumeAsync()
+        { 
+            TransferPreviousBits();
             try
             {
-                //_protocolMsgBatch = new List<Tuple<IMessage, object, Packet>>();
-                for (var i = 0; i <= DatumCount; i++)
+                for (var i = 0; i < DatumCount; i++)
                 {
+                    var val = MemoryMarshal.Read<int>(BufferSpan.Slice(BufferOffset, 4));
+                    if (val == ((IoCcPeer) IoZero).AccountingBit)
+                    {
+                        ((IoCcPeer)IoZero).AccountingBit = ++val;
 
+                        MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, 4), ref val);
+                        await ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(ByteBuffer, BufferOffset, 4);
+                        if ((val % 1000000) == 0)
+                            _logger.Info($"4M>> {((IoCcPeer)IoZero).AccountingBit}");
+
+                        Interlocked.Add(ref BufferOffset, DatumSize);
+                        await Task.Delay(1, AsyncTasks.Token);
+                    }
+                    else
+                        _logger.Fatal($"{val} != {((IoCcPeer)IoZero).AccountingBit}");
                 }
             }
             catch (Exception e)
@@ -299,15 +308,10 @@ namespace zero.cocoon.models
             }
             finally
             {
-                Interlocked.Add(ref BufferOffset, BytesRead);
+                UpdateBufferMetaData();
             }
 
-            //if (_protocolMsgBatch.Count > 0)
-            //{
-            //    await ForwardToNeighborAsync(_protocolMsgBatch);
-            //}
-
-            return ProcessState = State.Consumed;
+            return State = JobState.Consumed;
         }
     }
 }

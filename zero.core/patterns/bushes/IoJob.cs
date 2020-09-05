@@ -40,12 +40,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Work spanning multiple jobs
         /// </summary>
-        public IIoJob Previous { get; set; }
+        public IIoJob PreviousJob { get; set; }
 
         /// <summary>
         /// Respective States as the work goes through the source consumer pattern
         /// </summary>
-        public enum State
+        public enum JobState
         {
             Undefined,
             Producing,
@@ -108,7 +108,7 @@ namespace zero.core.patterns.bushes
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
         /// </summary>
 #if DEBUG
-        public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(State)).Length];//TODO what should this size be?
+        public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(JobState)).Length];//TODO what should this size be?
 #else 
         public IoWorkStateTransition<TJob>[] StateTransitionHistory;
 #endif
@@ -118,9 +118,9 @@ namespace zero.core.patterns.bushes
         /// The current state
         /// </summary>
 #if DEBUG
-        public volatile IoWorkStateTransition<TJob> CurrentState;
+        private volatile IoWorkStateTransition<TJob> _stateMeta;
 #else
-        public volatile IoWorkStateTransition<TJob> CurrentState = new IoWorkStateTransition<TJob>();
+        private volatile IoWorkStateTransition<TJob> _stateMeta = new IoWorkStateTransition<TJob>();
 #endif
 
 
@@ -133,7 +133,7 @@ namespace zero.core.patterns.bushes
         /// Callback the generates the next job
         /// </summary>
         /// <returns>The state to indicated failure or success</returns>
-        public abstract Task<State> ProduceAsync();
+        public abstract Task<JobState> ProduceAsync();
         
         /// <summary>
         /// Initializes this instance for reuse from the heap
@@ -142,14 +142,14 @@ namespace zero.core.patterns.bushes
         public virtual IIoHeapItem Constructor()
         {
 #if DEBUG
-            CurrentState = null;
-            Previous = null;
+            _stateMeta = null;
+            PreviousJob = null;
 #else
-            CurrentState.State = State.Undefined;
-            Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]);
+            _stateMeta.JobState = JobState.Undefined;
+            Id = Interlocked.Read(ref Source.Counters[(int)JobState.Undefined]);
 #endif
 
-            ProcessState = State.Undefined;
+            State = JobState.Undefined;
             StillHasUnprocessedFragments = false;
 
             //var curState = 0;
@@ -159,7 +159,7 @@ namespace zero.core.patterns.bushes
             //while (StateTransitionHistory[curState] != null)
             //{
             //    var prevState = curState;
-            //    curState = (int) StateTransitionHistory[curState].State;
+            //    curState = (int) StateTransitionHistory[curState].JobState;
             //    StateTransitionHistory[prevState] = null;
             //}
 
@@ -174,10 +174,10 @@ namespace zero.core.patterns.bushes
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            //CurrentState = null;
+            //_stateMeta = null;
             //StateTransitionHistory = null;
             Source = null;
-            Previous = null;
+            PreviousJob = null;
 #endif
         }
 
@@ -187,15 +187,15 @@ namespace zero.core.patterns.bushes
         protected override void ZeroManaged()
         {
             base.ZeroManaged();
-            Previous?.Zero(this);
+            PreviousJob?.Zero(this);
         }
 
         /// <summary>
         /// Print the current state
         /// </summary>
-        public void PrintCurrentState()
+        public void Print_stateMeta()
         {
-            PrintState(CurrentState);
+            PrintState(_stateMeta);
         }
 
         /// <summary>
@@ -225,23 +225,23 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Log the state
         /// </summary>
-        /// <param name="currentState">The instance to be printed</param>
-        public void PrintState(IoWorkStateTransition<TJob> currentState)
+        /// <param name="_stateMeta">The instance to be printed</param>
+        public void PrintState(IoWorkStateTransition<TJob> _stateMeta)
         {
             _logger.Info("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
                 Description,
-                (currentState.Previous == null ? CurrentState.DefaultPadded : currentState.Previous.PaddedStr()),
-                (currentState.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                currentState.PaddedStr(),
-                (currentState.Mu.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                (currentState.Next == null ? CurrentState.DefaultPadded : currentState.Next.PaddedStr()),
-                (currentState.Delta.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+                (_stateMeta.Previous == null ? _stateMeta.DefaultPadded : _stateMeta.Previous.PaddedStr()),
+                (_stateMeta.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                _stateMeta.PaddedStr(),
+                (_stateMeta.Mu.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                (_stateMeta.Next == null ? _stateMeta.DefaultPadded : _stateMeta.Next.PaddedStr()),
+                (_stateMeta.Delta.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
         }
 
         /// <summary>
         /// The total amount of states
         /// </summary>
-        public static readonly int StateMapSize = Enum.GetNames(typeof(State)).Length;
+        public static readonly int StateMapSize = Enum.GetNames(typeof(JobState)).Length;
 
         /// <summary>
         /// A description of this job
@@ -251,81 +251,80 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Gets and sets the state of the work
         /// </summary>
-        public State ProcessState
+        public JobState State
         {
-            get => CurrentState.State;
+            get => _stateMeta.JobState;
             set
             {
                 if(Source?.Zeroed()??true)
                     return;
 
                 //Update the previous state's exit time
-                if (CurrentState != null)
+                if (_stateMeta != null)
                 {
-                    if (CurrentState.State == State.Finished)
+                    if (_stateMeta.JobState == JobState.Finished)
                     {
                         //PrintStateHistory();
-                        CurrentState.State = State.Race; //TODO
-                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{State.Finished}' to `{value}'");
+                        _stateMeta.JobState = JobState.Race; //TODO
+                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{JobState.Finished}' to `{value}'");
                     }
 
-                    if (CurrentState.State == value)
+                    if (_stateMeta.JobState == value)
                     {
-                        Interlocked.Increment(ref Source.Counters[(int)CurrentState.State]);
+                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.JobState]);
                         return;
                     }
                     
-                    CurrentState.ExitTime = DateTime.Now;
+                    _stateMeta.ExitTime = DateTime.Now;
                     
-                    Interlocked.Increment(ref Source.Counters[(int)CurrentState.State]);
-                    Interlocked.Add(ref Source.ServiceTimes[(int)CurrentState.State], (long)(CurrentState.Mu.TotalMilliseconds));
+                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.JobState]);
+                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.JobState], (long)(_stateMeta.Mu.TotalMilliseconds));
                 }
                 else
                 {
-                    if (value != State.Undefined)
+                    if (value != JobState.Undefined)
                     {
                         //PrintStateHistory();
-                        throw new Exception($"{TraceDescription} First state transition history's first transition should be `{State.Undefined}', but is `{value}'");                        
+                        throw new Exception($"{TraceDescription} First state transition history's first transition should be `{JobState.Undefined}', but is `{value}'");                        
                     }
                 }
 
 #if DEBUG
                 //Allocate memory for a new current state
-                var prevState = CurrentState;
+                var prevState = _stateMeta;
 
                 var newState = new IoWorkStateTransition<TJob>
                 {
                     Previous = prevState,
-                    State = value,
+                    JobState = value,
                     EnterTime = DateTime.Now,
                     ExitTime = DateTime.Now
                 };
 
-                CurrentState = newState;
+                _stateMeta = newState;
 
                 //Configure the current state
                 if (prevState != null)
                 {                    
-                    prevState.Next = CurrentState;
+                    prevState.Next = _stateMeta;
 
-                    StateTransitionHistory[(int)prevState.State] = CurrentState;
-
+                    StateTransitionHistory[(int)prevState.JobState] = _stateMeta;
                 }
 #else
-                CurrentState.State = value;
-                CurrentState.EnterTime = DateTime.Now;
-                CurrentState.ExitTime = DateTime.Now;
+                _stateMeta.JobState = value;
+                _stateMeta.EnterTime = DateTime.Now;
+                _stateMeta.ExitTime = DateTime.Now;
 #endif
                 //generate a unique id
-                if (value == State.Undefined)
+                if (value == JobState.Undefined)
                 {
-                    Id = Interlocked.Read(ref Source.Counters[(int)State.Undefined]);
+                    Id = Interlocked.Read(ref Source.Counters[(int)JobState.Undefined]);
                 }
 
                 //terminate
-                if (value == State.Accept || value == State.Reject)
+                if (value == JobState.Accept || value == JobState.Reject)
                 {                    
-                    ProcessState = State.Finished;
+                    State = JobState.Finished;
                 }                
             }
         }        

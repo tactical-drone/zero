@@ -54,14 +54,14 @@ namespace zero.core.patterns.bushes
         public abstract string SourceUri { get; }
 
         /// <summary>
-        /// Counters for <see cref="IoJob{TJob}.State"/>
+        /// Counters for <see cref="IoJob{TJob}.JobState"/>
         /// </summary>
-        public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.State)).Length];
+        public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.JobState)).Length];
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
-        public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.State)).Length];
+        public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.JobState)).Length];
 
         /// <summary>
         /// The source semaphore
@@ -259,9 +259,9 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoJob<TJob>.State.Undefined  && i < (int)IoJob<TJob>.State.Finished)
+                if (i > (int)IoJob<TJob>.JobState.Undefined  && i < (int)IoJob<TJob>.JobState.Finished)
                 {
-                    heading.Append($"{((IoJob<TJob>.State)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                    heading.Append($"{((IoJob<TJob>.JobState)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }

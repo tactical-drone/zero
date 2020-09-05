@@ -6,7 +6,7 @@ namespace zero.core.patterns.bushes.contracts
     public interface IIoJob : IIoHeapItem, IIoZeroable
     {
         long Id { get; }
-        IIoJob Previous { get; }
+        IIoJob PreviousJob { get; }
         IIoSource Source { get; }
         
         bool StillHasUnprocessedFragments { get; }

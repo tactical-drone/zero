@@ -17,7 +17,7 @@ namespace zero.core.patterns.bushes.contracts
 
         public override string Description { get; } = "Job Stub";
         public long Id { get; } = -1;
-        public IIoJob Previous { get; } = null;
+        public IIoJob PreviousJob { get; } = null;
         public IIoSource Source { get; } = null;
         public bool StillHasUnprocessedFragments { get; } = false;
     }

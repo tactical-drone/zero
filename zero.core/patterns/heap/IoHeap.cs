@@ -159,6 +159,10 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         public void Return(T item)
         {
+#if DEBUG
+            if (item == null)
+                throw new ArgumentException($"{nameof(item)} cannot be null");
+#endif
             try
             {
                 IoFpsCounter.Tick();

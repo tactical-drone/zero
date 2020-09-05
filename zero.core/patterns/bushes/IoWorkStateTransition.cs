@@ -26,7 +26,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The represented state
         /// </summary>
-        public volatile IoJob<TJob>.State State;
+        public volatile IoJob<TJob>.JobState JobState;
 
         /// <summary>
         /// Timestamped when this state was entered
@@ -61,14 +61,14 @@ namespace zero.core.patterns.bushes
         {
             ExitTime = EnterTime = DateTime.Now;
             Previous = Next = null;
-            State = IoJob<TJob>.State.Undefined;
+            JobState = IoJob<TJob>.JobState.Undefined;
             return this;
         }
 
         /// <summary>
         /// Calculates the max state string length used for log formatting purposes
         /// </summary>
-        public static readonly int StateStrPadding = Enum.GetNames(typeof(IoJob<>.State)).ToList().Select(s => s.Length).Max();
+        public static readonly int StateStrPadding = Enum.GetNames(typeof(IoJob<>.JobState)).ToList().Select(s => s.Length).Max();
 
         /// <summary>
         /// Pads the current state string and returns it
@@ -76,21 +76,21 @@ namespace zero.core.patterns.bushes
         /// <returns>Returns the padded string representation of this state</returns>
         public string PaddedStr()
         {
-            return State.ToString().PadLeft(StateStrPadding);
+            return JobState.ToString().PadLeft(StateStrPadding);
         }
 
         /// <summary>
         /// The default state string padded
         /// </summary>
-        public string DefaultPadded => IoJob<TJob>.State.Undefined.ToString().PadLeft(StateStrPadding);
+        public string DefaultPadded => IoJob<TJob>.JobState.Undefined.ToString().PadLeft(StateStrPadding);
 
         /// <summary>
         /// Used in debugger
         /// </summary>
-        /// <returns>Previous -> Current -> Next</returns>
+        /// <returns>PreviousJob -> Current -> Next</returns>
         public override string ToString()
         {
-            return $"[{Previous?.State}] => ({State}) => [{Next?.State}]";
+            return $"[{Previous?.JobState}] => ({JobState}) => [{Next?.JobState}]";
         }
     }
 }

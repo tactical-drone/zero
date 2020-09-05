@@ -156,7 +156,7 @@ namespace zero.tangle.models
         /// <summary>
         /// Processes a iri datum
         /// </summary>
-        private async Task<State> ProcessProtocolMessage() //TODO error cases
+        private async Task<JobState> ProcessProtocolMessage() //TODO error cases
         {
             var newInteropTransactions = new List<IIoTransactionModel<TKey>>();
             var s = Stopwatch.StartNew();
@@ -165,7 +165,7 @@ namespace zero.tangle.models
             {
                 if (!Source.Synced && RequiredSync() && !Source.Synced)
                 {
-                    return ProcessState;
+                    return State;
                 }
 
                 var localSync = true;
@@ -179,16 +179,16 @@ namespace zero.tangle.models
                     try
                     {
                         s.Restart();
-                        if (ProcessState == State.RSync)
-                            ProcessState = State.Consuming;
+                        if (State == JobState.RSync)
+                            State = JobState.Consuming;
 
                         var requiredSync = !localSync && RequiredSync();
                         if (!Source.Synced)
-                            return ProcessState;
+                            return State;
                         else if (requiredSync)
                         {
                             i = 0;
-                            ProcessState = State.RSync;
+                            State = JobState.RSync;
                             continue;
                         }
                             
@@ -198,7 +198,7 @@ namespace zero.tangle.models
                         //check for pow
                         if (interopTx.Pow < TanglePeer<TKey>.MWM && interopTx.Pow > -TanglePeer<TKey>.MWM)
                         {                                                           
-                            ProcessState = State.NoPow;                            
+                            State = JobState.NoPow;                            
 
                             if (interopTx.Value < -2779530283277761 || interopTx.Value > 2779530283277761)
                             //|| interopTx.Timestamp <= 0 || interopTx.Timestamp > (interopTx.Timestamp.ToString().Length > 11 ? new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeMilliseconds() : new DateTimeOffset(DateTime.Now + TimeSpan.FromHours(2)).ToUnixTimeSeconds())) //TODO config
@@ -206,7 +206,7 @@ namespace zero.tangle.models
                                 try
                                 {
                                     _logger.Trace($"{TraceDescription} Possible garbage tx detected: ({Id}.{i + 1}/{DatumCount}) pow = `{interopTx.Pow}', " +
-                                                  $"imported = `{((IoTangleMessage<TKey>)Previous).DatumFragmentLength}', " +
+                                                  $"imported = `{((IoTangleMessage<TKey>)PreviousJob).DatumFragmentLength}', " +
                                                   $"BytesRead = `{BytesRead}', " +
                                                   $"BufferOffset = `{BufferOffset - DatumProvisionLengthMax}', " +
                                                   $"BytesLeftToProcess = `{BytesLeftToProcess}', " +
@@ -242,7 +242,7 @@ namespace zero.tangle.models
                             if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)))
                             {
                                 stopwatch.Stop();
-                                ProcessState = State.FastDup;                                
+                                State = JobState.FastDup;                                
                                 _logger.Trace($"{TraceDescription} Fast duplicate tx dropped: [{interopTx.AsTrytes(interopTx.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms'");
                                 continue;
                             }                            
@@ -262,9 +262,9 @@ namespace zero.tangle.models
                     finally
                     {
                         if (Source.Synced && ( 
-                                    ProcessState == State.Consuming 
-                                 || ProcessState == State.NoPow 
-                                 || ProcessState == State.FastDup))                            
+                                    State == JobState.Consuming 
+                                 || State == JobState.NoPow 
+                                 || State == JobState.FastDup))                            
                             BufferOffset += DatumSize;                        
                     }                    
                 }
@@ -276,17 +276,17 @@ namespace zero.tangle.models
                     await ForwardToNodeServicesAsync(newInteropTransactions);
                 }                
 
-                ProcessState = State.Consumed;
+                State = JobState.Consumed;
             }
             finally
             {
-                if (ProcessState != State.Consumed && ProcessState != State.Syncing)
-                    ProcessState = State.ConsumeErr;
+                if (State != JobState.Consumed && State != JobState.Syncing)
+                    State = JobState.ConsumeErr;
                 t.Stop();
                 _logger.Trace($"{TraceDescription} Deserializing `{DatumCount}' messages took `{t.ElapsedMilliseconds}ms', `{DatumCount*1000/(t.ElapsedMilliseconds+1)} m/s'");
             }
 
-            return ProcessState;
+            return State;
         }
 
         private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
@@ -340,7 +340,7 @@ namespace zero.tangle.models
             {                
                 
                 _logger.Debug($"{TraceDescription} Synchronizing `{Source.Description}'...");
-                ProcessState = State.Syncing;
+                State = JobState.Syncing;
 
                 for (var i = 0; i < DatumCount; i++)
                 {                    
@@ -417,7 +417,7 @@ namespace zero.tangle.models
             }
             else if(Source.Synced)
             {
-                ProcessState = State.Consuming;
+                State = JobState.Consuming;
             }
             
             return requiredSync;
@@ -425,9 +425,9 @@ namespace zero.tangle.models
 
         private void TransferPreviousBits()
         {
-            if (Previous?.StillHasUnprocessedFragments ?? false)
+            if (PreviousJob?.StillHasUnprocessedFragments ?? false)
             {
-                var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)Previous;
+                var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)PreviousJob;
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;                    
@@ -446,7 +446,7 @@ namespace zero.tangle.models
                     Source.Synced = false;
                     DatumCount = 0;
                     BytesRead = 0;
-                    ProcessState = State.Consumed;
+                    State = JobState.Consumed;
                     DatumFragmentLength = 0;
                     StillHasUnprocessedFragments = false;                    
                 }
@@ -458,8 +458,8 @@ namespace zero.tangle.models
         /// <summary>
         /// Manages the barrier between the consumer and the source
         /// </summary>
-        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.State" /> of the barrier's outcome</returns>
-        public override async Task<State> ConsumeAsync()
+        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.JobState" /> of the barrier's outcome</returns>
+        public override async Task<JobState> ConsumeAsync()
         {
             TransferPreviousBits();
             
@@ -471,7 +471,7 @@ namespace zero.tangle.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<State> ProduceAsync()
+        public override async Task<JobState> ProduceAsync()
         {
             try
             {
@@ -489,31 +489,31 @@ namespace zero.tangle.models
                     {
                         if (!Zeroed())
                         {
-                            ProcessState = State.ProduceTo;
+                            State = JobState.ProduceTo;
                             _producerStopwatch.Stop();
                             _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
                                          $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
                             //TODO finish when config is fixed
                             //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) State.Consumed]) /
-                            //         (Interlocked.Read(ref Source.Counters[(int) State.Consumed]) * 2 + 1));                                                                    
+                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
+                            //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
                         }
                         else
-                            ProcessState = State.ProdCancel;
+                            State = JobState.ProdCancel;
                         return true;
                     }
 
                     if (Zeroed())
                     {
-                        ProcessState = State.ProdCancel;
+                        State = JobState.ProdCancel;
                         return false;
                     }
 
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).ContinueWith(
+                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(
                             rx =>
                             {                                                                    
                                 switch (rx.Status)
@@ -521,7 +521,7 @@ namespace zero.tangle.models
                                     //Canceled
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
-                                        ProcessState = rx.Status == TaskStatus.Canceled ? State.ProdCancel : State.ProduceErr;
+                                        State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
                                         Source.Zero(this);
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
@@ -533,7 +533,7 @@ namespace zero.tangle.models
                                         //TODO double check this hack
                                         if (BytesRead == 0)
                                         {
-                                            ProcessState = State.ProStarting;
+                                            State = JobState.ProStarting;
                                             DatumFragmentLength = 0;
                                             break;
                                         }
@@ -545,7 +545,7 @@ namespace zero.tangle.models
                                             bytesRead -= 10;
                                             if (BytesLeftToProcess == 0)
                                             {
-                                                ProcessState = State.Produced;
+                                                State = JobState.Produced;
                                                 DatumFragmentLength = 0;
                                                 break;
                                             }
@@ -558,14 +558,14 @@ namespace zero.tangle.models
                                         //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
                                         StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
-                                        ProcessState = State.Produced;
+                                        State = JobState.Produced;
 
                                         _logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
                                         break;
                                     default:
-                                        ProcessState = State.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', State={rx.Status}");
+                                        State = JobState.ProduceErr;
+                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
                                 }
                             }, AsyncTasks.Token);
                     }
@@ -578,7 +578,7 @@ namespace zero.tangle.models
 
                     if (Zeroed())
                     {
-                        ProcessState = State.Cancelled;
+                        State = JobState.Cancelled;
                         return false;
                     }
                     return true;
@@ -595,13 +595,13 @@ namespace zero.tangle.models
             }
             finally
             {
-                if (ProcessState == State.Producing)
+                if (State == JobState.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
-                    ProcessState = State.ProduceErr;
+                    State = JobState.ProduceErr;
                 }
             }
-            return ProcessState;
+            return State;
         }        
     }
 }

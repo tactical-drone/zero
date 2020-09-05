@@ -160,7 +160,7 @@ namespace zero.core.core
                                 else
                                 {
                                     _logger.Warn(
-                                        $"{GetType().Name}: Previous stale peer closed and reconnected {newNeighbor.Id}!");
+                                        $"{GetType().Name}: PreviousJob stale peer closed and reconnected {newNeighbor.Id}!");
                                 }
                             }
                         }
@@ -176,7 +176,7 @@ namespace zero.core.core
                     newNeighbor.ZeroEvent(s =>
                     {
                         //DisconnectedEvent?.Invoke(this, newNeighbor);
-                        if (Neighbors.TryRemove(id, out var _))
+                        if (Neighbors?.TryRemove(id, out var _)??true)
                             _logger.Debug($"Removed neighbor Id = {id}");
                         else
                             _logger.Fatal($"Neighbor {id} not found!");
@@ -252,7 +252,7 @@ namespace zero.core.core
                         //Is this a race condition? Between subbing and being zeroed out?
                         newNeighbor.ZeroEvent(s =>
                         {
-                            _logger.Debug(!Neighbors.TryRemove(id, out _)
+                            _logger.Debug(!(Neighbors?.TryRemove(id, out _)??true)
                                 ? $"Neighbor metadata expected for key `{id}'"
                                 : $"{GetType().Name}: Dropped peer {id} from node {Description}");
 

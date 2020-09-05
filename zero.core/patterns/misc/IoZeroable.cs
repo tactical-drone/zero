@@ -109,11 +109,14 @@ namespace zero.core.patterns.misc
         /// <returns>The handler</returns>
         public Func<IIoZeroable, Task> ZeroEvent(Func<IIoZeroable, Task> sub)
         {
-            if (!_subscribers?.TryAdd(sub, null)??false)//TODO race condition?
+            try
             {
-                if(_subscribers != null)
+                if (!_subscribers.TryAdd(sub, null))
+                {
                     LogManager.GetCurrentClassLogger().Warn($"Event already subscribed: Method = {sub.Method}, Target = {sub.Target}");
+                }
             }
+            catch (NullReferenceException) { }
 
             return sub;
         }
@@ -125,12 +128,16 @@ namespace zero.core.patterns.misc
         public Task Unsubscribe(Func<IIoZeroable, Task> sub)
         {
             if (sub == null)
-                return null;
+                return Task.CompletedTask;
 
-            if (!_subscribers?.TryRemove(sub, out _)??false)
+            try
             {
-                LogManager.GetCurrentClassLogger().Warn($"Cannot unsubscribe, event not found: Method = {sub.Method}, Target = {sub.Target}");
+                if (_subscribers.Count != 0 && !_subscribers.TryRemove(sub, out _))
+                {
+                    LogManager.GetCurrentClassLogger().Debug($"Cannot unsubscribe from {Description}, event not found: Method = {sub.Method}, Target = {sub.Target}");
+                }
             }
+            catch (NullReferenceException) { }
 
             return Task.CompletedTask;
         }
@@ -145,13 +152,13 @@ namespace zero.core.patterns.misc
         {
             var sub = ZeroEvent((sender) => target.Zero(this));
 
-            if (twoWay) //zero
+            if (twoWay)//zero
             {
                 target.ZeroEvent((s) => Zero(target));
             }
             else //Release
             {
-                target.ZeroEvent(z=>Unsubscribe(sub));
+                target.ZeroEvent(z => Unsubscribe(sub));
             }
                 
             return target;
@@ -185,6 +192,7 @@ namespace zero.core.patterns.misc
                     await Task.Delay(1000).ConfigureAwait(false);
                     await handler(this).ConfigureAwait(false);
                 }
+                catch (NullReferenceException) { }
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Fatal(e, $"[{ToString()}] returned with errors!");
@@ -199,6 +207,7 @@ namespace zero.core.patterns.misc
             {
                 ZeroManaged();
             }
+            //catch (NullReferenceException) { }
             catch (Exception e)
             {
                 LogManager.GetCurrentClassLogger().Error(e, $"[{ToString()}] {nameof(ZeroManaged)} returned with errors!");
@@ -217,6 +226,7 @@ namespace zero.core.patterns.misc
                     ZeroedFrom = null;
                     _subscribers = null;
                 }
+                catch (NullReferenceException) { }
                 catch (Exception e)
                 {
                     LogManager.GetCurrentClassLogger().Error(e,$"[{ToString()}] {nameof(ZeroUnmanaged)} returned with errors!");

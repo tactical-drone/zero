@@ -33,44 +33,44 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync()
+        public override async Task<JobState> ProduceAsync()
         {
             await Source.ProduceAsync(async producer =>
             {
                 if (Source.ProducerBarrier == null)
                 {
-                    ProcessState = State.ProdCancel;
+                    State = JobState.ProdCancel;
                     return false;
                 }
 
                 if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token))
                 {
-                    ProcessState = Zeroed() ? State.ProdCancel : State.ProduceTo;
+                    State = Zeroed() ? JobState.ProdCancel : JobState.ProduceTo;
                     return false;
                 }
 
                 if (Zeroed())
                 {
-                    ProcessState = State.ProdCancel;
+                    State = JobState.ProdCancel;
                     return false;
                 }
 
                 //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
                 {
                     Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(AsyncTasks.Token);
-                    ProcessState = State.Produced;
+                    State = JobState.Produced;
                 }
                 //else
                 //{
                 //    Messages = null;
-                //    ProcessState = State.ProduceTo;
+                //    State = JobState.ProduceTo;
                 //}
                 
                 return true;
             });
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
-            return ProcessState;
+            return State;
         }
 
         /// <summary>
@@ -79,11 +79,11 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state of the consumption
         /// </returns>
-        public override Task<State> ConsumeAsync()
+        public override Task<JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
-            ProcessState = State.ConInlined;
-            return Task.FromResult(ProcessState);
+            State = JobState.ConInlined;
+            return Task.FromResult(State);
         }
     }
 }

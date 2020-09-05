@@ -62,7 +62,7 @@ namespace zero.core.patterns.bushes.contracts
 
 
         /// <summary>
-        /// Counters for <see cref="IoJob{TJob}.State"/>
+        /// Counters for <see cref="IoJob{TJob}.JobState"/>
         /// </summary>
         public long[] Counters { get; }
 

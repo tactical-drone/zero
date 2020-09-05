@@ -314,7 +314,7 @@ namespace zero.core.network.ip
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract Task<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0);
+        public abstract ValueTask<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0);
 
         /// <summary>
         /// Connection status

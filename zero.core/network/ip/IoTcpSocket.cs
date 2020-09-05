@@ -319,7 +319,7 @@ namespace zero.core.network.ip
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
+        public override async ValueTask<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
         {
             try
             {
@@ -333,17 +333,16 @@ namespace zero.core.network.ip
                 {
                     int read = 0;
                     //TODO 
-                    if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment) && Socket.Available > 0)
+                    //if (MemoryMarshal.TryGetArray<byte>(buffer, out var arraySegment))
                     {
-                        var t = Socket.ReceiveAsync(arraySegment.Slice(offset, length), SocketFlags.None,
-                            AsyncTasks.Token).AsTask();
-                        read = await t;
+                        read = await Socket.ReceiveAsync(new Memory<byte>(buffer).Slice(offset, length), SocketFlags.None,
+                            AsyncTasks.Token);
                     }
-                    else
-                    {
-                        await Task.Delay(250, AsyncTasks.Token);
-                        return 0;
-                    }
+                    //else
+                    //{
+                    //    await Task.Delay(250, AsyncTasks.Token);
+                    //    return 0;
+                    //}
 
                     //read = await Task.Factory.FromAsync(
                     //        Socket?.BeginReceive(buffer, offset, length, SocketFlags.None, null, null)!,

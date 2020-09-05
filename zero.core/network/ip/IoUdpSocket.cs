@@ -192,7 +192,7 @@ namespace zero.core.network.ip
         /// <param name="length">Bytes to read</param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns></returns>
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0)
+        public override async ValueTask<int> ReadAsync(byte[] buffer, int offset, int length, int timeout = 0)
         {
             try
             {

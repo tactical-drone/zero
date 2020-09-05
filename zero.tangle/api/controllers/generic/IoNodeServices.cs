@@ -153,12 +153,12 @@ namespace zero.tangle.api.controllers.generic
                                                 break;
                                         }
 
-                                        msg.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.Consumed;
+                                        msg.State = IoJob<IoTangleTransaction<TKey>>.JobState.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.ProcessState == IoJob<IoTangleTransaction<TKey>>.State.Consuming)
-                                            msg.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.ConsumeErr;
+                                        if (msg.State == IoJob<IoTangleTransaction<TKey>>.JobState.Consuming)
+                                            msg.State = IoJob<IoTangleTransaction<TKey>>.JobState.ConsumeErr;
                                     }
 
                                     return Task.CompletedTask;                                    

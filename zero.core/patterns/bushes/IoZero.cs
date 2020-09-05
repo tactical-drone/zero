@@ -97,7 +97,8 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Whether this source supports fragmented datums
         /// </summary>
-        protected bool SupportsSync => ConsumerCount == 1;
+        //protected bool SupportsSync => ConsumerCount == 1;
+        protected bool SupportsSync => false;
 
         /// <summary>
         /// Upstream <see cref="Source"/> reference
@@ -185,7 +186,11 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_stats_mod_count = 100;
+#if DEBUG
+        public int parm_stats_mod_count = 1000;
+#else
+        public int parm_stats_mod_count = 100000;
+#endif
 
         /// <summary>
         /// Used to rate limit this queue, in ms. Set to -1 for max rate
@@ -237,6 +242,7 @@ namespace zero.core.patterns.bushes
             Source = null;
             JobHeap = null;
             _queue = null;
+            _previousJobFragment = null;
 #endif
 
         }
@@ -251,12 +257,11 @@ namespace zero.core.patterns.bushes
 
             if (IsArbitrating || !Source.IsOperational)
             {
-                _logger.Debug($"Zeroing source {Source.Key} for {Description}");
                 Source.Zero(this);
             }
 
-            //_previousJobFragment.ToList().ForEach(pair => pair.Value.Zero(this));
             _previousJobFragment.ToList().ForEach(job => job.Zero(this));
+            _previousJobFragment.Clear();
 
             base.ZeroManaged();
         }
@@ -285,9 +290,8 @@ namespace zero.core.patterns.bushes
                         })) != null) //TODO 
                         {
 
-                            nextJob.ProcessState = IoJob<TJob>.State.Producing;
+                            nextJob.State = IoJob<TJob>.JobState.Producing;
 
-                            //nextJob.IoZero = this; //TODO
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
 
@@ -338,8 +342,13 @@ namespace zero.core.patterns.bushes
                                 //    _previousJobFragment.Clear();
                                 //}
 
-                                if( SupportsSync && _previousJobFragment.TryDequeue(out var prevJobFragment))
-                                    nextJob.Previous = prevJobFragment;
+                                if (SupportsSync && _previousJobFragment.TryDequeue(out var prevJobFragment))
+                                {
+                                    //if( prevJobFragment.Id == nextJob.Id + 1)
+                                        nextJob.PreviousJob = prevJobFragment;
+                                    //_logger.Fatal($"{GetHashCode()}:{nextJob.GetHashCode()}: {nextJob.Id}");
+                                }
+                                    
 
                                 //if(prevJobFragment?.Id + 1 == nextJob.Id)
 
@@ -347,7 +356,7 @@ namespace zero.core.patterns.bushes
                                 //Free(prevJobFragment, true);
 
                                 //Fetch a job from TProducer. Did we get one?
-                                if (await nextJob.ProduceAsync() == IoJob<TJob>.State.Produced && !Zeroed())
+                                if (await nextJob.ProduceAsync() == IoJob<TJob>.JobState.Produced && !Zeroed())
                                 {
                                     IsArbitrating = true;
 
@@ -366,7 +375,7 @@ namespace zero.core.patterns.bushes
                                     }
 
                                     //Enqueue the job for the consumer
-                                    nextJob.ProcessState = IoJob<TJob>.State.Queued;
+                                    nextJob.State = IoJob<TJob>.JobState.Queued;
                             
                                     //if (!_queue.Contains(nextJob))
                                     {
@@ -395,28 +404,28 @@ namespace zero.core.patterns.bushes
                                     if (Zeroed())
                                     {
                                         //Free job
-                                        nextJob.ProcessState = IoJob<TJob>.State.Reject;
+                                        nextJob.State = IoJob<TJob>.JobState.Reject;
                                         nextJob = Free(nextJob, true);
                                         return false;
                                     }
 
-                                    //if (nextJob.ProcessState == IoJob<TJob>.State.Producing)
+                                    //if (nextJob.State == IoJob<TJob>.JobState.Producing)
                                     //{
-                                    //    _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): ProcessState remained {IoJob<TJob>.State.Producing}");
-                                    //    nextJob.ProcessState = IoJob<TJob>.State.Cancelled;
+                                    //    _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJob<TJob>.JobState.Producing}");
+                                    //    nextJob.State = IoJob<TJob>.JobState.Cancelled;
                                     //}
 
-var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
+                                    var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                                     var releaseBarrier = nextJob.Source?.BlockOnProduceAheadBarrier ?? false;
                                     var barrier = Source?.ProducerBarrier;
 
-                                    if (nextJob.ProcessState == IoJob<TJob>.State.Cancelled ||
-                                        nextJob.ProcessState == IoJob<TJob>.State.ProdCancel)
+                                    if (nextJob.State == IoJob<TJob>.JobState.Cancelled ||
+                                        nextJob.State == IoJob<TJob>.JobState.ProdCancel)
                                     {
                                         _logger.Debug($"{GetType().Name}: {nextJob.TraceDescription} Source `{Description}' is shutting down");
 
                                         //Free job
-                                        nextJob.ProcessState = IoJob<TJob>.State.Reject;
+                                        nextJob.State = IoJob<TJob>.JobState.Reject;
                                         nextJob = Free(nextJob, true);
                                         IsArbitrating = false;
 #pragma warning disable 4014
@@ -426,7 +435,7 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                                     }
 
                                     //Free job
-                                    nextJob.ProcessState = IoJob<TJob>.State.Reject;
+                                    nextJob.State = IoJob<TJob>.JobState.Reject;
                                     nextJob = Free(nextJob, true);
 
                                     // Release the next production after error
@@ -462,10 +471,10 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                                 _logger.Error($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed...");
 
                             //TODO Double check this hack
-                            if (nextJob.ProcessState != IoJob<TJob>.State.Finished)
+                            if (nextJob.State != IoJob<TJob>.JobState.Finished)
                             {
-                                _logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job status should be {nameof(IoJob<TJob>.State.Finished)}");
-                                nextJob.ProcessState = IoJob<TJob>.State.Reject;
+                                //_logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job status should be {nameof(IoJob<TJob>.JobState.Finished)}");
+                                nextJob.State = IoJob<TJob>.JobState.Reject;
                             }
                             
                             nextJob = Free(nextJob, true);
@@ -502,18 +511,22 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
             if (job == null)
                 return null;
 
-            if (SupportsSync && job.Previous != null)
+            if (SupportsSync && job.PreviousJob != null)
             {
 #if DEBUG
-                if (((IoLoad<TJob>)job.Previous).ProcessState != IoJob<TJob>.State.Finished)
+                if (((IoLoad<TJob>)job.PreviousJob).State != IoJob<TJob>.JobState.Finished)
                 {
-                    _logger.Warn($"{GetType().Name}: Previous fragment state = {((IoLoad<TJob>)job.Previous).ProcessState}");
+                    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoLoad<TJob>)job.PreviousJob).State}");
                 }
 #endif
-                JobHeap.Return((IoLoad<TJob>)job.Previous);
-                job.Previous = null;
+                JobHeap.Return((IoLoad<TJob>)job.PreviousJob);
+                job.PreviousJob = null;
                 return null;
             }
+            //else if (!parent && job.CurrentState.Previous.JobState == IoJob<TJob>.JobState.Accept)
+            //{
+            //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
+            //}
 
             if(parent || !SupportsSync)
                 JobHeap.Return(job);
@@ -522,16 +535,16 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
 
             //try
             //{
-            //    if (job.Previous != null)
+            //    if (job.PreviousJob != null)
             //    {
-            //        if (((IoLoad<TJob>) job.Previous).ProcessState != IoJob<TJob>.State.Accept ||
-            //            ((IoLoad<TJob>) job.Previous).ProcessState != IoJob<TJob>.State.Reject)
+            //        if (((IoLoad<TJob>) job.PreviousJob).State != IoJob<TJob>.JobState.Accept ||
+            //            ((IoLoad<TJob>) job.PreviousJob).State != IoJob<TJob>.JobState.Reject)
             //        {
-            //            _logger.Warn($"{GetType().Name}: State = {((IoLoad<TJob>)job.Previous).ProcessState}");
+            //            _logger.Warn($"{GetType().Name}: JobState = {((IoLoad<TJob>)job.PreviousJob).State}");
             //        }
 
-            //        JobHeap.Return((IoLoad<TJob>) job.Previous);
-            //        job.Previous = null;
+            //        JobHeap.Return((IoLoad<TJob>) job.PreviousJob);
+            //        job.PreviousJob = null;
             //        return null;
 
             //        //if (job.StillHasUnprocessedFragments)
@@ -541,10 +554,10 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
             //        //}
             //        //else
             //        //{
-            //        //    if (job.ProcessState != IoJob<TJob>.State.Accept ||
-            //        //        job.ProcessState != IoJob<TJob>.State.Reject)
+            //        //    if (job.State != IoJob<TJob>.JobState.Accept ||
+            //        //        job.State != IoJob<TJob>.JobState.Reject)
             //        //    {
-            //        //        _logger.Warn($"{GetType().Name}: State = {job.ProcessState}");
+            //        //        _logger.Warn($"{GetType().Name}: JobState = {job.State}");
             //        //    }
 
             //        //    JobHeap.Return(job);
@@ -629,29 +642,29 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                 if (!Zeroed() && _queue.TryDequeue(out var curJob))
                 {
                     
-                    //curJob.ProcessState = IoJob<TJob>.State.Dequeued;
-                    curJob.ProcessState = IoJob<TJob>.State.Consuming;
+                    //curJob.State = IoJob<TJob>.JobState.Dequeued;
+                    curJob.State = IoJob<TJob>.JobState.Consuming;
                     try
                     {
                         //Consume the job
-                        if (await curJob.ConsumeAsync() == IoJob<TJob>.State.Consumed && !Zeroed() || curJob.ProcessState == IoJob<TJob>.State.ConInlined)
+                        if (await curJob.ConsumeAsync() == IoJob<TJob>.JobState.Consumed && !Zeroed() || curJob.State == IoJob<TJob>.JobState.ConInlined)
                         {
                             consumed = true;
 
-                            if (curJob.ProcessState == IoJob<TJob>.State.ConInlined && inlineCallback != null)
+                            if (curJob.State == IoJob<TJob>.JobState.ConInlined && inlineCallback != null)
                             {
                                 //forward any jobs                                                                             
                                 await inlineCallback(curJob);
-                                curJob.ProcessState = IoJob<TJob>.State.Consumed;
+                                curJob.State = IoJob<TJob>.JobState.Consumed;
                             }
 
                             //Notify observer
                             //_observer?.OnNext(job);
                         }
-                        else
+                        else if(!Zeroed() && !curJob.Zeroed() && !Source.Zeroed())
                         {
-                            _logger.Fatal($"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' was unsuccessful, state = {curJob.ProcessState}");
-                            curJob.ProcessState = IoJob<TJob>.State.Error;
+                            _logger.Error($"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' was unsuccessful, state = {curJob.State}");
+                            curJob.State = IoJob<TJob>.JobState.Error;
                         }
                     }
                     catch (NullReferenceException) { }
@@ -668,13 +681,13 @@ var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                     finally
                     {
                         //Consume success?
-                        curJob.ProcessState = curJob.ProcessState < IoJob<TJob>.State.Error
-                            ? IoJob<TJob>.State.Accept
-                            : IoJob<TJob>.State.Reject;
+                        curJob.State = curJob.State < IoJob<TJob>.JobState.Error
+                            ? IoJob<TJob>.JobState.Accept
+                            : IoJob<TJob>.JobState.Reject;
 
                         try
                         {
-                            if ((curJob.Id % parm_stats_mod_count == 0))
+                            if (curJob.Id % parm_stats_mod_count == 0)
                             {
                                 _logger.Debug(
                                     "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");

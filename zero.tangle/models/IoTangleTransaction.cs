@@ -43,37 +43,37 @@ namespace zero.tangle.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<State> ProduceAsync()
+        public override async Task<JobState> ProduceAsync()
         {            
             await Source.ProduceAsync(async producer =>
             {
                 if (Source.ProducerBarrier == null)
                 {
-                    ProcessState = State.ProdCancel;
+                    State = JobState.ProdCancel;
                     return false;                    
                 }
 
                 if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token))
                 {
-                    ProcessState = !Zeroed() ? State.ProduceTo : State.ProdCancel;
+                    State = !Zeroed() ? JobState.ProduceTo : JobState.ProdCancel;
                     return false;
                 }
 
                 if (Zeroed())
                 {
-                    ProcessState = State.ProdCancel;
+                    State = JobState.ProdCancel;
                     return false;
                 }
                 
                 Transactions = ((IoTangleTransactionSource<TKey>)Source).TxQueue.Take();
 
-                ProcessState = State.Produced;
+                State = JobState.Produced;
 
                 return true;
             });
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
-            return ProcessState;
+            return State;
         }
 
         /// <summary>
@@ -82,11 +82,11 @@ namespace zero.tangle.models
         /// <returns>
         /// The state of the consumption
         /// </returns>
-        public override Task<State> ConsumeAsync()
+        public override Task<JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
-            ProcessState = State.ConInlined;
-            return Task.FromResult(ProcessState);
+            State = JobState.ConInlined;
+            return Task.FromResult(State);
         }
     }    
 }

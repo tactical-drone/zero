@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NLog;
 using zero.cocoon.autopeer;
@@ -89,6 +90,11 @@ namespace zero.cocoon
         }
 
         /// <summary>
+        /// Used for testing
+        /// </summary>
+        public volatile int AccountingBit = 0;
+
+        /// <summary>
         /// Helper
         /// </summary>
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
@@ -137,7 +143,17 @@ namespace zero.cocoon
             _logger.Debug($" Attached to neighbor {neighbor.Description}");
 
             //Attach the other way
-            return Neighbor.AttachPeer(this);
+            var result = Neighbor.AttachPeer(this);
+
+            if (result)
+            {
+                var v = 0;
+                var vb = new byte[4];
+                MemoryMarshal.Write(vb.AsSpan(), ref v);
+                ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
+            }
+
+            return result;
         }
 
         /// <summary>

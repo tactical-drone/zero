@@ -402,21 +402,10 @@ namespace zero.cocoon.autopeer
             {
                 _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Zeroing zombie neighbor {Id}");
                 await Zero(this);
+                return;
             }
 
             await SendPingAsync();
-
-            if (PeerConnectedAtLeastOnce && Direction != Kind.Inbound && (Peer == null || !(Peer?.Source?.IsOperational??false)))
-            {
-                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} RE-/Requesting to peer with neighbor {Id}:{RemoteAddress.Port}...");
-                DetachPeer(true);
-                await SendPingAsync();
-            }
-            else if (Peer == null && Direction == Kind.Inbound) //was there a race?
-            {
-                DetachPeer(true);
-                await SendPingAsync();
-            }
         }
 
         /// <summary>
@@ -491,7 +480,7 @@ namespace zero.cocoon.autopeer
                 }
 
 
-                consumer.ProcessState = IoJob<IoCcProtocolMessage>.State.Consumed;
+                consumer.State = IoJob<IoCcProtocolMessage>.JobState.Consumed;
 
                 stopwatch.Stop();
                 //_logger.Trace($"{(RoutedRequest ? "V>" : "X>")} Processed `{protocolMsgs.Count}' consumer: t = `{stopwatch.ElapsedMilliseconds:D}', `{protocolMsgs.Count * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} t/s'");
@@ -588,8 +577,8 @@ namespace zero.cocoon.autopeer
                         }
                         finally
                         {
-                            if (batch != null && batch.ProcessState != IoJob<IoCcProtocolMessage>.State.Consumed)
-                                batch.ProcessState = IoJob<IoCcProtocolMessage>.State.ConsumeErr;
+                            if (batch != null && batch.State != IoJob<IoCcProtocolMessage>.JobState.Consumed)
+                                batch.State = IoJob<IoCcProtocolMessage>.JobState.ConsumeErr;
                         }
                     });//don't ConfigureAwait(false);
 
@@ -1129,30 +1118,10 @@ namespace zero.cocoon.autopeer
                 //set ext address as seen by neighbor
                 ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{pong.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
 
-                if (CcNode.Neighbors.Count <= CcNode.MaxClients) //TODO 
+                if (CcNode.OutboundCount < CcNode.parm_max_outbound)
                 {
                     _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Discovered/Verified peer {Id}:{RemoteAddress.Port}, {(CcNode.OutboundCount < CcNode.parm_max_outbound?"Connecting...":"Saved")}, NAT = {ExtGossipAddress}");
                     await SendPeerRequestAsync();
-                }
-            }
-            else if (Verified)
-            {
-                //Just check everything is cool
-                if (Peer != null && (/*!Peer.IsArbitrating ||*/ !Peer.Source.IsOperational) && Direction != Kind.Undefined)
-                {
-                    _logger.Warn($"Found zombie {Peer?.Neighbor?.Direction} Peer, closing: {Peer?.Id}");
-#pragma warning disable 4014
-                    Peer?.Zero(this);
-#pragma warning restore 4014
-                }
-                else if(Peer == null && (PeerConnectedAtLeastOnce || Direction != Kind.Inbound)) //TODO remove
-                {
-                    //DetachPeer(true);
-                    await SendPeerRequestAsync();
-                }
-                else if(Peer == null && Direction == Kind.Inbound && !PeerConnectedAtLeastOnce) //race
-                {
-                    await SendPingAsync();
                 }
             }
         }

@@ -132,8 +132,8 @@ namespace zero.tangle
                     }
                     finally
                     {
-                        if (batch != null && batch.ProcessState != IoJob<IoTangleTransaction<TKey>>.State.Consumed)
-                            batch.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.ConsumeErr;
+                        if (batch != null && batch.State != IoJob<IoTangleTransaction<TKey>>.JobState.Consumed)
+                            batch.State = IoJob<IoTangleTransaction<TKey>>.JobState.ConsumeErr;
                     }
                 });
 
@@ -177,7 +177,7 @@ namespace zero.tangle
                 }
             }
 
-            transactions.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.Consumed;
+            transactions.State = IoJob<IoTangleTransaction<TKey>>.JobState.Consumed;
 
             stopwatch.Stop();
             _logger.Trace($"{transactions.TraceDescription} Processed `{tangleTransactions.Length}' transactions: t = `{stopwatch.ElapsedMilliseconds:D}', `{tangleTransactions.Length*1000/(stopwatch.ElapsedMilliseconds+1):D} t/s'");
@@ -206,7 +206,7 @@ namespace zero.tangle
                 //    {
                 //        stopwatch.Stop();
                 //        _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
-                //        consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.SlowDup;
+                //        consumer.State = IoJob<IoTangleTransaction<TKey>>.JobState.SlowDup;
                 //        return;
                 //    }
                 //}
@@ -228,10 +228,10 @@ namespace zero.tangle
             }
             finally
             {
-                if (putResult == null && consumer.ProcessState != IoJob<IoTangleTransaction<TKey>>.State.SlowDup)
+                if (putResult == null && consumer.State != IoJob<IoTangleTransaction<TKey>>.JobState.SlowDup)
                 {
                     transactionArbiter.IsArbitrating = false;
-                    consumer.ProcessState = IoJob<IoTangleTransaction<TKey>>.State.DbError;
+                    consumer.State = IoJob<IoTangleTransaction<TKey>>.JobState.DbError;
 
                     //if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
                     //    await transactionArbiter.Source.ChannelSource.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));
