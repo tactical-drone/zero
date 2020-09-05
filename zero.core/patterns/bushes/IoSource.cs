@@ -266,7 +266,7 @@ namespace zero.core.patterns.bushes
                 }
             }
 
-            _logger.Debug($"`{Description}' Counters: {heading}{str}");
+            _logger.Info($"`{Description}' Counters: {heading}{str}");
         }
 
         /// <summary>

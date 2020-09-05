@@ -189,7 +189,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
         public int parm_stats_mod_count = 1000;
 #else
-        public int parm_stats_mod_count = 100000;
+        public int parm_stats_mod_count = 10000;
 #endif
 
         /// <summary>
@@ -689,13 +689,10 @@ namespace zero.core.patterns.bushes
                         {
                             if (curJob.Id % parm_stats_mod_count == 0)
                             {
-                                _logger.Debug(
-                                    "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-                                _logger.Debug(
-                                    $"`{Description}' {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                _logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                _logger.Info($"`{Description}' {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                 curJob.Source.PrintCounters();
-                                _logger.Debug(
-                                    "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                _logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                             }
                         }
                         catch
