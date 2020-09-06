@@ -19,20 +19,20 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Zero pattern
         /// </summary>
-        Task Zero(IIoZeroable @from);
+        ValueTask<bool> Zero(IIoZeroable @from);
 
         /// <summary>
         /// Subscribe to disposed event
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        Func<IIoZeroable, Task> ZeroEvent(Func<IIoZeroable, Task> sub);
+        Func<IIoZeroable, ValueTask<bool>> ZeroEvent(Func<IIoZeroable, ValueTask<bool>> sub);
 
         /// <summary>
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        Task Unsubscribe(Func<IIoZeroable, Task> sub);
+        ValueTask<bool> Unsubscribe(Func<IIoZeroable, ValueTask<bool>> sub);
 
         /// <summary>
         /// Cascade zeroed object

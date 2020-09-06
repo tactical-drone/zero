@@ -122,8 +122,6 @@ namespace zero.cocoon
         /// </summary>
         protected override void ZeroManaged()
         {
-            Neighbors.ToList().ForEach(n=>n.Value.Zero(this));
-
             Services.IoCcRecord.Endpoints.Clear();
             try
             {
@@ -135,8 +133,7 @@ namespace zero.cocoon
             }
 
             base.ZeroManaged();
-            GC.Collect(GC.MaxGeneration);
-            _logger.Info($"Closed node ({Description})");
+            //GC.Collect(GC.MaxGeneration);
         }
 
         private readonly Logger _logger;
@@ -148,7 +145,7 @@ namespace zero.cocoon
             {
                 if (_description != null)
                     return _description;
-                return _description = $"listen = {_peerAddress}, boot = {_bootstrap}";
+                return _description = $"`node({Address})'";
             }
         }
 
@@ -272,7 +269,7 @@ namespace zero.cocoon
             await base.SpawnListenerAsync(async peer =>
             {
                 //limit connects
-                if (InboundCount > parm_max_inbound)
+                if (InboundCount > parm_max_inbound || Zeroed())
                     return false;
 
                 if (await HandshakeAsync((IoCcPeer) peer).ConfigureAwait(false))

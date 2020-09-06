@@ -120,7 +120,7 @@ namespace zero.core.network.ip
                 _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Zeroed())
                 {
-                    await Task.Delay(5000).ConfigureAwait(false);
+                    await Task.Delay(5000, AsyncTasks.Token).ConfigureAwait(false);
                     if (!Socket?.IsBound ?? false)
                     {
                         _logger.Warn($"Found zombie udp socket state");
@@ -131,6 +131,10 @@ namespace zero.core.network.ip
                 }
                 _logger.Debug($"Stopped listening at {ListeningAddress}");
             }
+            catch (NullReferenceException) {}
+            catch (TaskCanceledException) {}
+            catch (OperationCanceledException) {}
+            catch (ObjectDisposedException) {}
             catch (Exception e)
             {
                 _logger.Error(e, $"There was an error handling new connection from `udp://{RemoteAddressFallback}' to `udp://{LocalIpAndPort}'");
@@ -154,7 +158,7 @@ namespace zero.core.network.ip
         {
             if (Zeroed())
             {
-                await Task.Delay(1000).ConfigureAwait(false);
+                await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
                 return 0;
             }
             
@@ -172,7 +176,9 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                             _logger.Trace(t.Exception?.InnerException, $"Sending to udp://{endPoint} failed");
+#pragma warning disable 4014
                             Zero(this);
+#pragma warning restore 4014
                             break;
                         case TaskStatus.RanToCompletion:
                             _logger.Trace($"Sent {length} bytes to udp://{endPoint} from {Socket.LocalPort()}");
@@ -199,7 +205,7 @@ namespace zero.core.network.ip
 
                 if (!(Socket?.IsBound ?? false) || Zeroed())
                 {
-                    await Task.Delay(1000).ConfigureAwait(false);
+                    await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
                     return 0;
                 }
 

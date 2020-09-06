@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Cassandra;
 using NLog;
 using zero.core.patterns.bushes.contracts;
 
@@ -51,7 +52,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private ConcurrentDictionary<Func<IIoZeroable, Task>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, Task>, object>();
+        private ConcurrentDictionary<Func<IIoZeroable, ValueTask<bool>>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, ValueTask<bool>>, object>();
 
         /// <summary>
         /// Zero pattern
@@ -65,17 +66,19 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Zero
         /// </summary>
-        public Task Zero(IIoZeroable from)
+#pragma warning disable 1998
+        public async ValueTask<bool> Zero(IIoZeroable from)
+#pragma warning restore 1998
         {
             if (_zeroed > 0)
-                return Task.CompletedTask;
+                return false;
 
             if (from != this)
                 ZeroedFrom = from;
 
             Dispose();
 
-            return Task.CompletedTask;
+            return true;
         }
 
         private void PrintPathToZero()
@@ -107,7 +110,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public Func<IIoZeroable, Task> ZeroEvent(Func<IIoZeroable, Task> sub)
+        public Func<IIoZeroable, ValueTask<bool>> ZeroEvent(Func<IIoZeroable, ValueTask<bool>> sub)
         {
             try
             {
@@ -125,10 +128,12 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        public Task Unsubscribe(Func<IIoZeroable, Task> sub)
+#pragma warning disable 1998
+        public async ValueTask<bool> Unsubscribe(Func<IIoZeroable, ValueTask<bool>> sub)
+#pragma warning restore 1998
         {
             if (sub == null)
-                return Task.CompletedTask;
+                return false;
 
             try
             {
@@ -139,7 +144,7 @@ namespace zero.core.patterns.misc
             }
             catch (NullReferenceException) { }
 
-            return Task.CompletedTask;
+            return true;
         }
 
         /// <summary>
@@ -150,17 +155,32 @@ namespace zero.core.patterns.misc
         public T ZeroOnCascade<T>(T target, bool twoWay = false)
         where T:IIoZeroable
         {
-            var sub = ZeroEvent((sender) => target.Zero(this));
-
             if (twoWay)//zero
             {
-                target.ZeroEvent((s) => Zero(target));
+                Func<IIoZeroable, ValueTask<bool>> sourceZeroHandler = null;
+                Func<IIoZeroable, ValueTask<bool>> targetZeroHandler = null;
+
+                // ReSharper disable once AccessToModifiedClosure
+                sourceZeroHandler = ZeroEvent(s => s == (IIoZeroable) target ? Unsubscribe(sourceZeroHandler) : target.Zero(this));
+
+                // ReSharper disable once AccessToModifiedClosure
+                targetZeroHandler = target.ZeroEvent(s => s == this ? target.Unsubscribe(targetZeroHandler) : Zero(target));
+
+                ////Target zero logic
+                //target.ZeroEvent(s => s == this ? Unsubscribe(ZeroTarget) : ZeroSource(s));
+
+                ////Source zero logic
+                //ZeroEvent(s => s == (IIoZeroable) target ? target.Unsubscribe(ZeroSource) : ZeroTarget(s));
             }
-            else //Release
+            else //Release source if target goes
             {
-                target.ZeroEvent(z => Unsubscribe(sub));
+                var sub = ZeroEvent(target.Zero);
+
+#pragma warning disable 1998
+                target.ZeroEvent(async s => s != this && Unsubscribe(sub).Result);
+#pragma warning restore 1998
             }
-                
+
             return target;
         }
 
@@ -168,7 +188,7 @@ namespace zero.core.patterns.misc
         /// Our dispose implementation
         /// </summary>
         /// <param name="disposing">Whether we are disposing unmanaged objects</param>
-        protected virtual async void Zero(bool disposing)
+        protected virtual void Zero(bool disposing)
         {
             if( Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0 )
                 return;
@@ -176,11 +196,11 @@ namespace zero.core.patterns.misc
             AsyncTasks.Cancel();
 
             //emit zero event
-            foreach (var handler in _subscribers.Keys.Reverse())
+            foreach (var handler in _subscribers.Keys)
             {
                 try
                 {
-                    await handler(this).ConfigureAwait(false);
+                    handler(this);
                 }
                 catch (NullReferenceException) { }
                 catch (Exception e)

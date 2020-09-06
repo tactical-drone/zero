@@ -252,6 +252,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroManaged()
         {
+#pragma warning disable 4014
             _queue.ToList().ForEach(q=>q.Zero(this));
             _queue.Clear();
 
@@ -261,9 +262,12 @@ namespace zero.core.patterns.bushes
             }
 
             _previousJobFragment.ToList().ForEach(job => job.Zero(this));
+#pragma warning restore 4014
             _previousJobFragment.Clear();
 
             base.ZeroManaged();
+
+            _logger.Trace($"Closed {Description}");
         }
 
         /// <summary>
@@ -628,7 +632,7 @@ namespace zero.core.patterns.bushes
                     //wait...
                     _logger.Trace(
                         $"{GetType().Name}: Consumer `{Description}' [[ConsumerBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
-                    await Task.Delay(parm_consumer_wait_for_producer_timeout / 4).ConfigureAwait(false);
+                    await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
 
                     //Try again
                     return false;
@@ -687,10 +691,10 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
-                            if (curJob.Id % parm_stats_mod_count == 0)
+                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0)
                             {
                                 _logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-                                _logger.Info($"`{Description}' {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                _logger.Info($"{Description} {JobHeap.IoFpsCounter.Fps():F} j/s, consumer job heap = [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                 curJob.Source.PrintCounters();
                                 _logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                             }
@@ -842,6 +846,8 @@ namespace zero.core.patterns.bushes
             //}, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
 
+            Task<Task> consumerTask = null;
+
             //Producer
             var producerTask = Task.Factory.StartNew(async () =>
             {
@@ -849,38 +855,45 @@ namespace zero.core.patterns.bushes
                 var producers = new Task[ProducerCount];
                 while (!Zeroed())
                 {
+                    try
+                    {
+                        if(consumerTask.Unwrap().IsCompleted)
+                            break;
+                    }
+                    catch { }
+
                     for (int i = 0; i < ProducerCount; i++)
                     {
                         producers[i] = ProduceAsync();
                         if (!Source?.IsOperational ?? false)
                         {
-                            _logger.Debug($"{GetType().Name}: Producer `{Description}' went non operational!");
+                            _logger.Debug($"{GetType().Name}: Producer {Description} went non operational!");
                             return;
                         }
                     }
 
-                    await Task.WhenAll(producers).ConfigureAwait(false);
+                    await Task.WhenAll(producers).ContinueWith(task => {}, AsyncTasks.Token).ConfigureAwait(false);
                 }
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //Consumer
-            var consumerTask = Task.Factory.StartNew(async () =>
+            consumerTask = Task.Factory.StartNew(async () =>
             {
                 var consumers = new Task[ConsumerCount];
                 //While supposed to be working
-                while (!Zeroed())
+                while (!Zeroed() && !producerTask.Unwrap().IsCompleted )
                 {
                     for (int i = 0; i < ConsumerCount; i++)
                     {
                         consumers[i] = ConsumeAsync();
                         if (!Source?.IsOperational ?? false)
                         {
-                            _logger.Debug($"{GetType().Name}: Consumer `{Description}' went non operational!");
+                            _logger.Debug($"{GetType().Name}: Consumer {Description} went non operational!");
                             return;
                         }
                     }
 
-                    await Task.WhenAll(consumers).ConfigureAwait(true);
+                    await Task.WhenAll(consumers).ContinueWith(task => { }, AsyncTasks.Token).ConfigureAwait(false);
                 }
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
@@ -888,8 +901,10 @@ namespace zero.core.patterns.bushes
             var wait = Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ContinueWith(t=>
             {
                 _logger.Debug($"{GetType().Name} [{t.Status}]: {Description}");
+#pragma warning disable 4014
                 Zero(this);
-            });
+#pragma warning restore 4014
+            }, AsyncTasks.Token);
 
             //var wait = Task.WhenAll(producerTask.Unwrap()).ContinueWith(t =>
 

@@ -34,7 +34,7 @@ namespace zero.sync
 
 
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 1;
+            int total = 2000;
             var tasks = new ConcurrentBag<Task>();
             tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://0.0.0.0:{14667 + portOffset}", $"udp://0.0.0.0:{14627 + portOffset}", null, $"udp://192.168.88.253:{14627 + portOffset}", $"udp://192.168.88.253:{14626 + portOffset}", 0));
             tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset}", $"udp://0.0.0.0:{15627 + portOffset}", null, $"udp://192.168.88.253:{15627 + portOffset}", $"udp://192.168.88.253:{14627 + portOffset}", 1));
@@ -51,7 +51,14 @@ namespace zero.sync
             Console.CancelKeyPress += (sender, args) =>
                 {
                     Console.WriteLine("#");
-                    _nodes.ToList().ForEach(n=>Task.Run(()=>n.Zero(null)));
+                    _nodes.ToList().ForEach(n=>
+                    {
+                        Task.Run(() =>
+                        {
+                            Task.Delay(200).ConfigureAwait(false);
+                            return n.Zero(null);
+                        });
+                    });
                     _nodes.Clear();
                     args.Cancel = true;
                 };
@@ -61,7 +68,7 @@ namespace zero.sync
             var inBound = 0;
             var available = 0;
             var logger = LogManager.GetCurrentClassLogger();
-            Task.Factory.StartNew(() =>
+            var reportingTask = Task.Factory.StartNew(() =>
             {
                 var ooutBound = 0;
                 var oinBound = 0;
@@ -111,13 +118,25 @@ namespace zero.sync
             }, TaskCreationOptions.LongRunning);
 
             Console.ReadLine();
+
             running = false;
             _nodes.ToList().ForEach(n => Task.Run(() => n.Zero(null)));
             _nodes.Clear();
+            
 
             Console.ReadLine();
 
+            _nodes = null;
+            reportingTask.Dispose();
+            reportingTask = null;
+            tasks.Clear();
+            tasks = null;
+
+            GC.Collect(GC.MaxGeneration);
+
             Console.WriteLine("##");
+
+            Console.ReadLine();
 
             //var c1 = CoCoon(IoCcIdentity.Generate(true), "tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627", "udp://192.168.88.253:15627");
             //var c2 = CoCoon(IoCcIdentity.Generate(), "tcp://0.0.0.0:15667", "udp://0.0.0.0:15627", null, "udp://192.168.88.253:15627", "udp://192.168.88.253:14627");
@@ -153,15 +172,16 @@ namespace zero.sync
                     TanglePeer<string>.TcpReadAhead);
 
                 var tangleNodeTask = tangleNode.StartAsync();
-#pragma warning restore 4014
 
+
+#pragma warning disable 4014
                 AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(null);
                 Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(null);
+#pragma warning restore 4014
                 tangleNodeTask.Wait();
             }
         }
 
-        private static int _count;
         private static Task CoCoon(IoCcIdentity ioCcIdentity, string gossipAddress, string peerAddress,
             string fpcAddress, string extAddress, string bootStrapAddress, int total)
         {

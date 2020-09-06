@@ -292,8 +292,9 @@ namespace zero.core.network.ip
             //if (Socket?.Connected ?? false)
             //    Socket.Shutdown(SocketShutdown.Both);
             
-            Socket?.Close(1000);
+            Socket?.Close();
             base.ZeroManaged();
+            _logger.Trace($"Closed {Description}");
         }
 
         /// <summary>

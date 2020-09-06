@@ -149,7 +149,7 @@ namespace zero.core.models
 
                 Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0), Buffer, BufferOffset, bytesToTransfer);
             }
-            catch (Exception e) // we de-synced 
+            catch (Exception) // we de-synced 
             {
                 Source.Synced = false;
                 DatumCount = 0;

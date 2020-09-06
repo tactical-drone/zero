@@ -39,6 +39,11 @@ namespace zero.cocoon.autopeer
         private readonly Logger _logger;
 
         /// <summary>
+        /// Description
+        /// </summary>
+        public override string Description => $"`discovery({Address})'";
+
+        /// <summary>
         /// The cocoon node this discovery service belongs to 
         /// </summary>
         public IoCcNode CcNode;

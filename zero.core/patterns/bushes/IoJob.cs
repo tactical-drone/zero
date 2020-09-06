@@ -205,7 +205,7 @@ namespace zero.core.patterns.bushes
         {
 #if !DEBUG
             return;
-#endif
+#else
             var curState = StateTransitionHistory[0];
 
             while (curState != null)
@@ -213,6 +213,7 @@ namespace zero.core.patterns.bushes
                 PrintState(curState);
                 curState = curState.Next;
             }
+#endif
         }
 
         /// <summary>

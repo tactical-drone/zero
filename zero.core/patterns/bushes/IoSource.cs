@@ -11,6 +11,7 @@ using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes
 {
@@ -175,11 +176,14 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroManaged()
         {
+            ObjectStorage.Values.ToList().ForEach(c=>((IIoZeroable)c).Zero(this));
             ObjectStorage.Clear();
             IoChannels.Clear();
             RecentlyProcessed?.Zero(this);
             
             base.ZeroManaged();
+
+            _logger.Trace($"Closed {Description}");
         }
 
         /// <summary>
@@ -208,7 +212,7 @@ namespace zero.core.patterns.bushes
 
                 lock (this)
                 {
-                    var newChannel = new IoChannel<TFJob>($"CHANNEL[{id}]: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc, producers, consumers);
+                    var newChannel = new IoChannel<TFJob>($"`channel({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
                     if (IoChannels.TryAdd(id, newChannel))
                     {
                         ZeroOnCascade(newChannel, cascade);

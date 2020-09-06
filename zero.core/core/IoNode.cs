@@ -43,6 +43,11 @@ namespace zero.core.core
         private IoNodeAddress _address;
 
         /// <summary>
+        /// The listening address of this node
+        /// </summary>
+        public IoNodeAddress Address => _address;
+
+        /// <summary>
         /// Used to allocate peers when connections are made
         /// </summary>
         public Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> MallocNeighbor { get; protected set; }
@@ -173,15 +178,22 @@ namespace zero.core.core
                     string id = newNeighbor.Id;
 
                     // Remove from lists if closed
-                    newNeighbor.ZeroEvent(s =>
+#pragma warning disable 1998
+                    newNeighbor.ZeroEvent(async s =>
+#pragma warning restore 1998
                     {
                         //DisconnectedEvent?.Invoke(this, newNeighbor);
-                        if (Neighbors?.TryRemove(id, out var _)??true)
-                            _logger.Debug($"Removed neighbor Id = {id}");
+                        IoNeighbor<TJob> zeroNeighbor = null;
+                        if (Neighbors?.TryRemove(id, out zeroNeighbor) ?? true)
+                        {
+                            _logger.Trace($"Removed {zeroNeighbor.Description}");
+                        }
                         else
-                            _logger.Fatal($"Neighbor {id} not found!");
+                        {
+                            _logger.Trace($"Cannot remove neighbor {id} not found!");
+                        }
 
-                        return Task.CompletedTask;
+                        return true;
                     });
                 }
                 catch (NullReferenceException) { return;  }
@@ -250,13 +262,16 @@ namespace zero.core.core
                     if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                     {
                         //Is this a race condition? Between subbing and being zeroed out?
-                        newNeighbor.ZeroEvent(s =>
+#pragma warning disable 1998
+                        newNeighbor.ZeroEvent(async s =>
+#pragma warning restore 1998
                         {
-                            _logger.Debug(!(Neighbors?.TryRemove(id, out _)??true)
+                            IoNeighbor<TJob> closedNeighbor = null;
+                            _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor)??true)
                                 ? $"Neighbor metadata expected for key `{id}'"
-                                : $"{GetType().Name}: Dropped peer {id} from node {Description}");
+                                : $"Dropped {closedNeighbor.Description} from {Description}");
 
-                            return Task.CompletedTask;
+                            return true;
                         });
 
                         //TODO
@@ -330,7 +345,9 @@ namespace zero.core.core
         /// </summary>
         protected override void ZeroManaged()
         {
+#pragma warning disable 4014
             Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
+#pragma warning restore 4014
             Neighbors.Clear();
             
             try
@@ -344,6 +361,7 @@ namespace zero.core.core
             }
 
             base.ZeroManaged();
+            _logger.Trace($"Closed {Description}");
         }
 
         public bool WhiteList(IoNodeAddress address)
@@ -372,7 +390,9 @@ namespace zero.core.core
                     keys.Add(n.Source.Key);
                 });
 
+#pragma warning disable 4014
                 Neighbors[address.ToString()].Zero(this);
+#pragma warning restore 4014
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;
             }

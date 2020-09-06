@@ -129,7 +129,7 @@ namespace zero.core.network.ip
             get 
             { 
                 if(_description == null)
-                    return _description = $"{IoSocket?.RemoteAddress?.ToString() ?? ListeningAddress.ToString()}";
+                    return _description = $"`net client({IoSocket?.RemoteAddress?.ToString() ?? ListeningAddress.ToString()})'";
                 return _description;
             }
         }
@@ -285,7 +285,9 @@ namespace zero.core.network.ip
                             _logger.Warn($"Connection to `{ListeningAddress}' disconnected!");
 
                             //Do cleanup
+#pragma warning disable 4014
                             Zero(this);
+#pragma warning restore 4014
 
                             return false;
                         }

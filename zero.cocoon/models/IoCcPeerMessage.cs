@@ -362,7 +362,7 @@ namespace zero.cocoon.models
             {
                 //TransferPreviousBits();
 
-                if (BytesRead == 0)
+                if (BytesRead == 0 || Zeroed())
                     return State = JobState.ConInvalid;
 
                 var verified = false;

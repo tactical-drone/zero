@@ -31,21 +31,25 @@ namespace zero.cocoon
 
             //Testing
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
+#pragma warning disable 1998
             Task.Run(async () =>
+#pragma warning restore 1998
             {
                 return;
                 
-                await Task.Delay(rand.Next(60000000), AsyncTasks.Token).ContinueWith(r =>
-                //await Task.Delay(rand.Next(30000), AsyncT
-                //asks.Token).ContinueWith(r =>
-                {
-                    if (r.IsCompletedSuccessfully && !Zeroed())
-                    {
-                        _logger.Fatal($"Testing SOCKET FAILURE {Id}");
-                        Source.Zero(this);
-                        GC.Collect(GC.MaxGeneration);
-                    }
-                });
+//                await Task.Delay(rand.Next(60000000), AsyncTasks.Token).ContinueWith(r =>
+//                //await Task.Delay(rand.Next(30000), AsyncT
+//                //asks.Token).ContinueWith(r =>
+//                {
+//                    if (r.IsCompletedSuccessfully && !Zeroed())
+//                    {
+//                        _logger.Fatal($"Testing SOCKET FAILURE {Id}");
+//#pragma warning disable 4014
+//                        Source.Zero(this);
+//#pragma warning restore 4014
+//                        GC.Collect(GC.MaxGeneration);
+//                    }
+//                });
             }).ConfigureAwait(false);
         }
 
@@ -66,7 +70,7 @@ namespace zero.cocoon
             {
                 if (_description != null)
                     return _description;
-                return _description = $"Peer: {Source.Key}";
+                return _description = $"`peer({Neighbor?.Direction}) {Id}'";
             }
         }
 
@@ -117,9 +121,10 @@ namespace zero.cocoon
         /// </summary>
         protected override void ZeroManaged()
         {
-            
             DetachNeighbor();
+#pragma warning disable 4014
             Source.Zero(this);
+#pragma warning restore 4014
             base.ZeroManaged();
         }
 
@@ -150,7 +155,8 @@ namespace zero.cocoon
                 var v = 0;
                 var vb = new byte[4];
                 MemoryMarshal.Write(vb.AsSpan(), ref v);
-                ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
+                if(!Zeroed())
+                    ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
             }
 
             return result;

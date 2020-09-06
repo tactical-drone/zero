@@ -106,8 +106,13 @@ namespace zero.core.patterns.heap
         /// </summary>
         protected override void ZeroManaged()
         {
-            _buffer.ToList().ForEach(h=>h.Zero(this));
-            _buffer.Clear();
+
+            try
+            {
+                _buffer.ToList().ForEach(h=>h.Zero(this));
+                _buffer.Clear();
+            }
+            catch { }
 
             base.ZeroManaged();
         }

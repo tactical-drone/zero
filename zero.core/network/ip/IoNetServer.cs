@@ -107,7 +107,7 @@ namespace zero.core.network.ip
         {
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
-                await Task.Delay(parm_connection_timeout).ConfigureAwait(false);
+                await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
                 if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 {
                     _logger.Warn($"Cancelling existing connection attemp to `{address}'");
@@ -122,7 +122,7 @@ namespace zero.core.network.ip
 
             try
             {
-                var connectTask = ioNetClient?.ConnectAsync().ContinueWith(t =>
+                var connectTask = ioNetClient?.ConnectAsync().ContinueWith(async t =>
                 {
                     switch (t.Status)
                     {
@@ -141,13 +141,13 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                         default:
-                            ioNetClient.Zero(this);
+                            await ioNetClient.Zero(this);
                             _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
                             break;
                     }
 
                     return false;
-                }, AsyncTasks.Token);
+                }, AsyncTasks.Token).Unwrap();
 
                 //ioNetClient will never be null, the null in the parameter is needed for the interface contract
                 if (ioNetClient != null && await connectTask)

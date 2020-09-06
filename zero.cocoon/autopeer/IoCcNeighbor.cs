@@ -70,7 +70,7 @@ namespace zero.cocoon.autopeer
             {
                 if (_description != null)
                     return _description;
-                return _description = $"{(RoutedRequest?"R":"L")} {Identity.IdString()}:{((IoNetClient<IoCcPeerMessage>)Source).RemoteAddress?.Port}";
+                return _description = $"`neighbor({(RoutedRequest?"R":"L")},{(PeerConnectedAtLeastOnce ? "C" : "D")}) {Id}'";
             }
         }
 
@@ -322,12 +322,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Handle to peer zero sub
         /// </summary>
-        private Func<IIoZeroable, Task> _peerZeroSub;
+        private Func<IIoZeroable, ValueTask<bool>> _peerZeroSub;
 
         /// <summary>
         /// Handle to neighbor zero sub
         /// </summary>
-        private Func<IIoZeroable, Task> _neighborZeroSub;
+        private Func<IIoZeroable, ValueTask<bool>> _neighborZeroSub;
 
         /// <summary>
         /// Number of connection attempts
@@ -511,7 +511,7 @@ namespace zero.cocoon.autopeer
             {
                 if (_protocolChannel == null)
                 {
-                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Waiting for `{Description}' stream to spin up...");
+                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Waiting for {Description} stream to spin up...");
                     _protocolChannel = Source.AttachProducer<IoCcProtocolMessage>(nameof(IoCcNeighbor));
                     await Task.Delay(2000).ConfigureAwait(false);//TODO config
                     continue;
@@ -589,7 +589,7 @@ namespace zero.cocoon.autopeer
                 await Task.WhenAll(channelTasks).ConfigureAwait(true);
             }
 
-            _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Stopped processing peer msgs: `{Description}'");
+            _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Stopped processing msgs from {Description}");
         }
 
         /// <summary>
@@ -598,7 +598,9 @@ namespace zero.cocoon.autopeer
         /// <param name="request">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
+#pragma warning disable 1998
         private async Task Process(PeeringDrop request, object extraData, Packet packet)
+#pragma warning restore 1998
         {
             var diff = 0;
             if (!RoutedRequest || (diff = Math.Abs((int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp))) > parm_max_time_error * 2)
@@ -681,7 +683,9 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task Process(PeeringResponse response, object extraData, Packet packet)
         {
+#pragma warning disable 420
             var request = Volatile.Read(ref _peerRequest); 
+#pragma warning restore 420
             if (!RoutedRequest || request == null)
             {
                 _logger.Trace($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Unexpected response from {extraData}, {RemoteAddress}");
@@ -789,7 +793,9 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task Process(DiscoveryResponse response, object extraData, Packet packet)
         {
+#pragma warning disable 420
             var discoveryRequest = Volatile.Read(ref _discoveryRequest);
+#pragma warning restore 420
             if (discoveryRequest == null || !RoutedRequest || response.Peers.Count > parm_max_discovery_peers)
             {
                 _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(DiscoveryResponse)}: Dropped! Got unexpected response count = ({response.Peers.Count}) from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest}");
@@ -1022,7 +1028,9 @@ namespace zero.cocoon.autopeer
             if (!RoutedRequest)
                 _pingRequestBarrier.Release();
 
+#pragma warning disable 420
             var pingRequest = Volatile.Read(ref _pingRequest);
+#pragma warning restore 420
             if (pingRequest == null)
             {
                 if (RoutedRequest)
@@ -1089,16 +1097,20 @@ namespace zero.cocoon.autopeer
                     {
                         var id = newNeighbor.Id;
                         var port = ((IPEndPoint) extraData).Port;
-                        newNeighbor.ZeroEvent(zeroable =>
+#pragma warning disable 1998
+                        newNeighbor.ZeroEvent(async source =>
+#pragma warning restore 1998
                         {
                             try
                             {
                                 if (Node.Neighbors.TryRemove(id, out var n))
-                                    _logger.Debug($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} neighbor dropped {n.Id}:{port} from node {Description}");
+                                {
+                                    _logger.Trace($"Removed {n.Description} from {Description}");
+                                }
                             }
                             catch { }
 
-                            return Task.CompletedTask;
+                            return true;
                         });
                         await newNeighbor.EnsurePeerAsync().ConfigureAwait(false);
                     }
@@ -1366,15 +1378,13 @@ namespace zero.cocoon.autopeer
             //ioCcPeer.AttachNeighbor(this);
 
             _peerZeroSub = Peer.ZeroEvent(async sender =>
-            {
+            { 
                 DetachPeer();
                 await SendPeerDropAsync().ConfigureAwait(false);
+                return true;
             });
 
-            _neighborZeroSub = ZeroEvent(sender =>
-            {
-                return Peer?.Zero(this);
-            });
+            _neighborZeroSub = ZeroEvent(sender => (ValueTask<bool>) Peer?.Zero(this));
 
             return true;
         }
@@ -1397,7 +1407,9 @@ namespace zero.cocoon.autopeer
                 peer?.Unsubscribe(_peerZeroSub);
             _peerZeroSub = null;
             if(_neighborZeroSub != null)
+#pragma warning disable 4014
                 Unsubscribe(_neighborZeroSub);
+#pragma warning restore 4014
             _neighborZeroSub = null;
             peer?.DetachNeighbor();
             Interlocked.Exchange(ref _direction, 0);
@@ -1407,7 +1419,7 @@ namespace zero.cocoon.autopeer
             Uptime = 0;
             KeepAlives = 0;
 
-            _logger.Debug($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached, {Id} ({peer?.Source?.Key})");
+            _logger.Trace($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached: {peer?.Description}");
         }
 
 
