@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Proto {
 
   /// <summary>Holder for reflection information generated from autopeering/discover/proto/message.proto</summary>
-  public static partial class Message2Reflection {
+  public static partial class MessageReflection {
 
     #region Descriptor
     /// <summary>File descriptor for autopeering/discover/proto/message.proto</summary>
@@ -21,7 +21,7 @@ namespace Proto {
     }
     private static pbr::FileDescriptor descriptor;
 
-    static Message2Reflection() {
+    static MessageReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "CihhdXRvcGVlcmluZy9kaXNjb3Zlci9wcm90by9tZXNzYWdlLnByb3RvEgVw",
@@ -38,22 +38,18 @@ namespace Proto {
             "YgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Proto.PeerReflection.Descriptor, global::Proto.ServiceReflection.Descriptor, },
-          new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.Ping), global::Proto.Ping.Parser, new[]{ "Version", "NetworkId", "Timestamp", "SrcAddr", "SrcPort", "DstAddr" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.Pong), global::Proto.Pong.Parser, new[]{ "ReqHash", "Services", "DstAddr" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.DiscoveryRequest), global::Proto.DiscoveryRequest.Parser, new[]{ "Timestamp" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.DiscoveryResponse), global::Proto.DiscoveryResponse.Parser, new[]{ "ReqHash", "Peers" }, null, null, null, null)
+          new pbr::GeneratedClrTypeInfo(null, new pbr::GeneratedClrTypeInfo[] {
+            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.Ping), global::Proto.Ping.Parser, new[]{ "Version", "NetworkId", "Timestamp", "SrcAddr", "SrcPort", "DstAddr" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.Pong), global::Proto.Pong.Parser, new[]{ "ReqHash", "Services", "DstAddr" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.DiscoveryRequest), global::Proto.DiscoveryRequest.Parser, new[]{ "Timestamp" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.DiscoveryResponse), global::Proto.DiscoveryResponse.Parser, new[]{ "ReqHash", "Peers" }, null, null, null)
           }));
     }
     #endregion
 
   }
   #region Messages
-  public sealed partial class Ping : pb::IMessage<Ping>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
+  public sealed partial class Ping : pb::IMessage<Ping> {
     private static readonly pb::MessageParser<Ping> _parser = new pb::MessageParser<Ping>(() => new Ping());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -215,9 +211,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
       if (Version != 0) {
         output.WriteRawTag(8);
         output.WriteUInt32(Version);
@@ -245,41 +238,7 @@ namespace Proto {
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Version != 0) {
-        output.WriteRawTag(8);
-        output.WriteUInt32(Version);
-      }
-      if (NetworkId != 0) {
-        output.WriteRawTag(16);
-        output.WriteUInt32(NetworkId);
-      }
-      if (Timestamp != 0L) {
-        output.WriteRawTag(24);
-        output.WriteInt64(Timestamp);
-      }
-      if (SrcAddr.Length != 0) {
-        output.WriteRawTag(34);
-        output.WriteString(SrcAddr);
-      }
-      if (SrcPort != 0) {
-        output.WriteRawTag(40);
-        output.WriteUInt32(SrcPort);
-      }
-      if (DstAddr.Length != 0) {
-        output.WriteRawTag(50);
-        output.WriteString(DstAddr);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
@@ -336,9 +295,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
         switch(tag) {
@@ -371,54 +327,11 @@ namespace Proto {
           }
         }
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 8: {
-            Version = input.ReadUInt32();
-            break;
-          }
-          case 16: {
-            NetworkId = input.ReadUInt32();
-            break;
-          }
-          case 24: {
-            Timestamp = input.ReadInt64();
-            break;
-          }
-          case 34: {
-            SrcAddr = input.ReadString();
-            break;
-          }
-          case 40: {
-            SrcPort = input.ReadUInt32();
-            break;
-          }
-          case 50: {
-            DstAddr = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
 
   }
 
-  public sealed partial class Pong : pb::IMessage<Pong>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
+  public sealed partial class Pong : pb::IMessage<Pong> {
     private static readonly pb::MessageParser<Pong> _parser = new pb::MessageParser<Pong>(() => new Pong());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -535,9 +448,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
       if (ReqHash.Length != 0) {
         output.WriteRawTag(10);
         output.WriteBytes(ReqHash);
@@ -553,29 +463,7 @@ namespace Proto {
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (ReqHash.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteBytes(ReqHash);
-      }
-      if (services_ != null) {
-        output.WriteRawTag(18);
-        output.WriteMessage(Services);
-      }
-      if (DstAddr.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteString(DstAddr);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
@@ -605,7 +493,7 @@ namespace Proto {
       }
       if (other.services_ != null) {
         if (services_ == null) {
-          Services = new global::Proto.ServiceMap();
+          services_ = new global::Proto.ServiceMap();
         }
         Services.MergeFrom(other.Services);
       }
@@ -617,9 +505,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
         switch(tag) {
@@ -632,38 +517,9 @@ namespace Proto {
           }
           case 18: {
             if (services_ == null) {
-              Services = new global::Proto.ServiceMap();
+              services_ = new global::Proto.ServiceMap();
             }
-            input.ReadMessage(Services);
-            break;
-          }
-          case 26: {
-            DstAddr = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            ReqHash = input.ReadBytes();
-            break;
-          }
-          case 18: {
-            if (services_ == null) {
-              Services = new global::Proto.ServiceMap();
-            }
-            input.ReadMessage(Services);
+            input.ReadMessage(services_);
             break;
           }
           case 26: {
@@ -673,15 +529,10 @@ namespace Proto {
         }
       }
     }
-    #endif
 
   }
 
-  public sealed partial class DiscoveryRequest : pb::IMessage<DiscoveryRequest>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
+  public sealed partial class DiscoveryRequest : pb::IMessage<DiscoveryRequest> {
     private static readonly pb::MessageParser<DiscoveryRequest> _parser = new pb::MessageParser<DiscoveryRequest>(() => new DiscoveryRequest());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -763,9 +614,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
       if (Timestamp != 0L) {
         output.WriteRawTag(8);
         output.WriteInt64(Timestamp);
@@ -773,21 +621,7 @@ namespace Proto {
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Timestamp != 0L) {
-        output.WriteRawTag(8);
-        output.WriteInt64(Timestamp);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
@@ -814,9 +648,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
         switch(tag) {
@@ -829,34 +660,11 @@ namespace Proto {
           }
         }
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 8: {
-            Timestamp = input.ReadInt64();
-            break;
-          }
-        }
-      }
-    }
-    #endif
 
   }
 
-  public sealed partial class DiscoveryResponse : pb::IMessage<DiscoveryResponse>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
+  public sealed partial class DiscoveryResponse : pb::IMessage<DiscoveryResponse> {
     private static readonly pb::MessageParser<DiscoveryResponse> _parser = new pb::MessageParser<DiscoveryResponse>(() => new DiscoveryResponse());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -954,9 +762,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
       if (ReqHash.Length != 0) {
         output.WriteRawTag(10);
         output.WriteBytes(ReqHash);
@@ -965,22 +770,7 @@ namespace Proto {
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (ReqHash.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteBytes(ReqHash);
-      }
-      peers_.WriteTo(ref output, _repeated_peers_codec);
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
@@ -1009,9 +799,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
         switch(tag) {
@@ -1028,30 +815,7 @@ namespace Proto {
           }
         }
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            ReqHash = input.ReadBytes();
-            break;
-          }
-          case 18: {
-            peers_.AddEntriesFrom(ref input, _repeated_peers_codec);
-            break;
-          }
-        }
-      }
-    }
-    #endif
 
   }
 

@@ -126,7 +126,7 @@ namespace zero.core.core
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
-                        await newNeighbor.Zero(this).ConfigureAwait(false);
+                        newNeighbor.Zero(this);
 
                         return;
                     }
@@ -148,17 +148,17 @@ namespace zero.core.core
                         {
                             if (existingNeighbor.Source.IsOperational)
                             {
-                                await newNeighbor.Zero(this).ConfigureAwait(false);
+                                newNeighbor.Zero(this);
                                 _logger.Warn(
                                     $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
                                 return;
                             }
                             else
                             {
-                                await existingNeighbor.Zero(this).ConfigureAwait(false);
+                                existingNeighbor.Zero(this);
                                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                                 {
-                                    await newNeighbor.Zero(this).ConfigureAwait(false);
+                                    newNeighbor.Zero(this);
                                     _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
                                     return;
                                 }
@@ -170,7 +170,7 @@ namespace zero.core.core
                             }
                         }
 
-                        await newNeighbor.Zero(this).ConfigureAwait(false);
+                        newNeighbor.Zero(this);
                         return;
                     }
 
@@ -192,8 +192,6 @@ namespace zero.core.core
                         {
                             _logger.Trace($"Cannot remove neighbor {id} not found!");
                         }
-
-                        return true;
                     });
                 }
                 catch (NullReferenceException) { return;  }
@@ -253,7 +251,7 @@ namespace zero.core.core
                     {
                         if (Neighbors.TryRemove(staleNeighbor.Id, out _))
                         {
-                            await staleNeighbor.Zero(this).ConfigureAwait(false);
+                            staleNeighbor.Zero(this);
                         }
 
                         _logger.Debug($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
@@ -270,8 +268,6 @@ namespace zero.core.core
                             _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor)??true)
                                 ? $"Neighbor metadata expected for key `{id}'"
                                 : $"Dropped {closedNeighbor.Description} from {Description}");
-
-                            return true;
                         });
 
                         //TODO
@@ -288,7 +284,7 @@ namespace zero.core.core
                     else //strange case
                     {
                         _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                        await newNeighbor.Zero(this).ConfigureAwait(false);
+                        newNeighbor.Zero(this);
                     }
 
                     connectedAtLeastOnce = true;
@@ -345,9 +341,9 @@ namespace zero.core.core
         /// </summary>
         protected override void ZeroManaged()
         {
-#pragma warning disable 4014
+
             Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
-#pragma warning restore 4014
+
             Neighbors.Clear();
             
             try
@@ -390,9 +386,9 @@ namespace zero.core.core
                     keys.Add(n.Source.Key);
                 });
 
-#pragma warning disable 4014
+
                 Neighbors[address.ToString()].Zero(this);
-#pragma warning restore 4014
+
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;
             }

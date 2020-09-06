@@ -132,7 +132,7 @@ namespace zero.cocoon.models
                 if (Zeroed())
                     return State = JobState.ProdCancel;
 
-                var sourceTaskSuccess = await Source.ProduceAsync(async ioSocket =>
+                await Source.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -140,36 +140,38 @@ namespace zero.cocoon.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    _producerStopwatch.Restart();
-                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
+                    try
                     {
-                        if (!Zeroed())
+                        _producerStopwatch.Restart();
+                        if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
                         {
-                            State = JobState.ProduceTo;
-                            _producerStopwatch.Stop();
-                            _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                         $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
+                            if (!Zeroed())
+                            {
+                                State = JobState.ProduceTo;
+                                _producerStopwatch.Stop();
+                                _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                                              $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
-                            //TODO finish when config is fixed
-                            //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
-                            //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
+                                //TODO finish when config is fixed
+                                //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
+                                //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
+                                //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
+                            }
+                            else
+                                State = JobState.ProdCancel;
+                            return false;
                         }
-                        else
+
+                        if (Zeroed())
+                        {
                             State = JobState.ProdCancel;
-                        return false;
-                    }
+                            return false;
+                        }
 
-                    if(Zeroed())
-                    {
-                        State = JobState.ProdCancel;
-                        return false;
-                    }
-
-                    //Async read the message from the message stream
-                    if (Source.IsOperational)
-                    {
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
+                        //Async read the message from the message stream
+                        if (Source.IsOperational)
+                        {
+                            await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(rx =>
                             {
                                 switch (rx.Status)
                                 {
@@ -177,7 +179,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        await Source.Zero(this).ConfigureAwait(false);
+                                        Source.Zero(this);
                                         _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -190,7 +192,7 @@ namespace zero.cocoon.models
                                             State = JobState.ProduceTo;
                                             break;
                                         }
-                                            
+
 
                                         //UDP signals source ip
                                         ProducerUserData = ((IoSocket)ioSocket).ExtraData();
@@ -211,27 +213,34 @@ namespace zero.cocoon.models
                                         throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
                                 }
                             }, AsyncTasks.Token).ConfigureAwait(false);
-                    }
-                    else
-                    {
-#pragma warning disable 4014
-                        Source.Zero(this);
-#pragma warning restore 4014
-                    }
+                        }
+                        else
+                        {
 
-                    if (Zeroed())
+                            Source.Zero(this);
+
+                        }
+
+                        if (Zeroed())
+                        {
+                            State = JobState.Cancelled;
+                            return false;
+                        }
+                        return true;
+                    }
+                    catch (NullReferenceException){return false;}
+                    catch (Exception e)
                     {
-                        State = JobState.Cancelled;
+                        _logger.Debug(e,$"Error producing {Description}");
                         return false;
                     }
-                    return true;
                 }).ConfigureAwait(false);
             }
             catch (TaskCanceledException) { }
-            catch (NullReferenceException) {}
-            catch (ObjectDisposedException) {}
-            catch (OperationCanceledException) {}
-            catch  (Exception e)
+            catch (NullReferenceException) { }
+            catch (ObjectDisposedException) { }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
             {
                 _logger.Warn(e, $"{TraceDescription} Producing job returned with errors:");
             }
@@ -279,14 +288,14 @@ namespace zero.cocoon.models
         }
 
         public override async Task<JobState> ConsumeAsync()
-        { 
+        {
             TransferPreviousBits();
             try
             {
                 for (var i = 0; i < DatumCount; i++)
                 {
                     var val = MemoryMarshal.Read<int>(BufferSpan.Slice(BufferOffset, 4));
-                    if (val == ((IoCcPeer) IoZero).AccountingBit)
+                    if (val == ((IoCcPeer)IoZero).AccountingBit)
                     {
                         ((IoCcPeer)IoZero).AccountingBit = ++val;
 
@@ -296,7 +305,7 @@ namespace zero.cocoon.models
                             _logger.Info($"4M>> {((IoCcPeer)IoZero).AccountingBit}");
 
                         Interlocked.Add(ref BufferOffset, DatumSize);
-                        if(Id % 10 == 0)
+                        if (Id % 10 == 0)
                             await Task.Delay(1, AsyncTasks.Token).ConfigureAwait(false);
                     }
                     else
@@ -305,7 +314,7 @@ namespace zero.cocoon.models
             }
             catch (NullReferenceException) { }
             catch (TaskCanceledException) { }
-            catch (OperationCanceledException) {  }
+            catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
             catch (Exception e)
             {

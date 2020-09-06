@@ -28,15 +28,15 @@ namespace zero.core.patterns.misc
 
             var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(false);
             if (readyTask == cancellationTask)
-#pragma warning disable 4014
+
 
             //TODO, what happens here?
-                asyncTask.ContinueWith(_ => asyncTask.Exception,
-#pragma warning restore 4014
+            await asyncTask.ContinueWith(_ => asyncTask.Exception,
+
                     TaskContinuationOptions.OnlyOnFaulted |
                     TaskContinuationOptions.ExecuteSynchronously);
 
-            registration.Dispose();
+            await registration.DisposeAsync();
 
             return await readyTask.ConfigureAwait(false);
         }

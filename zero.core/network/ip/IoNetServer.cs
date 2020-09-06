@@ -111,9 +111,9 @@ namespace zero.core.network.ip
                 if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 {
                     _logger.Warn($"Cancelling existing connection attemp to `{address}'");
-#pragma warning disable 4014
+
                     _connectionAttempts[address.Key].Zero(this);
-#pragma warning restore 4014
+
 
                     _connectionAttempts.TryRemove(address.Key, out _);
                     return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
@@ -122,11 +122,10 @@ namespace zero.core.network.ip
 
             try
             {
-                var connectTask = ioNetClient?.ConnectAsync().ContinueWith(async t =>
+                bool ContinuationFunction(Task<bool> t)
                 {
                     switch (t.Status)
                     {
-                        
                         case TaskStatus.RanToCompletion:
                             if (ioNetClient.IsOperational)
                             {
@@ -141,13 +140,15 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                         default:
-                            await ioNetClient.Zero(this);
+                            ioNetClient.Zero(this);
                             _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
                             break;
                     }
 
                     return false;
-                }, AsyncTasks.Token).Unwrap();
+                }
+
+                var connectTask = ioNetClient?.ConnectAsync().ContinueWith(ContinuationFunction, AsyncTasks.Token);
 
                 //ioNetClient will never be null, the null in the parameter is needed for the interface contract
                 if (ioNetClient != null && await connectTask)

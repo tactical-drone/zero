@@ -52,7 +52,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private ConcurrentDictionary<Func<IIoZeroable, ValueTask<bool>>, object> _subscribers = new ConcurrentDictionary<Func<IIoZeroable, ValueTask<bool>>, object>();
+        private ConcurrentDictionary<Action<IIoZeroable>, object> _subscribers = new ConcurrentDictionary<Action<IIoZeroable>, object>();
 
         /// <summary>
         /// Zero pattern
@@ -67,18 +67,18 @@ namespace zero.core.patterns.misc
         /// Zero
         /// </summary>
 #pragma warning disable 1998
-        public async ValueTask<bool> Zero(IIoZeroable from)
+        public async void Zero(IIoZeroable from)
 #pragma warning restore 1998
         {
             if (_zeroed > 0)
-                return false;
+                return;
 
             if (from != this)
                 ZeroedFrom = from;
 
             Dispose();
 
-            return true;
+            return;
         }
 
         private void PrintPathToZero()
@@ -110,7 +110,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public Func<IIoZeroable, ValueTask<bool>> ZeroEvent(Func<IIoZeroable, ValueTask<bool>> sub)
+        public Action<IIoZeroable> ZeroEvent(Action<IIoZeroable> sub)
         {
             try
             {
@@ -129,11 +129,11 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
 #pragma warning disable 1998
-        public async ValueTask<bool> Unsubscribe(Func<IIoZeroable, ValueTask<bool>> sub)
+        public async void Unsubscribe(Action<IIoZeroable> sub)
 #pragma warning restore 1998
         {
             if (sub == null)
-                return false;
+                return;
 
             try
             {
@@ -144,7 +144,7 @@ namespace zero.core.patterns.misc
             }
             catch (NullReferenceException) { }
 
-            return true;
+            return;
         }
 
         /// <summary>
@@ -157,14 +157,26 @@ namespace zero.core.patterns.misc
         {
             if (twoWay)//zero
             {
-                Func<IIoZeroable, ValueTask<bool>> sourceZeroHandler = null;
-                Func<IIoZeroable, ValueTask<bool>> targetZeroHandler = null;
+                Action<IIoZeroable> sourceZeroHandler = null;
+                Action<IIoZeroable> targetZeroHandler = null;
 
                 // ReSharper disable once AccessToModifiedClosure
-                sourceZeroHandler = ZeroEvent(s => s == (IIoZeroable) target ? Unsubscribe(sourceZeroHandler) : target.Zero(this));
+                sourceZeroHandler = ZeroEvent(s =>
+                {
+                    if (s == (IIoZeroable) target)
+                        Unsubscribe(sourceZeroHandler);
+                    else
+                        target.Zero(this);
+                });
 
                 // ReSharper disable once AccessToModifiedClosure
-                targetZeroHandler = target.ZeroEvent(s => s == this ? target.Unsubscribe(targetZeroHandler) : Zero(target));
+                targetZeroHandler = target.ZeroEvent(s =>
+                {
+                    if (s == this)
+                        target.Unsubscribe(targetZeroHandler);
+                    else
+                        Zero(target);
+                });
 
                 ////Target zero logic
                 //target.ZeroEvent(s => s == this ? Unsubscribe(ZeroTarget) : ZeroSource(s));
@@ -176,9 +188,11 @@ namespace zero.core.patterns.misc
             {
                 var sub = ZeroEvent(target.Zero);
 
-#pragma warning disable 1998
-                target.ZeroEvent(async s => s != this && Unsubscribe(sub).Result);
-#pragma warning restore 1998
+                target.ZeroEvent(s =>
+                {
+                    if(s != this)
+                        Unsubscribe(sub);
+                });
             }
 
             return target;

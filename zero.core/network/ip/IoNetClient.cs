@@ -285,9 +285,9 @@ namespace zero.core.network.ip
                             _logger.Warn($"Connection to `{ListeningAddress}' disconnected!");
 
                             //Do cleanup
-#pragma warning disable 4014
+
                             Zero(this);
-#pragma warning restore 4014
+
 
                             return false;
                         }

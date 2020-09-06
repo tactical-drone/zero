@@ -182,7 +182,7 @@ namespace zero.cocoon.models
         {
             try
             {
-                var sourceTaskSuccess = await Source.ProduceAsync(async ioSocket =>
+                await Source.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -284,7 +284,7 @@ namespace zero.cocoon.models
                     {
                         _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
                         State = JobState.Cancelled;
-                        await Source.Zero(this).ConfigureAwait(false);
+                        Source.Zero(this);
                     }
 
                     if (Zeroed())
@@ -295,6 +295,10 @@ namespace zero.cocoon.models
                     return true;
                 }).ConfigureAwait(false);//don't .ConfigureAwait(false);
             }
+            catch (TaskCanceledException) { }
+            catch (NullReferenceException) { }
+            catch (ObjectDisposedException) { }
+            catch (OperationCanceledException) { }
             catch (Exception e)
             {
                 _logger.Warn(e, $"{TraceDescription} Producing job returned with errors:");

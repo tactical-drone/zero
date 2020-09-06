@@ -124,9 +124,9 @@ namespace zero.core.network.ip
                     if (!Socket?.IsBound ?? false)
                     {
                         _logger.Warn($"Found zombie udp socket state");
-#pragma warning disable 4014
+
                         Zero(this);
-#pragma warning restore 4014
+
                     }
                 }
                 _logger.Debug($"Stopped listening at {ListeningAddress}");
@@ -176,9 +176,9 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                             _logger.Trace(t.Exception?.InnerException, $"Sending to udp://{endPoint} failed");
-#pragma warning disable 4014
+
                             Zero(this);
-#pragma warning restore 4014
+
                             break;
                         case TaskStatus.RanToCompletion:
                             _logger.Trace($"Sent {length} bytes to udp://{endPoint} from {Socket.LocalPort()}");
@@ -292,10 +292,10 @@ namespace zero.core.network.ip
                 }
                 return read;
             }
-            catch (NullReferenceException) { await Zero(this).ConfigureAwait(false); return 0; }
-            catch (TaskCanceledException) { await Zero(this).ConfigureAwait(false); return 0; }
-            catch (OperationCanceledException) { await Zero(this).ConfigureAwait(false); return 0; }
-            catch (ObjectDisposedException) { await Zero(this).ConfigureAwait(false); return 0; }
+            catch (NullReferenceException) { Zero(this); return 0; }
+            catch (TaskCanceledException) { Zero(this); return 0; }
+            catch (OperationCanceledException) { Zero(this); return 0; }
+            catch (ObjectDisposedException) { Zero(this); return 0; }
             catch (SocketException e)
             {
                 _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
@@ -304,7 +304,7 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
-                await Zero(this).ConfigureAwait(false);
+                Zero(this);
                 return 0;
             }
         }

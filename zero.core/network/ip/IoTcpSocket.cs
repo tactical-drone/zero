@@ -252,16 +252,21 @@ namespace zero.core.network.ip
                 Socket.SendTimeout = timeout;
                 return Socket.Send(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException) { await Zero(this).ConfigureAwait(false); return 0; }
-            catch (TaskCanceledException) { await Zero(this).ConfigureAwait(false); return 0; }
-            catch (OperationCanceledException) { await Zero(this).ConfigureAwait(false); return 0; }
-            catch (ObjectDisposedException) { await Zero(this).ConfigureAwait(false); return 0; }
+            catch (NullReferenceException) { Zero(this); return 0; }
+            catch (TaskCanceledException) { Zero(this); return 0; }
+            catch (OperationCanceledException) { Zero(this); return 0; }
+            catch (ObjectDisposedException) { Zero(this); return 0; }
+            catch (SocketException e) 
+            {
+                _logger.Trace(e, $"Failed to send on {Key}:");
+                return 0;
+            }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to send bytes to ({(Zeroed()?"closed":"open")})[connected = {Socket.Connected}] socket `tcp://{RemoteIpAndPort}' :");
-#pragma warning disable 4014
+
                 Zero(this);
-#pragma warning restore 4014
+
                 return 0;
             }
         }
@@ -294,13 +299,13 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException) { }
             catch (SocketException e)
             {
-                _logger.Debug(e, $"Unable to read from {ListeningAddress}");
+                _logger.Trace(e, $"Unable to read from {ListeningAddress}");
                 //await Zero(this);
             }
             catch (Exception e)
             {
                 _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
-                await Zero(this).ConfigureAwait(false);
+                Zero(this);
             }
 
             return 0;

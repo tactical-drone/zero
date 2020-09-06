@@ -44,9 +44,9 @@ namespace zero.cocoon
 //                    if (r.IsCompletedSuccessfully && !Zeroed())
 //                    {
 //                        _logger.Fatal($"Testing SOCKET FAILURE {Id}");
-//#pragma warning disable 4014
+//
 //                        Source.Zero(this);
-//#pragma warning restore 4014
+//
 //                        GC.Collect(GC.MaxGeneration);
 //                    }
 //                });
@@ -122,9 +122,7 @@ namespace zero.cocoon
         protected override void ZeroManaged()
         {
             DetachNeighbor();
-#pragma warning disable 4014
             Source.Zero(this);
-#pragma warning restore 4014
             base.ZeroManaged();
         }
 

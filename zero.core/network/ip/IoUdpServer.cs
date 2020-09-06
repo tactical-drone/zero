@@ -53,9 +53,9 @@ namespace zero.core.network.ip
                 catch (Exception e)
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
-#pragma warning disable 4014
+
                     ioSocket.Zero(this);
-#pragma warning restore 4014
+
                 }
             }).ConfigureAwait(false);
         }

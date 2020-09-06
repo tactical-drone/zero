@@ -32,8 +32,8 @@ namespace Proto {
             "b3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Proto.ServiceReflection.Descriptor, },
-          new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.Peer), global::Proto.Peer.Parser, new[]{ "PublicKey", "Ip", "Services" }, null, null, null, null)
+          new pbr::GeneratedClrTypeInfo(null, new pbr::GeneratedClrTypeInfo[] {
+            new pbr::GeneratedClrTypeInfo(typeof(global::Proto.Peer), global::Proto.Peer.Parser, new[]{ "PublicKey", "Ip", "Services" }, null, null, null)
           }));
     }
     #endregion
@@ -43,11 +43,7 @@ namespace Proto {
   /// <summary>
   /// Minimal encoding of a peer
   /// </summary>
-  public sealed partial class Peer : pb::IMessage<Peer>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
+  public sealed partial class Peer : pb::IMessage<Peer> {
     private static readonly pb::MessageParser<Peer> _parser = new pb::MessageParser<Peer>(() => new Peer());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -163,9 +159,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
       if (PublicKey.Length != 0) {
         output.WriteRawTag(10);
         output.WriteBytes(PublicKey);
@@ -181,29 +174,7 @@ namespace Proto {
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
-    #endif
     }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (PublicKey.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteBytes(PublicKey);
-      }
-      if (Ip.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(Ip);
-      }
-      if (services_ != null) {
-        output.WriteRawTag(26);
-        output.WriteMessage(Services);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
@@ -236,7 +207,7 @@ namespace Proto {
       }
       if (other.services_ != null) {
         if (services_ == null) {
-          Services = new global::Proto.ServiceMap();
+          services_ = new global::Proto.ServiceMap();
         }
         Services.MergeFrom(other.Services);
       }
@@ -245,9 +216,6 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
         switch(tag) {
@@ -264,44 +232,14 @@ namespace Proto {
           }
           case 26: {
             if (services_ == null) {
-              Services = new global::Proto.ServiceMap();
+              services_ = new global::Proto.ServiceMap();
             }
-            input.ReadMessage(Services);
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            PublicKey = input.ReadBytes();
-            break;
-          }
-          case 18: {
-            Ip = input.ReadString();
-            break;
-          }
-          case 26: {
-            if (services_ == null) {
-              Services = new global::Proto.ServiceMap();
-            }
-            input.ReadMessage(Services);
+            input.ReadMessage(services_);
             break;
           }
         }
       }
     }
-    #endif
 
   }
 

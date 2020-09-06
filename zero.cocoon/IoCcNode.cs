@@ -555,7 +555,7 @@ namespace zero.cocoon
                                         }
                                         else
                                         {
-                                            await peer.Result.Zero(this).ConfigureAwait(false);
+                                            peer.Result.Zero(this);
                                         }
                                     }
                                     break;
