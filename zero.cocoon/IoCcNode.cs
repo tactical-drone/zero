@@ -315,6 +315,8 @@ namespace zero.cocoon
         /// <returns></returns>
         private async Task<bool> HandshakeAsync(IoCcPeer peer)
         {
+            if (Zeroed()) return false;
+
             byte[] handshakeBuffer = new byte[parm_max_handshake_bytes];
             var socket = ((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket;
 

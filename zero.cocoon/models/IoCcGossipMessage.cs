@@ -305,8 +305,8 @@ namespace zero.cocoon.models
                             _logger.Info($"4M>> {((IoCcPeer)IoZero).AccountingBit}");
 
                         Interlocked.Add(ref BufferOffset, DatumSize);
-                        if (Id % 10 == 0)
-                            await Task.Delay(1, AsyncTasks.Token).ConfigureAwait(false);
+                        //if (Id % 10 == 0)
+                        //    await Task.Delay(1, AsyncTasks.Token).ConfigureAwait(false);
                     }
                     else
                         _logger.Fatal($"{val} != {((IoCcPeer)IoZero).AccountingBit}");

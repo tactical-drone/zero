@@ -66,9 +66,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Zero
         /// </summary>
-#pragma warning disable 1998
-        public async void Zero(IIoZeroable from)
-#pragma warning restore 1998
+        public void Zero(IIoZeroable from)
         {
             if (_zeroed > 0)
                 return;
@@ -77,8 +75,6 @@ namespace zero.core.patterns.misc
                 ZeroedFrom = from;
 
             Dispose();
-
-            return;
         }
 
         private void PrintPathToZero()
@@ -128,9 +124,7 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-#pragma warning disable 1998
-        public async void Unsubscribe(Action<IIoZeroable> sub)
-#pragma warning restore 1998
+        public void Unsubscribe(Action<IIoZeroable> sub)
         {
             if (sub == null)
                 return;

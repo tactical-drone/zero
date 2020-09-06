@@ -22,6 +22,7 @@ namespace zero.sync
     {
 
         private static ConcurrentBag<IoCcNode> _nodes = new ConcurrentBag<IoCcNode>();
+        private static volatile bool running;
 
         static void Main(string[] args)
         {
@@ -34,13 +35,13 @@ namespace zero.sync
 
 
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 10;
+            int total = 200;
             var tasks = new ConcurrentBag<Task>();
-            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://0.0.0.0:{14667 + portOffset}", $"udp://0.0.0.0:{14627 + portOffset}", null, $"udp://192.168.88.253:{14627 + portOffset}", $"udp://192.168.88.253:{14626 + portOffset}", 0));
-            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset}", $"udp://0.0.0.0:{15627 + portOffset}", null, $"udp://192.168.88.253:{15627 + portOffset}", $"udp://192.168.88.253:{14627 + portOffset}", 1));
+            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", $"udp://127.0.0.1:{14626 + portOffset}", 0));
+            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", 1));
             for (int i = 1; i < total; i++)
             {
-                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://0.0.0.0:{15667 + portOffset + i}", $"udp://0.0.0.0:{15627 + portOffset + i}", null, $"udp://192.168.88.253:{15627 + portOffset + i}", $"udp://192.168.88.253:{15627 +portOffset + i - 1}", i));
+                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset + i}", $"udp://127.0.0.1:{15627 + portOffset + i}", null, $"udp://127.0.0.1:{15627 + portOffset + i}", $"udp://127.0.0.1:{15627 +portOffset + i - 1}", i));
             }
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
@@ -49,21 +50,24 @@ namespace zero.sync
             };
 
             Console.CancelKeyPress += (sender, args) =>
-                {
+            {
+                    running = false;
                     Console.WriteLine("#");
+                    SemaphoreSlim s = new SemaphoreSlim(5);
                     _nodes.ToList().ForEach(n=>
                     {
+                        s.Wait();
                         Task.Run(() =>
                         {
-                            Task.Delay(200).ConfigureAwait(false);
                             n.Zero(null);
+                            s.Release();
                         });
                     });
-                    _nodes.Clear();
+                    Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                     args.Cancel = true;
                 };
 
-            var running = true;
+            running = true;
             var outBound = 0;
             var inBound = 0;
             var available = 0;
@@ -120,12 +124,13 @@ namespace zero.sync
             Console.ReadLine();
 
             running = false;
-            _nodes.ToList().ForEach(n => Task.Run(() => n.Zero(null)));
-            _nodes.Clear();
+            //_nodes.ToList().ForEach(n => Task.Run(() => n.Zero(null)));
+            //_nodes.Clear();
             
 
             Console.ReadLine();
-
+            Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
+            _nodes.Clear();
             _nodes = null;
             reportingTask.Dispose();
             reportingTask = null;
@@ -138,13 +143,13 @@ namespace zero.sync
 
             Console.ReadLine();
 
-            //var c1 = CoCoon(IoCcIdentity.Generate(true), "tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627", "udp://192.168.88.253:15627");
-            //var c2 = CoCoon(IoCcIdentity.Generate(), "tcp://0.0.0.0:15667", "udp://0.0.0.0:15627", null, "udp://192.168.88.253:15627", "udp://192.168.88.253:14627");
+            //var c1 = CoCoon(IoCcIdentity.Generate(true), "tcp://127.0.0.1:14667", "udp://127.0.0.1:14627", null, "udp://127.0.0.1:14627", "udp://127.0.0.1:15627");
+            //var c2 = CoCoon(IoCcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627");
             //var c2 = Task.CompletedTask;
             //c1.Wait();
             //c2.Wait();
-            //CoCoon(IoCcIdentity.Generate(true),"tcp://0.0.0.0:14667", "udp://0.0.0.0:14627", null, "udp://192.168.88.253:14627", "udp://192.168.88.253:14626").GetAwaiter().GetResult();
-            //CoCoon(IoCcIdentity.Generate(), "tcp://0.0.0.0:15667", "udp://0.0.0.0:15627", null, "udp://192.168.88.253:15627", "udp://192.168.88.253:14627").GetAwaiter().GetResult();
+            //CoCoon(IoCcIdentity.Generate(true),"tcp://127.0.0.1:14667", "udp://127.0.0.1:14627", null, "udp://127.0.0.1:14627", "udp://127.0.0.1:14626").GetAwaiter().GetResult();
+            //CoCoon(IoCcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627").GetAwaiter().GetResult();
         }
 
         private static void Tangle(string listenerAddress)

@@ -190,109 +190,118 @@ namespace zero.cocoon.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    _producerStopwatch.Restart();
-                    if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
+                    try
                     {
-                        if (!Zeroed())
+                        _producerStopwatch.Restart();
+                        if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
                         {
-                            State = JobState.ProduceTo;
-                            _producerStopwatch.Stop();
-                            _logger.Debug($"{TraceDescription} timed out waiting for PRODUCER, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                         $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
+                            if (!Zeroed())
+                            {
+                                State = JobState.ProduceTo;
+                                _producerStopwatch.Stop();
+                                _logger.Debug($"{TraceDescription} timed out waiting for PRODUCER, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
+                                              $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
 
-                            //TODO finish when config is fixed
-                            //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
-                            //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
+                                //TODO finish when config is fixed
+                                //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
+                                //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
+                                //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
+                            }
+                            else
+                                State = JobState.ProdCancel;
+                            return false;
+                        }
+
+                        if (Zeroed())
+                        {
+                            State = JobState.ProdCancel;
+                            return false;
+                        }
+
+                        //Async read the message from the message stream
+                        if (Source.IsOperational)
+                        {
+                            await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(
+                                rx =>
+                                {
+                                    switch (rx.Status)
+                                    {
+                                        //Canceled
+                                        case TaskStatus.Canceled:
+                                        case TaskStatus.Faulted:
+                                            State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
+                                            Source.Zero(this);
+                                            _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
+                                            break;
+                                        //Success
+                                        case TaskStatus.RanToCompletion:
+
+                                            //UDP signals source ip
+                                            ProducerUserData = ((IoSocket)ioSocket).ExtraData();
+
+                                            //Drop zero reads
+                                            if (rx.Result == 0)
+                                            {
+                                                BytesRead = 0;
+                                                State = JobState.ProduceTo;
+                                                break;
+                                            }
+
+                                            //rate limit
+                                            _msgCount++;
+                                            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                            var delta = now - _msgRateCheckpoint;
+                                            if (_msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms)
+                                            {
+                                                BytesRead = 0;
+                                                State = JobState.ProduceTo;
+                                                _logger.Fatal($"Dropping spam {_msgCount}");
+                                                _msgCount -= 2;
+                                                break;
+                                            }
+
+                                            //hist reset
+                                            if (delta > parm_ave_msg_sec_hist * 1000)
+                                            {
+                                                _msgRateCheckpoint = now;
+                                                _msgCount = 0;
+                                            }
+
+                                            BytesRead = rx.Result;
+
+                                            UpdateBufferMetaData();
+
+                                            State = JobState.Produced;
+
+                                            _logger.Trace($"RX=> {GetType().Name} ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+
+                                            break;
+                                        default:
+                                            State = JobState.ProduceErr;
+                                            throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
+                                    }
+                                }, AsyncTasks.Token).ConfigureAwait(false);
                         }
                         else
-                            State = JobState.ProdCancel;
+                        {
+                            _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
+                            State = JobState.Cancelled;
+                            Source.Zero(this);
+                        }
+
+                        if (Zeroed())
+                        {
+                            State = JobState.Cancelled;
+                            return false;
+                        }
+                        return true;
+                    }
+                    catch (NullReferenceException){return false;}
+                    catch (Exception e)
+                    {
+                        _logger.Debug(e, $"Error in producing {Description}");
                         return false;
                     }
-
-                    if (Zeroed())
-                    {
-                        State = JobState.ProdCancel;
-                        return false;
-                    }
-
-                    //Async read the message from the message stream
-                    if (Source.IsOperational)
-                    {
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(
-                            rx =>
-                            {
-                                switch (rx.Status)
-                                {
-                                    //Canceled
-                                    case TaskStatus.Canceled:
-                                    case TaskStatus.Faulted:
-                                        State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        Source.Zero(this);
-                                        _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
-                                        break;
-                                    //Success
-                                    case TaskStatus.RanToCompletion:
-
-                                        //UDP signals source ip
-                                        ProducerUserData = ((IoSocket)ioSocket).ExtraData();
-
-                                        //Drop zero reads
-                                        if (rx.Result == 0)
-                                        {
-                                            BytesRead = 0;
-                                            State = JobState.ProduceTo;
-                                            break;
-                                        }
-
-                                        //rate limit
-                                        _msgCount++;
-                                        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                        var delta = now - _msgRateCheckpoint;
-                                        if (_msgCount > parm_ave_sec_ms && (double)_msgCount * 1000 / delta > parm_ave_sec_ms)
-                                        {
-                                            BytesRead = 0;
-                                            State = JobState.ProduceTo;
-                                            _logger.Fatal($"Dropping spam {_msgCount}");
-                                            _msgCount -= 2;
-                                            break;
-                                        }
-
-                                        //hist reset
-                                        if (delta > parm_ave_msg_sec_hist * 1000)
-                                        {
-                                            _msgRateCheckpoint = now;
-                                            _msgCount = 0;
-                                        }
-
-                                        BytesRead = rx.Result;
-
-                                        UpdateBufferMetaData();
-
-                                        State = JobState.Produced;
-
-                                        _logger.Trace($"RX=> {GetType().Name} ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
-
-                                        break;
-                                    default:
-                                        State = JobState.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
-                                }
-                            }, AsyncTasks.Token).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
-                        State = JobState.Cancelled;
-                        Source.Zero(this);
-                    }
-
-                    if (Zeroed())
-                    {
-                        State = JobState.Cancelled;
-                        return false;
-                    }
-                    return true;
                 }).ConfigureAwait(false);//don't .ConfigureAwait(false);
             }
             catch (TaskCanceledException) { }
@@ -471,6 +480,7 @@ namespace zero.cocoon.models
                     }
                 }
             }
+            catch (NullReferenceException){}
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to parse request type {typeof(T).Name} from {Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}, size = {packet.Data.Length}");
@@ -479,31 +489,39 @@ namespace zero.cocoon.models
 
         private async Task ForwardToNeighborAsync()
         {
-            if(_protocolMsgBatchIndex == 0)
-                return;
-
-            if (_protocolMsgBatchIndex < parm_max_msg_batch_size )
-                _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
-
-            //cog the source
-            await ProtocolChannel.Source.ProduceAsync(source =>
+            try
             {
-                if (ProtocolChannel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                    ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(_protocolMsgBatch);
-                else
-                    ((IoCcProtocolBuffer)source).MessageQueue.Add(_protocolMsgBatch);
+                if(_protocolMsgBatchIndex == 0)
+                    return;
 
-                _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
+                if (_protocolMsgBatchIndex < parm_max_msg_batch_size )
+                    _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
 
-                _protocolMsgBatchIndex = 0;
+                //cog the source
+                await ProtocolChannel.Source.ProduceAsync(source =>
+                {
+                    if (ProtocolChannel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
+                        ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(_protocolMsgBatch);
+                    else
+                        ((IoCcProtocolBuffer)source).MessageQueue.Add(_protocolMsgBatch);
 
-                return Task.FromResult(true);
-            }).ConfigureAwait(false);
+                    _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
 
-            //forward transactions
-            if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
+                    _protocolMsgBatchIndex = 0;
+
+                    return Task.FromResult(true);
+                }).ConfigureAwait(false);
+
+                //forward transactions
+                if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
+                {
+                    _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
+                }
+            }
+            catch (NullReferenceException){}
+            catch (Exception e)
             {
-                _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
+                _logger.Debug(e,$"Forwarding from {Description} to {ProtocolChannel.Description} failed");
             }
         }
 

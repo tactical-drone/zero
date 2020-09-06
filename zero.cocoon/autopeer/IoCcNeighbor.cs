@@ -1100,9 +1100,7 @@ namespace zero.cocoon.autopeer
                     {
                         var id = newNeighbor.Id;
                         var port = ((IPEndPoint) extraData).Port;
-#pragma warning disable 1998
-                        newNeighbor.ZeroEvent(async source =>
-#pragma warning restore 1998
+                        newNeighbor.ZeroEvent(source =>
                         {
                             try
                             {

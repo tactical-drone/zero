@@ -178,19 +178,25 @@ namespace zero.core.core
                     string id = newNeighbor.Id;
 
                     // Remove from lists if closed
-#pragma warning disable 1998
-                    newNeighbor.ZeroEvent(async s =>
-#pragma warning restore 1998
+                    newNeighbor.ZeroEvent(s =>
                     {
                         //DisconnectedEvent?.Invoke(this, newNeighbor);
-                        IoNeighbor<TJob> zeroNeighbor = null;
-                        if (Neighbors?.TryRemove(id, out zeroNeighbor) ?? true)
+                        try
                         {
-                            _logger.Trace($"Removed {zeroNeighbor.Description}");
+                            IoNeighbor<TJob> zeroNeighbor = null;
+                            if (Neighbors?.TryRemove(id, out zeroNeighbor) ?? true)
+                            {
+                                _logger.Trace($"Removed {zeroNeighbor.Description}");
+                            }
+                            else
+                            {
+                                _logger.Trace($"Cannot remove neighbor {id} not found!");
+                            }
                         }
-                        else
+                        catch (NullReferenceException){}
+                        catch (Exception e)
                         {
-                            _logger.Trace($"Cannot remove neighbor {id} not found!");
+                            _logger.Debug(e,$"Removing {newNeighbor.Description} from {Description}");
                         }
                     });
                 }
@@ -260,14 +266,20 @@ namespace zero.core.core
                     if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                     {
                         //Is this a race condition? Between subbing and being zeroed out?
-#pragma warning disable 1998
-                        newNeighbor.ZeroEvent(async s =>
-#pragma warning restore 1998
+                        newNeighbor.ZeroEvent(s =>
                         {
-                            IoNeighbor<TJob> closedNeighbor = null;
-                            _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor)??true)
-                                ? $"Neighbor metadata expected for key `{id}'"
-                                : $"Dropped {closedNeighbor.Description} from {Description}");
+                            try
+                            {
+                                IoNeighbor<TJob> closedNeighbor = null;
+                                _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor)??true)
+                                    ? $"Neighbor metadata expected for key `{id}'"
+                                    : $"Dropped {closedNeighbor.Description} from {Description}");
+                            }
+                            catch (NullReferenceException) {}
+                            catch (Exception e)
+                            {
+                                _logger.Debug(e,$"Failed to remove {newNeighbor.Description} from {Description}");
+                            }
                         });
 
                         //TODO
