@@ -49,7 +49,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Used to atomically transfer ownership
         /// </summary>
-        private SemaphoreSlim _zeroLock = new SemaphoreSlim(1);
+        private object _syncRoot = 0;
 
         /// <summary>
         /// Who zeroed this object
@@ -84,7 +84,6 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        //private ConcurrentDictionary<Action<IIoZeroable>, object> _zeroSubs = new ConcurrentDictionary<Action<IIoZeroable>, object>();
         private ConcurrentStack<ZeroSub> _zeroSubs = new ConcurrentStack<ZeroSub>();
 
         /// <summary>
@@ -191,7 +190,7 @@ namespace zero.core.patterns.misc
                 // ReSharper disable once AccessToModifiedClosure
                 sourceZeroHandler = ZeroEvent(s =>
                 {
-                    if (s == (IIoZeroable)target)
+                    if (s == target)
                         Unsubscribe(sourceZeroHandler);
                     else
                         target.Zero(this);
@@ -265,9 +264,6 @@ namespace zero.core.patterns.misc
 
                 CascadeTime.Stop();
 
-                //clear out subscribers
-                //_zeroSubs.Clear();
-
                 //Dispose managed
                 try
                 {
@@ -285,29 +281,28 @@ namespace zero.core.patterns.misc
                     try
                     {
                         AsyncTasks.Dispose();
-                        _zeroLock.Dispose();
 
                         ZeroUnmanaged();
 
                         //_logger = null;
                         AsyncTasks = null;
                         ZeroedFrom = null;
-                        _zeroSubs = null;
-                        _zeroLock = null;
+                        _zeroSubs = null; 
                     }
                     catch (NullReferenceException)
                     {
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e, $"[{ToString()}] {nameof(ZeroUnmanaged)} returned with errors!");
+                        _logger.Error(e, $"Zero [Un]managed errors: {Description}");
                     }
                 }
 
                 TeardownTime.Stop();
                 //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
-                //    _logger.Fatal(
-                //        $"{GetType().Name}:Z/{Description}> t = {TeardownTime.Elapsed}, c = {CascadeTime.Elapsed}");
+                //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
+                if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > CascadeTime.ElapsedMilliseconds + 200)
+                    _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, t = {TeardownTime.ElapsedMilliseconds/1000.0:0.000}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.000}");
                 _logger = null;
 
                 return true;
@@ -339,9 +334,8 @@ namespace zero.core.patterns.misc
                 //Prevent strange things from happening
                 if (_zeroed > 0 && !force) return false;
 
-                _zeroLock.Wait(AsyncTasks.Token);
-
-                return (_zeroed == 0 || force) && ownershipAction();
+                lock(_syncRoot)
+                    return (_zeroed == 0 || force) && ownershipAction();
             }
             catch (NullReferenceException e)
             {
@@ -352,17 +346,6 @@ namespace zero.core.patterns.misc
             {
                 _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
                 return false;
-            }
-            finally
-            {
-                try
-                {
-                    _zeroLock.Release();
-                }
-                catch
-                {
-                    // ignored
-                }
             }
         }
 
