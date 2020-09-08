@@ -312,6 +312,7 @@ namespace zero.cocoon.models
                         _logger.Fatal($"{val} != {((IoCcPeer)IoZero).AccountingBit}");
                 }
             }
+            catch (ArgumentOutOfRangeException e ){ _logger.Debug(e, "Unmarshal Packet failed!"); }
             catch (NullReferenceException) { }
             catch (TaskCanceledException) { }
             catch (OperationCanceledException) { }

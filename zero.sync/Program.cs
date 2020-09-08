@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,11 +8,7 @@ using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
-using zero.cocoon.models;
-using zero.core.core;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
-using zero.interop.entangled;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
@@ -51,21 +48,9 @@ namespace zero.sync
 
             Console.CancelKeyPress += (sender, args) =>
             {
-                    running = false;
-                    Console.WriteLine("#");
-                    SemaphoreSlim s = new SemaphoreSlim(5);
-                    _nodes.ToList().ForEach(n=>
-                    {
-                        s.Wait();
-                        Task.Run(() =>
-                        {
-                            n.Zero(null);
-                            s.Release();
-                        });
-                    });
-                    Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
-                    args.Cancel = true;
-                };
+                Zero(total);
+                args.Cancel = true;
+            };
 
             running = true;
             var outBound = 0;
@@ -97,10 +82,10 @@ namespace zero.sync
                         if(ioCcNode.DiscoveryService.Neighbors.Count > 0)
                         uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
                         {
-                            if (((IoCcNeighbor) n).Uptime > 0)
+                            if (((IoCcNeighbor) n).PeerUptime > 0)
                             {
                                 uptimeCount++;
-                                return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ((IoCcNeighbor)n).Uptime;
+                                return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ((IoCcNeighbor)n).PeerUptime;
                             }
                             return 0;
                         }).Average());
@@ -150,6 +135,34 @@ namespace zero.sync
             //c2.Wait();
             //CoCoon(IoCcIdentity.Generate(true),"tcp://127.0.0.1:14667", "udp://127.0.0.1:14627", null, "udp://127.0.0.1:14627", "udp://127.0.0.1:14626").GetAwaiter().GetResult();
             //CoCoon(IoCcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627").GetAwaiter().GetResult();
+        }
+
+        private static void Zero(int total)
+        {
+            running = false;
+            Console.WriteLine("#");
+            SemaphoreSlim s = new SemaphoreSlim(10);
+            int zeroed = 0;
+            var sw = Stopwatch.StartNew();
+
+            _nodes.ToList().ForEach(n =>
+            {
+                s.Wait();
+                Task.Run(() =>
+                {
+                    n.Zero(null);
+                    Interlocked.Increment(ref zeroed);
+                    s.Release();
+                });
+
+                if (zeroed > 0 && zeroed % 5 == 0)
+                {
+                    Console.WriteLine(
+                        $"Estimated {TimeSpan.FromSeconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
+                }
+            });
+
+            Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
         }
 
         private static void Tangle(string listenerAddress)

@@ -41,21 +41,36 @@ namespace zero.cocoon.models
 
             if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
-                var protocol = new IoCcProtocolBuffer(parm_forward_queue_length);
-                if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+                IoCcProtocolBuffer protocol = null;
+                if( Source.ZeroEnsure(() =>
                 {
-                    Source.ZeroOnCascade(protocol);
+                    protocol = new IoCcProtocolBuffer(parm_forward_queue_length, _arrayPool);
+                    if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+                    {
+                        return Source.ZeroOnCascade(protocol, true) != null;
+                    }
+
+                    return false;
+                }))
+                {
 
                     ProtocolChannel = Source.AttachProducer(
-                        nameof(IoCcNeighbor), 
-                        false, 
+                        nameof(IoCcNeighbor),
+                        false,
                         protocol,
-                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/), 
-                        1,2
-                        );
+                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
+                        1, 2
+                    );
 
-                    ProtocolChannel.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
+                    ProtocolChannel.parm_consumer_wait_for_producer_timeout =
+                        -1; //We block and never report slow production
                     ProtocolChannel.parm_producer_start_retry_time = 0;
+
+                    _arrayPool = ((IoCcProtocolBuffer) ProtocolChannel.Source).ArrayPoolProxy;
+                }
+                else
+                {
+                    protocol.Zero(this);
                 }
             }
             else
@@ -95,8 +110,7 @@ namespace zero.cocoon.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length = 1000;
-
+        public int parm_forward_queue_length = 16; //TODO
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -165,6 +179,7 @@ namespace zero.cocoon.models
             ProtocolChannel = null;
             Buffer = null;
             _protocolMsgBatch = null;
+            _arrayPool = null;
 #endif
         }
 
@@ -173,8 +188,9 @@ namespace zero.cocoon.models
         /// </summary>
         protected override void ZeroManaged()
         {
-            if(_protocolMsgBatch != null)
-                ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Return(_protocolMsgBatch);
+            if (_protocolMsgBatch != null)
+                _arrayPool.Return(_protocolMsgBatch, true);
+
             base.ZeroManaged();
         }
 
@@ -379,7 +395,7 @@ namespace zero.cocoon.models
                     return State = JobState.ConInvalid;
 
                 var verified = false;
-                //_protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(1000);
+                //_protocolMsgBatch = ArrayPoolProxy<Tuple<IMessage, object, Packet>>.Shared.Rent(1000);
                 for (var i = 0; i <= DatumCount; i++)
                 {
                     var read = stream.Position;
@@ -439,9 +455,12 @@ namespace zero.cocoon.models
 
                 State = JobState.Consumed;
             }
+            catch (NullReferenceException e){ _logger.Trace(e, $"Consumer failed in {Description}" );}
+            catch (TaskCanceledException e) { _logger.Trace(e, $"Consumer failed in {Description}"); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, $"Consumer failed in {Description}"); }
             catch (Exception e)
             {
-                _logger.Error(e, "Unmarshal Packet failed!");
+                _logger.Error(e, $"Unmarshal Packet failed in {Description}");
             }
             finally
             {
@@ -500,10 +519,12 @@ namespace zero.cocoon.models
                 //cog the source
                 await ProtocolChannel.Source.ProduceAsync(source =>
                 {
-                    if (ProtocolChannel.IsArbitrating) //TODO: For now, We don't want to block when neighbors cant process transactions
-                        ((IoCcProtocolBuffer)source).MessageQueue.TryAdd(_protocolMsgBatch);
-                    else
-                        ((IoCcProtocolBuffer)source).MessageQueue.Add(_protocolMsgBatch);
+                    if (((IoCcProtocolBuffer) source).MessageQueue.Count ==
+                        ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)
+                    {
+                        _logger.Warn($"MessageQueue depleted: {((IoCcProtocolBuffer)source).MessageQueue.Count}");
+                    }
+                    ((IoCcProtocolBuffer)source).MessageQueue.Add(_protocolMsgBatch, AsyncTasks.Token);
 
                     _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
 
@@ -518,13 +539,23 @@ namespace zero.cocoon.models
                     _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
                 }
             }
-            catch (NullReferenceException){}
+            catch(TaskCanceledException) {}
+            catch(ObjectDisposedException) {}
+            catch (NullReferenceException) {}
             catch (Exception e)
             {
                 _logger.Debug(e,$"Forwarding from {Description} to {ProtocolChannel.Description} failed");
             }
         }
 
+        /// <summary>
+        /// Batch of messages
+        /// </summary>
         private Tuple<IMessage, object, Packet>[] _protocolMsgBatch;
+
+        /// <summary>
+        /// message heap
+        /// </summary>
+        private ArrayPool<Tuple<IMessage, object, Packet>> _arrayPool = ArrayPool<Tuple<IMessage, object, Packet>>.Create();
     }
 }

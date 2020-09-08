@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -15,6 +16,7 @@ using Proto;
 using zero.cocoon.identity;
 using zero.cocoon.models;
 using zero.cocoon.models.services;
+using zero.cocoon.models.sources;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.network.ip;
@@ -26,7 +28,7 @@ namespace zero.cocoon.autopeer
 {
     public class IoCcNeighbor : IoNeighbor<IoCcPeerMessage>
     {
-        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 1,5)
+        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 16,16)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -63,6 +65,9 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private readonly Logger _logger;
 
+        /// <summary>
+        /// Description
+        /// </summary>
         private string _description;
         public override string Description
         {
@@ -96,7 +101,7 @@ namespace zero.cocoon.autopeer
 
         //uptime
         private long _uptime = 0;
-        public long Uptime
+        public long PeerUptime
         {
             get => Interlocked.Read(ref _uptime);
             set => Interlocked.Exchange(ref _uptime, value);
@@ -259,6 +264,11 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
+        /// heap
+        /// </summary>
+        public ArrayPool<Tuple<IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
+
+        /// <summary>
         /// Create an CcId string
         /// </summary>
         /// <param name="identity">The crypto identity</param>
@@ -272,7 +282,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The CcId
         /// </summary>
-        public override string Id => $"{MakeId(Identity, RemoteAddress ?? ((IoNetClient<IoCcPeerMessage>)Source).ListeningAddress)}";
+        public sealed override string Id => $"{MakeId(Identity, RemoteAddress ?? ((IoNetClient<IoCcPeerMessage>)Source).ListeningAddress)}";
 
         /// <summary>
         /// The neighbor services
@@ -322,12 +332,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Handle to peer zero sub
         /// </summary>
-        private Action<IIoZeroable> _peerZeroSub;
+        private ZeroSub _peerZeroSub;
 
         /// <summary>
         /// Handle to neighbor zero sub
         /// </summary>
-        private Action<IIoZeroable> _neighborZeroSub;
+        private ZeroSub _neighborZeroSub;
 
         /// <summary>
         /// Number of connection attempts
@@ -335,7 +345,7 @@ namespace zero.cocoon.autopeer
         private long _connectionAttempts;
 
         /// <summary>
-        /// A servicemap helper
+        /// A service map helper
         /// </summary>
         protected ServiceMap ServiceMap
         {
@@ -371,6 +381,7 @@ namespace zero.cocoon.autopeer
             _protocolChannel = null;
             _neighborZeroSub = null;
             _peerZeroSub = null;
+            ArrayPoolProxy = null;
         }
 
         /// <summary>
@@ -416,7 +427,11 @@ namespace zero.cocoon.autopeer
         public override async Task SpawnProcessingAsync(bool spawnProducer = true)
         {
             var processingAsync = base.SpawnProcessingAsync(spawnProducer);
-            var protocol = ProcessAsync();
+            var protocol = ProcessAsync().ContinueWith(t =>
+            {
+                if(t.IsFaulted)
+                    _logger.Error(t.Exception, $"Processing protocol msgs for {Description} failed");
+            });
 
             if (!RoutedRequest && CcNode.BootstrapAddress != null)
             {
@@ -490,7 +505,7 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Return(((IoCcProtocolMessage)consumer).Messages);
+                ArrayPoolProxy.Return(((IoCcProtocolMessage)consumer).Messages);
             }
         }
 
@@ -505,84 +520,100 @@ namespace zero.cocoon.autopeer
             _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Processing peer msgs: `{Description}'");
 
             Task[] channelTasks = null;
-            while (!Zeroed())
+            try
             {
-                if (_protocolChannel == null)
+                while (!Zeroed())
                 {
-                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Waiting for {Description} stream to spin up...");
-                    _protocolChannel = Source.AttachProducer<IoCcProtocolMessage>(nameof(IoCcNeighbor));
-                    await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false);//TODO config
-                    continue;
-                }
-                else if( channelTasks == null )
-                {
-                    channelTasks = new Task[_protocolChannel.ConsumerCount];
-                }
-
-                for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
-                {
-                    channelTasks[i] = _protocolChannel.ConsumeAsync(async batch =>
+                    if (_protocolChannel == null)
                     {
-                        try
+                        _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Waiting for {Description} stream to spin up...");
+                        _protocolChannel = Source.AttachProducer<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+                        ArrayPoolProxy = ((IoCcProtocolBuffer) _protocolChannel?.Source)?.ArrayPoolProxy;
+                        await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false);//TODO config
+                        continue;
+                    }
+                    else if( channelTasks == null )
+                    {
+                        channelTasks = new Task[_protocolChannel.ConsumerCount];
+                    }
+
+                    for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
+                    {
+                        channelTasks[i] = _protocolChannel.ConsumeAsync(async batch =>
                         {
-                            await ProcessMsgBatchAsync(batch, _protocolChannel, async (msg, forward) =>
+                            try
                             {
-                                var (message, extraData, packet) = msg;
-                                try
+                                await ProcessMsgBatchAsync(batch, _protocolChannel, async (msg, forward) =>
                                 {
-                                    IoCcNeighbor ccNeighbor;
-                                    //TODO optimize
-                                    Node.Neighbors.TryGetValue(
-                                        MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span),
-                                            IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData)), out var n);
-                                    if (n == null)
-                                        ccNeighbor = this;
-                                    else
-                                        ccNeighbor = (IoCcNeighbor) n;
-
-                                    switch (message.GetType().Name)
+                                    var (message, extraData, packet) = msg;
+                                    try
                                     {
-                                        case nameof(Ping):
-                                            await ccNeighbor.Process((Ping) message, extraData, packet);
-                                            break;
-                                        case nameof(Pong):
-                                            await ccNeighbor.Process((Pong) message, extraData, packet);
-                                            break;
-                                        case nameof(DiscoveryRequest):
-                                            await ccNeighbor.Process((DiscoveryRequest) message, extraData, packet);
-                                            break;
-                                        case nameof(DiscoveryResponse):
-                                            await ccNeighbor.Process((DiscoveryResponse) message, extraData, packet);
-                                            break;
-                                        case nameof(PeeringRequest):
-                                            await ccNeighbor.Process((PeeringRequest) message, extraData, packet);
-                                            break;
-                                        case nameof(PeeringResponse):
-                                            await ccNeighbor.Process((PeeringResponse) message, extraData, packet);
-                                            break;
-                                        case nameof(PeeringDrop):
-                                            await ccNeighbor.Process((PeeringDrop) message, extraData, packet);
-                                            break;
+                                        IoCcNeighbor ccNeighbor;
+                                        //TODO optimize
+                                        Node.Neighbors.TryGetValue(
+                                            MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span),
+                                                IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData)),
+                                            out var n);
+                                        if (n == null)
+                                            ccNeighbor = this;
+                                        else
+                                            ccNeighbor = (IoCcNeighbor) n;
+
+                                        switch (message.GetType().Name)
+                                        {
+                                            case nameof(Ping):
+                                                await ccNeighbor.Process((Ping) message, extraData, packet);
+                                                break;
+                                            case nameof(Pong):
+                                                await ccNeighbor.Process((Pong) message, extraData, packet);
+                                                break;
+                                            case nameof(DiscoveryRequest):
+                                                await ccNeighbor.Process((DiscoveryRequest) message, extraData, packet);
+                                                break;
+                                            case nameof(DiscoveryResponse):
+                                                await ccNeighbor.Process((DiscoveryResponse) message, extraData, packet);
+                                                break;
+                                            case nameof(PeeringRequest):
+                                                await ccNeighbor.Process((PeeringRequest) message, extraData, packet);
+                                                break;
+                                            case nameof(PeeringResponse):
+                                                await ccNeighbor.Process((PeeringResponse) message, extraData, packet);
+                                                break;
+                                            case nameof(PeeringDrop):
+                                                await ccNeighbor.Process((PeeringDrop) message, extraData, packet);
+                                                break;
+                                        }
                                     }
-                                }
-                                catch (Exception e)
-                                {
-                                    _logger.Error(e, $"Unable to process protocol message of type {message}");
-                                }
-                            }).ConfigureAwait(false);
-                        }
-                        finally
-                        {
-                            if (batch != null && batch.State != IoJob<IoCcProtocolMessage>.JobState.Consumed)
-                                batch.State = IoJob<IoCcProtocolMessage>.JobState.ConsumeErr;
-                        }
-                    });//don't ConfigureAwait(false);
+                                    catch (NullReferenceException e)
+                                    {
+                                        _logger.Debug(e, $"Unable to process protocol message of type {message}");
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        _logger.Error(e, $"Unable to process protocol message of type {message}");
+                                    }
+                                }).ConfigureAwait(false);
+                            }
+                            finally
+                            {
+                                if (batch != null && batch.State != IoJob<IoCcProtocolMessage>.JobState.Consumed)
+                                    batch.State = IoJob<IoCcProtocolMessage>.JobState.ConsumeErr;
+                            }
+                        });//don't ConfigureAwait(false);
 
-                    if (!_protocolChannel.Source.IsOperational)
-                        break;
+                        if (!_protocolChannel.Source.IsOperational)
+                            break;
+                    }
+
+                    await Task.WhenAll(channelTasks).ConfigureAwait(false);
                 }
-
-                await Task.WhenAll(channelTasks).ConfigureAwait(false);
+            }
+            catch (TaskCanceledException) {}
+            catch (NullReferenceException){}
+            catch (ObjectDisposedException){}
+            catch (Exception e)
+            {
+                _logger.Error(e,$"Error processing {Description}");
             }
 
             _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Stopped processing msgs from {Description}");
@@ -858,10 +889,35 @@ namespace zero.cocoon.autopeer
                     continue;
 
                 //create neighbor
-                var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(IoCcIdentity.FromPubKey(responsePeer.PublicKey.Span), services, newRemoteEp));
-                if (Node.Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                IoCcNeighbor newNeighbor = null;
+                if( Node.ZeroEnsure(() =>
                 {
-                    Node.ZeroOnCascade(newNeighbor);//TODO: Maybe remove? Use the one that floods through source?
+                    newNeighbor = (IoCcNeighbor) Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>) Source, Tuple.Create(IoCcIdentity.FromPubKey(responsePeer.PublicKey.Span), services, newRemoteEp));
+
+                    //Transfer?
+                    if (!Node.Neighbors.TryAdd(newNeighbor.Id, newNeighbor)) return false;
+
+                    Node.ZeroOnCascade(newNeighbor); //TODO: Maybe remove? Use the one that floods through source?
+
+                    return newNeighbor.ZeroEnsure(() =>
+                    {
+                        var sub = newNeighbor.ZeroEvent(source =>
+                        {
+                            try
+                            {
+                                if (Node.Neighbors.TryRemove(newNeighbor.Id, out var n))
+                                {
+                                    _logger.Trace($"Removed {n.Description} from {Description}");
+                                }
+                            }
+                            catch
+                            {
+                            }
+                        });
+                        return sub != null;
+                    });
+                }))
+                {
                     var task = Task.Factory.StartNew(async () =>
                     {
                         await Task.Delay(parm_ping_timeout * count++).ConfigureAwait(false);
@@ -874,7 +930,7 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                   newNeighbor.Zero(this);
+                    newNeighbor.Zero(this);
                 }
             }
 
@@ -1039,7 +1095,7 @@ namespace zero.cocoon.autopeer
                 if (RoutedRequest)
                 {
                     if(KeepAlives > 0)
-                        _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}({GetHashCode()}):  Unexpected!, t = {KeepAlives},  s = {LastKeepAliveReceived}, l = {Interlocked.Read(ref _keepAliveLoss)}, d = {(Uptime>0? (Uptime - KeepAliveSec).ToString():"N/A")}, v = {Verified}, id = {Id}:{RemoteAddress.Port}");
+                        _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}({GetHashCode()}):  Unexpected!, t = {KeepAlives},  s = {LastKeepAliveReceived}, l = {Interlocked.Read(ref _keepAliveLoss)}, d = {(PeerUptime>0? (PeerUptime - KeepAliveSec).ToString():"N/A")}, v = {Verified}, id = {Id}:{RemoteAddress.Port}");
                     //Node.Neighbors.Where(kv=> ((IoCcNeighbor)kv.Value).RoutedRequest).ToList().ForEach(kv=>_logger.Fatal($"{kv.Value.Id}:{((IoCcNeighbor)kv.Value).RemoteAddress.Port}"));
                 }
                 else { } //ignore
@@ -1079,11 +1135,8 @@ namespace zero.cocoon.autopeer
 
                 if(!string.IsNullOrEmpty(staleId) && Node.Neighbors.TryRemove(staleId, out var staleNeighbor)) 
                 {
-                    _logger.Warn($"Removing stale neighbor {staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Socket.RemotePort}");
-                    _logger.Warn($"Replaced stale neighbor {keyStr}:{((IPEndPoint)extraData).Port}");
-
+                    _logger.Warn($"Removing stale neighbor ({staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Key}) ({keyStr}:{((IPEndPoint)extraData).Port})");
                     staleNeighbor.Zero(this);
-
                 }
 
                 if (Node.Neighbors.Count <= CcNode.MaxClients * 2 && !Node.Neighbors.TryGetValue(keyStr, out _))
@@ -1094,28 +1147,40 @@ namespace zero.cocoon.autopeer
 
                     var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices, (IPEndPoint)extraData));
 
-                    if (newNeighbor.RemoteAddress.IpEndPoint.Address.Equals(((IPEndPoint)extraData).Address) &&
-                        newNeighbor.RemoteAddress.IpEndPoint.Port == ((IPEndPoint)extraData).Port &&
-                        Node.Neighbors.TryAdd(keyStr, newNeighbor))
+                    if(Node.ZeroEnsure(() =>
                     {
-                        var id = newNeighbor.Id;
-                        var port = ((IPEndPoint) extraData).Port;
-                        newNeighbor.ZeroEvent(source =>
+
+                        //transfer?
+                        if (!newNeighbor.RemoteAddress.IpEndPoint.Address.Equals(((IPEndPoint) extraData).Address) ||
+                            newNeighbor.RemoteAddress.IpEndPoint.Port != ((IPEndPoint) extraData).Port ||
+                            !Node.Neighbors.TryAdd(keyStr, newNeighbor)) return false;
+
+                        Node.ZeroOnCascade(newNeighbor);
+
+                        return newNeighbor.ZeroEnsure(() =>
                         {
-                            try
+                            var id = newNeighbor.Id;
+                            var sub = newNeighbor.ZeroEvent(source =>
                             {
-                                if (Node.Neighbors.TryRemove(id, out var n))
+                                try
                                 {
-                                    _logger.Trace($"Removed {n.Description} from {Description}");
-                                }
-                            }
-                            catch { }
+                                    if (Node.Neighbors.TryRemove(id, out var n))
+                                    {
+                                        _logger.Trace($"Removed {n.Description} from {Description}");
+                                    }
+                                } catch { }
+                            });
+                            return sub != null;
                         });
+
+                    }))
+                    {
                         await newNeighbor.EnsurePeerAsync().ConfigureAwait(false);
                     }
                     else
                     {
                         _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Create new neighbor {keyStr} skipped!");
+                        newNeighbor.Zero(this);
                     }
                 }
                 else if(Node.Neighbors.Count <= CcNode.MaxClients * 2)
@@ -1371,7 +1436,7 @@ namespace zero.cocoon.autopeer
 
             //if(Peer.IsArbitrating && Peer.Source.IsOperational)
             PeerConnectedAtLeastOnce = true;
-            Uptime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            PeerUptime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
 
             //ioCcPeer.AttachNeighbor(this);
@@ -1413,7 +1478,7 @@ namespace zero.cocoon.autopeer
             Verified = false;
             ExtGossipAddress = null;
             KeepAliveSec = 0;
-            Uptime = 0;
+            PeerUptime = 0;
             KeepAlives = 0;
 
             _logger.Trace($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached: {peer?.Description}");

@@ -23,7 +23,7 @@ namespace zero.core.core
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoLoad<TJob>> mallocJob, int producers = 1, int consumers = 1)
-            : base($"{node.GetType().Name} neighbor: `{ioNetClient.Description}'", ioNetClient, mallocJob, false, producers, consumers)
+            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, false, producers, consumers)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;

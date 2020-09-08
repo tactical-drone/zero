@@ -27,6 +27,17 @@ namespace zero.cocoon.models
         /// </summary>
         public Tuple<IMessage,object, Proto.Packet>[] Messages;
 
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+            Messages = null;
+        }
+
+        protected override void ZeroManaged()
+        {
+            base.ZeroManaged();
+        }
+
         /// <summary>
         /// Callback the generates the next job
         /// </summary>        
@@ -57,7 +68,16 @@ namespace zero.cocoon.models
 
                 //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
                 {
-                    Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(AsyncTasks.Token);
+
+                    try
+                    {
+                        Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(AsyncTasks.Token);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Fatal(e, $"CANCELLED {Description}");
+                    }
+
                     State = JobState.Produced;
                 }
                 //else

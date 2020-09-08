@@ -116,7 +116,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The amount of productions that can be made while consumption is behind
         /// </summary>
-        public long ReadAheadBufferSize { get; set; }
+        public int ReadAheadBufferSize { get; set; }
 
         /// <summary>
         /// Used to identify work that was done recently
@@ -154,10 +154,10 @@ namespace zero.core.patterns.bushes
         protected override void ZeroUnmanaged()
         {
             //Unblock any blockers
-            ProducerBarrier.Dispose();
-            ConsumerBarrier.Dispose();
-            ConsumeAheadBarrier.Dispose();
-            ProduceAheadBarrier.Dispose();
+            //ProducerBarrier.Dispose();
+            //ConsumerBarrier.Dispose();
+            //ConsumeAheadBarrier.Dispose();
+            //ProduceAheadBarrier.Dispose();
 
             base.ZeroUnmanaged();
 
@@ -165,6 +165,7 @@ namespace zero.core.patterns.bushes
             ConsumerBarrier = null;
             ConsumeAheadBarrier = null;
             ProduceAheadBarrier = null;
+            ProducerBarrier = null;
             RecentlyProcessed = null;
             IoChannels = null;
             ObjectStorage = null;
@@ -176,11 +177,15 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroManaged()
         {
-            ObjectStorage.Values.ToList().ForEach(c=>((IIoZeroable)c).Zero(this));
+            //foreach (var objectStorageValue in ObjectStorage.Values)
+            //{
+            //    ((IIoZeroable)objectStorageValue).Zero(this);
+            //}
+
             ObjectStorage.Clear();
             IoChannels.Clear();
             RecentlyProcessed?.Zero(this);
-            
+
             base.ZeroManaged();
 
             _logger.Trace($"Closed {Description}");
@@ -213,10 +218,13 @@ namespace zero.core.patterns.bushes
                 lock (this)
                 {
                     var newChannel = new IoChannel<TFJob>($"`channel({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
-                    if (IoChannels.TryAdd(id, newChannel))
+
+                    ZeroEnsure(() =>
                     {
+                        if (!IoChannels.TryAdd(id, newChannel)) return false;
                         ZeroOnCascade(newChannel, cascade);
-                    }
+                        return true;
+                    });
                 }
             }
 

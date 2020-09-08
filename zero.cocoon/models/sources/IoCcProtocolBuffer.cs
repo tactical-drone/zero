@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,8 +15,9 @@ namespace zero.cocoon.models.sources
 {
     public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>, IIoSource
     {
-        public IoCcProtocolBuffer(int bufferSize) : base(bufferSize)//TODO config
+        public IoCcProtocolBuffer(int bufferSize, ArrayPool<Tuple<IMessage, object, Packet>> arrayPool) : base(bufferSize)//TODO config
         {
+            ArrayPoolProxy = arrayPool;
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
             MessageQueue = new BlockingCollection<Tuple<IMessage, object, Packet>[]>(bufferSize);
@@ -25,6 +27,11 @@ namespace zero.cocoon.models.sources
         /// The logger
         /// </summary>
         private readonly Logger _logger;
+
+        /// <summary>
+        /// Shared heap
+        /// </summary>
+        public ArrayPool<Tuple<IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
 
         /// <summary>
         /// Used to load the next value to be produced
@@ -81,6 +88,7 @@ namespace zero.cocoon.models.sources
 
 #if SAFE_RELEASE
             MessageQueue = null;
+            ArrayPoolProxy = null;
 #endif
         }
 

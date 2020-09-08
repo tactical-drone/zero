@@ -141,7 +141,8 @@ namespace zero.core.network.ip
                         case TaskStatus.Faulted:
                         default:
                             ioNetClient.Zero(this);
-                            _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
+                            if(!Zeroed())
+                                _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
                             break;
                     }
 
@@ -157,7 +158,9 @@ namespace zero.core.network.ip
                     return ioNetClient;
                 }
             }
-            catch (ObjectDisposedException){}
+            catch (TaskCanceledException) {}
+            catch (NullReferenceException) {}
+            catch (ObjectDisposedException) {}
             catch (OperationCanceledException) {}
             finally
             {

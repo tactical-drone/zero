@@ -25,6 +25,7 @@ namespace zero.core.patterns.bushes
             source.ZeroOnCascade(this);
             Source = source;
             _jobDescription = description;
+            var p = Description;
         }
 
         /// <summary>

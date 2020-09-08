@@ -1,21 +1,24 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Cassandra;
 using NLog;
-using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.misc
 {
     /// <summary>
     /// Zero teardown
     /// </summary>
-    public class IoZeroable:IDisposable, IIoZeroable
+    public class IoZeroable : IDisposable, IIoZeroable
     {
+        public IoZeroable()
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
         /// <summary>
         /// Destructor
         /// </summary>
@@ -25,9 +28,28 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        private ILogger _logger;
+
+        /// <summary>
         /// Description
         /// </summary>
         public virtual string Description => $"{GetType().Name}";
+
+        /// <summary>
+        /// A subscription
+        /// </summary>
+        public class ZeroSub
+        {
+            public Action<IIoZeroable> Action;
+            public volatile bool Schedule;
+        }
+
+        /// <summary>
+        /// Used to atomically transfer ownership
+        /// </summary>
+        private SemaphoreSlim _zeroLock = new SemaphoreSlim(1);
 
         /// <summary>
         /// Who zeroed this object
@@ -35,14 +57,24 @@ namespace zero.core.patterns.misc
         public IIoZeroable ZeroedFrom { get; protected set; }
 
         /// <summary>
-        /// Cancellation token source
+        /// Measures how long teardown takes
         /// </summary>
-        private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
+        public Stopwatch TeardownTime = new Stopwatch();
+
+        /// <summary>
+        /// Measures how long cascading takes
+        /// </summary>
+        public Stopwatch CascadeTime = new Stopwatch();
+
+        /// <summary>
+        /// Uptime
+        /// </summary>
+        public Stopwatch Uptime = Stopwatch.StartNew();
 
         /// <summary>
         /// Used by superclass to manage all async calls
         /// </summary>
-        protected CancellationTokenSource AsyncTasks => _asyncTasks;
+        protected CancellationTokenSource AsyncTasks { get; private set; } = new CancellationTokenSource();
 
         /// <summary>
         /// Are we disposed?
@@ -52,7 +84,8 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private ConcurrentDictionary<Action<IIoZeroable>, object> _subscribers = new ConcurrentDictionary<Action<IIoZeroable>, object>();
+        //private ConcurrentDictionary<Action<IIoZeroable>, object> _zeroSubs = new ConcurrentDictionary<Action<IIoZeroable>, object>();
+        private ConcurrentStack<ZeroSub> _zeroSubs = new ConcurrentStack<ZeroSub>();
 
         /// <summary>
         /// Zero pattern
@@ -89,13 +122,14 @@ namespace zero.core.patterns.misc
                 cur = cur.ZeroedFrom;
             }
 
-            LogManager.GetCurrentClassLogger().Debug($"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
+            _logger.Debug($"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
         }
 
         /// <summary>
         /// Indicate zero status
         /// </summary>
         /// <returns>True if zeroed out, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Zeroed()
         {
             return _zeroed > 0;
@@ -106,39 +140,36 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public Action<IIoZeroable> ZeroEvent(Action<IIoZeroable> sub)
+        public ZeroSub ZeroEvent(Action<IIoZeroable> sub)
         {
+            ZeroSub newSub = null;
             try
             {
-                if (!_subscribers.TryAdd(sub, null))
+                _zeroSubs.Push(newSub = new ZeroSub
                 {
-                    LogManager.GetCurrentClassLogger().Warn($"Event already subscribed: Method = {sub.Method}, Target = {sub.Target}");
-                }
+                    Action = sub,
+                    Schedule = true
+                });
             }
             catch (NullReferenceException) { }
 
-            return sub;
+            return newSub;
         }
 
         /// <summary>
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        public void Unsubscribe(Action<IIoZeroable> sub)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Unsubscribe(ZeroSub sub)
         {
             if (sub == null)
                 return;
-
             try
             {
-                if (_subscribers.Count != 0 && !_subscribers.TryRemove(sub, out _))
-                {
-                    LogManager.GetCurrentClassLogger().Debug($"Cannot unsubscribe from {Description}, event not found: Method = {sub.Method}, Target = {sub.Target}");
-                }
+                sub.Schedule = false;
             }
             catch (NullReferenceException) { }
-
-            return;
         }
 
         /// <summary>
@@ -147,17 +178,20 @@ namespace zero.core.patterns.misc
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">Enforces mutual zero</param>
         public T ZeroOnCascade<T>(T target, bool twoWay = false)
-        where T:IIoZeroable
+        where T : class, IIoZeroable
         {
+            if (_zeroed > 0)
+                return null;
+
             if (twoWay)//zero
             {
-                Action<IIoZeroable> sourceZeroHandler = null;
-                Action<IIoZeroable> targetZeroHandler = null;
+                ZeroSub sourceZeroHandler = null;
+                ZeroSub targetZeroHandler = null;
 
                 // ReSharper disable once AccessToModifiedClosure
                 sourceZeroHandler = ZeroEvent(s =>
                 {
-                    if (s == (IIoZeroable) target)
+                    if (s == (IIoZeroable)target)
                         Unsubscribe(sourceZeroHandler);
                     else
                         target.Zero(this);
@@ -171,12 +205,6 @@ namespace zero.core.patterns.misc
                     else
                         Zero(target);
                 });
-
-                ////Target zero logic
-                //target.ZeroEvent(s => s == this ? Unsubscribe(ZeroTarget) : ZeroSource(s));
-
-                ////Source zero logic
-                //ZeroEvent(s => s == (IIoZeroable) target ? target.Unsubscribe(ZeroSource) : ZeroTarget(s));
             }
             else //Release source if target goes
             {
@@ -184,7 +212,7 @@ namespace zero.core.patterns.misc
 
                 target.ZeroEvent(s =>
                 {
-                    if(s != this)
+                    if (s != this)
                         Unsubscribe(sub);
                 });
             }
@@ -198,68 +226,149 @@ namespace zero.core.patterns.misc
         /// <param name="disposing">Whether we are disposing unmanaged objects</param>
         protected virtual void Zero(bool disposing)
         {
-            if( Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0 )
+            if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0)
                 return;
 
-            AsyncTasks.Cancel();
-
-            //emit zero event
-            foreach (var handler in _subscribers.Keys)
+            ZeroEnsure(() =>
             {
+
+                CascadeTime.Restart();
+
                 try
                 {
-                    handler(this);
+                    AsyncTasks.Cancel(true);
                 }
-                catch (NullReferenceException) { }
                 catch (Exception e)
                 {
-                    LogManager.GetCurrentClassLogger().Fatal(e, $"[{ToString()}] returned with errors!");
+                    _logger.Error(e, $"Cancel async tasks failed for {Description}");
                 }
-            }
+                
+                TeardownTime.Restart();
 
-            //clear out subscribers
-            _subscribers.Clear();
-            
-            //Dispose managed
-            try
-            {
-                ZeroManaged();
-            }
-            //catch (NullReferenceException) { }
-            catch (Exception e)
-            {
-                LogManager.GetCurrentClassLogger().Error(e, $"[{ToString()}] {nameof(ZeroManaged)} returned with errors!");
-            }
+                //emit zero event
+                while (_zeroSubs.TryPop(out var sub))
+                {
+                    try
+                    {
+                        if (!sub.Schedule)
+                            continue;
+                        sub.Action(this);
+                    }
+                    catch (NullReferenceException)
+                    {
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Fatal(e, $"zero sub {((IIoZeroable)sub.Action.Target)?.Description} on {Description} returned with errors!");
+                    }
+                }
 
-            //Dispose unmanaged
-            if (disposing)
-            {
+                CascadeTime.Stop();
+
+                //clear out subscribers
+                //_zeroSubs.Clear();
+
+                //Dispose managed
                 try
                 {
-                    _asyncTasks.Dispose();
-                    
-                    ZeroUnmanaged();
-
-                    _asyncTasks = null;
-                    ZeroedFrom = null;
-                    _subscribers = null;
+                    ZeroManaged();
                 }
-                catch (NullReferenceException) { }
+                //catch (NullReferenceException) { }
                 catch (Exception e)
                 {
-                    LogManager.GetCurrentClassLogger().Error(e,$"[{ToString()}] {nameof(ZeroUnmanaged)} returned with errors!");
+                    _logger.Error(e, $"[{ToString()}] {nameof(ZeroManaged)} returned with errors!");
                 }
-            }
+
+                //Dispose unmanaged
+                if (disposing)
+                {
+                    try
+                    {
+                        AsyncTasks.Dispose();
+                        _zeroLock.Dispose();
+
+                        ZeroUnmanaged();
+
+                        //_logger = null;
+                        AsyncTasks = null;
+                        ZeroedFrom = null;
+                        _zeroSubs = null;
+                        _zeroLock = null;
+                    }
+                    catch (NullReferenceException)
+                    {
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, $"[{ToString()}] {nameof(ZeroUnmanaged)} returned with errors!");
+                    }
+                }
+
+                TeardownTime.Stop();
+                //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
+                //    _logger.Fatal(
+                //        $"{GetType().Name}:Z/{Description}> t = {TeardownTime.Elapsed}, c = {CascadeTime.Elapsed}");
+                _logger = null;
+
+                return true;
+            }, true);
         }
 
         /// <summary>
         /// Manages unmanaged objects
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void ZeroUnmanaged() { }
 
         /// <summary>
         /// Manages managed objects
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void ZeroManaged() { }
+
+        /// <summary>
+        /// Ensures that a ownership transfer action is synchronized
+        /// </summary>
+        /// <param name="ownershipAction">The ownership transfer callback</param>
+        /// <param name="force">Forces the action regardless of zero state</param>
+        /// <returns>true if ownership was passed, false otherwise</returns>
+        public virtual bool ZeroEnsure(Func<bool> ownershipAction, bool force = false)
+        {
+            try
+            {
+                //Prevent strange things from happening
+                if (_zeroed > 0 && !force) return false;
+
+                _zeroLock.Wait(AsyncTasks.Token);
+
+                return (_zeroed == 0 || force) && ownershipAction();
+            }
+            catch (NullReferenceException e)
+            {
+                _logger.Trace(e);
+                return false;
+            }
+            catch (Exception e)
+            {
+                _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
+                return false;
+            }
+            finally
+            {
+                try
+                {
+                    _zeroLock.Release();
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+        }
+
+        public override string ToString()
+        {
+            return Description;
+        }
     }
 }

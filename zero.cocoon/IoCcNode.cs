@@ -122,7 +122,7 @@ namespace zero.cocoon
         /// </summary>
         protected override void ZeroManaged()
         {
-            Services.IoCcRecord.Endpoints.Clear();
+            //Services.IoCcRecord.Endpoints.Clear();
             try
             {
                 //_autoPeeringTask?.Wait();

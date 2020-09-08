@@ -97,8 +97,8 @@ namespace zero.core.network.ip
                         {
                             case TaskStatus.Canceled:
                             case TaskStatus.Faulted:
-                                _logger.Error(t.Exception,
-                                    $"Listener `{ListeningAddress}' returned with status `{t.Status}':");
+                                if(!Zeroed())
+                                    _logger.Error(t.Exception, $"Listener `{ListeningAddress}' returned with status `{t.Status}':");
                                 break;
                             case TaskStatus.RanToCompletion:
 
@@ -178,34 +178,42 @@ namespace zero.core.network.ip
                 {
                     case TaskStatus.Canceled:
                     case TaskStatus.Faulted:
-                        SocketException exception = null;
-                        if ((exception = (SocketException) r.Exception.InnerExceptions.FirstOrDefault(e=>e is SocketException)) != default)
+                        try
                         {
-                            if (exception.ErrorCode == WSAEWOULDBLOCK)
+                            SocketException exception = null;
+                            if ((exception = (SocketException) r.Exception.InnerExceptions.FirstOrDefault(e=>e is SocketException)) != default)
                             {
-                                while (_sw.ElapsedMilliseconds < 10000 &&
-                                       !Socket.Poll(10000, SelectMode.SelectError) &&
-                                       !Socket.Poll(10000, SelectMode.SelectWrite)) 
-                                {}
-
-                                if (_sw.ElapsedMilliseconds > 10000)
+                                if (exception.ErrorCode == WSAEWOULDBLOCK)
                                 {
-                                    Socket.Close();
-                                    return Task.FromResult(false);
+                                    while (_sw.ElapsedMilliseconds < 10000 &&
+                                           !Socket.Poll(10000, SelectMode.SelectError) &&
+                                           !Socket.Poll(10000, SelectMode.SelectWrite)) 
+                                    {}
+
+                                    if (_sw.ElapsedMilliseconds > 10000)
+                                    {
+                                        Socket.Close();
+                                        return Task.FromResult(false);
+                                    }
                                 }
                             }
-                        }
 
-                        Socket.Blocking = true;
-                        //Do some pointless sanity checking
-                        if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
+                            Socket.Blocking = true;
+                            //Do some pointless sanity checking
+                            if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
+                            {
+                                _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                                Socket.Close();
+                                return Task.FromResult(false);
+                            }
+
+                            _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
+                        }
+                        catch (Exception e)
                         {
-                            _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
-                            Socket.Close();
+                            _logger.Error(e,$"Conneting {Description} failed:");
                             return Task.FromResult(false);
                         }
-
-                        _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
 
                         break;
                         

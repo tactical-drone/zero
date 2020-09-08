@@ -118,6 +118,9 @@ namespace zero.core.core
 
             await _netServer.ListenAsync(async ioNetClient =>
             {
+                if(ioNetClient == null)
+                    return;
+
                 var newNeighbor = MallocNeighbor(this, ioNetClient, null);
 
                 //superclass specific mutations
@@ -301,7 +304,7 @@ namespace zero.core.core
 
                     connectedAtLeastOnce = true;
                 }
-                else
+                else if(!Zeroed())
                 {
                     _logger.Error($"Failed to connect to: {address}, {address.ValidationErrorString}");
                 }
@@ -354,8 +357,7 @@ namespace zero.core.core
         protected override void ZeroManaged()
         {
 
-            Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
-
+            //Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
             Neighbors.Clear();
             
             try
