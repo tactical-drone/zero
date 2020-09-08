@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.bushes;
@@ -43,27 +44,12 @@ namespace zero.tangle.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<JobState> ProduceAsync()
+        public override async Task<JobState> ProduceAsync(Func<IoJob<IoTangleTransaction<TKey>>, ValueTask<bool>> barrier)
         {            
             await Source.ProduceAsync(async producer =>
             {
-                if (Source.ProducerBarrier == null)
-                {
-                    State = JobState.ProdCancel;
-                    return false;                    
-                }
-
-                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token))
-                {
-                    State = !Zeroed() ? JobState.ProduceTo : JobState.ProdCancel;
+                if (!await barrier(this))
                     return false;
-                }
-
-                if (Zeroed())
-                {
-                    State = JobState.ProdCancel;
-                    return false;
-                }
                 
                 Transactions = ((IoTangleTransactionSource<TKey>)Source).TxQueue.Take();
 

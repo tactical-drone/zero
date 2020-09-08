@@ -584,10 +584,10 @@ namespace zero.cocoon.autopeer
                                                 break;
                                         }
                                     }
-                                    catch (NullReferenceException e)
-                                    {
-                                        _logger.Debug(e, $"Unable to process protocol message of type {message}");
-                                    }
+                                    catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+                                    catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+                                    catch (NullReferenceException e) { _logger.Trace(e, Description); }
+                                    catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
                                     catch (Exception e)
                                     {
                                         _logger.Error(e, $"Unable to process protocol message of type {message}");
@@ -608,9 +608,10 @@ namespace zero.cocoon.autopeer
                     await Task.WhenAll(channelTasks).ConfigureAwait(false);
                 }
             }
-            catch (TaskCanceledException) {}
-            catch (NullReferenceException){}
-            catch (ObjectDisposedException){}
+            catch (TaskCanceledException e){_logger.Trace(e,Description );}
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Error(e,$"Error processing {Description}");
@@ -802,10 +803,10 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"{(RoutedRequest ? "V>" : "X>")} {Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}: Sent {sent} bytes to {(RoutedRequest?$"{Identity.IdString()}":$"")}@{dest.IpEndPoint}");
                     return (sent, packet);
             }
-            catch (NullReferenceException) { }
-            catch (TaskCanceledException){ }
-            catch (OperationCanceledException) { }
-            catch (ObjectDisposedException) { }
+            catch (NullReferenceException e) { _logger.Trace(e, Description);}
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Error(e, $"Failed to send message {Id}");
@@ -912,6 +913,7 @@ namespace zero.cocoon.autopeer
                             }
                             catch
                             {
+                                // ignored
                             }
                         });
                         return sub != null;
@@ -1135,7 +1137,7 @@ namespace zero.cocoon.autopeer
 
                 if(!string.IsNullOrEmpty(staleId) && Node.Neighbors.TryRemove(staleId, out var staleNeighbor)) 
                 {
-                    _logger.Warn($"Removing stale neighbor ({staleNeighbor.Id}:{((IoUdpClient<IoCcPeerMessage>)staleNeighbor.Source).Key}) ({keyStr}:{((IPEndPoint)extraData).Port})");
+                    _logger.Warn($"Removing stale neighbor {staleNeighbor.Id} <==> {keyStr}");
                     staleNeighbor.Zero(this);
                 }
 
@@ -1300,10 +1302,10 @@ namespace zero.cocoon.autopeer
                     await ccNeighbor.SendPingAsync().ConfigureAwait(false);
                 }
             }
-            catch (NullReferenceException) { }
-            catch (ObjectDisposedException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Debug(e, $"ERROR z = {Zeroed()}, dest = {dest}, source = {Source}, _discoveryRequest = {_discoveryRequest}");
@@ -1337,10 +1339,10 @@ namespace zero.cocoon.autopeer
                         }
                     }).ConfigureAwait(false);
             }
-            catch (NullReferenceException) { }
-            catch (ObjectDisposedException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Debug(e, $"ERROR z = {Zeroed()}, dest = {dest}, source = {Source}, _discoveryRequest = {_discoveryRequest}");
@@ -1374,10 +1376,10 @@ namespace zero.cocoon.autopeer
                         }
                     }).ConfigureAwait(false);
             }
-            catch (NullReferenceException){}
-            catch (ObjectDisposedException){}
-            catch (TaskCanceledException){}
-            catch (OperationCanceledException){}
+            catch (NullReferenceException e){_logger.Trace(e, Description);}
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Debug(e, $"ERROR z = {Zeroed()}, dest = {dest}, source = {Source}, request = {_peerRequest}");
@@ -1404,10 +1406,10 @@ namespace zero.cocoon.autopeer
 
                 await SendMessage(dest, dropRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringDrop).ConfigureAwait(false);
             }
-            catch (NullReferenceException) { }
-            catch (ObjectDisposedException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Debug(e, $"ERROR z = {Zeroed()}, dest = {dest}, source = {Source}");

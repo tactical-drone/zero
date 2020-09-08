@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -188,9 +189,9 @@ namespace zero.core.patterns.bushes
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_stats_mod_count = 10000;
-#else
         public int parm_stats_mod_count = 100000;
+#else
+        public int parm_stats_mod_count = 1000000;
 #endif
 
         /// <summary>
@@ -231,6 +232,8 @@ namespace zero.core.patterns.bushes
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_start_retry_time = 1000;
+
+        private readonly Stopwatch _producerStopwatch = new Stopwatch();
 
         /// <summary>
         /// zero unmanaged
@@ -300,7 +303,7 @@ namespace zero.core.patterns.bushes
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
 
-                            while (nextJob.Source.BlockOnProduceAheadBarrier && !Zeroed())//TODO this while loop needs to go
+                            while (nextJob.Source.BlockOnProduceAheadBarrier && !Zeroed())
                             {
                                 if (blockOnConsumerCongestion && !await nextJob.Source.ProduceAheadBarrier.WaitAsync(-1, AsyncTasks.Token))
                                 {
@@ -361,7 +364,49 @@ namespace zero.core.patterns.bushes
                                 //Free(prevJobFragment, true);
 
                                 //Fetch a job from TProducer. Did we get one?
-                                if (await nextJob.ProduceAsync().ConfigureAwait(false) == IoJob<TJob>.JobState.Produced && !Zeroed())
+                                if (await nextJob.ProduceAsync(async job =>
+                                {
+                                    //The producer barrier
+                                    _producerStopwatch.Restart();
+                                    try
+                                    {
+                                        if (!Zeroed() && !await job.Source.ProducerBarrier.WaitAsync(job.WaitForConsumerTimeout, Source.AsyncTasks.Token).ConfigureAwait(false))
+                                        {
+                                            if (!Zeroed())
+                                            {
+                                                job.State = IoJob<TJob>.JobState.ProduceTo;
+                                                _producerStopwatch.Stop();
+                                                _logger.Trace($"{job.Description} timed out waiting for PRODUCER, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{job.WaitForConsumerTimeout}ms', " +
+                                                              $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
+
+                                                //TODO finish when config is fixed
+                                                //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
+                                                //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
+                                                //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
+                                            }
+                                            else
+                                                job.State = IoJob<TJob>.JobState.ProdCancel;
+                                            return false;
+                                        }
+
+                                        if (!Zeroed()) return true;
+
+                                        job.State = IoJob<TJob>.JobState.ProdCancel;
+
+                                        return false;
+                                    }
+                                    catch (NullReferenceException e) { _logger.Trace(e); }
+                                    catch (TaskCanceledException e) { _logger.Trace(e); }
+                                    catch (OperationCanceledException e) { _logger.Trace(e); }
+                                    catch (ObjectDisposedException e) { _logger.Trace(e); }
+                                    catch (Exception e)
+                                    {
+                                        _logger.Error(e, $"Producer barrier failed for {Description}");
+                                    }
+
+                                    job.State = IoJob<TJob>.JobState.ProduceErr;
+                                    return false;
+                                }).ConfigureAwait(false) == IoJob<TJob>.JobState.Produced && !Zeroed())
                                 {
                                     IsArbitrating = true;
 
@@ -427,7 +472,7 @@ namespace zero.core.patterns.bushes
                                     if (nextJob.State == IoJob<TJob>.JobState.Cancelled ||
                                         nextJob.State == IoJob<TJob>.JobState.ProdCancel)
                                     {
-                                        _logger.Debug($"{GetType().Name}: {nextJob.TraceDescription} Source `{Description}' is shutting down");
+                                        _logger.Trace($"{GetType().Name}: {nextJob.TraceDescription} Source {Description} is shutting down");
 
                                         //Free job
                                         nextJob.State = IoJob<TJob>.JobState.Reject;
@@ -615,7 +660,8 @@ namespace zero.core.patterns.bushes
                     //Was shutdown requested?
                     if (Zeroed())
                     {
-                        _logger.Debug($"{GetType().Name}: Consumer `{Description}' is shutting down");
+                        _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
+                        await Task.Delay(10000);//TODO
                         return false;
                     }
 
@@ -633,8 +679,8 @@ namespace zero.core.patterns.bushes
                     //Was shutdown requested?
                     if (Zeroed() || AsyncTasks.IsCancellationRequested)
                     {
-                        _logger.Debug($"{GetType().Name}: Consumer `{Description}' is shutting down");
-                        await Task.Delay(parm_consumer_wait_for_producer_timeout/4);
+                        _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
+                        await Task.Delay(10000);//TODO 
                         return false;
                     }
 
@@ -907,7 +953,7 @@ namespace zero.core.patterns.bushes
 
                         if (!Source?.IsOperational ?? false)
                         {
-                            _logger.Debug($"{GetType().Name}: Producer {Description} went non operational!");
+                            _logger.Trace($"{GetType().Name}: Producer {Description} went non operational!");
                             return;
                         }
                     }
@@ -938,7 +984,7 @@ namespace zero.core.patterns.bushes
 
                         if (!Source?.IsOperational ?? false)
                         {
-                            _logger.Debug($"{GetType().Name}: Consumer {Description} went non operational!");
+                            _logger.Trace($"{GetType().Name}: Consumer {Description} went non operational!");
                             return;
                         }
                     }

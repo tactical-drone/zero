@@ -22,6 +22,7 @@ using zero.core.conf;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.cocoon.models
 {
@@ -125,7 +126,7 @@ namespace zero.cocoon.models
             return sent;
         }
 
-        public override async Task<JobState> ProduceAsync()
+        public override async Task<JobState> ProduceAsync(Func<IoJob<IoCcGossipMessage>, ValueTask<bool>> barrier)
         {
             try
             {
@@ -142,31 +143,8 @@ namespace zero.cocoon.models
                     //----------------------------------------------------------------------------
                     try
                     {
-                        _producerStopwatch.Restart();
-                        if (!Zeroed() && !await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token).ConfigureAwait(false))
-                        {
-                            if (!Zeroed())
-                            {
-                                State = JobState.ProduceTo;
-                                _producerStopwatch.Stop();
-                                _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                              $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
-
-                                //TODO finish when config is fixed
-                                //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                                //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
-                                //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
-                            }
-                            else
-                                State = JobState.ProdCancel;
+                        if (!await barrier(this))
                             return false;
-                        }
-
-                        if (Zeroed())
-                        {
-                            State = JobState.ProdCancel;
-                            return false;
-                        }
 
                         //Async read the message from the message stream
                         if (Source.IsOperational)
@@ -206,7 +184,7 @@ namespace zero.cocoon.models
 
                                         State = JobState.Produced;
 
-                                        _logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                                        //_logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
                                         break;
                                     default:
                                         State = JobState.ProduceErr;
@@ -228,7 +206,10 @@ namespace zero.cocoon.models
                         }
                         return true;
                     }
-                    catch (NullReferenceException){return false;}
+                    catch (NullReferenceException e){_logger.Trace(e, Description); return false;}
+                    catch (TaskCanceledException e){ _logger.Trace(e, Description); return false; }
+                    catch (ObjectDisposedException e) { _logger.Trace(e, Description); return false; }
+                    catch (OperationCanceledException e) { _logger.Trace(e, Description); return false; }
                     catch (Exception e)
                     {
                         _logger.Debug(e,$"Error producing {Description}");
@@ -236,10 +217,10 @@ namespace zero.cocoon.models
                     }
                 }).ConfigureAwait(false);
             }
-            catch (TaskCanceledException) { }
-            catch (NullReferenceException) { }
-            catch (ObjectDisposedException) { }
-            catch (OperationCanceledException) { }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Warn(e, $"{TraceDescription} Producing job returned with errors:");
@@ -312,11 +293,11 @@ namespace zero.cocoon.models
                         _logger.Fatal($"{val} != {((IoCcPeer)IoZero).AccountingBit}");
                 }
             }
-            catch (ArgumentOutOfRangeException e ){ _logger.Debug(e, "Unmarshal Packet failed!"); }
-            catch (NullReferenceException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
-            catch (ObjectDisposedException) { }
+            catch (ArgumentOutOfRangeException e ) { _logger.Trace(e, Description); }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Error(e, "Unmarshal Packet failed!");

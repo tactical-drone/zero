@@ -74,7 +74,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Used by superclass to manage all async calls
         /// </summary>
-        protected CancellationTokenSource AsyncTasks { get; private set; } = new CancellationTokenSource();
+        public CancellationTokenSource AsyncTasks { get; private set; } = new CancellationTokenSource();
 
         /// <summary>
         /// Are we disposed?

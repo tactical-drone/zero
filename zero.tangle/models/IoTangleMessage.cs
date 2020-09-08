@@ -471,7 +471,7 @@ namespace zero.tangle.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<JobState> ProduceAsync()
+        public override async Task<JobState> ProduceAsync(Func<IoJob<IoTangleMessage<TKey>>, ValueTask<bool>> barrier)
         {
             try
             {
@@ -484,31 +484,8 @@ namespace zero.tangle.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    _producerStopwatch.Restart();
-                    if (!await Source.ProducerBarrier.WaitAsync(parm_producer_wait_for_consumer_timeout, AsyncTasks.Token))
-                    {
-                        if (!Zeroed())
-                        {
-                            State = JobState.ProduceTo;
-                            _producerStopwatch.Stop();
-                            _logger.Debug($"{TraceDescription} timed out waiting for CONSUMER to release, Waited = `{_producerStopwatch.ElapsedMilliseconds}ms', Willing = `{parm_producer_wait_for_consumer_timeout}ms', " +
-                                         $"CB = `{Source.ConsumerBarrier.CurrentCount}'");
-
-                            //TODO finish when config is fixed
-                            //LocalConfigBus.AddOrUpdate(nameof(parm_consumer_wait_for_producer_timeout), a=>0, 
-                            //    (k,v) => Interlocked.Read(ref Source.ServiceTimes[(int) JobState.Consumed]) /
-                            //         (Interlocked.Read(ref Source.Counters[(int) JobState.Consumed]) * 2 + 1));                                                                    
-                        }
-                        else
-                            State = JobState.ProdCancel;
-                        return true;
-                    }
-
-                    if (Zeroed())
-                    {
-                        State = JobState.ProdCancel;
+                    if (!await barrier(this))
                         return false;
-                    }
 
                     //Async read the message from the message stream
                     if (Source.IsOperational)
@@ -560,7 +537,7 @@ namespace zero.tangle.models
 
                                         State = JobState.Produced;
 
-                                        _logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                                        //_logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
                                         break;
                                     default:
@@ -602,6 +579,6 @@ namespace zero.tangle.models
                 }
             }
             return State;
-        }        
+        }
     }
 }

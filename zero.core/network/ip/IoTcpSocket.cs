@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
+using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.core.network.ip
 {
@@ -209,6 +210,10 @@ namespace zero.core.network.ip
 
                             _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
                         }
+                        catch (NullReferenceException e) {_logger.Trace(e,Description); Task.FromResult(false); }
+                        catch (TaskCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false); }
+                        catch (OperationCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false);}
+                        catch (ObjectDisposedException e) { _logger.Trace(e, Description); Task.FromResult(false); }
                         catch (Exception e)
                         {
                             _logger.Error(e,$"Conneting {Description} failed:");

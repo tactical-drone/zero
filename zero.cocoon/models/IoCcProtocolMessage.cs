@@ -44,27 +44,12 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<JobState> ProduceAsync()
+        public override async Task<JobState> ProduceAsync(Func<IoJob<IoCcProtocolMessage>, ValueTask<bool>> barrier)
         {
             await Source.ProduceAsync(async producer =>
             {
-                if (Source.ProducerBarrier == null)
-                {
-                    State = JobState.ProdCancel;
+                if (!await barrier(this))
                     return false;
-                }
-
-                if (!await Source.ProducerBarrier.WaitAsync(_waitForConsumerTimeout, AsyncTasks.Token).ConfigureAwait(false))
-                {
-                    State = Zeroed() ? JobState.ProdCancel : JobState.ProduceTo;
-                    return false;
-                }
-
-                if (Zeroed())
-                {
-                    State = JobState.ProdCancel;
-                    return false;
-                }
 
                 //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
                 {
@@ -75,7 +60,7 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _logger.Fatal(e, $"CANCELLED {Description}");
+                        _logger.Fatal(e, $"MessageQueue.Take failed: {Description}");//TODO why are we not getting this warning?
                     }
 
                     State = JobState.Produced;

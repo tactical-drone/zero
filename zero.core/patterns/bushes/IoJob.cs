@@ -131,10 +131,11 @@ namespace zero.core.patterns.bushes
         public bool StillHasUnprocessedFragments { get; protected set; }
 
         /// <summary>
-        /// Callback the generates the next job
+        /// Uses <see cref="Source"/> to produce a job
         /// </summary>
-        /// <returns>The state to indicated failure or success</returns>
-        public abstract Task<JobState> ProduceAsync();
+        /// <param name="barrier">The normalized barrier that we pass to the source for quick release</param>
+        /// <returns>The current state of the job</returns>
+        public abstract Task<JobState> ProduceAsync(Func<IoJob<TJob>, ValueTask<bool>> barrier);
         
         /// <summary>
         /// Initializes this instance for reuse from the heap
@@ -222,7 +223,13 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_id_pad_size = 12;        
+        protected int parm_id_pad_size = 12;
+
+
+        /// <summary>
+        /// How long to wait for the consumer before timing out
+        /// </summary>
+        public virtual int WaitForConsumerTimeout { get; } = 2500;
 
         /// <summary>
         /// Log the state
