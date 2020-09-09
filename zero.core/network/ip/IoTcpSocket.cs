@@ -186,12 +186,12 @@ namespace zero.core.network.ip
                             {
                                 if (exception.ErrorCode == WSAEWOULDBLOCK)
                                 {
-                                    while (_sw.ElapsedMilliseconds < 10000 &&
-                                           !Socket.Poll(10000, SelectMode.SelectError) &&
-                                           !Socket.Poll(10000, SelectMode.SelectWrite)) 
+                                    while (!Zeroed() && _sw.ElapsedMilliseconds < 10000 &&
+                                           !Socket.Poll(100000, SelectMode.SelectError) &&
+                                           !Socket.Poll(100000, SelectMode.SelectWrite)) 
                                     {}
 
-                                    if (_sw.ElapsedMilliseconds > 10000)
+                                    if (Zeroed() || _sw.ElapsedMilliseconds > 10000)
                                     {
                                         Socket.Close();
                                         return Task.FromResult(false);
@@ -201,11 +201,19 @@ namespace zero.core.network.ip
 
                             Socket.Blocking = true;
                             //Do some pointless sanity checking
-                            if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
+                            try
                             {
-                                _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
-                                Socket.Close();
-                                return Task.FromResult(false);
+                                if (!Zeroed() && ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
+                                {
+                                    _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                                    Socket.Close();
+                                    return Task.FromResult(false);
+                                }
+                            }
+                            catch (SocketException e){_logger.Trace(e, Description);}
+                            catch (Exception e)
+                            {
+                                _logger.Error(e, $"Sanity checks failed: {Description}");
                             }
 
                             _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");

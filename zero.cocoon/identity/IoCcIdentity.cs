@@ -16,7 +16,6 @@ namespace zero.cocoon.identity
     {
         static IoCcIdentity()
         {
-            Thread.Sleep(1);
             SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
         }
 

@@ -830,13 +830,13 @@ namespace zero.cocoon.autopeer
 #pragma warning restore 420
             if (discoveryRequest == null || !RoutedRequest || response.Peers.Count > parm_max_discovery_peers)
             {
-                _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(DiscoveryResponse)}: Dropped! Got unexpected response count = ({response.Peers.Count}) from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest}");
+                _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(DiscoveryResponse)}: Reject, count = ({response.Peers.Count}) from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest}");
                 return;
             }
 
             if (!response.ReqHash.SequenceEqual(IoCcIdentity.Sha256.ComputeHash(discoveryRequest.ToByteArray())))
             {
-                _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(DiscoveryResponse)}: Got request hash from {Id}");
+                _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(DiscoveryResponse)}: Reject {Id}");
                 return;
             }
 
@@ -967,10 +967,9 @@ namespace zero.cocoon.autopeer
             var discoveryResponse = new DiscoveryResponse
             {
                 ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.ToByteArray())),
-                //Peers = { new Peer { PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey), Ip = ExtGossipAddress.Ip, Services = new ServiceMap { Map = { new Dictionary<string, NetworkAddress> { { IoCcService.Keys.peering.ToString(), new NetworkAddress { Network = "tcp", Port = (uint)CcNode.ExtAddress.Port } } } } } } }
             };
 
-            int count = 0;
+            var count = 0;
             foreach (var ioNeighbor in NeighborDiscoveryNode.Neighbors.Where(n=>((IoCcNeighbor)n.Value).Verified))
             {
                 if(count == parm_max_discovery_peers)
@@ -1110,8 +1109,8 @@ namespace zero.cocoon.autopeer
             if (!pong.ReqHash.SequenceEqual(hash))
             {
                 _logger.Debug(!RoutedRequest
-                    ? $"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}: Got invalid request from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData))}"
-                    : $"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}: Got invalid request hash from {extraData} <=> {pingRequest}, {Convert.ToBase64String(hash)} - {Convert.ToBase64String(pong.ReqHash.ToByteArray())}");
+                    ? $"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}: Invalid request {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData))}"
+                    : $"{(RoutedRequest?"V>":"X>")}{nameof(Pong)}: Invalid hash {extraData} <=> {pingRequest}, {Convert.ToBase64String(hash)} - {Convert.ToBase64String(pong.ReqHash.ToByteArray())}");
 
                 return;
             }
@@ -1132,12 +1131,12 @@ namespace zero.cocoon.autopeer
                 var staleId = Node.Neighbors
                     .Where(kv => ((IoCcNeighbor)kv.Value).RoutedRequest)
                     .Where(kv => ((IoCcNeighbor)kv.Value).RemoteAddress.Port == ((IPEndPoint) extraData).Port)
-                    .Where(kv => !kv.Value.Source.Key.Contains(idCheck.PkString()))
+                    .Where(kv => kv.Value.Id.Contains(idCheck.PkString()))
                     .Select(kv => kv.Value.Id).FirstOrDefault();
 
                 if(!string.IsNullOrEmpty(staleId) && Node.Neighbors.TryRemove(staleId, out var staleNeighbor)) 
                 {
-                    _logger.Warn($"Removing stale neighbor {staleNeighbor.Id} <==> {keyStr}");
+                    _logger.Warn($"Removing stale neighbor {staleNeighbor.Id}:{((IoCcNeighbor)staleNeighbor).RemoteAddress.Port} ==> {keyStr}:{((IPEndPoint)extraData).Port}");
                     staleNeighbor.Zero(this);
                 }
 

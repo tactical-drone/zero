@@ -109,7 +109,10 @@ namespace zero.core.patterns.heap
 
             try
             {
-                _buffer.ToList().ForEach(h=>h.Zero(this));
+                //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
+                // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
+                // to zero eventually?
+                //_buffer.ToList().ForEach(h=>h.Zero(this));
                 _buffer.Clear();
             }
             catch { }

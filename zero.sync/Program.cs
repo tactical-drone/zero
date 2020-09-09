@@ -32,7 +32,7 @@ namespace zero.sync
 
 
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 20;
+            int total = 2000;
             var tasks = new ConcurrentBag<Task>();
             tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", $"udp://127.0.0.1:{14626 + portOffset}", 0));
             tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", 1));

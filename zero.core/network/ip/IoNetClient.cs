@@ -282,7 +282,7 @@ namespace zero.core.network.ip
                         if (!IoSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
                         {
                             //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                            _logger.Warn($"Connection to `{ListeningAddress}' disconnected!");
+                            _logger.Warn($"DC `{ListeningAddress}' from {IoSocket.LocalIpAndPort}");
 
                             //Do cleanup
 
