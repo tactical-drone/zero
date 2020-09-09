@@ -211,7 +211,7 @@ namespace zero.core.patterns.bushes
             {
                 if (channelSource == null || jobMalloc == null)
                 {
-                    _logger.Warn($"Waiting for the channel source of `{Description}' to initialize... ??");
+                    _logger.Warn($"Waiting for channel {id} in {Description} to initialize...");
                     return null;
                 }
 

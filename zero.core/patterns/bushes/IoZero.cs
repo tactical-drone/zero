@@ -191,7 +191,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
         public int parm_stats_mod_count = 100000;
 #else
-        public int parm_stats_mod_count = 1000000;
+        public int parm_stats_mod_count = 1000;
 #endif
 
         /// <summary>
@@ -962,7 +962,7 @@ namespace zero.core.patterns.bushes
 
                     //await Task.WhenAll(producers).ContinueWith(task => {}, AsyncTasks.Token).ConfigureAwait(false);
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(() =>
@@ -992,7 +992,7 @@ namespace zero.core.patterns.bushes
                     //Task.WaitAll(consumers, AsyncTasks.Token);
                     Task.WaitAll(consumers);
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //Wait for tear down                
             await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);

@@ -82,6 +82,9 @@ namespace zero.core.network.ip
                 return false;
             }
 
+            //Configure the socket
+            ConfigureTcpSocket(Socket);
+
             // Accept incoming connections
             while (!Zeroed())
             {
@@ -171,7 +174,10 @@ namespace zero.core.network.ip
                 return false;
 
             Socket.Blocking = false;
-            
+
+            //Configure the socket
+            ConfigureTcpSocket(Socket);
+
             _sw.Restart();
             return await Socket.ConnectAsync(address.Ip, address.Port).ContinueWith(r =>
             {
@@ -200,6 +206,7 @@ namespace zero.core.network.ip
                             }
 
                             Socket.Blocking = true;
+
                             //Do some pointless sanity checking
                             try
                             {
@@ -339,12 +346,62 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return (Socket?.IsBound??false) && (Socket?.Connected??false);
+            return (Socket?.IsBound??false) || (Socket?.Connected??false);
         }
 
         public override object ExtraData()
         {
             return null;
+        }
+
+        /// <summary>
+        /// Configures the socket
+        /// </summary>
+        /// <param name="tcpSocket"></param>
+        void ConfigureTcpSocket(Socket tcpSocket)
+        {
+            if (tcpSocket.IsBound || tcpSocket.Connected)
+            {
+                return;
+            }
+            
+            // Don't allow another socket to bind to this port.
+            tcpSocket.ExclusiveAddressUse = true;
+
+            // The socket will linger for 10 seconds after
+            // Socket.Close is called.
+            tcpSocket.LingerState = new LingerOption(true, 10);
+
+            // Disable the Nagle Algorithm for this tcp socket.
+            tcpSocket.NoDelay = true;
+
+            // Set the receive buffer size to 8k
+            tcpSocket.ReceiveBufferSize = 8192 * 2;
+
+            // Set the timeout for synchronous receive methods to
+            // 1 second (1000 milliseconds.)
+            tcpSocket.ReceiveTimeout = 1000;
+
+            // Set the send buffer size to 8k.
+            tcpSocket.SendBufferSize = 8192 * 2;
+
+            // Set the timeout for synchronous send methods
+            // to 1 second (1000 milliseconds.)
+            tcpSocket.SendTimeout = 1000;
+
+            // Set the Time To Live (TTL) to 42 router hops.
+            tcpSocket.Ttl = 42;
+
+            _logger.Trace($"Tcp Socket configured: {Description}:" +
+                $"  ExclusiveAddressUse {tcpSocket.ExclusiveAddressUse}" +
+                $"  LingerState {tcpSocket.LingerState.Enabled}, {tcpSocket.LingerState.LingerTime}" +
+                $"  NoDelay {tcpSocket.NoDelay}" +
+                $"  ReceiveBufferSize {tcpSocket.ReceiveBufferSize}" +
+                $"  ReceiveTimeout {tcpSocket.ReceiveTimeout}" +
+                $"  SendBufferSize {tcpSocket.SendBufferSize}" +
+                $"  SendTimeout {tcpSocket.SendTimeout}" +
+                $"  Ttl {tcpSocket.Ttl}" +
+                $"  IsBound {tcpSocket.IsBound}");
         }
     }
 }

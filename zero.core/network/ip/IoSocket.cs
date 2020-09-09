@@ -288,10 +288,17 @@ namespace zero.core.network.ip
         /// </summary>
         protected override void ZeroManaged()
         {
-            //Close the socket
-            //if (Socket?.Connected ?? false)
-            //    Socket.Shutdown(SocketShutdown.Both);
-            
+            try
+            {
+                if(Socket.IsBound && Socket.Connected)
+                    Socket?.Shutdown(SocketShutdown.Both);
+
+            }
+            catch(SocketException e){_logger.Trace(e,Description);}
+            catch (Exception e)
+            {
+                _logger.Error(e,$"Socket shutdown returned with errors: {Description}");
+            }
             Socket?.Close();
             base.ZeroManaged();
             _logger.Trace($"Closed {Description}");

@@ -32,7 +32,7 @@ namespace zero.sync
 
 
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 500;
+            int total = 1000;
             var tasks = new ConcurrentBag<Task>();
             tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", $"udp://127.0.0.1:{14626 + portOffset}", 0));
             tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", 1));
@@ -98,7 +98,11 @@ namespace zero.sync
                         inBound = oinBound;
                         available = oavailable;
                         Console.ForegroundColor = oldTotal <= inBound + outBound? ConsoleColor.Green : ConsoleColor.Red;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}/{_nodes.Count}, {(peers) /(_nodes.Count * 8.0)*100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days");
+                        ThreadPool.GetAvailableThreads(out var wt, out var cpt);
+                        ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
+                        ThreadPool.GetMinThreads(out var minwt, out var mincpt);
+
+                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}/{_nodes.Count}, {(peers) /(_nodes.Count * 8.0)*100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
                         Console.ResetColor();
                     }
                         
