@@ -321,13 +321,13 @@ namespace zero.core.core
         /// </summary>
         public async Task StartAsync()
         {
-            _logger.Info($"Unimatrix Zero - Launching cube: {ToString()}");
+            _logger.Debug($"Unimatrix Zero - Launching cube: {ToString()}");
             try
             {
                 _listenerTask = SpawnListenerAsync();
-                await _listenerTask.ContinueWith(_=> _logger.Info($"You will be assimilated! - {ToString()} ({_.Status})")).ConfigureAwait(false);
+                await _listenerTask.ContinueWith(_=> _logger.Debug($"You will be assimilated! - {ToString()} ({_.Status})")).ConfigureAwait(false);
 
-                _logger.Info($"{GetType().Name}: Resistance is futile, {(_listenerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listenerTask.Status})");
+                _logger.Debug($"{GetType().Name}: Resistance is futile, {(_listenerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listenerTask.Status})");
             }
             catch (Exception e)
             {

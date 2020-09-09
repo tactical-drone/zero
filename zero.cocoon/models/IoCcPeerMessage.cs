@@ -110,7 +110,7 @@ namespace zero.cocoon.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length = 16; //TODO
+        public int parm_forward_queue_length =  64; //TODO
 
         /// <summary>
         /// Maximum number of datums this buffer can hold

@@ -962,7 +962,7 @@ namespace zero.core.patterns.bushes
 
                     //await Task.WhenAll(producers).ContinueWith(task => {}, AsyncTasks.Token).ConfigureAwait(false);
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(() =>
@@ -992,7 +992,7 @@ namespace zero.core.patterns.bushes
                     //Task.WaitAll(consumers, AsyncTasks.Token);
                     Task.WaitAll(consumers);
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
 
             //Wait for tear down                
             await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);

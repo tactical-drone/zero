@@ -75,7 +75,7 @@ namespace zero.cocoon.autopeer
             {
                 if (_description != null)
                     return _description;
-                return _description = $"`neighbor({(RoutedRequest?"R":"L")},{(PeerConnectedAtLeastOnce ? "C" : "D")}) {Id}'";
+                return _description = $"`neighbor({(RoutedRequest?"R":"L")},{(PeerConnectedAtLeastOnce ? "C" : "D")}) {Id}:{RemoteAddress?.Port} <-> {IoSource?.Key}'";
             }
         }
 
@@ -404,7 +404,7 @@ namespace zero.cocoon.autopeer
 
             if (!RoutedRequest && Node.Neighbors.Count < 2)
             {
-                _logger.Info($"{(RoutedRequest ? "V>" : "X>")} {Id} Boostrapping from {CcNode.BootstrapAddress}");
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Id} Boostrapping from {CcNode.BootstrapAddress}");
                 await SendPingAsync(((IoCcNeighborDiscovery)Node).CcNode.BootstrapAddress).ConfigureAwait(false);
                 return;
             }
@@ -435,7 +435,7 @@ namespace zero.cocoon.autopeer
 
             if (!RoutedRequest && CcNode.BootstrapAddress != null)
             {
-                _logger.Info($"{(RoutedRequest ? "V>" : "X>")} {Id} Boostrapping from {CcNode.BootstrapAddress}");
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Id} Boostrapping from {CcNode.BootstrapAddress}");
                 await SendPingAsync(CcNode.BootstrapAddress).ConfigureAwait(false);
             }
 
