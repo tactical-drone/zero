@@ -32,13 +32,13 @@ namespace zero.sync
 
 
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 1000;
+            int total = 500;
             var tasks = new ConcurrentBag<Task>();
             tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", $"udp://127.0.0.1:{14626 + portOffset}", 0));
             tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", 1));
             for (int i = 1; i < total; i++)
             {
-                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset + i}", $"udp://127.0.0.1:{15627 + portOffset + i}", null, $"udp://127.0.0.1:{15627 + portOffset + i}", $"udp://127.0.0.1:{15627 +portOffset + i - 1}", i));
+                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset + i}", $"udp://127.0.0.1:{15627 + portOffset + i}", null, $"udp://127.0.0.1:{15627 + portOffset + i}", $"udp://127.0.0.1:{15627 + (portOffset + i - 1) % (total/6)}", i));
             }
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
@@ -64,6 +64,7 @@ namespace zero.sync
                 var oavailable = 0;
                 long uptime = 0;
                 long uptimeCount = 1;
+                long opeers = 0;
                 long peers = 0;
                 while (running)
                 {
@@ -72,10 +73,10 @@ namespace zero.sync
                     oavailable = 0;
                     uptime = 0;
                     uptimeCount = 1;
-                    peers = 0;
+                    opeers = 0;
                     foreach (var ioCcNode in _nodes)
                     {
-                        peers += ioCcNode.Neighbors.Count;
+                        opeers += ioCcNode.Neighbors.Count;
                         ooutBound += ioCcNode.OutboundCount;
                         oinBound += ioCcNode.InboundCount;
                         oavailable += ioCcNode.DiscoveryService.Neighbors.Count;
@@ -91,13 +92,15 @@ namespace zero.sync
                         }).Average());
                     }
 
-                    if (outBound != ooutBound || inBound != oinBound || available != oavailable)
+                    
+                    if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers )
                     {
                         var oldTotal = outBound + inBound;
                         outBound = ooutBound;
                         inBound = oinBound;
+                        peers = opeers;
                         available = oavailable;
-                        Console.ForegroundColor = oldTotal <= inBound + outBound? ConsoleColor.Green : ConsoleColor.Red;
+                        Console.ForegroundColor = opeers <= peers || oldTotal <= inBound + outBound? ConsoleColor.Green : ConsoleColor.Red;
                         ThreadPool.GetAvailableThreads(out var wt, out var cpt);
                         ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
                         ThreadPool.GetMinThreads(out var minwt, out var mincpt);

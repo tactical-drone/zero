@@ -75,19 +75,19 @@ namespace zero.cocoon
                             {
                                 if (Zeroed())
                                     break;
-                                await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync().ConfigureAwait(false);
 
-                                await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
+                                if (OutboundCount < parm_max_outbound)
+                                {
+                                    await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync().ConfigureAwait(false);
+                                }
                             }
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl))
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 10))//TODO
                             {
                                 if (Zeroed())
                                     break;
 
                                 await ((IoCcNeighbor) autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
-
-                                await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
                             }
                         }
                     }

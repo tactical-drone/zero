@@ -46,7 +46,7 @@ namespace zero.cocoon.models
         /// </returns>
         public override async Task<JobState> ProduceAsync(Func<IoJob<IoCcProtocolMessage>, ValueTask<bool>> barrier)
         {
-            await Source.ProduceAsync(async producer =>
+            if (!await Source.ProduceAsync(async producer =>
             {
                 if (!await barrier(this))
                     return false;
@@ -56,11 +56,12 @@ namespace zero.cocoon.models
 
                     try
                     {
-                        Messages = ((IoCcProtocolBuffer)Source).MessageQueue.Take(AsyncTasks.Token);
+                        Messages = ((IoCcProtocolBuffer) Source).MessageQueue.Take(AsyncTasks.Token);
                     }
                     catch (Exception e)
                     {
-                        _logger.Fatal(e, $"MessageQueue.Take failed: {Description}");//TODO why are we not getting this warning?
+                        _logger.Fatal(e,
+                            $"MessageQueue.Take failed: {Description}"); //TODO why are we not getting this warning?
                     }
 
                     State = JobState.Produced;
@@ -70,9 +71,12 @@ namespace zero.cocoon.models
                 //    Messages = null;
                 //    State = JobState.ProduceTo;
                 //}
-                
+
                 return true;
-            }).ConfigureAwait(false);
+            }).ConfigureAwait(false))
+            {
+                State = JobState.ConsumeTo;
+            }
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;

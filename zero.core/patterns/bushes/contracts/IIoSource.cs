@@ -21,6 +21,11 @@ namespace zero.core.patterns.bushes.contracts
         string SourceUri { get; }
 
         /// <summary>
+        /// Sets an upstream source
+        /// </summary>
+        public IIoSource UpstreamIoSource { get; }
+
+        /// <summary>
         /// The source semaphore
         /// </summary>
         SemaphoreSlim ConsumerBarrier { get; }

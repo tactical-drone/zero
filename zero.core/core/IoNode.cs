@@ -122,7 +122,7 @@ namespace zero.core.core
                     return;
 
                 var newNeighbor = MallocNeighbor(this, ioNetClient, null);
-
+                
                 //superclass specific mutations
                 try
                 {
@@ -363,13 +363,13 @@ namespace zero.core.core
             try
             {
                 //_listenerTask?.GetAwaiter().GetResult();
-                //Task.WaitAll(NeighborTasks.ToArray());
+                Task.WaitAll(NeighborTasks.ToArray());
             }
             catch
             {
                 // ignored
             }
-
+            
             base.ZeroManaged();
             _logger.Trace($"Closed {Description}");
         }

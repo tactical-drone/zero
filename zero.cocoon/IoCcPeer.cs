@@ -148,14 +148,14 @@ namespace zero.cocoon
             //Attach the other way
             var result = Neighbor.AttachPeer(this);
 
-            if (result)
-            {
-                var v = 0;
-                var vb = new byte[4];
-                MemoryMarshal.Write(vb.AsSpan(), ref v);
-                if(!Zeroed())
-                    ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
-            }
+            //if (result)
+            //{
+            //    var v = 0;
+            //    var vb = new byte[4];
+            //    MemoryMarshal.Write(vb.AsSpan(), ref v);
+            //    if(!Zeroed())
+            //        ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
+            //}
 
             return result;
         }

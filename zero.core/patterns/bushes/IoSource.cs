@@ -55,6 +55,11 @@ namespace zero.core.patterns.bushes
         public abstract string SourceUri { get; }
 
         /// <summary>
+        /// Sets an upstream source
+        /// </summary>
+        public IIoSource UpstreamIoSource { get; protected set; }
+
+        /// <summary>
         /// Counters for <see cref="IoJob{TJob}.JobState"/>
         /// </summary>
         public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.JobState)).Length];
@@ -278,7 +283,7 @@ namespace zero.core.patterns.bushes
                 }
             }
 
-            _logger.Info($"`{Description}' Counters: {heading}{str}");
+            _logger.Info($"{Description} Counters: {heading}{str}");
         }
 
         /// <summary>

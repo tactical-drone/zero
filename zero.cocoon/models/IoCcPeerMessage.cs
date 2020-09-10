@@ -44,7 +44,7 @@ namespace zero.cocoon.models
                 IoCcProtocolBuffer protocol = null;
                 if( Source.ZeroEnsure(() =>
                 {
-                    protocol = new IoCcProtocolBuffer(parm_forward_queue_length, _arrayPool);
+                    protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
                     if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
                     {
                         return Source.ZeroOnCascade(protocol, true) != null;
@@ -63,7 +63,7 @@ namespace zero.cocoon.models
                     );
 
                     ProtocolChannel.parm_consumer_wait_for_producer_timeout =
-                        -1; //We block and never report slow production
+                        250; //We block and never report slow production
                     ProtocolChannel.parm_producer_start_retry_time = 0;
 
                     _arrayPool = ((IoCcProtocolBuffer) ProtocolChannel.Source).ArrayPoolProxy;

@@ -225,9 +225,11 @@ namespace zero.core.patterns.misc
         /// <param name="disposing">Whether we are disposing unmanaged objects</param>
         protected virtual void Zero(bool disposing)
         {
+            // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0)
                 return;
 
+            // No races allowed between shutting down and starting up
             ZeroEnsure(() =>
             {
 
@@ -244,21 +246,25 @@ namespace zero.core.patterns.misc
                 
                 TeardownTime.Restart();
 
+                var subs = new ZeroSub[10];
                 //emit zero event
-                while (_zeroSubs.TryPop(out var sub))
+                while (_zeroSubs.TryPopRange(subs) > 0)
                 {
-                    try
+                    foreach (var zeroSub in subs)
                     {
-                        if (!sub.Schedule)
-                            continue;
-                        sub.Action(this);
-                    }
-                    catch (NullReferenceException)
-                    {
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Fatal(e, $"zero sub {((IIoZeroable)sub.Action.Target)?.Description} on {Description} returned with errors!");
+                        try
+                        {
+                            if (!zeroSub.Schedule)
+                                continue;
+                            zeroSub.Action(this);
+                        }
+                        catch (NullReferenceException)
+                        {
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Fatal(e, $"zero sub {((IIoZeroable)zeroSub.Action.Target)?.Description} on {Description} returned with errors!");
+                        }
                     }
                 }
 
@@ -332,7 +338,8 @@ namespace zero.core.patterns.misc
             try
             {
                 //Prevent strange things from happening
-                if (_zeroed > 0 && !force) return false;
+                if (_zeroed > 0 && !force) 
+                    return false;
 
                 lock(_syncRoot)
                     return (_zeroed == 0 || force) && ownershipAction();

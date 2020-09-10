@@ -75,7 +75,7 @@ namespace zero.cocoon.autopeer
             {
                 if (_description != null)
                     return _description;
-                return _description = $"`neighbor({(RoutedRequest?"R":"L")},{(PeerConnectedAtLeastOnce ? "C" : "D")}) {Id}:{RemoteAddress?.Port} <-> {IoSource?.Key}'";
+                return _description = $"`neighbor({(RoutedRequest?"R":"L")},{(PeerConnectedAtLeastOnce ? "C" : "D")})[{_keepAlives}:0000] {Id}:{RemoteAddress?.Port} <-> {IoSource?.Key}'";
             }
         }
 
@@ -98,6 +98,11 @@ namespace zero.cocoon.autopeer
         /// Indicates whether we have successfully established a connection before
         /// </summary>
         protected volatile bool PeerConnectedAtLeastOnce;
+
+        /// <summary>
+        /// Indicates whether we have successfully established a connection before
+        /// </summary>
+        protected volatile int PeerConnectionAttempts = 0;
 
         //uptime
         private long _uptime = 0;
@@ -454,7 +459,6 @@ namespace zero.cocoon.autopeer
                 _logger.Fatal(protocol.Exception, "Protocol processing returned with errors!");
 
                 Zero(this);
-
             }
         }
 
@@ -555,7 +559,7 @@ namespace zero.cocoon.autopeer
                                                 IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData)),
                                             out var n);
                                         if (n == null)
-                                            ccNeighbor = this;
+                                            ccNeighbor = ((IoCcNeighborDiscovery)Node).LocalNeighbor;
                                         else
                                             ccNeighbor = (IoCcNeighbor) n;
 
@@ -599,7 +603,7 @@ namespace zero.cocoon.autopeer
                                 if (batch != null && batch.State != IoJob<IoCcProtocolMessage>.JobState.Consumed)
                                     batch.State = IoJob<IoCcProtocolMessage>.JobState.ConsumeErr;
                             }
-                        });//don't ConfigureAwait(false);
+                        });
 
                         if (!_protocolChannel.Source.IsOperational)
                             break;
@@ -865,8 +869,13 @@ namespace zero.cocoon.autopeer
 
                 //Never add ourselves (by ID)
                 if(responsePeer.PublicKey.SequenceEqual(CcNode.CcId.PublicKey))
-                    continue;
+                   continue;
 
+                //Don't add already known neighbors
+                var id = IoCcIdentity.FromPubKey(responsePeer.PublicKey.Span);
+                if(Node.Neighbors.Values.Any(n=>n.Id.Contains(id.PkString())))
+                    continue;
+                
                 var services = new IoCcService {IoCcRecord = new IoCcRecord()};
                 var newRemoteEp = new IPEndPoint(IPAddress.Parse(responsePeer.Ip), (int)responsePeer.Services.Map[IoCcService.Keys.peering.ToString()].Port);
 
@@ -893,7 +902,7 @@ namespace zero.cocoon.autopeer
                 IoCcNeighbor newNeighbor = null;
                 if( Node.ZeroEnsure(() =>
                 {
-                    newNeighbor = (IoCcNeighbor) Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>) Source, Tuple.Create(IoCcIdentity.FromPubKey(responsePeer.PublicKey.Span), services, newRemoteEp));
+                    newNeighbor = (IoCcNeighbor) Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>) Source, Tuple.Create(id, services, newRemoteEp));
 
                     //Transfer?
                     if (!Node.Neighbors.TryAdd(newNeighbor.Id, newNeighbor)) return false;
@@ -970,25 +979,25 @@ namespace zero.cocoon.autopeer
             };
 
             var count = 0;
-            foreach (var ioNeighbor in NeighborDiscoveryNode.Neighbors.Where(n=>((IoCcNeighbor)n.Value).Verified))
+            foreach (var ioNeighbor in NeighborDiscoveryNode.Neighbors.Values.Where(n=>((IoCcNeighbor)n).Verified).OrderBy(n=> (int)((IoCcNeighbor)n).Direction))
             {
                 if(count == parm_max_discovery_peers)
                     break;
                 
-                if (ioNeighbor.Value == this || !((IoCcNeighbor)ioNeighbor.Value).RoutedRequest)
+                if (ioNeighbor == this || !((IoCcNeighbor)ioNeighbor).RoutedRequest)
                     continue;
 
-                if (((IoCcNeighbor) ioNeighbor.Value).RemoteAddress.Equals(CcNode.ExtAddress))
+                if (((IoCcNeighbor) ioNeighbor).RemoteAddress.Equals(CcNode.ExtAddress))
                 {
-                    _logger.Fatal($"Found us {((IoCcNeighbor)ioNeighbor.Value).RemoteAddress} in neighbors");
+                    _logger.Fatal($"Found us {((IoCcNeighbor)ioNeighbor).RemoteAddress} in neighbors");
                     continue;
                 }
 
                 discoveryResponse.Peers.Add(new Peer
                 {
-                    PublicKey = ByteString.CopyFrom(((IoCcNeighbor)ioNeighbor.Value).Identity.PublicKey),
-                    Services = ((IoCcNeighbor)ioNeighbor.Value).ServiceMap,
-                    Ip = ((IoCcNeighbor)ioNeighbor.Value).RemoteAddress.Ip
+                    PublicKey = ByteString.CopyFrom(((IoCcNeighbor)ioNeighbor).Identity.PublicKey),
+                    Services = ((IoCcNeighbor)ioNeighbor).ServiceMap,
+                    Ip = ((IoCcNeighbor)ioNeighbor).RemoteAddress.Ip
                 });
                 count++;
             }
@@ -1044,9 +1053,10 @@ namespace zero.cocoon.autopeer
                 //set ext address as seen by neighbor
                 ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{ping.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
 
-                if (Peer == null && PeerConnectedAtLeastOnce && CcNode.Neighbors.Count <= CcNode.MaxClients) //TODO 
+                //TODO parm
+                if (Peer == null && ((PeerConnectedAtLeastOnce && PeerConnectionAttempts < 5) || Interlocked.Increment(ref PeerConnectionAttempts) == 1) && CcNode.OutboundCount < CcNode.parm_max_outbound) //TODO 
                 {
-                    _logger.Debug($"RE-/Verified peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, NAT = {ExtGossipAddress}");
+                    _logger.Debug($"RE-/Connecting to peer {Id}, Peering = {CcNode.Neighbors.Count <= CcNode.MaxClients}, NAT = {ExtGossipAddress}");
                     await SendPeerRequestAsync().ConfigureAwait(false);
                 }
             }
@@ -1195,11 +1205,13 @@ namespace zero.cocoon.autopeer
                 //set ext address as seen by neighbor
                 ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{pong.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
 
-                if (CcNode.OutboundCount < CcNode.parm_max_outbound)
-                {
-                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Discovered/Verified peer {Id}:{RemoteAddress.Port}, {(CcNode.OutboundCount < CcNode.parm_max_outbound?"Connecting...":"Saved")}, NAT = {ExtGossipAddress}");
-                    await SendPeerRequestAsync().ConfigureAwait(false);
-                }
+                //We use this ping to ack the ack
+                await SendPingAsync().ConfigureAwait(false);
+                //if (CcNode.OutboundCount < CcNode.parm_max_outbound)
+                //{
+                //    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Discovered/Verified peer {Id}:{RemoteAddress.Port}, {(CcNode.OutboundCount < CcNode.parm_max_outbound?"Connecting...":"Saved")}, NAT = {ExtGossipAddress}");
+                //    await SendPeerRequestAsync().ConfigureAwait(false);
+                //}
             }
         }
 
@@ -1255,7 +1267,7 @@ namespace zero.cocoon.autopeer
                             ccNeighbor = (IoCcNeighbor)neighbor;
                     }
 
-                    ccNeighbor ??= this;
+                    ccNeighbor ??= ((IoCcNeighborDiscovery)Node).LocalNeighbor;
 
                     if (!ccNeighbor.RoutedRequest)
                     {
@@ -1481,6 +1493,8 @@ namespace zero.cocoon.autopeer
             KeepAliveSec = 0;
             PeerUptime = 0;
             KeepAlives = 0;
+            PeerConnectionAttempts = 0;
+            PeerConnectedAtLeastOnce = false;
 
             _logger.Trace($"{(PeerConnectedAtLeastOnce?"Useful":"Useless")} peer detached: {peer?.Description}");
         }

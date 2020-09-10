@@ -15,8 +15,10 @@ namespace zero.cocoon.models.sources
 {
     public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>, IIoSource
     {
-        public IoCcProtocolBuffer(int bufferSize, ArrayPool<Tuple<IMessage, object, Packet>> arrayPool) : base(bufferSize)//TODO config
+        public IoCcProtocolBuffer(IIoSource ioSource, int bufferSize,
+            ArrayPool<Tuple<IMessage, object, Packet>> arrayPool) : base(bufferSize)//TODO config
         {
+            UpstreamIoSource = ioSource;
             ArrayPoolProxy = arrayPool;
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
