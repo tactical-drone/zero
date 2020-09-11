@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
-using Org.BouncyCastle.Bcpg;
 using zero.cocoon.models.sources;
 using zero.core.patterns.bushes;
 
@@ -25,7 +23,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public Tuple<IMessage,object, Proto.Packet>[] Messages;
+        public volatile Tuple<IMessage,object, Proto.Packet>[] Messages;
 
         protected override void ZeroUnmanaged()
         {
@@ -33,9 +31,9 @@ namespace zero.cocoon.models
             Messages = null;
         }
 
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -53,18 +51,17 @@ namespace zero.cocoon.models
 
                 //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
                 {
-
                     try
                     {
-                        Messages = ((IoCcProtocolBuffer) Source).MessageQueue.Take(AsyncTasks.Token);
+                        Messages = await ((IoCcProtocolBuffer) Source).DequeueAsync();
                     }
                     catch (Exception e)
                     {
                         _logger.Fatal(e,
-                            $"MessageQueue.Take failed: {Description}"); //TODO why are we not getting this warning?
+                            $"MessageQueue.DequeueAsync failed: {Description}"); //TODO why are we not getting this warning?
                     }
 
-                    State = JobState.Produced;
+                    State = Messages != null ? JobState.Produced : JobState.ProduceErr;
                 }
                 //else
                 //{
@@ -75,7 +72,7 @@ namespace zero.cocoon.models
                 return true;
             }).ConfigureAwait(false))
             {
-                State = JobState.ConsumeTo;
+                State = JobState.ProduceTo;
             }
 
             //If the originatingSource gave us nothing, mark this production to be skipped            

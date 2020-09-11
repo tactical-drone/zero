@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using NLog;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -60,9 +61,9 @@ namespace zero.core.core
         /// <summary>
         /// 
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return  base.ZeroManagedAsync();
         }
     }
 }

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Microsoft.AspNetCore.SignalR.Protocol;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
 using zero.cocoon.autopeer;
@@ -42,36 +43,39 @@ namespace zero.cocoon.models
             if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
                 IoCcProtocolBuffer protocol = null;
-                if( Source.ZeroEnsure(() =>
-                {
-                    protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
-                    if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+                //var task = Task.Factory.StartNew(async () =>
+                //{
+                    if (Source.ZeroEnsureAsync(async () =>
                     {
-                        return Source.ZeroOnCascade(protocol, true) != null;
+                        protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
+                        if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+                        {
+                            return Source.ZeroOnCascade(protocol, true) != null;
+                        }
+
+                        return false;
+                    }).GetAwaiter().GetResult())
+                    {
+
+                        ProtocolChannel = Source.AttachProducer(
+                            nameof(IoCcNeighbor),
+                            false,
+                            protocol,
+                            userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
+                            1, 2
+                        );
+
+                        //ProtocolChannel.parm_consumer_wait_for_producer_timeout =
+                        //    250; //We block and never report slow production
+                        //ProtocolChannel.parm_producer_start_retry_time = 0;
+
+                        _arrayPool = ((IoCcProtocolBuffer)ProtocolChannel.Source).ArrayPoolProxy;
                     }
-
-                    return false;
-                }))
-                {
-
-                    ProtocolChannel = Source.AttachProducer(
-                        nameof(IoCcNeighbor),
-                        false,
-                        protocol,
-                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
-                        1, 2
-                    );
-
-                    ProtocolChannel.parm_consumer_wait_for_producer_timeout =
-                        250; //We block and never report slow production
-                    ProtocolChannel.parm_producer_start_retry_time = 0;
-
-                    _arrayPool = ((IoCcProtocolBuffer) ProtocolChannel.Source).ArrayPoolProxy;
-                }
-                else
-                {
-                    protocol.Zero(this);
-                }
+                    else
+                    {
+                        Task.Factory.StartNew(()=>protocol.ZeroAsync(this));
+                    }
+                //});
             }
             else
             {
@@ -191,12 +195,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
             if (_protocolMsgBatch != null)
                 _arrayPool.Return(_protocolMsgBatch, true);
 
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         public override async Task<JobState> ProduceAsync(Func<IoJob<IoCcPeerMessage>, ValueTask<bool>> barrier)
@@ -231,7 +235,7 @@ namespace zero.cocoon.models
                                                 State = rx.Status == TaskStatus.Canceled
                                                     ? JobState.ProdCancel
                                                     : JobState.ProduceErr;
-                                                Source.Zero(this);
+                                                Source.ZeroAsync(this);
                                                 _logger.Error(rx.Exception?.InnerException,
                                                     $"{TraceDescription} ReadAsync from stream returned with errors:");
                                                 break;
@@ -276,7 +280,7 @@ namespace zero.cocoon.models
 
                                                 State = JobState.Produced;
 
-                                                //_logger.Trace($"RX=> {GetType().Name} ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                                                _logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
                                                 break;
                                             default:
@@ -290,7 +294,7 @@ namespace zero.cocoon.models
                         {
                             _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
                             State = JobState.Cancelled;
-                            Source.Zero(this);
+                            await Source.ZeroAsync(this);
                         }
 
                         if (Zeroed())
@@ -416,25 +420,25 @@ namespace zero.cocoon.models
                         switch (messageType)
                         {
                             case nameof(MessageTypes.Ping):
-                                await ProcessRequest<Ping>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<Ping>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.Pong):
-                                await ProcessRequest<Pong>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<Pong>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.DiscoveryRequest):
-                                await ProcessRequest<DiscoveryRequest>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<DiscoveryRequest>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.DiscoveryResponse):
-                                await ProcessRequest<DiscoveryResponse>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<DiscoveryResponse>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.PeeringRequest):
-                                await ProcessRequest<PeeringRequest>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<PeeringRequest>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.PeeringResponse):
-                                await ProcessRequest<PeeringResponse>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<PeeringResponse>(packet).ConfigureAwait(false);
                                 break;
                             case nameof(MessageTypes.PeeringDrop):
-                                await ProcessRequest<PeeringDrop>(packet).ConfigureAwait(false);
+                                await ProcessRequestAsync<PeeringDrop>(packet).ConfigureAwait(false);
                                 break;
                             default:
                                 _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -470,9 +474,9 @@ namespace zero.cocoon.models
             return State;
         }
 
-        private int _protocolMsgBatchIndex = 0;
+        private volatile int _protocolMsgBatchIndex = 0;
 
-        private async Task ProcessRequest<T>(Packet packet)
+        private async Task ProcessRequestAsync<T>(Packet packet)
         where T : IMessage<T>, new()
         {
             try
@@ -489,6 +493,7 @@ namespace zero.cocoon.models
                     else
                     {
                         await ForwardToNeighborAsync().ConfigureAwait(false);
+                        _protocolMsgBatch[_protocolMsgBatchIndex++] = Tuple.Create((IMessage)request, ProducerUserData, packet);
                     }
                 }
             }
@@ -512,15 +517,15 @@ namespace zero.cocoon.models
                 //cog the source
                 await ProtocolChannel.Source.ProduceAsync(source =>
                 {
-                    if (((IoCcProtocolBuffer) source).MessageQueue.Count ==
-                        ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)
-                    {
-                        _logger.Warn($"MessageQueue depleted: {((IoCcProtocolBuffer)source).MessageQueue.Count}");
-                    }
-                    ((IoCcProtocolBuffer)source).MessageQueue.Add(_protocolMsgBatch, AsyncTasks.Token);
+                    //if (((IoCcProtocolBuffer) source).Count() ==
+                    //    ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)
+                    //{
+                    //    _logger.Warn($"MessageQueue depleted: {((IoCcProtocolBuffer)source).MessageQueue.Count}");
+                    //} //TODO
+
+                    ((IoCcProtocolBuffer)source).Enqueue(_protocolMsgBatch);
 
                     _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
-
                     _protocolMsgBatchIndex = 0;
 
                     return Task.FromResult(true);
@@ -545,7 +550,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private Tuple<IMessage, object, Packet>[] _protocolMsgBatch;
+        private volatile Tuple<IMessage, object, Packet>[] _protocolMsgBatch;
 
         /// <summary>
         /// message heap

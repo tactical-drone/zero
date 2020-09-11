@@ -44,7 +44,7 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Zero
+        /// ZeroAsync
         /// </summary>
         public IIoZero IoZero { get; set; }
 
@@ -68,11 +68,11 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Zero managed
+        /// ZeroAsync managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
     }
 }

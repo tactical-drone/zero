@@ -51,9 +51,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace zero.core.network.ip
                     {
                         _logger.Warn($"Found zombie udp socket state");
 
-                        Zero(this);
+                        ZeroAsync(this);
 
                     }
                 }
@@ -177,7 +177,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Faulted:
                             _logger.Trace(t.Exception?.InnerException, $"Sending to udp://{endPoint} failed");
 
-                            Zero(this);
+                            ZeroAsync(this);
 
                             break;
                         case TaskStatus.RanToCompletion:
@@ -262,13 +262,13 @@ namespace zero.core.network.ip
                     //        catch (SocketException e)
                     //        {
                     //            _logger.Debug(e, $"Unable to read from {ListeningAddress}");
-                    //            Zero(this);
+                    //            ZeroAsync(this);
                     //            return 0;
                     //        }
                     //        catch (Exception e)
                     //        {
                     //            _logger.Error(e, $"Unable to read from {ListeningAddress}");
-                    //            Zero(this);
+                    //            ZeroAsync(this);
                     //            return 0;
                     //        }
                     //    }).ConfigureAwait(false);
@@ -292,10 +292,10 @@ namespace zero.core.network.ip
                 }
                 return read;
             }
-            catch (NullReferenceException) { Zero(this); return 0; }
-            catch (TaskCanceledException) { Zero(this); return 0; }
-            catch (OperationCanceledException) { Zero(this); return 0; }
-            catch (ObjectDisposedException) { Zero(this); return 0; }
+            catch (NullReferenceException) { ZeroAsync(this); return 0; }
+            catch (TaskCanceledException) { ZeroAsync(this); return 0; }
+            catch (OperationCanceledException) { ZeroAsync(this); return 0; }
+            catch (ObjectDisposedException) { ZeroAsync(this); return 0; }
             catch (SocketException e)
             {
                 _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
@@ -304,7 +304,7 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
-                Zero(this);
+                ZeroAsync(this);
                 return 0;
             }
         }

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using MathNet.Numerics;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
@@ -26,10 +27,16 @@ namespace zero.core.patterns.bushes
         protected IoSource(int readAheadBufferSize = 2) //TODO
         {
             ReadAheadBufferSize = readAheadBufferSize;
-            ConsumerBarrier = new SemaphoreSlim(0);
-            ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
-            ConsumeAheadBarrier = new SemaphoreSlim(1);
-            ProduceAheadBarrier = new SemaphoreSlim(1);
+            ProducerBarrier = new AsyncAutoResetEvent(true);
+            ProducerBarrier.Set();
+            ConsumerBarrier = new AsyncAutoResetEvent(true);
+            ProduceAheadBarrier = new AsyncAutoResetEvent(true);
+            ConsumeAheadBarrier = new AsyncAutoResetEvent(true);
+
+            //ConsumerBarrier = new SemaphoreSlim(0);
+            //ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
+            //ConsumeAheadBarrier = new SemaphoreSlim(1);
+            //ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -69,25 +76,33 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.JobState)).Length];
 
-        /// <summary>
-        /// The source semaphore
-        /// </summary>
-        public SemaphoreSlim ConsumerBarrier { get; protected set; }
 
-        /// <summary>
-        /// The consumer semaphore
-        /// </summary>
-        public SemaphoreSlim ProducerBarrier { get; protected set; }
+        public AsyncAutoResetEvent ProducerBarrier { get; protected set; }
 
-        /// <summary>
-        /// The consumer semaphore
-        /// </summary>
-        public SemaphoreSlim ConsumeAheadBarrier { get; protected set; }
+        public AsyncAutoResetEvent ConsumerBarrier { get; protected set; }
 
-        /// <summary>
-        /// The consumer semaphore
-        /// </summary>
-        public SemaphoreSlim ProduceAheadBarrier { get; protected set; }
+        public AsyncAutoResetEvent ConsumeAheadBarrier { get; protected set; }
+
+        public AsyncAutoResetEvent ProduceAheadBarrier { get; protected set; }
+        ///// <summary>
+        ///// The source semaphore
+        ///// </summary>
+        //public SemaphoreSlim ConsumerBarrier { get; protected set; }
+
+        ///// <summary>
+        ///// The consumer semaphore
+        ///// </summary>
+        //public SemaphoreSlim ProducerBarrier { get; protected set; }
+
+        ///// <summary>
+        ///// The consumer semaphore
+        ///// </summary>
+        //public SemaphoreSlim ConsumeAheadBarrier { get; protected set; }
+
+        ///// <summary>
+        ///// The consumer semaphore
+        ///// </summary>
+        //public SemaphoreSlim ProduceAheadBarrier { get; protected set; }
 
 
         /// <summary>
@@ -180,18 +195,18 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override async Task ZeroManagedAsync()
         {
             //foreach (var objectStorageValue in ObjectStorage.Values)
             //{
-            //    ((IIoZeroable)objectStorageValue).Zero(this);
+            //    ((IIoZeroable)objectStorageValue).ZeroAsync(this);
             //}
 
             ObjectStorage.Clear();
             IoChannels.Clear();
-            RecentlyProcessed?.Zero(this);
+            RecentlyProcessed?.ZeroAsync(this);
 
-            base.ZeroManaged();
+            await base.ZeroManagedAsync();
 
             _logger.Trace($"Closed {Description}");
         }
@@ -224,17 +239,24 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel = new IoChannel<TFJob>($"`channel({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
 
-                    ZeroEnsure(() =>
-                    {
-                        if (!IoChannels.TryAdd(id, newChannel)) return false;
-                        ZeroOnCascade(newChannel, cascade);
-                        return true;
-                    });
+
+                    //var longRunningAsyncWork = Task.Factory.StartNew(async delegate
+                    //{
+                        ZeroEnsureAsync(() =>
+                        {
+                            if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
+                            ZeroOnCascade(newChannel, cascade);
+                            return Task.FromResult(true);
+                        }).GetAwaiter().GetResult();
+                    //});
+
                 }
             }
 
             return (IoChannel<TFJob>)IoChannels[id];
         }
+
+
 
         /// <summary>
         /// Gets a channel with a certain Id

@@ -88,7 +88,7 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAhead">TCP read ahead</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
+        public virtual Task ListenAsync(Func<IoNetClient<TJob>,Task> connectionReceivedAction, int readAhead)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
@@ -112,7 +112,7 @@ namespace zero.core.network.ip
                 {
                     _logger.Warn($"Cancelling existing connection attemp to `{address}'");
 
-                    _connectionAttempts[address.Key].Zero(this);
+                    _connectionAttempts[address.Key].ZeroAsync(this);
 
 
                     _connectionAttempts.TryRemove(address.Key, out _);
@@ -140,7 +140,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                         default:
-                            ioNetClient.Zero(this);
+                            ioNetClient.ZeroAsync(this);
                             if(!Zeroed())
                                 _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
                             break;
@@ -196,10 +196,10 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override async Task ZeroManagedAsync()
         {
             _connectionAttempts.Clear();
-            base.ZeroManaged();
+            await base.ZeroManagedAsync();
         }
 
 

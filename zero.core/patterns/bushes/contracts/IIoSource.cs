@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.Threading;
 using zero.core.data.contracts;
 using zero.core.patterns.misc;
 
@@ -28,22 +29,22 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// The source semaphore
         /// </summary>
-        SemaphoreSlim ConsumerBarrier { get; }
+        AsyncAutoResetEvent ConsumerBarrier { get; }
 
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        SemaphoreSlim ProducerBarrier { get; }
+        AsyncAutoResetEvent ProducerBarrier { get; }
 
         /// <summary>
         /// The consumer semaphore
         /// </summary>o
-        SemaphoreSlim ConsumeAheadBarrier { get; }
+        AsyncAutoResetEvent ConsumeAheadBarrier { get; }
 
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        SemaphoreSlim ProduceAheadBarrier { get; }
+        AsyncAutoResetEvent ProduceAheadBarrier { get; }
 
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time

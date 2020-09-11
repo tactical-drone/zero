@@ -1,16 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using NLog.LayoutRenderers.Wrappers;
 using zero.cocoon.models;
 using zero.cocoon.models.services;
 using zero.core.core;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.autopeer
 {
@@ -66,12 +60,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
             //foreach (var neighborsValue in Neighbors.Values)
-            //    neighborsValue.Zero(this);
+            //    neighborsValue.ZeroAsync(this);
 
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcPeerMessage>, Task<bool>> acceptConnection = null)

@@ -186,10 +186,11 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override async Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
-            PreviousJob?.Zero(this);
+            await base.ZeroManagedAsync();
+            if(PreviousJob != null)
+                await PreviousJob.ZeroAsync(this);
         }
 
         /// <summary>

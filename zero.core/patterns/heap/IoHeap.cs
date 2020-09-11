@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using zero.core.misc;
@@ -104,7 +105,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
 
             try
@@ -112,12 +113,12 @@ namespace zero.core.patterns.heap
                 //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
                 // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
                 // to zero eventually?
-                //_buffer.ToList().ForEach(h=>h.Zero(this));
+                //_buffer.ToList().ForEach(h=>h.ZeroAsync(this));
                 _buffer.Clear();
             }
             catch { }
 
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -179,7 +180,7 @@ namespace zero.core.patterns.heap
             }
             catch (NullReferenceException)
             {
-                item.Zero(this);
+                item.ZeroAsync(this);
             }
         }
 

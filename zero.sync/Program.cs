@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -30,17 +31,17 @@ namespace zero.sync
             portOffset = 0;   
 #endif
 
-
+            var random = new Random((int) DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 500;
+            int total = 50;
             var tasks = new ConcurrentBag<Task>();
-            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", $"udp://127.0.0.1:{14626 + portOffset}", 0));
-            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", 1));
+            tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
+            tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", new[] { $"udp://127.0.0.1:{14627 + portOffset}" }.ToList(), 1));
             for (int i = 1; i < total; i++)
             {
-                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset + i}", $"udp://127.0.0.1:{15627 + portOffset + i}", null, $"udp://127.0.0.1:{15627 + portOffset + i}", $"udp://127.0.0.1:{15627 + (portOffset + i - 1) % (total/6)}", i));
+                tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset + i}", $"udp://127.0.0.1:{15627 + portOffset + i}", null, $"udp://127.0.0.1:{15627 + portOffset + i}", Enumerable.Range(0,16).Select(i=> $"udp://127.0.0.1:{15627 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
             }
-
+            
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             {
                 Console.WriteLine("###");
@@ -116,7 +117,7 @@ namespace zero.sync
             Console.ReadLine();
 
             running = false;
-            //_nodes.ToList().ForEach(n => Task.Run(() => n.Zero(null)));
+            //_nodes.ToList().ForEach(n => Task.Run(() => n.ZeroAsync(null)));
             //_nodes.Clear();
             
 
@@ -124,8 +125,15 @@ namespace zero.sync
             Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
             _nodes.Clear();
             _nodes = null;
-            reportingTask.Dispose();
-            reportingTask = null;
+
+            try
+            {
+                if(reportingTask.Status == TaskStatus.Running)
+                    reportingTask.Dispose();
+            }
+            catch{}
+
+                reportingTask = null;
             tasks.Clear();
             tasks = null;
 
@@ -157,7 +165,7 @@ namespace zero.sync
                 s.Wait();
                 Task.Run(() =>
                 {
-                    n.Zero(null);
+                    n.ZeroAsync(null);
                     Interlocked.Increment(ref zeroed);
                     s.Release();
                 });
@@ -185,8 +193,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(null);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(null);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(null);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(null);
                 tangleNodeTask.Wait();
             }
             else
@@ -200,15 +208,15 @@ namespace zero.sync
 
 
 #pragma warning disable 4014
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(null);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(null);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(null);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(null);
 #pragma warning restore 4014
                 tangleNodeTask.Wait();
             }
         }
 
         private static Task CoCoon(IoCcIdentity ioCcIdentity, string gossipAddress, string peerAddress,
-            string fpcAddress, string extAddress, string bootStrapAddress, int total)
+            string fpcAddress, string extAddress, List<string> bootStrapAddress, int total)
         {
 
             var cocoon = new IoCcNode(ioCcIdentity,
@@ -216,7 +224,7 @@ namespace zero.sync
                 IoNodeAddress.Create(peerAddress),
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
-                IoNodeAddress.Create(bootStrapAddress),
+                bootStrapAddress.Select(IoNodeAddress.Create).ToList(),
                 2);
 
             _nodes.Add(cocoon);
@@ -231,13 +239,13 @@ namespace zero.sync
             //AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
             //{
             //    Console.WriteLine("=============================================================================");
-            //    cocoon.Zero(null);
+            //    cocoon.ZeroAsync(null);
             //};
 
             //Console.CancelKeyPress += (sender, args) =>
             //{
             //    Console.WriteLine("------------------------------------------------------------------------------");
-            //    cocoon.Zero(null);
+            //    cocoon.ZeroAsync(null);
             //    args.Cancel = true;
             //};
 

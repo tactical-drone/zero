@@ -20,7 +20,7 @@ namespace zero.core.data.market
             HttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             HttpClient.DefaultRequestHeaders.Add("User-Agent", "zero");
 
-            //Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(55)).Subscribe(async _ =>
+            //Observable.Timer(TimeSpan.ZeroAsync, TimeSpan.FromSeconds(55)).Subscribe(async _ =>
             //    {
             //        var newData = await FetchData().ConfigureAwait(false);
             //        if (newData != null)

@@ -37,7 +37,7 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAhead"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAhead)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAhead)
         {
             await base.ListenAsync(connectionReceivedAction, readAhead).ConfigureAwait(false);
 
@@ -54,7 +54,7 @@ namespace zero.core.network.ip
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
 
-                    newConnectionSocket.Zero(this);
+                    newConnectionSocket.ZeroAsync(this);
 
                 }
             }).ConfigureAwait(false);

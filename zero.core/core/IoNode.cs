@@ -129,7 +129,7 @@ namespace zero.core.core
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
-                        newNeighbor.Zero(this);
+                        newNeighbor.ZeroAsync(this);
 
                         return;
                     }
@@ -151,17 +151,17 @@ namespace zero.core.core
                         {
                             if (existingNeighbor.Source.IsOperational)
                             {
-                                newNeighbor.Zero(this);
+                                newNeighbor.ZeroAsync(this);
                                 _logger.Warn(
                                     $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
                                 return;
                             }
                             else
                             {
-                                existingNeighbor.Zero(this);
+                                existingNeighbor.ZeroAsync(this);
                                 if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                                 {
-                                    newNeighbor.Zero(this);
+                                    newNeighbor.ZeroAsync(this);
                                     _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
                                     return;
                                 }
@@ -173,7 +173,7 @@ namespace zero.core.core
                             }
                         }
 
-                        newNeighbor.Zero(this);
+                        newNeighbor.ZeroAsync(this);
                         return;
                     }
 
@@ -201,6 +201,7 @@ namespace zero.core.core
                         {
                             _logger.Debug(e,$"Removing {newNeighbor.Description} from {Description}");
                         }
+                        return Task.CompletedTask;
                     });
                 }
                 catch (NullReferenceException) { return;  }
@@ -260,7 +261,7 @@ namespace zero.core.core
                     {
                         if (Neighbors.TryRemove(staleNeighbor.Id, out _))
                         {
-                            staleNeighbor.Zero(this);
+                            staleNeighbor.ZeroAsync(this);
                         }
 
                         _logger.Debug($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
@@ -283,6 +284,7 @@ namespace zero.core.core
                             {
                                 _logger.Debug(e,$"Failed to remove {newNeighbor.Description} from {Description}");
                             }
+                            return Task.CompletedTask;
                         });
 
                         //TODO
@@ -299,7 +301,7 @@ namespace zero.core.core
                     else //strange case
                     {
                         _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                        newNeighbor.Zero(this);
+                        newNeighbor.ZeroAsync(this);
                     }
 
                     connectedAtLeastOnce = true;
@@ -321,7 +323,7 @@ namespace zero.core.core
         /// </summary>
         public async Task StartAsync()
         {
-            _logger.Debug($"Unimatrix Zero - Launching cube: {ToString()}");
+            _logger.Debug($"Unimatrix ZeroAsync - Launching cube: {ToString()}");
             try
             {
                 _listenerTask = SpawnListenerAsync();
@@ -331,7 +333,7 @@ namespace zero.core.core
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unimatrix Zero returned {ToString()}");
+                _logger.Error(e, $"Unimatrix ZeroAsync returned {ToString()}");
             }
         }
 
@@ -354,10 +356,10 @@ namespace zero.core.core
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override async Task ZeroManagedAsync()
         {
 
-            //Neighbors.ToList().ForEach(kv=>kv.Value.Zero(this));
+            //Neighbors.ToList().ForEach(kv=>kv.Value.ZeroAsync(this));
             Neighbors.Clear();
             
             try
@@ -370,7 +372,7 @@ namespace zero.core.core
                 // ignored
             }
             
-            base.ZeroManaged();
+            await base.ZeroManagedAsync();
             _logger.Trace($"Closed {Description}");
         }
 
@@ -401,7 +403,7 @@ namespace zero.core.core
                 });
 
 
-                Neighbors[address.ToString()].Zero(this);
+                Neighbors[address.ToString()].ZeroAsync(this);
 
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;

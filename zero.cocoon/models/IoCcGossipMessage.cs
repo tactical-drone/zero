@@ -157,7 +157,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        Source.Zero(this);
+                                        Source.ZeroAsync(this);
                                         _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -195,7 +195,7 @@ namespace zero.cocoon.models
                         else
                         {
 
-                            Source.Zero(this);
+                            Source.ZeroAsync(this);
 
                         }
 

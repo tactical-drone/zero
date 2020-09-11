@@ -40,9 +40,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -280,10 +280,10 @@ namespace zero.core.network.ip
                 Socket.SendTimeout = timeout;
                 return Socket.Send(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException) { Zero(this); return 0; }
-            catch (TaskCanceledException) { Zero(this); return 0; }
-            catch (OperationCanceledException) { Zero(this); return 0; }
-            catch (ObjectDisposedException) { Zero(this); return 0; }
+            catch (NullReferenceException) { ZeroAsync(this); return 0; }
+            catch (TaskCanceledException) { ZeroAsync(this); return 0; }
+            catch (OperationCanceledException) { ZeroAsync(this); return 0; }
+            catch (ObjectDisposedException) { ZeroAsync(this); return 0; }
             catch (SocketException e) 
             {
                 _logger.Trace(e, $"Failed to send on {Key}:");
@@ -293,7 +293,7 @@ namespace zero.core.network.ip
             {
                 _logger.Error(e, $"Unable to send bytes to ({(Zeroed()?"closed":"open")})[connected = {Socket.Connected}] socket `tcp://{RemoteIpAndPort}' :");
 
-                Zero(this);
+                ZeroAsync(this);
 
                 return 0;
             }
@@ -328,12 +328,12 @@ namespace zero.core.network.ip
             catch (SocketException e)
             {
                 _logger.Trace(e, $"Unable to read from {ListeningAddress}");
-                //await Zero(this);
+                //await ZeroAsync(this);
             }
             catch (Exception e)
             {
                 _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
-                Zero(this);
+                ZeroAsync(this);
             }
 
             return 0;

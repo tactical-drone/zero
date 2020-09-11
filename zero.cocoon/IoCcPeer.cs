@@ -45,7 +45,7 @@ namespace zero.cocoon
 //                    {
 //                        _logger.Fatal($"Testing SOCKET FAILURE {Id}");
 //
-//                        Source.Zero(this);
+//                        Source.ZeroAsync(this);
 //
 //                        GC.Collect(GC.MaxGeneration);
 //                    }
@@ -119,11 +119,11 @@ namespace zero.cocoon
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroManaged()
+        protected override async Task ZeroManagedAsync()
         {
             DetachNeighbor();
-            Source.Zero(this);
-            base.ZeroManaged();
+            await Source.ZeroAsync(this);
+            await base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -153,7 +153,7 @@ namespace zero.cocoon
             //    var v = 0;
             //    var vb = new byte[4];
             //    MemoryMarshal.Write(vb.AsSpan(), ref v);
-            //    if(!Zeroed())
+            //    if (!Zeroed())
             //        ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
             //}
 

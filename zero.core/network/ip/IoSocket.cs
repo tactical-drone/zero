@@ -286,7 +286,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override async Task ZeroManagedAsync()
         {
             try
             {
@@ -300,7 +300,7 @@ namespace zero.core.network.ip
                 _logger.Error(e,$"Socket shutdown returned with errors: {Description}");
             }
             Socket?.Close();
-            base.ZeroManaged();
+            await base.ZeroManagedAsync();
             _logger.Trace($"Closed {Description}");
         }
 

@@ -170,7 +170,7 @@ namespace zero.core.network.ip
 
 
         /// <summary>
-        /// Zero unmanaged
+        /// ZeroAsync unmanaged
         /// </summary>
         protected override void ZeroUnmanaged()
         {
@@ -182,11 +182,11 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Zero managed
+        /// ZeroAsync managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -286,7 +286,7 @@ namespace zero.core.network.ip
 
                             //Do cleanup
 
-                            Zero(this);
+                            ZeroAsync(this);
 
 
                             return false;

@@ -38,7 +38,7 @@ namespace zero.core.network.ip
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task ListenAsync(Action<IoNetClient<TJob>> connectionReceivedAction, int readAheadBufferSize)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAheadBufferSize)
         {
             await base.ListenAsync(connectionReceivedAction, readAheadBufferSize).ConfigureAwait(false);
 
@@ -54,7 +54,7 @@ namespace zero.core.network.ip
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
 
-                    ioSocket.Zero(this);
+                    ioSocket.ZeroAsync(this);
 
                 }
             }).ConfigureAwait(false);

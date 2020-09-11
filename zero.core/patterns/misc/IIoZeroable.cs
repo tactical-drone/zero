@@ -18,16 +18,16 @@ namespace zero.core.patterns.misc
         IIoZeroable ZeroedFrom { get; }
 
         /// <summary>
-        /// Zero pattern
+        /// ZeroAsync pattern
         /// </summary>
-        void Zero(IIoZeroable @from);
+        Task ZeroAsync(IIoZeroable @from);
 
         /// <summary>
         /// Subscribe to disposed event
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        IoZeroable.ZeroSub ZeroEvent(Action<IIoZeroable> sub);
+        IoZeroable.ZeroSub ZeroEvent(Func<IIoZeroable, Task> sub);
 
         /// <summary>
         /// Unsubscribe
@@ -54,6 +54,6 @@ namespace zero.core.patterns.misc
         /// <param name="ownershipAction">The ownership transfer</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        bool ZeroEnsure(Func<bool> ownershipAction, bool force = false);
+        Task<bool> ZeroEnsureAsync(Func<Task<bool>> ownershipAction, bool force = false);
     }
 }

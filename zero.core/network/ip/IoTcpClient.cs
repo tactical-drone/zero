@@ -70,9 +70,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
     }
 }

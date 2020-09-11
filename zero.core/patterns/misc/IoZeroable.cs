@@ -6,25 +6,27 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 
 namespace zero.core.patterns.misc
 {
     /// <summary>
-    /// Zero teardown
+    /// ZeroAsync teardown
     /// </summary>
     public class IoZeroable : IDisposable, IIoZeroable
     {
         public IoZeroable()
         {
             _logger = LogManager.GetCurrentClassLogger();
+            _syncRootAuto.Set();
         }
         /// <summary>
         /// Destructor
         /// </summary>
         ~IoZeroable()
         {
-            Zero(false);
+            ZeroAsync(false);
         }
 
         /// <summary>
@@ -42,14 +44,16 @@ namespace zero.core.patterns.misc
         /// </summary>
         public class ZeroSub
         {
-            public Action<IIoZeroable> Action;
+            public Func<IIoZeroable, Task> Action;
             public volatile bool Schedule;
         }
 
         /// <summary>
         /// Used to atomically transfer ownership
         /// </summary>
-        private object _syncRoot = 0;
+        private readonly object _syncRoot = 0;
+
+        private readonly AsyncAutoResetEvent _syncRootAuto = new AsyncAutoResetEvent();
 
         /// <summary>
         /// Who zeroed this object
@@ -87,18 +91,18 @@ namespace zero.core.patterns.misc
         private ConcurrentStack<ZeroSub> _zeroSubs = new ConcurrentStack<ZeroSub>();
 
         /// <summary>
-        /// Zero pattern
+        /// ZeroAsync pattern
         /// </summary>
         public void Dispose()
         {
-            Zero(true);
+            ZeroAsync(true);
             GC.SuppressFinalize(this);
         }
 
         /// <summary>
-        /// Zero
+        /// ZeroAsync
         /// </summary>
-        public void Zero(IIoZeroable from)
+        public async Task ZeroAsync(IIoZeroable @from)
         {
             if (_zeroed > 0)
                 return;
@@ -106,7 +110,8 @@ namespace zero.core.patterns.misc
             if (from != this)
                 ZeroedFrom = from;
 
-            Dispose();
+            await ZeroAsync(true);
+            GC.SuppressFinalize(this);
         }
 
         private void PrintPathToZero()
@@ -139,7 +144,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public ZeroSub ZeroEvent(Action<IIoZeroable> sub)
+        public ZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
         {
             ZeroSub newSub = null;
             try
@@ -188,31 +193,33 @@ namespace zero.core.patterns.misc
                 ZeroSub targetZeroHandler = null;
 
                 // ReSharper disable once AccessToModifiedClosure
-                sourceZeroHandler = ZeroEvent(s =>
+                sourceZeroHandler = ZeroEvent(async s =>
                 {
                     if (s == target)
                         Unsubscribe(sourceZeroHandler);
                     else
-                        target.Zero(this);
+                        await target.ZeroAsync(this);
+
                 });
 
                 // ReSharper disable once AccessToModifiedClosure
-                targetZeroHandler = target.ZeroEvent(s =>
+                targetZeroHandler = target.ZeroEvent(async s =>
                 {
                     if (s == this)
                         target.Unsubscribe(targetZeroHandler);
                     else
-                        Zero(target);
+                        await ZeroAsync(target);
                 });
             }
             else //Release source if target goes
             {
-                var sub = ZeroEvent(target.Zero);
+                var sub = ZeroEvent(@from => target.ZeroAsync(@from));
 
                 target.ZeroEvent(s =>
                 {
                     if (s != this)
                         Unsubscribe(sub);
+                    return Task.CompletedTask;
                 });
             }
 
@@ -223,18 +230,16 @@ namespace zero.core.patterns.misc
         /// Our dispose implementation
         /// </summary>
         /// <param name="disposing">Whether we are disposing unmanaged objects</param>
-        protected virtual void Zero(bool disposing)
+        protected virtual async Task ZeroAsync(bool disposing)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0)
                 return;
 
             // No races allowed between shutting down and starting up
-            ZeroEnsure(() =>
+            await ZeroEnsureAsync(async () =>
             {
-
                 CascadeTime.Restart();
-
                 try
                 {
                     AsyncTasks.Cancel(true);
@@ -256,7 +261,7 @@ namespace zero.core.patterns.misc
                         {
                             if (!zeroSub.Schedule)
                                 continue;
-                            zeroSub.Action(this);
+                            await zeroSub.Action(this);
                         }
                         catch (NullReferenceException)
                         {
@@ -273,12 +278,12 @@ namespace zero.core.patterns.misc
                 //Dispose managed
                 try
                 {
-                    ZeroManaged();
+                    ZeroManagedAsync();
                 }
                 //catch (NullReferenceException) { }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"[{ToString()}] {nameof(ZeroManaged)} returned with errors!");
+                    _logger.Error(e, $"[{ToString()}] {nameof(ZeroManagedAsync)} returned with errors!");
                 }
 
                 //Dispose unmanaged
@@ -300,7 +305,7 @@ namespace zero.core.patterns.misc
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e, $"Zero [Un]managed errors: {Description}");
+                        _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
                     }
                 }
 
@@ -325,7 +330,7 @@ namespace zero.core.patterns.misc
         /// Manages managed objects
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected virtual void ZeroManaged() { }
+        protected virtual Task ZeroManagedAsync() {return Task.CompletedTask;}
 
         /// <summary>
         /// Ensures that a ownership transfer action is synchronized
@@ -333,7 +338,7 @@ namespace zero.core.patterns.misc
         /// <param name="ownershipAction">The ownership transfer callback</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true if ownership was passed, false otherwise</returns>
-        public virtual bool ZeroEnsure(Func<bool> ownershipAction, bool force = false)
+        public virtual async Task<bool> ZeroEnsureAsync(Func<Task<bool>> ownershipAction, bool force = false)
         {
             try
             {
@@ -341,8 +346,20 @@ namespace zero.core.patterns.misc
                 if (_zeroed > 0 && !force) 
                     return false;
 
-                lock(_syncRoot)
-                    return (_zeroed == 0 || force) && ownershipAction();
+                //lock(_syncRoot)
+                try
+                {
+                    await _syncRootAuto.WaitAsync(AsyncTasks.Token);
+                    return (_zeroed == 0 || force) && await ownershipAction().ConfigureAwait(false);
+                }
+                catch
+                {
+                    return false;
+                }
+                finally
+                {
+                    _syncRootAuto.Set();
+                }
             }
             catch (NullReferenceException e)
             {

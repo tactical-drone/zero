@@ -83,9 +83,9 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            base.ZeroManaged();
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>

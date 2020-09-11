@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
 using zero.core.patterns.bushes;
@@ -22,7 +23,7 @@ namespace zero.cocoon.models.sources
             ArrayPoolProxy = arrayPool;
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
-            MessageQueue = new BlockingCollection<Tuple<IMessage, object, Packet>[]>(bufferSize);
+            MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
         }
 
         /// <summary>
@@ -38,7 +39,12 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        public BlockingCollection<Tuple<IMessage, object, Packet>[]> MessageQueue;
+        protected ConcurrentQueue<Tuple<IMessage, object, Packet>[]> MessageQueue;
+
+        /// <summary>
+        /// Sync used to access the Q
+        /// </summary>
+        private AsyncAutoResetEvent _messageQueueSync = new AsyncAutoResetEvent(true);
 
         /// <summary>
         /// Keys this instance.
@@ -85,10 +91,10 @@ namespace zero.cocoon.models.sources
         /// </summary>
         protected override void ZeroUnmanaged()
         {
-            MessageQueue.Dispose();
-             base.ZeroUnmanaged();
+            base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _messageQueueSync = null;
             MessageQueue = null;
             ArrayPoolProxy = null;
 #endif
@@ -97,10 +103,56 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroManaged()
+        protected override Task ZeroManagedAsync()
         {
-            while(MessageQueue.TryTake(out _)){}
-            base.ZeroManaged();
+            MessageQueue.Clear();
+            return base.ZeroManagedAsync();
+        }
+
+        /// <summary>
+        /// Enqueue a batch
+        /// </summary>
+        /// <param name="item">The messages</param>
+        /// <returns>Async task</returns>
+        public bool Enqueue(Tuple<IMessage, object, Packet>[] item)
+        {
+            try
+            {
+                MessageQueue.Enqueue(item);
+                _messageQueueSync.Set();
+            }
+            catch
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+
+        /// <summary>
+        /// Dequeue item
+        /// </summary>
+        /// <returns></returns>
+        public async Task<Tuple<IMessage, object, Packet>[]> DequeueAsync()
+        {
+            try
+            {
+                await _messageQueueSync.WaitAsync(AsyncTasks.Token);
+                return MessageQueue.TryDequeue(out var dq) ? dq : null;
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Queue count
+        /// </summary>
+        /// <returns>returns number of items in the q</returns>
+        public int Count()
+        {
+            return MessageQueue.Count;
         }
 
         /// <summary>
