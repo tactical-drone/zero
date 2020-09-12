@@ -53,7 +53,7 @@ namespace zero.cocoon
                 var random = new Random((int)DateTime.Now.Ticks);
                 while (true)
                 {
-                    await Task.Delay(random.Next(120000) + 60000, AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay(random.Next(30000) + 15000, AsyncTasks.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
@@ -73,7 +73,7 @@ namespace zero.cocoon
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, trying to discover new ones...");
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl))
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
                             {
                                 if (Zeroed())
                                     break;
@@ -84,7 +84,7 @@ namespace zero.cocoon
                                 }
                             }
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 10))//TODO
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
                             {
                                 if (Zeroed())
                                     break;
@@ -244,7 +244,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_discovery_force_time_multiplier = 2;
+        public int parm_discovery_force_time_multiplier = 20;
 
         /// <summary>
         /// Maximum clients allowed

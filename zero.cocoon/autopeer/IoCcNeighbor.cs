@@ -458,9 +458,9 @@ namespace zero.cocoon.autopeer
 
                 if (KeepAliveSec > 0 && LastKeepAliveReceived > parm_zombie_max_ttl * 2)
                 {
-                    //_logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Zeroing zombie neighbor {Description}");
-                    //ZeroAsync(this);
-                    //return;
+                    _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Zeroing zombie neighbor {Description}");
+                    await ZeroAsync(this);
+                    return;
                 }
             }
 
@@ -1058,6 +1058,12 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
+            if (!RoutedRequest && ((IPEndPoint) extraData).Equals(ExtGossipAddress?.IpEndPoint))
+            {
+                _logger.Warn($"{(RoutedRequest?"V>":"X>")}{nameof(Ping)}: Dropping ping from self: {extraData}");
+                return;
+            }
+
             //TODO optimize
             var gossipAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip];
             var peeringAddress = ((IoCcNeighborDiscovery)Node).Services.IoCcRecord.Endpoints[IoCcService.Keys.peering];
@@ -1162,8 +1168,11 @@ namespace zero.cocoon.autopeer
 
             if (!RoutedRequest)
             {
-                if (!((IoCcNeighborDiscovery)Node).LocalNeighbor.MatchPingRequest(reqKey).matched)
-                    _logger.Debug($"{(RoutedRequest ? "V > " : "X > ")}{nameof(Pong)}: hash not found {reqKey}");
+                if (!((IoCcNeighborDiscovery) Node).LocalNeighbor.MatchPingRequest(reqKey).matched)
+                {
+                    _logger.Debug($"{(RoutedRequest ? "V > " : "X > ")}{nameof(Pong)}: hash not found for {IoCcIdentity.FromPubKey(packet.PublicKey.Span).PkString()}, {Description}");
+                }
+                    
 
                 //This is hacky to clean old requests
                 if (_pingRequests.Count > CcNode.MaxClients * 2)

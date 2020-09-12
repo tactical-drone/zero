@@ -33,7 +33,7 @@ namespace zero.sync
 
             var random = new Random((int) DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 50;
+            int total = 500;
             var tasks = new ConcurrentBag<Task>();
             tasks.Add(CoCoon(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
             tasks.Add(CoCoon(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", new[] { $"udp://127.0.0.1:{14627 + portOffset}" }.ToList(), 1));
@@ -224,7 +224,7 @@ namespace zero.sync
                 IoNodeAddress.Create(peerAddress),
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
-                bootStrapAddress.Select(IoNodeAddress.Create).ToList(),
+                bootStrapAddress.Select(IoNodeAddress.Create).Where(a=>a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
                 2);
 
             _nodes.Add(cocoon);
