@@ -714,7 +714,17 @@ namespace zero.cocoon.autopeer
         {
             if (!RoutedRequest || !Verified || Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp) > parm_max_time_error * 2)
             {
-                _logger.Trace($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringRequest)}: Dropped!, {(Verified?"verified":"un-verified")}, age = {Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp)}");
+                if (!RoutedRequest)
+                {
+                    //We syn here (Instead of in process ping) to force the other party to do some work before we do work.
+                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
+                    await SendPingAsync(IoNodeAddress.CreateFromEndpoint("udp://", (IPEndPoint) extraData));
+                    return;
+                }
+                else
+                {
+                    _logger.Trace($"{(RoutedRequest ? "V>" : "X>")}{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp)}");
+                }
                 return;
             }
 
@@ -1091,15 +1101,19 @@ namespace zero.cocoon.autopeer
             if (!RoutedRequest)
             {
                 IoNodeAddress toProxyAddress = null;
-                if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)
+
+                if (CcNode.UdpTunnelSupport)
                 {
-                    toProxyAddress = IoNodeAddress.Create($"udp://{ping.SrcAddr}:{ping.SrcPort}");
-                    _logger.Trace($"static peer address received: {toProxyAddress}, source detected = udp://{remoteEp}");
-                }
-                else
-                {
-                    toProxyAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
-                    _logger.Trace($"automatic peer address detected: {toProxyAddress}, source declared = udp://{ping.SrcAddr}:{ping.SrcPort}");
+                    if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)
+                    {
+                        toProxyAddress = IoNodeAddress.Create($"udp://{ping.SrcAddr}:{ping.SrcPort}");
+                        _logger.Trace($"static peer address received: {toProxyAddress}, source detected = udp://{remoteEp}");
+                    }
+                    else
+                    {
+                        toProxyAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
+                        _logger.Trace($"automatic peer address detected: {toProxyAddress}, source declared = udp://{ping.SrcAddr}:{ping.SrcPort}");
+                    }
                 }
 
                 //SEND SYN-ACK
@@ -1109,20 +1123,25 @@ namespace zero.cocoon.autopeer
                 if (CcNode.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
                     await SendMessage(toAddress, pong.ToByteString(), IoCcPeerMessage.MessageTypes.Pong).ConfigureAwait(false);
 
-                //SEND SYN
-                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}: Send SYN, to = {id}:{ping.SrcPort}");
-                await SendPingAsync(toAddress).ConfigureAwait(false);
+                ////SEND SYN
+                //_logger.Debug($"{(RoutedRequest ? "V>" : "X>")}: Send SYN, to = {id}:{ping.SrcPort}");
+                //await SendPingAsync(toAddress).ConfigureAwait(false);
 
-                if (CcNode.UdpTunnelSupport && toProxyAddress.Ip != toAddress.Ip)
-                    await SendPingAsync(toProxyAddress).ConfigureAwait(false);
+                //if (CcNode.UdpTunnelSupport && toProxyAddress.Ip != toAddress.Ip)
+                //    await SendPingAsync(toProxyAddress).ConfigureAwait(false);
             }
             else//PROCESS ACK
             {
-                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}: Send ACK SYN, to = {Description}");
-                await SendMessage(data: pong.ToByteString(), type: IoCcPeerMessage.MessageTypes.Pong).ConfigureAwait(false);
-
                 //set ext address as seen by neighbor
-                ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{ping.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
+                if (!Verified)
+                {
+                    ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{ping.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
+                    Verified = true;
+                    _logger.Debug($"ACK: {Description}");
+                }
+
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}: Send ACK SYN/KEEPALIVE, to = {Description}");
+                await SendMessage(data: pong.ToByteString(), type: IoCcPeerMessage.MessageTypes.Pong).ConfigureAwait(false);
             }
         }
 
@@ -1273,12 +1292,12 @@ namespace zero.cocoon.autopeer
             }
             else if (!Verified) //Process ACK SYN
             {
+                //set ext address as seen by neighbor
+                ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{pong.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
+
                 Verified = true;
 
                 _logger.Debug($"ACK SYN: {Description}");
-
-                //set ext address as seen by neighbor
-                ExtGossipAddress ??= IoNodeAddress.Create($"tcp://{pong.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
 
                 if (CcNode.OutboundCount < CcNode.parm_max_outbound)
                 {
