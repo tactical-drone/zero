@@ -369,6 +369,13 @@ namespace zero.cocoon.autopeer
         public int parm_zombie_max_ttl = 240;
 
         /// <summary>
+        /// Maximum number of services supported
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_zombie_max_connection_attempts = 3;
+
+        /// <summary>
         /// Handle to peer zero sub
         /// </summary>
         private ZeroSub _peerZeroSub;
@@ -728,13 +735,34 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            var peeringResponse = new PeeringResponse
-            {
-                ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(request.ToByteArray())),
-                Status = Direction == Kind.Inbound || CcNode.InboundCount < CcNode.parm_max_inbound
-            };
-            var wasInbound = Direction == Kind.Inbound ;
+            PeeringResponse peeringResponse = null;
+            var wasInbound = Direction == Kind.Inbound;
+            var wasOutbound = Direction == Kind.OutBound;
 
+            //ACCEPT?
+            if (Direction == Kind.Inbound || CcNode.InboundCount < CcNode.parm_max_inbound)
+            {
+                peeringResponse = new PeeringResponse
+                {
+                    ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(request.ToByteArray())),
+                    Status = true
+                };
+            } // FORWARD ACCEPT?
+            else if (PeerConnectionAttempts < parm_zombie_max_connection_attempts &&
+                    CcNode.OutboundCount < CcNode.parm_max_outbound)
+            {
+                await SendPeerRequestAsync().ConfigureAwait(false);
+                _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request [REJECTED], {(CcNode.InboundCount < CcNode.parm_max_inbound ? "Inbound Open" : "Inbound Closed")}, currently <<{Direction}>>: {Description}");
+                return;
+            }
+            else
+            {
+                peeringResponse = new PeeringResponse
+                {
+                    ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(request.ToByteArray())),
+                    Status = false
+                };
+            }
 
             if (peeringResponse.Status && Interlocked.CompareExchange(ref _direction, (int) Kind.Inbound, (int) Kind.Undefined) == (int)Kind.Undefined)
             {
@@ -743,7 +771,6 @@ namespace zero.cocoon.autopeer
             else if (Direction == Kind.OutBound) //If it is outbound say no
             {
                 _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering {Kind.Inbound} Rejected: {Description} is already {Kind.OutBound}");
-                peeringResponse.Status = false;
             }
             else if (wasInbound)
             {
@@ -757,9 +784,8 @@ namespace zero.cocoon.autopeer
                     _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Peering Re-/Authorized... {Direction} ({(PeerConnectedAtLeastOnce ? "C" : "DC")}), {Description}");
                 }
             }
-            _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound ? "Open" : "FULL")}), currently {Direction}: {Description}");
 
-            _logger.Trace($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringResponse)}: Sent Allow Status = {peeringResponse.Status}, Capacity = {-CcNode.Neighbors.Count + CcNode.MaxClients}");
+            _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} {Kind.Inbound} peering request {(peeringResponse.Status ? "[ACCEPTED]" : "[REJECTED]")}({(CcNode.InboundCount < CcNode.parm_max_inbound ? "Inbound Open" : "Inbound Closed")}), current = {Direction}: {Description}");
             await SendMessage(RemoteAddress, peeringResponse.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringResponse).ConfigureAwait(false);
         }
 
@@ -1301,7 +1327,7 @@ namespace zero.cocoon.autopeer
 
                 if (CcNode.OutboundCount < CcNode.parm_max_outbound)
                 {
-                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}(acksyn): {(CcNode.OutboundCount < CcNode.parm_max_outbound ? "Requesting..." : "Backup")}, from = {Description}, NAT = {ExtGossipAddress}");
+                    _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}(acksyn): {(CcNode.OutboundCount < CcNode.parm_max_outbound ? "Requesting..." : "Backup")}, to = {Description}, from nat = {ExtGossipAddress}");
                     await SendPeerRequestAsync().ConfigureAwait(false);
                 }
             }
