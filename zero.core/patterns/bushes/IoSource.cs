@@ -204,9 +204,14 @@ namespace zero.core.patterns.bushes
 
             ObjectStorage.Clear();
             IoChannels.Clear();
-            RecentlyProcessed?.ZeroAsync(this);
 
-            await base.ZeroManagedAsync();
+            try
+            {
+                await RecentlyProcessed.ZeroAsync(this).ConfigureAwait(false);
+            }
+            catch { }
+
+            await base.ZeroManagedAsync().ConfigureAwait(false);
 
             _logger.Trace($"Closed {Description}");
         }
@@ -247,7 +252,7 @@ namespace zero.core.patterns.bushes
                             if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
                             ZeroOnCascade(newChannel, cascade);
                             return Task.FromResult(true);
-                        }).GetAwaiter().GetResult();
+                        }).ConfigureAwait(false).GetAwaiter().GetResult();
                     //});
 
                 }

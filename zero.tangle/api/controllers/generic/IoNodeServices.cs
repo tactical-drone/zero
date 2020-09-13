@@ -14,6 +14,7 @@ using zero.core.api.models;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.misc;
 using zero.interop.entangled.common.model;
 using zero.tangle.api.interfaces;
 using zero.tangle.models;
@@ -77,7 +78,7 @@ namespace zero.tangle.api.controllers.generic
             var dbgStr = $"Added listener at `{address.Url}'";
 
 #pragma warning disable 4014
-            Nodes[address.Port].StartAsync();
+            var task = Nodes[address.Port].StartAsync();
 #pragma warning restore 4014
 
             _logger.Debug(dbgStr);
@@ -109,10 +110,8 @@ namespace zero.tangle.api.controllers.generic
                 long freeBufferSpace = 0;
 
                 Stopwatch stopwatch = new Stopwatch();
-#pragma warning disable 4014 //TODO figure out what is going on with async
-                Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
-                    .ForEach(async n =>
-#pragma warning restore 4014
+                var task = Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
+                    .ForEachAsync(async n =>
                     {
                         var relaySource = n.Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
 
@@ -188,7 +187,7 @@ namespace zero.tangle.api.controllers.generic
             if (!Nodes.ContainsKey(id))
                 return IoApiReturn.Result(false, $"Neighbor with listener port `{id}' does not exist");
 
-            Nodes[id].ZeroAsync(null);
+            var task = Nodes[id].ZeroAsync(null);
             Nodes.TryRemove(id, out _);
 
             return IoApiReturn.Result(true, $"Successfully stopped neighbor `{id}'");

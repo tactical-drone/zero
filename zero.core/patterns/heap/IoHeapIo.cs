@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.bushes;
 using zero.core.patterns.misc;
@@ -26,13 +27,13 @@ namespace zero.core.patterns.heap
         /// Take an item but call the constructor first
         /// </summary>
         /// <returns>The constructed heap item</returns>
-        public override T Take(Func<T, T> parms = null, object userData = null)
+        public override async Task<T> TakeAsync(Func<T, T> parms = null, object userData = null)
         {
             object next = null;
             try
             {
                 //Allocate memory
-                if ((next = base.Take(parms, userData)) == null)
+                if ((next = await base.TakeAsync(parms, userData).ConfigureAwait(false)) == null)
                     return null;
 
                 //Construct
@@ -45,7 +46,7 @@ namespace zero.core.patterns.heap
                     _logger.Trace($"Flushing `{GetType()}'");
 
                     //Return another item from the heap
-                    if ((next = (T) base.Take(parms, userData)) == null)
+                    if ((next = (T)await base.TakeAsync(parms, userData).ConfigureAwait(false)) == null)
                     {
                         _logger.Error($"`{GetType()}', unable to allocate memory");
                         return null;
@@ -64,7 +65,7 @@ namespace zero.core.patterns.heap
                 if (next != null)
                 {
                     _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                    Return((T)next);
+                    await ReturnAsync((T)next).ConfigureAwait(false);
                     return null;
                 }                    
                 else

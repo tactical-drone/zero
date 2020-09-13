@@ -27,9 +27,9 @@ namespace zero.api.Controllers
         }                
 
         [HttpPost]
-        public async Task<JsonResult> Post([FromBody]JObject command)
+        public async Task<JsonResult> PostAsync([FromBody]JObject command)
         {
-            var commandTask = IoItApiCommand.Process(command);
+            var commandTask = IoItApiCommand.ProcessAsync(command);
 
             try
             {

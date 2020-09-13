@@ -44,7 +44,7 @@ namespace zero.core.network.ip
             IoListenSocket = ZeroOnCascade(new IoTcpSocket());
 
 
-            await IoListenSocket.ListenAsync(ListeningAddress, newConnectionSocket =>
+            await IoListenSocket.ListenAsync(ListeningAddress, async newConnectionSocket =>
             {
                 try
                 {
@@ -54,7 +54,7 @@ namespace zero.core.network.ip
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
 
-                    newConnectionSocket.ZeroAsync(this);
+                    await newConnectionSocket.ZeroAsync(this).ConfigureAwait(false);
 
                 }
             }).ConfigureAwait(false);

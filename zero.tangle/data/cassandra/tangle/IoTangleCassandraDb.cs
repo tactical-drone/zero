@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
 using Cassandra.Mapping;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.market;
@@ -98,7 +99,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _bundles = new Table<IIoTransactionModel<TKey>>(_session, _ioTangleKeySpace.BundleMap);
                 if (!existingTables.Contains(_bundles.Name))
                 {
-                    _bundles.CreateIfNotExists();
+                     await _bundles.CreateIfNotExistsAsync().ConfigureAwait(false);
                     _logger.Debug($"Adding table `{_bundles.Name}'");
                     wasConfigured = false;
                 }
@@ -107,7 +108,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _transactions = new Table<IoBundledHash<TKey>>(_session, _ioTangleKeySpace.BundledTransactionMap);
                 if (!existingTables.Contains(_transactions.Name))
                 {
-                    _transactions.CreateIfNotExists();
+                    await _transactions.CreateIfNotExistsAsync();
                     _logger.Debug($"Adding table `{_transactions.Name}'");
                     wasConfigured = false;
                 }
@@ -115,7 +116,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _addresses = new Table<IoBundledAddress<TKey>>(_session, _ioTangleKeySpace.BundledAddressMap);
                 if (!existingTables.Contains(_addresses.Name))
                 {
-                    _addresses.CreateIfNotExists();
+                    await _addresses.CreateIfNotExistsAsync();
                     _logger.Debug($"Adding table `{_addresses.Name}'");
                     wasConfigured = false;
                 }
@@ -123,7 +124,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _tags = new Table<IoTaggedTransaction<TKey>>(_session, _ioTangleKeySpace.TaggedTransactionMap);
                 if (!existingTables.Contains(_tags.Name))
                 {
-                    _tags.CreateIfNotExists();
+                    await _tags.CreateIfNotExistsAsync();
                     _logger.Debug($"Adding table `{_tags.Name}'");
                     wasConfigured = false;
                 }
@@ -131,7 +132,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _approvees = new Table<IoApprovedTransaction<TKey>>(_session, _ioTangleKeySpace.ApprovedTransactionMap);
                 if (!existingTables.Contains(_approvees.Name))
                 {
-                    _approvees.CreateIfNotExists();
+                    await _approvees.CreateIfNotExistsAsync();
                     _logger.Debug($"Adding table `{_approvees.Name}'");
                     wasConfigured = false;
                 }
@@ -139,7 +140,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _dragnet = new Table<IoDraggedTransaction<TKey>>(_session, _ioTangleKeySpace.DraggedTransactionMap);
                 if (!existingTables.Contains(_dragnet.Name))
                 {
-                    _dragnet.CreateIfNotExists();
+                    await _dragnet.CreateIfNotExistsAsync();
                     _logger.Debug($"Adding table `{_dragnet.Name}'");
                     wasConfigured = false;
                 }
@@ -147,7 +148,7 @@ namespace zero.tangle.data.cassandra.tangle
                 _milestones = new Table<IoMilestoneTransaction<TKey>>(_session, _ioTangleKeySpace.MilestoneTransactionMap);
                 if (!existingTables.Contains(_milestones.Name))
                 {
-                    _milestones.CreateIfNotExists();
+                    await _milestones.CreateIfNotExistsAsync();
                     _logger.Debug($"Adding table `{_milestones.Name}'");
                     wasConfigured = false;
                 }
@@ -396,9 +397,9 @@ namespace zero.tangle.data.cassandra.tangle
                 return default(TTransaction);
             
             if(Entangled<TKey>.Optimized)
-                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<EntangledTransaction>(query, args),_getTransactionQuery, key) as TTransaction;
+                return await MapperAsync(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<EntangledTransaction>(query, args),_getTransactionQuery, key) as TTransaction;
             else
-                return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<TangleNetTransaction>(query, args),_getTransactionQuery, key) as TTransaction;
+                return await MapperAsync(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<TangleNetTransaction>(query, args),_getTransactionQuery, key) as TTransaction;
         }
 
         /// <summary>
@@ -431,12 +432,12 @@ namespace zero.tangle.data.cassandra.tangle
         /// </summary>
         /// <param name="timestamp">The nearby timestamp</param>
         /// <returns>The nearest milestone transaction</returns>
-        public async Task<IoMilestoneTransaction<TKey>> GetMilestone(long timestamp)
+        public async Task<IoMilestoneTransaction<TKey>> GetMilestoneAsync(long timestamp)
         {
             if (!IsConfigured)
                 return null;            
             
-            return await Mapper(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoMilestoneTransaction<TKey>>(query, args), _getLowerMilestoneQuery, _tagsPartitioner.GetPartitionSet(timestamp), timestamp);
+            return await MapperAsync(async (mapper, query, args) => await mapper.FirstOrDefaultAsync<IoMilestoneTransaction<TKey>>(query, args), _getLowerMilestoneQuery, _tagsPartitioner.GetPartitionSet(timestamp), timestamp);
         }
 
         /// <summary>
@@ -444,15 +445,15 @@ namespace zero.tangle.data.cassandra.tangle
         /// </summary>
         /// <param name="timestamp">A nearby timestamp</param>
         /// <returns>A milestone that should confirm this timestamp</returns>
-        public async Task<IoMilestoneTransaction<TKey>> GetBestMilestoneEstimate(long timestamp)
+        public async Task<IoMilestoneTransaction<TKey>> GetBestMilestoneEstimateAsync(long timestamp)
         {
             if (!IsConfigured)
                 return null;
 
-            var lowerMilestone = await GetMilestone(timestamp);
+            var lowerMilestone = await GetMilestoneAsync(timestamp);
             var queryTimestamp = lowerMilestone?.Timestamp ?? timestamp;
 
-            var milestoneEstimates = await Mapper(async (mapper, query, args) =>
+            var milestoneEstimates = await MapperAsync(async (mapper, query, args) =>
                 await mapper.FetchPageAsync<IoMilestoneTransaction<TKey>>(
                     Cql.New(query, args).WithOptions(options => options.SetPageSize(int.MaxValue))), _getHigherMilestoneQuery, _tagsPartitioner.GetPartitionSet(queryTimestamp), queryTimestamp);
 
@@ -464,10 +465,10 @@ namespace zero.tangle.data.cassandra.tangle
         /// </summary>
         /// <param name="timestamp">A nearby timestamp</param>
         /// <returns>A milestone that should confirm this timestamp</returns>
-        public async Task<IIoTransactionModel<TKey>> GetBestMilestoneEstimateBundle(long timestamp)
+        public async Task<IIoTransactionModel<TKey>> GetBestMilestoneEstimateBundleAsync(long timestamp)
         {
             //Search a milestone tx
-            var bestMilestone = await GetBestMilestoneEstimate(timestamp);
+            var bestMilestone = await GetBestMilestoneEstimateAsync(timestamp);
             if (bestMilestone == null) return null;
 
             //Search the bundle tx of this milestone
@@ -486,10 +487,10 @@ namespace zero.tangle.data.cassandra.tangle
         /// </summary>
         /// <param name="milestoneTransaction"></param>
         /// <returns></returns>
-        public async Task RelaxZeroTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction)
+        public async Task RelaxZeroTransactionMilestoneEstimatesAsync(IIoTransactionModel<TKey> milestoneTransaction)
         {
             var stopwatch = Stopwatch.StartNew();
-            var milestoneLessTransactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TKey>>(query, args), _getMilestoneLessTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp))).ToArray();
+            var milestoneLessTransactions = (await MapperAsync(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TKey>>(query, args), _getMilestoneLessTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.Timestamp))).ToArray();
 
             var batch = new BatchStatement();
             var batchSize = 0;
@@ -517,11 +518,11 @@ namespace zero.tangle.data.cassandra.tangle
         /// <param name="milestoneTransaction"></param>
         /// <param name="milestones"></param>
         /// <returns></returns>
-        public async Task<bool> RelaxTransactionMilestoneEstimates(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones, string traceDescription)
+        public async Task<bool> RelaxTransactionMilestoneEstimatesAsync(IIoTransactionModel<TKey> milestoneTransaction, Milestone<TKey> milestones, string traceDescription)
         {
             var totalTime = Stopwatch.StartNew();
             var scanTime = Stopwatch.StartNew();
-            var transactions = (await Mapper(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TKey>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.GetAttachmentTime())));
+            var transactions = (await MapperAsync(async (mapper, query, args) => await mapper.FetchAsync<IoApprovedTransaction<TKey>>(query, args), _getMilestoneTransactions, _approveePartitioner.GetPartitionSet(milestoneTransaction.GetAttachmentTime())));
             scanTime.Stop();
             var batch = new BatchStatement();
             batch.SetBatchType(BatchType.Unlogged);
@@ -586,7 +587,7 @@ namespace zero.tangle.data.cassandra.tangle
         /// Returns single connection
         /// </summary>
         /// <returns></returns>
-        public static async Task<IIoDataSource<RowSet>> Default()
+        public static async Task<IIoDataSource<RowSet>> DefaultAsync()
         {
             if (_default != null) return _default;
             

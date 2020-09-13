@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NLog;
 using zero.cocoon.autopeer;
 using zero.cocoon.models;
 using zero.core.core;
 using zero.core.network.ip;
+using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
@@ -122,8 +122,8 @@ namespace zero.cocoon
         protected override async Task ZeroManagedAsync()
         {
             DetachNeighbor();
-            await Source.ZeroAsync(this);
-            await base.ZeroManagedAsync();
+            await Source.ZeroAsync(this).ConfigureAwait(false);
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -148,14 +148,25 @@ namespace zero.cocoon
             //Attach the other way
             var result = Neighbor.AttachPeer(this);
 
-            //if (result)
-            //{
-            //    var v = 0;
-            //    var vb = new byte[4];
-            //    MemoryMarshal.Write(vb.AsSpan(), ref v);
-            //    if (!Zeroed())
-            //        ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
-            //}
+            if (result)
+            {
+                var v = 0;
+                var vb = new byte[4];
+                Write(vb.AsSpan(), ref v);
+                if (!Zeroed())
+                    ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4).ConfigureAwait(false).GetAwaiter().GetResult();
+
+
+                //Task.Run(async () =>
+                //{
+                //    await Task.Delay(60000, AsyncTasks.Token);
+                //    var v = 0;
+                //    var vb = new byte[4];
+                //    Write(vb.AsSpan(), ref v);
+                //    if (!Zeroed())
+                //        await ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
+                //});
+            }
 
             return result;
         }

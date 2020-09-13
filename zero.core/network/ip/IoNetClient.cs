@@ -201,16 +201,9 @@ namespace zero.core.network.ip
             
             return await connectAsyncTask.ContinueWith(t =>
             {
-                if (t.Result)
-                {
-                    _logger.Debug($"Connected to `{AddressString}'");                    
-                }
-                else
-                {
-                    _logger.Debug($"Failed to connect to `{AddressString}'");
-                }
-                return connectAsyncTask;
-            }).Unwrap().ConfigureAwait(false);
+                _logger.Debug(t.Result ? $"Connected to `{AddressString}'" : $"Failed to connect to `{AddressString}'");
+                return t.Result;
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -285,10 +278,6 @@ namespace zero.core.network.ip
                             _logger.Warn($"DC `{ListeningAddress}' from {IoSocket.LocalIpAndPort}");
 
                             //Do cleanup
-
-                            ZeroAsync(this);
-
-
                             return false;
                         }
 

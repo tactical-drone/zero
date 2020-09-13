@@ -26,7 +26,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoZeroable()
         {
-            ZeroAsync(false);
+            ZeroAsync(false).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(true);
+            ZeroAsync(true).ConfigureAwait(false).GetAwaiter().GetResult();
             GC.SuppressFinalize(this);
         }
 
@@ -110,7 +110,7 @@ namespace zero.core.patterns.misc
             if (from != this)
                 ZeroedFrom = from;
 
-            await ZeroAsync(true);
+            await ZeroAsync(true).ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
 
@@ -198,7 +198,7 @@ namespace zero.core.patterns.misc
                     if (s == target)
                         Unsubscribe(sourceZeroHandler);
                     else
-                        await target.ZeroAsync(this);
+                        await target.ZeroAsync(this).ConfigureAwait(false);
 
                 });
 
@@ -208,12 +208,12 @@ namespace zero.core.patterns.misc
                     if (s == this)
                         target.Unsubscribe(targetZeroHandler);
                     else
-                        await ZeroAsync(target);
+                        await ZeroAsync(target).ConfigureAwait(false);
                 });
             }
             else //Release source if target goes
             {
-                var sub = ZeroEvent(@from => target.ZeroAsync(@from));
+                var sub = ZeroEvent(async @from => await target.ZeroAsync(@from).ConfigureAwait(false));
 
                 target.ZeroEvent(s =>
                 {
@@ -261,7 +261,7 @@ namespace zero.core.patterns.misc
                         {
                             if (!zeroSub.Schedule)
                                 continue;
-                            await zeroSub.Action(this);
+                            await zeroSub.Action(this).ConfigureAwait(false);
                         }
                         catch (NullReferenceException)
                         {
@@ -278,7 +278,7 @@ namespace zero.core.patterns.misc
                 //Dispose managed
                 try
                 {
-                    ZeroManagedAsync();
+                    await ZeroManagedAsync().ConfigureAwait(false);
                 }
                 //catch (NullReferenceException) { }
                 catch (Exception e)
@@ -346,10 +346,9 @@ namespace zero.core.patterns.misc
                 if (_zeroed > 0 && !force) 
                     return false;
 
-                //lock(_syncRoot)
                 try
                 {
-                    await _syncRootAuto.WaitAsync(AsyncTasks.Token);
+                    await _syncRootAuto.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                     return (_zeroed == 0 || force) && await ownershipAction().ConfigureAwait(false);
                 }
                 catch

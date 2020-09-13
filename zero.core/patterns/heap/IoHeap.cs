@@ -126,7 +126,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        public virtual T Take(Func<T,T> parms = null, object userData = null)
+        public virtual Task<T> TakeAsync(Func<T, T> parms = null, object userData = null)
         {
             parms ??= arg => arg;
             try
@@ -140,7 +140,7 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref CurrentHeapSize);
                         Interlocked.Increment(ref ReferenceCount);
-                        return parms(Make(userData));
+                        return Task.FromResult(parms(Make(userData)));
                     }
                     else //we have run out of capacity
                     {
@@ -150,7 +150,7 @@ namespace zero.core.patterns.heap
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref ReferenceCount);
-                    return item;
+                    return Task.FromResult(item);
                 }
             }
             catch (NullReferenceException) { }
@@ -166,7 +166,7 @@ namespace zero.core.patterns.heap
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public void Return(T item)
+        public async Task ReturnAsync(T item)
         {
 #if DEBUG
             if (item == null)
@@ -180,7 +180,7 @@ namespace zero.core.patterns.heap
             }
             catch (NullReferenceException)
             {
-                item.ZeroAsync(this);
+                await item.ZeroAsync(this).ConfigureAwait(false);
             }
         }
 

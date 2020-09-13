@@ -163,7 +163,7 @@ namespace zero.tangle.utils
             //Load from the DB if we don't have one ready
             else if (node.LatestMilestoneTransaction == null)
             {
-                node.LatestMilestoneTransaction = await dataSource.GetBestMilestoneEstimateBundle(((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds());
+                node.LatestMilestoneTransaction = await dataSource.GetBestMilestoneEstimateBundleAsync(((DateTimeOffset)DateTime.Now).ToUnixTimeMilliseconds());
 
                 if (node.LatestMilestoneTransaction != null)
                 {
@@ -196,7 +196,7 @@ namespace zero.tangle.utils
             else //look for a candidate milestone in storage for older transactions //TODO make this better for a dup?
             {
                 var stopwatch = Stopwatch.StartNew();
-                var relaxMilestone = await dataSource.GetBestMilestoneEstimateBundle(transaction.Timestamp + AveMilestoneSeconds * InitialMilestoneDepthEstimate * 1000);
+                var relaxMilestone = await dataSource.GetBestMilestoneEstimateBundleAsync(transaction.Timestamp + AveMilestoneSeconds * InitialMilestoneDepthEstimate * 1000);
                 stopwatch.Stop();
 
                 try

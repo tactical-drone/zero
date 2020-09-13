@@ -45,16 +45,16 @@ namespace zero.cocoon.models
                 IoCcProtocolBuffer protocol = null;
                 //var task = Task.Factory.StartNew(async () =>
                 //{
-                    if (Source.ZeroEnsureAsync(async () =>
+                    if (Source.ZeroEnsureAsync(() =>
                     {
                         protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
                         if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
                         {
-                            return Source.ZeroOnCascade(protocol, true) != null;
+                            return Task.FromResult(Source.ZeroOnCascade(protocol, true) != null);
                         }
 
-                        return false;
-                    }).GetAwaiter().GetResult())
+                        return Task.FromResult(false);
+                    }).ConfigureAwait(false).GetAwaiter().GetResult())
                     {
 
                         ProtocolChannel = Source.AttachProducer(
@@ -73,8 +73,12 @@ namespace zero.cocoon.models
                     }
                     else
                     {
-                        Task.Factory.StartNew(()=>protocol.ZeroAsync(this));
-                    }
+#pragma warning disable VSTHRD110 // Observe result of async calls
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                    protocol.ZeroAsync(this);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning restore VSTHRD110 // Observe result of async calls
+                }
                 //});
             }
             else
@@ -121,7 +125,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 2;
+        public int parm_datums_per_buffer = 40;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -224,8 +228,7 @@ namespace zero.cocoon.models
                         if (Source.IsOperational)
                         {
                             await ((IoSocket) ioSocket).ReadAsync((byte[]) (Array) Buffer, BufferOffset, BufferSize)
-                                .AsTask().ContinueWith(
-                                    rx =>
+                                .AsTask().ContinueWith(async rx =>
                                     {
                                         switch (rx.Status)
                                         {
@@ -235,7 +238,7 @@ namespace zero.cocoon.models
                                                 State = rx.Status == TaskStatus.Canceled
                                                     ? JobState.ProdCancel
                                                     : JobState.ProduceErr;
-                                                Source.ZeroAsync(this);
+                                                await Source.ZeroAsync(this).ConfigureAwait(false);
                                                 _logger.Error(rx.Exception?.InnerException,
                                                     $"{TraceDescription} ReadAsync from stream returned with errors:");
                                                 break;
@@ -294,7 +297,7 @@ namespace zero.cocoon.models
                         {
                             _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
                             State = JobState.Cancelled;
-                            await Source.ZeroAsync(this);
+                            await Source.ZeroAsync(this).ConfigureAwait(false);
                         }
 
                         if (Zeroed())

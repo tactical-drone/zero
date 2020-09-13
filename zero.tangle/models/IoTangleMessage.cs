@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -156,7 +157,7 @@ namespace zero.tangle.models
         /// <summary>
         /// Processes a iri datum
         /// </summary>
-        private async Task<JobState> ProcessProtocolMessage() //TODO error cases
+        private async Task<JobState> ProcessProtocolMessageAsync() //TODO error cases
         {
             var newInteropTransactions = new List<IIoTransactionModel<TKey>>();
             var s = Stopwatch.StartNew();
@@ -461,7 +462,7 @@ namespace zero.tangle.models
         {
             TransferPreviousBits();
             
-            return await ProcessProtocolMessage(); 
+            return await ProcessProtocolMessageAsync(); 
         }
 
         /// <inheritdoc />
@@ -488,8 +489,7 @@ namespace zero.tangle.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(
-                            rx =>
+                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
                             {                                                                    
                                 switch (rx.Status)
                                 {
@@ -497,7 +497,7 @@ namespace zero.tangle.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        Source.ZeroAsync(this);
+                                        await Source.ZeroAsync(this).ConfigureAwait(false);
                                         _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -516,7 +516,7 @@ namespace zero.tangle.models
                                         if (Id == 0 && Source is IoTcpClient<IoTangleMessage<TKey>>)
                                         {                                                                  
                                             _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
-                                            BufferOffset += 10;
+                                            Interlocked.Add(ref BufferOffset, 10);
                                             bytesRead -= 10;
                                             if (BytesLeftToProcess == 0)
                                             {

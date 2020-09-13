@@ -193,7 +193,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
         public int parm_stats_mod_count = 10000;
 #else
-        public int parm_stats_mod_count = 100000;
+        public int parm_stats_mod_count = 30000;
 #endif
 
         /// <summary>
@@ -259,19 +259,19 @@ namespace zero.core.patterns.bushes
         protected override async Task ZeroManagedAsync()
         {
 
-            await _queue.ToList().ForEachAsync(q=>q.ZeroAsync(this).ConfigureAwait(false));
+            _queue.ToList().ForEach(q => q.ZeroAsync(this).ConfigureAwait(false));
             _queue.Clear();
 
             if (IsArbitrating || !Source.IsOperational)
             {
-                await Source.ZeroAsync(this);
+                await Source.ZeroAsync(this).ConfigureAwait(false);
             }
 
-            await _previousJobFragment.ToList().ForEachAsync(job => job.ZeroAsync(this).ConfigureAwait(false));
+            _previousJobFragment.ToList().ForEach(job => job.ZeroAsync(this).ConfigureAwait(false));
 
             _previousJobFragment.Clear();
 
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
 
             _logger.Trace($"Closed {Description}");
         }
@@ -293,11 +293,11 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Allocate a job from the heap
-                        if (!Zeroed() && (nextJob = JobHeap.Take(parms: load =>
+                        if (!Zeroed() && (nextJob = await JobHeap.TakeAsync(parms: load =>
                         {
                             load.IoZero = this;
                             return load;
-                        })) != null) //TODO 
+                        }).ConfigureAwait(false)) != null) //TODO 
                         {
 
                             nextJob.State = IoJob<TJob>.JobState.Producing;
@@ -458,7 +458,7 @@ namespace zero.core.patterns.bushes
                                     {
                                         //Free job
                                         nextJob.State = IoJob<TJob>.JobState.Reject;
-                                        nextJob = Free(nextJob, true);
+                                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
                                         return false;
                                     }
 
@@ -479,17 +479,17 @@ namespace zero.core.patterns.bushes
 
                                         //Free job
                                         nextJob.State = IoJob<TJob>.JobState.Reject;
-                                        nextJob = Free(nextJob, true);
+                                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
                                         IsArbitrating = false;
 
-                                        await ZeroAsync(this);
+                                        await ZeroAsync(this).ConfigureAwait(false);
 
                                         return false;
                                     }
 
                                     //Free job
                                     nextJob.State = IoJob<TJob>.JobState.Reject;
-                                    nextJob = Free(nextJob, true);
+                                    nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
 
                                     // Release the next production after error
                                     if (releaseBarrier)
@@ -509,15 +509,15 @@ namespace zero.core.patterns.bushes
                             return false;
                         }
                     }
-                    catch (NullReferenceException) { nextJob = Free(nextJob, true); }
-                    catch (ObjectDisposedException) { nextJob = Free(nextJob, true); }
-                    catch (TimeoutException) { nextJob = Free(nextJob, true); }
-                    catch (TaskCanceledException) { nextJob = Free(nextJob, true); }
-                    catch (OperationCanceledException) { nextJob = Free(nextJob, true); }
+                    catch (NullReferenceException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
+                    catch (ObjectDisposedException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
+                    catch (TimeoutException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
+                    catch (TaskCanceledException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
                     catch (Exception e)
                     {
                         _logger.Error(e, $"{GetType().Name}: Producing `{Description}' returned with errors:");
-                        nextJob = Free(nextJob, true);
+                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
                         return false;
                     }
                     finally
@@ -535,7 +535,7 @@ namespace zero.core.patterns.bushes
                                 nextJob.State = IoJob<TJob>.JobState.Reject;
                             }
                             
-                            nextJob = Free(nextJob, true);
+                            nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
                         }
                     }
                 }
@@ -566,7 +566,7 @@ namespace zero.core.patterns.bushes
             return false;
         }
 
-        private IoLoad<TJob> Free(IoLoad<TJob> job, bool parent = false)
+        private async Task<IoLoad<TJob>> FreeAsync(IoLoad<TJob> job, bool parent = false)
         {
             if (job == null)
                 return null;
@@ -579,7 +579,7 @@ namespace zero.core.patterns.bushes
                     _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoLoad<TJob>)job.PreviousJob).State}");
                 }
 #endif
-                JobHeap.Return((IoLoad<TJob>)job.PreviousJob);
+                await JobHeap.ReturnAsync((IoLoad<TJob>)job.PreviousJob).ConfigureAwait(false);
                 job.PreviousJob = null;
                 return null;
             }
@@ -589,7 +589,7 @@ namespace zero.core.patterns.bushes
             //}
 
             if(parent || !SupportsSync)
-                JobHeap.Return(job);
+                await JobHeap.ReturnAsync(job).ConfigureAwait(false);
 
             return null;
 
@@ -687,7 +687,7 @@ namespace zero.core.patterns.bushes
                     {
                         await Source.ConsumerBarrier.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
                         //Was shutdown requested?
                         if (Zeroed() || AsyncTasks.IsCancellationRequested)
@@ -773,7 +773,7 @@ namespace zero.core.patterns.bushes
                                 //_logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                             }
 
-                            curJob = Free(curJob);
+                            curJob = await FreeAsync(curJob).ConfigureAwait(false);
 
                             if (Source.BlockOnConsumeAheadBarrier)
                                 Source.ConsumeAheadBarrier.Set();
@@ -941,17 +941,17 @@ namespace zero.core.patterns.bushes
                         {
                             _logger.Error(e, $"Production failed {Description}");
                         }
+                    }
 
-                        if (!Source?.IsOperational ?? false)
-                        {
-                            _logger.Trace($"{GetType().Name}: Producer {Description} went non operational!");
-                            return;
-                        }
+                    if (!Source?.IsOperational ?? false)
+                    {
+                        _logger.Trace($"{GetType().Name}: Producer {Description} went non operational!");
+                        break;
                     }
 
                     await Task.WhenAll(producers).ConfigureAwait(false);
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach );
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
@@ -971,11 +971,13 @@ namespace zero.core.patterns.bushes
                             _logger.Error(e,$"Consumption failed {Description}");
                         }
 
-                        if (!Source?.IsOperational ?? false)
-                        {
-                            _logger.Trace($"{GetType().Name}: Consumer {Description} went non operational!");
-                            return;
-                        }
+                        
+                    }
+
+                    if (!Source?.IsOperational ?? false)
+                    {
+                        _logger.Trace($"{GetType().Name}: Consumer {Description} went non operational!");
+                        break;
                     }
 
                     await Task.WhenAll(consumers);
@@ -990,7 +992,7 @@ namespace zero.core.patterns.bushes
             //Wait for tear down                
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ConfigureAwait(false);
 
-            await ZeroAsync(this);
+            await ZeroAsync(this).ConfigureAwait(false);
 
             _logger.Trace($"{GetType().Name}: Processing for `{Description}' stopped");
         }

@@ -112,7 +112,7 @@ namespace zero.core.network.ip
                 {
                     _logger.Warn($"Cancelling existing connection attemp to `{address}'");
 
-                    _connectionAttempts[address.Key].ZeroAsync(this);
+                    await _connectionAttempts[address.Key].ZeroAsync(this).ConfigureAwait(false);
 
 
                     _connectionAttempts.TryRemove(address.Key, out _);
@@ -122,7 +122,7 @@ namespace zero.core.network.ip
 
             try
             {
-                bool ContinuationFunction(Task<bool> t)
+                async Task<bool> ContinuationFunction(Task<bool> t)
                 {
                     switch (t.Status)
                     {
@@ -140,7 +140,7 @@ namespace zero.core.network.ip
                         case TaskStatus.Canceled:
                         case TaskStatus.Faulted:
                         default:
-                            ioNetClient.ZeroAsync(this);
+                            await ioNetClient.ZeroAsync(this).ConfigureAwait(false);
                             if(!Zeroed())
                                 _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
                             break;
@@ -152,7 +152,7 @@ namespace zero.core.network.ip
                 var connectTask = ioNetClient?.ConnectAsync().ContinueWith(ContinuationFunction, AsyncTasks.Token);
 
                 //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-                if (ioNetClient != null && await connectTask)
+                if (ioNetClient != null && await connectTask.Unwrap())
                 {
                     ZeroOnCascade(ioNetClient);
                     return ioNetClient;
@@ -199,7 +199,7 @@ namespace zero.core.network.ip
         protected override async Task ZeroManagedAsync()
         {
             _connectionAttempts.Clear();
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
 

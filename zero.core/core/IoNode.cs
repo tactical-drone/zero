@@ -129,7 +129,7 @@ namespace zero.core.core
                     if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
                     {
                         _logger.Debug($"Incoming connection from {ioNetClient.Key} rejected.");
-                        newNeighbor.ZeroAsync(this);
+                        await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
 
                         return;
                     }
@@ -140,94 +140,97 @@ namespace zero.core.core
                     return;
                 }
 
-                try
+                if (await ZeroEnsureAsync( async() =>
                 {
-
-
-                    // Add new neighbor
-                    if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                    try
                     {
-                        if (Neighbors.TryGetValue(newNeighbor.Id, out var existingNeighbor))
+                        // Does this neighbor exist?
+                        if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                         {
-                            if (existingNeighbor.Source.IsOperational)
+                            if (Neighbors.TryGetValue(newNeighbor.Id, out var existingNeighbor))
                             {
-                                newNeighbor.ZeroAsync(this);
-                                _logger.Warn(
-                                    $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
-                                return;
-                            }
-                            else
-                            {
-                                existingNeighbor.ZeroAsync(this);
-                                if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                                if (existingNeighbor.Source.IsOperational)
                                 {
-                                    newNeighbor.ZeroAsync(this);
-                                    _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
-                                    return;
+                                    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                                    _logger.Warn(
+                                        $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
+                                    return false;
                                 }
                                 else
                                 {
-                                    _logger.Warn(
-                                        $"{GetType().Name}: PreviousJob stale peer closed and reconnected {newNeighbor.Id}!");
+                                    await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                                    if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                                    {
+                                        await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                                        _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
+                                        return false;
+                                    }
+                                    else
+                                    {
+                                        _logger.Warn(
+                                            $"{GetType().Name}: PreviousJob stale peer closed and reconnected {newNeighbor.Id}!");
+                                    }
                                 }
                             }
+
+                            await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                            return false;
                         }
 
-                        newNeighbor.ZeroAsync(this);
-                        return;
+                        //Add new neighbor
+                        return await newNeighbor.ZeroEnsureAsync(() =>
+                        {
+                            //We use this locally captured variable as newNeighbor.Id disappears on zero
+                            string id = newNeighbor.Id;
+                            // Remove from lists if closed
+                            var sub = newNeighbor.ZeroEvent(s =>
+                            {
+                                //DisconnectedEvent?.Invoke(this, newNeighbor);
+                                try
+                                {
+                                    IoNeighbor<TJob> zeroNeighbor = null;
+                                    if (Neighbors?.TryRemove(id, out zeroNeighbor) ?? true)
+                                    {
+                                        _logger.Trace($"Removed {zeroNeighbor.Description}");
+                                    }
+                                    else
+                                    {
+                                        _logger.Trace($"Cannot remove neighbor {id} not found!");
+                                    }
+                                }
+                                catch (NullReferenceException) { }
+                                catch (Exception e)
+                                {
+                                    _logger.Debug(e, $"Removing {newNeighbor.Description} from {Description}");
+                                }
+                                return Task.CompletedTask;
+                            });
+                            return Task.FromResult(sub != null);
+                        });
                     }
+                    catch (NullReferenceException) { return false; }
+                    catch (TaskCanceledException) { return false; }
+                    catch (OperationCanceledException) { return false; }
+                    catch (ObjectDisposedException) { return false; }
+                }))
+                {
+                    //New peer connection event
+                    //ConnectedEvent?.Invoke(this, newNeighbor);
 
-                    //We use this locally captured variable as newNeighbor.Id disappears on zero
-                    string id = newNeighbor.Id;
-
-                    // Remove from lists if closed
-                    newNeighbor.ZeroEvent(s =>
+                    //Start the source consumer on the neighbor scheduler
+                    try
                     {
-                        //DisconnectedEvent?.Invoke(this, newNeighbor);
-                        try
-                        {
-                            IoNeighbor<TJob> zeroNeighbor = null;
-                            if (Neighbors?.TryRemove(id, out zeroNeighbor) ?? true)
-                            {
-                                _logger.Trace($"Removed {zeroNeighbor.Description}");
-                            }
-                            else
-                            {
-                                _logger.Trace($"Cannot remove neighbor {id} not found!");
-                            }
-                        }
-                        catch (NullReferenceException){}
-                        catch (Exception e)
-                        {
-                            _logger.Debug(e,$"Removing {newNeighbor.Description} from {Description}");
-                        }
-                        return Task.CompletedTask;
-                    });
-                }
-                catch (NullReferenceException) { return;  }
-                catch (TaskCanceledException) { return; }
-                catch (OperationCanceledException) { return; }
-                catch (ObjectDisposedException) { return; }
-                
+                        NeighborTasks.Add(newNeighbor.SpawnProcessingAsync());
 
-               
-
-                //New peer connection event
-                //ConnectedEvent?.Invoke(this, newNeighbor);
-
-                //Start the source consumer on the neighbor scheduler
-                try
-                {
-                    NeighborTasks.Add(newNeighbor.SpawnProcessingAsync());
-
-                    //prune finished tasks
-                    var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();
-                    NeighborTasks.Clear();
-                    remainTasks.ForEach(NeighborTasks.Add);
-                }
-                catch (Exception e)
-                {
-                    _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
+                        //prune finished tasks
+                        var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();
+                        NeighborTasks.Clear();
+                        remainTasks.ForEach(NeighborTasks.Add);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
+                    }
                 }
             }, parm_tcp_readahead).ConfigureAwait(false);
         }
@@ -261,7 +264,7 @@ namespace zero.core.core
                     {
                         if (Neighbors.TryRemove(staleNeighbor.Id, out _))
                         {
-                            staleNeighbor.ZeroAsync(this);
+                            await staleNeighbor.ZeroAsync(this).ConfigureAwait(false);
                         }
 
                         _logger.Debug($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
@@ -301,7 +304,7 @@ namespace zero.core.core
                     else //strange case
                     {
                         _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                        newNeighbor.ZeroAsync(this);
+                        await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
                     }
 
                     connectedAtLeastOnce = true;
@@ -323,17 +326,18 @@ namespace zero.core.core
         /// </summary>
         public async Task StartAsync()
         {
-            _logger.Debug($"Unimatrix ZeroAsync - Launching cube: {ToString()}");
+            _logger.Debug($"Unimatrix Zero: {Description}");
             try
             {
                 _listenerTask = SpawnListenerAsync();
-                await _listenerTask.ContinueWith(_=> _logger.Debug($"You will be assimilated! - {ToString()} ({_.Status})")).ConfigureAwait(false);
+                var nodeTask = _listenerTask;
+                await nodeTask.ConfigureAwait(false);
 
-                _logger.Debug($"{GetType().Name}: Resistance is futile, {(_listenerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listenerTask.Status})");
+                _logger.Debug($"You will be assimilated! Resistance is futile, {(_listenerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listenerTask.Status}): {Description}");
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unimatrix ZeroAsync returned {ToString()}");
+                _logger.Error(e, $"Unimatrix Failed");
             }
         }
 
@@ -365,14 +369,14 @@ namespace zero.core.core
             try
             {
                 //_listenerTask?.GetAwaiter().GetResult();
-                Task.WaitAll(NeighborTasks.ToArray());
+                await Task.WhenAll(NeighborTasks).ConfigureAwait(false); //TODO teardown
             }
             catch
             {
                 // ignored
             }
             
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");
         }
 
@@ -392,7 +396,7 @@ namespace zero.core.core
         /// </summary>
         /// <param name="address">The address of the neighbor</param>
         /// <returns>The blacklisted neighbor if it was connected</returns>
-        public IoNeighbor<TJob> BlackList(IoNodeAddress address)
+        public async Task<IoNeighbor<TJob>> BlackListAsync(IoNodeAddress address)
         {
             if (_whiteList.TryRemove(address.ToString(), out var ioNodeAddress))
             {
@@ -403,7 +407,7 @@ namespace zero.core.core
                 });
 
 
-                Neighbors[address.ToString()].ZeroAsync(this);
+                await Neighbors[address.ToString()].ZeroAsync(this).ConfigureAwait(false);
 
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;

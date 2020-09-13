@@ -22,7 +22,7 @@ namespace zero.core.data.market
 
             //Observable.Timer(TimeSpan.ZeroAsync, TimeSpan.FromSeconds(55)).Subscribe(async _ =>
             //    {
-            //        var newData = await FetchData().ConfigureAwait(false);
+            //        var newData = await FetchDataAsync().ConfigureAwait(false);
             //        if (newData != null)
             //            CurrentData = newData;
             //    });
@@ -36,7 +36,7 @@ namespace zero.core.data.market
         public static IoCryptoCompareMarketData CurrentData = new IoCryptoCompareMarketData();
         public static volatile short Quality = short.MaxValue;
         
-        static async Task<IoCryptoCompareMarketData> FetchData()
+        static async Task<IoCryptoCompareMarketData> FetchDataAsync()
         {
             var fetch = await HttpClient.GetStringAsync("https://min-api.cryptocompare.com/data/pricemultifull?fsyms=IOT&tsyms=USD,EUR,BTC,ETH").ContinueWith(
                 response =>
@@ -54,8 +54,8 @@ namespace zero.core.data.market
                             return JsonConvert.DeserializeObject<IoCryptoCompareMarketData>(response.Result);                            
                     }
 
-                    return null;
-                }).ConfigureAwait(false);
+                    return default(IoCryptoCompareMarketData);
+                });
             return fetch;
         }
     }

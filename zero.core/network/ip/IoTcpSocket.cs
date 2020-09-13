@@ -67,7 +67,7 @@ namespace zero.core.network.ip
         /// <param name="address">The <see cref="IoNodeAddress"/> that this socket listener will initialize with</param>
         /// <param name="connectionHandler">A handler that is called once a new connection was formed</param>
         /// <returns></returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
+        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler)
         {
             if (!await base.ListenAsync(address, connectionHandler).ConfigureAwait(false))
                 return false;
@@ -91,11 +91,11 @@ namespace zero.core.network.ip
                 _logger.Debug($"Waiting for a new connection to `{ListeningAddress}...'");
 
                 //var acceptTask = Socket?.AcceptAsync();
-                var listenerAcceptTask = Task.Factory.FromAsync(Socket.BeginAccept(null, null), Socket.EndAccept);//.HandleCancellation(AsyncTasks.Token); //TODO
+                var listenerAcceptTask = Task.Factory.FromAsync(Socket.BeginAccept(null, null), Socket.EndAccept);//.HandleCancellationAsync(AsyncTasks.Token); //TODO
 
                 try
                 {
-                    await listenerAcceptTask.ContinueWith(t =>
+                    await listenerAcceptTask.ContinueWith(async t =>
                     {
                         switch (t.Status)
                         {
@@ -127,7 +127,7 @@ namespace zero.core.network.ip
                                 try
                                 {
                                     //ZERO
-                                    connectionHandler(newSocket);
+                                    await connectionHandler(newSocket).ConfigureAwait(false);
                                 }
                                 catch (Exception e)
                                 {
@@ -225,10 +225,10 @@ namespace zero.core.network.ip
 
                             _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
                         }
-                        catch (NullReferenceException e) {_logger.Trace(e,Description); Task.FromResult(false); }
-                        catch (TaskCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false); }
-                        catch (OperationCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false);}
-                        catch (ObjectDisposedException e) { _logger.Trace(e, Description); Task.FromResult(false); }
+                        catch (NullReferenceException e) {_logger.Trace(e,Description); Task.FromResult(false).ConfigureAwait(false); }
+                        catch (TaskCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false).ConfigureAwait(false); }
+                        catch (OperationCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false).ConfigureAwait(false); }
+                        catch (ObjectDisposedException e) { _logger.Trace(e, Description); Task.FromResult(false).ConfigureAwait(false); }
                         catch (Exception e)
                         {
                             _logger.Error(e,$"Conneting {Description} failed:");
@@ -280,23 +280,21 @@ namespace zero.core.network.ip
                 Socket.SendTimeout = timeout;
                 return Socket.Send(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException) { ZeroAsync(this); return 0; }
-            catch (TaskCanceledException) { ZeroAsync(this); return 0; }
-            catch (OperationCanceledException) { ZeroAsync(this); return 0; }
-            catch (ObjectDisposedException) { ZeroAsync(this); return 0; }
+            catch (NullReferenceException) {}
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
             catch (SocketException e) 
             {
                 _logger.Trace(e, $"Failed to send on {Key}:");
-                return 0;
             }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to send bytes to ({(Zeroed()?"closed":"open")})[connected = {Socket.Connected}] socket `tcp://{RemoteIpAndPort}' :");
-
-                ZeroAsync(this);
-
-                return 0;
             }
+
+            await ZeroAsync(this).ConfigureAwait(false);
+            return 0;
         }
 
         /// <inheritdoc />
@@ -327,13 +325,13 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException) { }
             catch (SocketException e)
             {
-                _logger.Trace(e, $"Unable to read from {ListeningAddress}");
-                //await ZeroAsync(this);
+                _logger.Debug(e, $"{Key}");
+                await ZeroAsync(this).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                _logger.Debug(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
-                ZeroAsync(this);
+                _logger.Error(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
+                await ZeroAsync(this).ConfigureAwait(false);
             }
 
             return 0;

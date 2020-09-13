@@ -26,18 +26,18 @@ namespace zero.core.api.commands
             ApiLookup.TryAdd(key, this);
         }
 
-        public static async Task<ResponseBase> Process(JObject jsonCommandObject)
+        public static async Task<ResponseBase> ProcessAsync(JObject jsonCommandObject)
         {
             Logger.Trace($"API message received\n{jsonCommandObject}");
 
             var key = jsonCommandObject.GetValue("command").ToString();
             return ApiLookup.ContainsKey(key)
-                ? await ApiLookup[key].ProcessCommand(jsonCommandObject)
+                ? await ApiLookup[key].ProcessCommandAsync(jsonCommandObject)
                 : new ErrorResponse {error = $"'{key}' parameter has not been specified"};
         }
 
 #pragma warning disable 1998
-        public virtual async Task<ResponseBase> ProcessCommand(JObject jsonCommandobJObject)
+        public virtual async Task<ResponseBase> ProcessCommandAsync(JObject jsonCommandobJObject)
 #pragma warning restore 1998
         {
             return new ErrorResponse {error = $"An undefined error has occurred"};

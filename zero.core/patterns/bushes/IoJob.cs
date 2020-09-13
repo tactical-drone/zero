@@ -190,7 +190,7 @@ namespace zero.core.patterns.bushes
         {
             await base.ZeroManagedAsync();
             if(PreviousJob != null)
-                await PreviousJob.ZeroAsync(this);
+                await PreviousJob.ZeroAsync(this).ConfigureAwait(false);
         }
 
         /// <summary>

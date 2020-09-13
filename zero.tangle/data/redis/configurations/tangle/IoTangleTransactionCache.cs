@@ -22,7 +22,7 @@ namespace zero.tangle.data.redis.configurations.tangle
         /// </summary>
         /// <returns></returns>
 
-        public static async Task<IoTangleTransactionCache<TKey>> Default()
+        public static async Task<IoTangleTransactionCache<TKey>> DefaultAsync()
         {
             if(!_default.IsConnected)            
                 await _default.ConnectAsync(new []{IoNodeAddress.Create("tcp://10.0.75.1:6379") }.ToList()); //TODO config

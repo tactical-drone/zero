@@ -96,7 +96,7 @@ namespace zero.cocoon.models
         /// </summary>
         /// <param name="data"></param>
         /// <returns></returns>
-        private async Task<int> SendMessage(ByteString data)
+        private async Task<int> SendMessageAsync(ByteString data)
         {
             var responsePacket = new Packet
             {
@@ -138,7 +138,7 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (Source.IsOperational)
                         {
-                            await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(rx =>
+                            await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
                             {
                                 switch (rx.Status)
                                 {
@@ -146,7 +146,7 @@ namespace zero.cocoon.models
                                     case TaskStatus.Canceled:
                                     case TaskStatus.Faulted:
                                         State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        Source.ZeroAsync(this);
+                                        await Source.ZeroAsync(this).ConfigureAwait(false);
                                         _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                         break;
                                     //Success
@@ -159,7 +159,6 @@ namespace zero.cocoon.models
                                             State = JobState.ProduceTo;
                                             break;
                                         }
-
 
                                         //UDP signals source ip
                                         ProducerUserData = ((IoSocket)ioSocket).ExtraData();
@@ -184,7 +183,7 @@ namespace zero.cocoon.models
                         else
                         {
 
-                            Source.ZeroAsync(this);
+                            await Source.ZeroAsync(this).ConfigureAwait(false);
 
                         }
 
@@ -202,6 +201,7 @@ namespace zero.cocoon.models
                     catch (Exception e)
                     {
                         _logger.Debug(e,$"Error producing {Description}");
+                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false); //TODO
                         return false;
                     }
                 }).ConfigureAwait(false);

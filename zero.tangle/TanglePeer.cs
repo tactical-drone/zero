@@ -71,7 +71,7 @@ namespace zero.tangle
         public override async Task SpawnProcessingAsync(bool spawnProducer = true)
         {
             var processing = base.SpawnProcessingAsync(spawnProducer);            
-            var persisting = ProcessTransactionsAsync(await IoTangleCassandraDb<TKey>.Default());
+            var persisting = ProcessTransactionsAsync(await IoTangleCassandraDb<TKey>.DefaultAsync());
 
             await Task.WhenAll(processing, persisting);
         }
@@ -101,7 +101,7 @@ namespace zero.tangle
                 {
                     try
                     {
-                        await ProcessTransactions(dataSource, batch, transactionArbiter,                        
+                        await ProcessTransactionsAsync(dataSource, batch, transactionArbiter,                        
                         async (transaction, forward, arg) =>
                         {
                             await LoadTransactionAsync(transaction, dataSource, batch, transactionArbiter);
@@ -117,7 +117,7 @@ namespace zero.tangle
                                     var retries = 0;
                                     var maxRetries = parm_milestone_profiler_max_retry;
                                     _logger.Trace($"{batch.TraceDescription} Relaxing tx milestones to [{transaction.AsKeyString(transaction.HashBuffer)}] [RETRY {retries}]");
-                                    while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimates(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)Node).Milestones, batch.TraceDescription))
+                                    while (retries < maxRetries && !await ((IoTangleCassandraDb<TKey>)dataSource).RelaxTransactionMilestoneEstimatesAsync(transaction, ((TangleNode<IoTangleMessage<TKey>, TKey>)Node).Milestones, batch.TraceDescription))
                                     {
                                         retries++;
                                         //Task.Delay(parm_relax_start_delay_ms);
@@ -152,7 +152,7 @@ namespace zero.tangle
         /// <param name="transactionArbiter">The arbiter</param>
         /// <param name="processCallback">The process callback</param>
         /// <returns></returns>
-        private async Task ProcessTransactions(IIoDataSource<RowSet> dataSource,
+        private async Task ProcessTransactionsAsync(IIoDataSource<RowSet> dataSource,
             IoLoad<IoTangleTransaction<TKey>> transactions,
             IoChannel<IoTangleTransaction<TKey>> transactionArbiter, 
             Func<IIoTransactionModel<TKey>, IoChannel<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> processCallback)

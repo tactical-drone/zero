@@ -51,7 +51,7 @@ namespace zero.tangle
             {
                 await ConnectBackAsync(ioNeighbor);
 
-                var connectTask = IoTangleTransactionHashCache.Default();
+                var connectTask = IoTangleTransactionHashCache.DefaultAsync();
                 await connectTask.ContinueWith(r =>
                 {
                     switch (r.Status)

@@ -178,7 +178,7 @@ namespace zero.core.data.providers.cassandra
                     }
                 }).ConfigureAwait(false);
 
-                return executeAsyncTask.Result;
+                return await executeAsyncTask.ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -188,7 +188,7 @@ namespace zero.core.data.providers.cassandra
             }                        
         }
         
-        protected async Task<T> Mapper<T>(Func<IMapper, string, object[], Task<T>> func, string query, params object[] args)
+        protected async Task<T> MapperAsync<T>(Func<IMapper, string, object[], Task<T>> func, string query, params object[] args)
         where T:class
         {
             if (!await EnsureDatabaseAsync().ConfigureAwait(false))

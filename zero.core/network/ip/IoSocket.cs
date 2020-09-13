@@ -210,7 +210,7 @@ namespace zero.core.network.ip
         /// <param name="address">Address to listen on</param>
         /// <param name="connectionHandler">The callback that handles a new connection</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> ListenAsync(IoNodeAddress address, Action<IoSocket> connectionHandler)
+        public virtual Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler)
         {
             //If there was a coding mistake throw
             if (Socket.IsBound)
@@ -300,7 +300,7 @@ namespace zero.core.network.ip
                 _logger.Error(e,$"Socket shutdown returned with errors: {Description}");
             }
             Socket?.Close();
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");
         }
 

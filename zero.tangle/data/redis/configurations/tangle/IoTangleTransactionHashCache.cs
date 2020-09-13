@@ -24,7 +24,7 @@ namespace zero.tangle.data.redis.configurations.tangle
         /// Returns single thread safe connection
         /// </summary>
         /// <returns></returns>
-        public static async Task<IoTangleTransactionHashCache> Default()
+        public static async Task<IoTangleTransactionHashCache> DefaultAsync()
         {
             var hosts = new List<IoNodeAddress>();
             _default.parm_redis_tangle_tx_hash_cache_url.Split(',').ToList().ForEach(address=>hosts.Add(IoNodeAddress.Create(address)));

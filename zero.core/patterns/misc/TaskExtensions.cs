@@ -17,34 +17,36 @@ namespace zero.core.patterns.misc
         /// <param name="asyncTask">The asynchronous task.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The original task, or the cancellation task if this task was canceled</returns>
-        public static async Task<TResult> HandleCancellation<TResult>(
-            this Task<TResult> asyncTask,
-            CancellationToken cancellationToken)
-        {
-            var tcs = new TaskCompletionSource<TResult>();
-            var registration = cancellationToken.Register(() =>
-                tcs.TrySetCanceled(), false);
-            var cancellationTask = tcs.Task;
+//        public static async Task<AggregateException> HandleCancellationAsync<TResult>(
+//            this Task<TResult> asyncTask,
+//            CancellationToken cancellationToken)
+//        {
+//            var tcs = new TaskCompletionSource<TResult>();
+//            var registration = cancellationToken.Register(() =>
+//                tcs.TrySetCanceled(), false);
+//            var cancellationTask = tcs.Task;
 
-            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(false);
-            if (readyTask == cancellationTask)
+//            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(false);
+//            if (readyTask == cancellationTask)
 
 
-            //TODO, what happens here?
-            await asyncTask.ContinueWith(_ => asyncTask.Exception,
+//                //TODO, what happens here?
+//#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+//                asyncTask.ContinueWith(_ => asyncTask.Exception,
 
-                    TaskContinuationOptions.OnlyOnFaulted |
-                    TaskContinuationOptions.ExecuteSynchronously);
+//                    TaskContinuationOptions.OnlyOnFaulted |
+//                    TaskContinuationOptions.ExecuteSynchronously).ConfigureAwait(false);
+//#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
-            await registration.DisposeAsync();
+//            await registration.DisposeAsync();
 
-            return await readyTask.ConfigureAwait(false);
-        }
+//            return await readyTask.ConfigureAwait(false);
+//        }
 
-        public static async Task ForEachAsync<T>(this List<T> enumerable, Action<T> action)
+        public static async Task ForEachAsync<T>(this List<T> enumerable, Func<T, Task> action)
         {
             foreach (var item in enumerable)                
-                await Task.Run(() => { action(item); }).ConfigureAwait(false);
+                await Task.Run(async () => { await action(item); }).ConfigureAwait(false);
         }
     }    
 }
