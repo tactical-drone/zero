@@ -95,59 +95,41 @@ namespace zero.core.network.ip
 
                 try
                 {
-                    await listenerAcceptTask.ContinueWith(async t =>
+                    //ZERO control passed to connection handler
+                    var newSocket = new IoTcpSocket(await listenerAcceptTask, ListeningAddress)
                     {
-                        switch (t.Status)
-                        {
-                            case TaskStatus.Canceled:
-                            case TaskStatus.Faulted:
-                                if(!Zeroed())
-                                    _logger.Error(t.Exception, $"Listener `{ListeningAddress}' returned with status `{t.Status}':");
-                                break;
-                            case TaskStatus.RanToCompletion:
+                        Kind = Connection.Ingress
+                    };
 
-                                //ZERO control passed to connection handler
-                                var newSocket = new IoTcpSocket(t.Result, ListeningAddress)
-                                {
-                                    Kind = Connection.Ingress
-                                };
+                    //newSocket.ClosedEvent((sender, args) => Close());
 
-                                //newSocket.ClosedEvent((sender, args) => Close());
+                    //Do some pointless sanity checking
+                    //if (newSocket.LocalAddress != ListeningAddress.Ip || newSocket.LocalPort != ListeningAddress.Port)
+                    //{
+                    //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpPort}'! Possible hackery! Investigate immediately!");
+                    //    newSocket.Close();
+                    //    break;
+                    //}
 
-                                //Do some pointless sanity checking
-                                //if (newSocket.LocalAddress != ListeningAddress.Ip || newSocket.LocalPort != ListeningAddress.Port)
-                                //{
-                                //    _logger.Fatal($"New connection to `tcp://{newSocket.LocalIpAndPort}' should have been to `tcp://{ListeningAddress.IpPort}'! Possible hackery! Investigate immediately!");
-                                //    newSocket.Close();
-                                //    break;
-                                //}
+                    _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}' ({Description})");
 
-                                _logger.Debug($"New connection from `tcp://{newSocket.RemoteIpAndPort}' to `{ListeningAddress}' ({Description})");
-
-                                try
-                                {
-                                    //ZERO
-                                    await connectionHandler(newSocket).ConfigureAwait(false);
-                                }
-                                catch (Exception e)
-                                {
-                                    _logger.Error(e,
-                                        $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.ListeningAddress}'");
-                                }
-
-                                break;
-                            default:
-                                _logger.Error(
-                                    $"Listener for `{ListeningAddress}' went into unknown state `{t.Status}'");
-                                break;
-                        }
-                    }, AsyncTasks.Token).ConfigureAwait(false);
+                    try
+                    {
+                        //ZERO
+                        await connectionHandler(newSocket).ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e,
+                            $"There was an error handling a new connection from `tcp://{newSocket.RemoteIpAndPort}' to `{newSocket.ListeningAddress}'");
+                    }
                 }
-                catch (ObjectDisposedException){}
-                catch (OperationCanceledException) {}
+                catch (ObjectDisposedException) { }
+                catch (OperationCanceledException) { }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Listener at `{ListeningAddress}' returned with errors");
+                    if (!Zeroed())
+                        _logger.Error(e, $"Listener at `{ListeningAddress}' returned with errors");
                 }
             }
 
@@ -156,7 +138,7 @@ namespace zero.core.network.ip
         }
 
 
-        private Stopwatch _sw = Stopwatch.StartNew();
+        private readonly Stopwatch _sw = Stopwatch.StartNew();
 
         /// <summary>
         /// Connecting
@@ -179,86 +161,73 @@ namespace zero.core.network.ip
             ConfigureTcpSocket(Socket);
 
             _sw.Restart();
-            return await Socket.ConnectAsync(address.Ip, address.Port).ContinueWith(r =>
+            try
             {
-                switch (r.Status)
+                await Socket.ConnectAsync(address.Ip, address.Port);
+
+                Socket.Blocking = true;
+                //Do some pointless sanity checking
+                if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
                 {
-                    case TaskStatus.Canceled:
-                    case TaskStatus.Faulted:
-                        try
-                        {
-                            SocketException exception = null;
-                            if ((exception = (SocketException) r.Exception.InnerExceptions.FirstOrDefault(e=>e is SocketException)) != default)
-                            {
-                                if (exception.ErrorCode == WSAEWOULDBLOCK)
-                                {
-                                    while (!Zeroed() && _sw.ElapsedMilliseconds < 10000 &&
-                                           !Socket.Poll(100000, SelectMode.SelectError) &&
-                                           !Socket.Poll(100000, SelectMode.SelectWrite)) 
-                                    {}
-
-                                    if (Zeroed() || _sw.ElapsedMilliseconds > 10000)
-                                    {
-                                        Socket.Close();
-                                        return Task.FromResult(false);
-                                    }
-                                }
-                            }
-
-                            Socket.Blocking = true;
-
-                            //Do some pointless sanity checking
-                            try
-                            {
-                                if (!Zeroed() && ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
-                                {
-                                    _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
-                                    Socket.Close();
-                                    return Task.FromResult(false);
-                                }
-                            }
-                            catch (SocketException e){_logger.Trace(e, Description);}
-                            catch (Exception e)
-                            {
-                                _logger.Error(e, $"Sanity checks failed: {Description}");
-                            }
-
-                            _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
-                        }
-                        catch (NullReferenceException e) {_logger.Trace(e,Description); Task.FromResult(false).ConfigureAwait(false); }
-                        catch (TaskCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false).ConfigureAwait(false); }
-                        catch (OperationCanceledException e) { _logger.Trace(e, Description); Task.FromResult(false).ConfigureAwait(false); }
-                        catch (ObjectDisposedException e) { _logger.Trace(e, Description); Task.FromResult(false).ConfigureAwait(false); }
-                        catch (Exception e)
-                        {
-                            _logger.Error(e,$"Conneting {Description} failed:");
-                            return Task.FromResult(false);
-                        }
-
-                        break;
-                        
-                    //_logger.Error(r.Exception, $"Connecting to `{Address}' failed:");
-
-                    case TaskStatus.RanToCompletion:
-                        Socket.Blocking = true;
-                        //Do some pointless sanity checking
-                        if (ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
-                        {
-                            _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
-                            Socket.Close();
-                            return Task.FromResult(false);
-                        }
-
-                        _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
-                        break;
-                    default:
-                        _logger.Error($"Connecting to `{ListeningAddress}' returned with unknown state `{r.Status}' ({Description})");
-                        Socket.Close();
-                        return Task.FromResult(false);
+                    _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                    Socket.Close();
+                    return false;
                 }
-                return Task.FromResult(true);
-            }, AsyncTasks.Token).Unwrap().ConfigureAwait(false);
+
+                _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
+                return true;
+            }
+            catch (SocketException exception)
+            {
+                {
+                    if (exception.ErrorCode == WSAEWOULDBLOCK)
+                    {
+                        while (!Zeroed() && _sw.ElapsedMilliseconds < 10000 &&
+                               !Socket.Poll(100000, SelectMode.SelectError) &&
+                               !Socket.Poll(100000, SelectMode.SelectWrite))
+                        { }
+
+                        if (Zeroed() || _sw.ElapsedMilliseconds > 10000)
+                        {
+                            Socket.Close();
+                            return false;
+                        }
+                    }
+                }
+
+                Socket.Blocking = true;
+
+                //Do some pointless sanity checking
+                try
+                {
+                    if (!Zeroed() && ListeningAddress.IpEndPoint.Address.ToString() != Socket.RemoteAddress().ToString() || ListeningAddress.IpEndPoint.Port != Socket.RemotePort())
+                    {
+                        _logger.Fatal($"Connection to `tcp://{ListeningAddress.IpPort}' established, but the OS reports it as `tcp://{Socket.RemoteAddress()}:{Socket.RemotePort()}'. Possible hackery! Investigate immediately!");
+                        Socket.Close();
+                        return false;
+                    }
+                }
+                catch (SocketException e) { _logger.Trace(e, Description); }
+                catch (NullReferenceException e) { _logger.Trace(e, Description); }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"Sanity checks failed: {Description}");
+                }
+
+                _logger.Debug($"Connected to `{ListeningAddress}' ({Description})");
+                return true;
+            }
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"Conneting {Description} failed:");
+            }
+            return false;
         }
+
 
         /// <summary>
         /// Sends data over TCP async
@@ -276,21 +245,21 @@ namespace zero.core.network.ip
                 {
                     return await Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
                 }
-                
+
                 Socket.SendTimeout = timeout;
                 return Socket.Send(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException) {}
+            catch (NullReferenceException) { }
             catch (TaskCanceledException) { }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
-            catch (SocketException e) 
+            catch (SocketException e)
             {
                 _logger.Trace(e, $"Failed to send on {Key}:");
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unable to send bytes to ({(Zeroed()?"closed":"open")})[connected = {Socket.Connected}] socket `tcp://{RemoteIpAndPort}' :");
+                _logger.Error(e, $"Unable to send bytes to ({(Zeroed() ? "closed" : "open")})[connected = {Socket.Connected}] socket `tcp://{RemoteIpAndPort}' :");
             }
 
             await ZeroAsync(this).ConfigureAwait(false);
@@ -315,7 +284,7 @@ namespace zero.core.network.ip
                     return await Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,
                             AsyncTasks.Token).ConfigureAwait(false);
                 }
-                
+
                 Socket.ReceiveTimeout = timeout;
                 return Socket.Receive(buffer.Array!, offset, length, SocketFlags.None);
             }
@@ -344,7 +313,7 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return (Socket?.IsBound??false) || (Socket?.Connected??false);
+            return (Socket?.IsBound ?? false) || (Socket?.Connected ?? false);
         }
 
         public override object ExtraData()
@@ -362,7 +331,7 @@ namespace zero.core.network.ip
             {
                 return;
             }
-            
+
             // Don't allow another socket to bind to this port.
             tcpSocket.ExclusiveAddressUse = true;
 

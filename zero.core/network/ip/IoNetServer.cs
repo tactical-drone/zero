@@ -105,6 +105,9 @@ namespace zero.core.network.ip
         /// <returns>The client object managing this socket connection</returns>
         public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> ioNetClient = null)
         {
+            if (ioNetClient == null)
+                return null;
+
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
                 await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
@@ -114,47 +117,28 @@ namespace zero.core.network.ip
 
                     await _connectionAttempts[address.Key].ZeroAsync(this).ConfigureAwait(false);
 
-
                     _connectionAttempts.TryRemove(address.Key, out _);
                     return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
                 }
             }
 
+            var connected = false;
             try
             {
-                async Task<bool> ContinuationFunction(Task<bool> t)
-                {
-                    switch (t.Status)
-                    {
-                        case TaskStatus.RanToCompletion:
-                            if (ioNetClient.IsOperational)
-                            {
-                                _logger.Debug($"Connection established to `{ioNetClient.AddressString}'");
-                                return true;
-                            }
-                            else // On connect failure
-                            {
-                                _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
-                                return false;
-                            }
-                        case TaskStatus.Canceled:
-                        case TaskStatus.Faulted:
-                        default:
-                            await ioNetClient.ZeroAsync(this).ConfigureAwait(false);
-                            if(!Zeroed())
-                                _logger.Error(t.Exception, $"Failed to connect to `{ioNetClient.AddressString}':");
-                            break;
-                    }
-
-                    return false;
-                }
-
-                var connectTask = ioNetClient?.ConnectAsync().ContinueWith(ContinuationFunction, AsyncTasks.Token);
-
-                //ioNetClient will never be null, the null in the parameter is needed for the interface contract
-                if (ioNetClient != null && await connectTask.Unwrap())
+                connected = await ioNetClient.ConnectAsync();
+                if (connected)
                 {
                     ZeroOnCascade(ioNetClient);
+
+                    if (ioNetClient.IsOperational)
+                    {
+                        _logger.Debug($"Connection established to `{ioNetClient.AddressString}'");
+                    }
+                    else // On connect failure
+                    {
+                        _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
+                    }
+
                     return ioNetClient;
                 }
             }
@@ -164,16 +148,23 @@ namespace zero.core.network.ip
             catch (OperationCanceledException) {}
             finally
             {
-                if (!_connectionAttempts.TryRemove(address.Key, out _))
+                if (!connected)
                 {
-                    _logger.Debug($"Expected key `{address.Key}'");
-                }
+                    await ioNetClient.ZeroAsync(this).ConfigureAwait(false);
+                    if (!Zeroed())
+                        _logger.Error($"Failed to connect to `{ioNetClient.AddressString}':");
 
-                //if (_connectionAttempts.Count > 0)
-                //{
-                //    _logger.Warn($"Empty connection attempts expected!");
-                //    _connectionAttempts.Clear();
-                //}
+                    if (!_connectionAttempts.TryRemove(address.Key, out _))
+                    {
+                        _logger.Debug($"Expected key `{address.Key}'");
+                    }
+
+                    //if (_connectionAttempts.Count > 0)
+                    //{
+                    //    _logger.Warn($"Empty connection attempts expected!");
+                    //    _connectionAttempts.Clear();
+                    //}
+                }
             }
 
             return null;

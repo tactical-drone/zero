@@ -91,7 +91,7 @@ namespace zero.tangle
             {
                 if (transactionArbiter == null)
                 {
-                    _logger.Warn("Waiting for transaction stream to spin up...");
+                    _logger.Debug("Waiting for transaction stream to spin up...");
                     transactionArbiter = Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
                     await Task.Delay(2000);//TODO config
                     continue;

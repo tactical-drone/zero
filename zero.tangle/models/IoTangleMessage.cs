@@ -47,6 +47,7 @@ namespace zero.tangle.models
             DatumProvisionLengthMax = DatumSize - 1;
             //DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+            ByteSegment = ByteBuffer;
 
             //forward to node services
             if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))

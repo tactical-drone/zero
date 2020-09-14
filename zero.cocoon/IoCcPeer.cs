@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.cocoon.autopeer;
@@ -96,12 +97,14 @@ namespace zero.cocoon
         /// <summary>
         /// Used for testing
         /// </summary>
-        public volatile int AccountingBit = 0;
+        public long AccountingBit = 0;
 
         /// <summary>
         /// Helper
         /// </summary>
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
+
+        private long _isTesting = 0;
 
         /// <summary>
         /// zero unmanaged
@@ -149,23 +152,8 @@ namespace zero.cocoon
             var result = Neighbor.AttachPeer(this);
 
             if (result)
-            {
-                var v = 0;
-                var vb = new byte[4];
-                Write(vb.AsSpan(), ref v);
-                if (!Zeroed())
-                    ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4).ConfigureAwait(false).GetAwaiter().GetResult();
-
-
-                //Task.Run(async () =>
-                //{
-                //    await Task.Delay(60000, AsyncTasks.Token);
-                //    var v = 0;
-                //    var vb = new byte[4];
-                //    Write(vb.AsSpan(), ref v);
-                //    if (!Zeroed())
-                //        await ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(vb, 0, 4);
-                //});
+            { 
+                StartTestMode();
             }
 
             return result;
@@ -178,6 +166,37 @@ namespace zero.cocoon
         {
             Neighbor?.DetachPeer();
             Neighbor = null;
+        }
+
+        /// <summary>
+        /// A test mode
+        /// </summary>
+        public void StartTestMode()
+        {
+            if (Interlocked.Read(ref ((IoCcNode) Node).Testing) == 0)
+                return;
+
+            if (Interlocked.Read(ref _isTesting) > 0)
+                return;
+
+            if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
+                return;
+            
+            if (Neighbor.Direction == IoCcNeighbor.Kind.OutBound)
+            {
+                long v = 0;
+                var vb = new byte[8];
+                Write(vb.AsSpan(), ref v);
+
+                if (!Zeroed())
+                {
+                    if (((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false)
+                        .GetAwaiter().GetResult() > 0)
+                    {
+                        Interlocked.Increment(ref AccountingBit);
+                    }
+                }
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Base58Check;
 using Google.Protobuf;
@@ -316,8 +317,15 @@ namespace zero.cocoon
 
                 if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
                 {
-                    _logger.Debug($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
-                    return true;
+                    try
+                    {
+                        _logger.Debug($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
+                    }
+                    catch //this is just a legitimate race, pure and simple.
+                    {
+                        return false;
+                    }
+                    return true; //Everything checks out
                 }
 
                 return false;
@@ -364,6 +372,7 @@ namespace zero.cocoon
         private readonly int _handshakeRequestSize;
         private readonly int _handshakeResponseSize;
         private readonly int _handshakeBufferSize;
+        public long Testing;
 
         /// <summary>
         /// Perform handshake
@@ -545,10 +554,6 @@ namespace zero.cocoon
 
                     var verified = false;
                     
-                    //if (bytesRead > 138)
-                    //{
-                    //    var val = MemoryMarshal.Read<int>(handshakeBuffer.AsSpan().Slice(138, 4));
-                    //}
                     var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
 
                     if (packet.Data != null && packet.Data.Length > 0)
@@ -613,7 +618,7 @@ namespace zero.cocoon
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Handshake (size = {bytesRead}) for {Description} failed with:");
+                _logger.Error(e, $"Handshake (size = {bytesRead}/{_handshakeRequestSize}/{_handshakeResponseSize}) for {Description} failed with:");
             }
 
             return false;
@@ -627,7 +632,8 @@ namespace zero.cocoon
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
         public async Task<bool> ConnectToPeerAsync(IoCcNeighbor neighbor)
         {
-            if (neighbor.RoutedRequest && neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
+            if (!Zeroed() && neighbor.RoutedRequest && 
+                neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
                 OutboundCount < parm_max_outbound &&
                 //TODO add distance calc &&
                 neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
@@ -668,6 +674,19 @@ namespace zero.cocoon
                 neighbor.DetachPeer();
                 _logger.Trace($"Handled {neighbor.Description}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Boots the node
+        /// </summary>
+        public void Boot()
+        {
+            Interlocked.Exchange(ref Testing, 1);
+            
+            foreach (var ioNeighbor in Neighbors.Values)
+            {
+                ((IoCcPeer) ioNeighbor).StartTestMode();
             }
         }
     }

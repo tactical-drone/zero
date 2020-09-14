@@ -49,25 +49,17 @@ namespace zero.cocoon.models
                 if (!await barrier(this))
                     return false;
 
-                //if (((IoCcProtocolBuffer) Source).MessageQueue.Count > 0)
+                try
                 {
-                    try
-                    {
-                        Messages = await ((IoCcProtocolBuffer) Source).DequeueAsync();
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Fatal(e,
-                            $"MessageQueue.DequeueAsync failed: {Description}"); //TODO why are we not getting this warning?
-                    }
-
-                    State = Messages != null ? JobState.Produced : JobState.ProduceErr;
+                    Messages = await ((IoCcProtocolBuffer) Source).DequeueAsync();
                 }
-                //else
-                //{
-                //    Messages = null;
-                //    State = JobState.ProduceTo;
-                //}
+                catch (Exception e)
+                {
+                    _logger.Fatal(e,
+                        $"MessageQueue.DequeueAsync failed: {Description}"); 
+                }
+
+                State = Messages != null ? JobState.Produced : JobState.ProduceErr;
 
                 return true;
             }).ConfigureAwait(false))

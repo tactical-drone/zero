@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Microsoft.AspNetCore.SignalR.Protocol;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
 using zero.cocoon.autopeer;
@@ -18,8 +14,6 @@ using zero.core.conf;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
-using Ping = Proto.Ping;
-
 
 namespace zero.cocoon.models
 {
@@ -37,42 +31,42 @@ namespace zero.cocoon.models
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
-            //DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+            ByteSegment = ByteBuffer;
 
             if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
                 IoCcProtocolBuffer protocol = null;
                 //var task = Task.Factory.StartNew(async () =>
                 //{
-                    if (Source.ZeroEnsureAsync(() =>
+                if (Source.ZeroEnsureAsync(() =>
+                {
+                    protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
+                    if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
                     {
-                        protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
-                        if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
-                        {
-                            return Task.FromResult(Source.ZeroOnCascade(protocol, true) != null);
-                        }
-
-                        return Task.FromResult(false);
-                    }).ConfigureAwait(false).GetAwaiter().GetResult())
-                    {
-
-                        ProtocolChannel = Source.AttachProducer(
-                            nameof(IoCcNeighbor),
-                            false,
-                            protocol,
-                            userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
-                            1, 2
-                        );
-
-                        //ProtocolChannel.parm_consumer_wait_for_producer_timeout =
-                        //    250; //We block and never report slow production
-                        //ProtocolChannel.parm_producer_start_retry_time = 0;
-
-                        _arrayPool = ((IoCcProtocolBuffer)ProtocolChannel.Source).ArrayPoolProxy;
+                        return Task.FromResult(Source.ZeroOnCascade(protocol, true) != null);
                     }
-                    else
-                    {
+
+                    return Task.FromResult(false);
+                }).ConfigureAwait(false).GetAwaiter().GetResult())
+                {
+
+                    ProtocolChannel = Source.AttachProducer(
+                        nameof(IoCcNeighbor),
+                        false,
+                        protocol,
+                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
+                        1, 2
+                    );
+
+                    //ProtocolChannel.parm_consumer_wait_for_producer_timeout =
+                    //    250; //We block and never report slow production
+                    //ProtocolChannel.parm_producer_start_retry_time = 0;
+
+                    _arrayPool = ((IoCcProtocolBuffer)ProtocolChannel.Source).ArrayPoolProxy;
+                }
+                else
+                {
 #pragma warning disable VSTHRD110 // Observe result of async calls
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                     protocol.ZeroAsync(this);
@@ -118,7 +112,7 @@ namespace zero.cocoon.models
         /// The amount of items that can be ready for production before blocking
         /// </summary>
         [IoParameter]
-        public int parm_forward_queue_length =  64; //TODO
+        public int parm_forward_queue_length = 64; //TODO
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -132,7 +126,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_ave_sec_ms = 100;
+        public int parm_ave_sec_ms = 2000;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -190,7 +184,6 @@ namespace zero.cocoon.models
 #if SAFE_RELEASE
             ProducerUserData = null;
             ProtocolChannel = null;
-            Buffer = null;
             _protocolMsgBatch = null;
             _arrayPool = null;
 #endif
@@ -227,71 +220,50 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (Source.IsOperational)
                         {
-                            await ((IoSocket) ioSocket).ReadAsync((byte[]) (Array) Buffer, BufferOffset, BufferSize)
-                                .AsTask().ContinueWith(async rx =>
-                                    {
-                                        switch (rx.Status)
-                                        {
-                                            //Canceled
-                                            case TaskStatus.Canceled:
-                                            case TaskStatus.Faulted:
-                                                State = rx.Status == TaskStatus.Canceled
-                                                    ? JobState.ProdCancel
-                                                    : JobState.ProduceErr;
-                                                await Source.ZeroAsync(this).ConfigureAwait(false);
-                                                _logger.Error(rx.Exception?.InnerException,
-                                                    $"{TraceDescription} ReadAsync from stream returned with errors:");
-                                                break;
-                                            //Success
-                                            case TaskStatus.RanToCompletion:
+                            var rx = await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize);
 
-                                                //UDP signals source ip
-                                                ProducerUserData = ((IoSocket) ioSocket).ExtraData();
 
-                                                //Drop zero reads
-                                                if (rx.Result == 0)
-                                                {
-                                                    BytesRead = 0;
-                                                    State = JobState.ProduceTo;
-                                                    break;
-                                                }
+                            //Success
+                            //UDP signals source ip
+                            ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
-                                                //rate limit
-                                                _msgCount++;
-                                                var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                                var delta = now - _msgRateCheckpoint;
-                                                if (_msgCount > parm_ave_sec_ms &&
-                                                    (double) _msgCount * 1000 / delta > parm_ave_sec_ms)
-                                                {
-                                                    BytesRead = 0;
-                                                    State = JobState.ProduceTo;
-                                                    _logger.Fatal($"Dropping spam {_msgCount}");
-                                                    _msgCount -= 2;
-                                                    break;
-                                                }
+                            //Drop zero reads
+                            if (rx == 0)
+                            {
+                                BytesRead = 0;
+                                State = JobState.ProduceTo;
+                                return false;
+                            }
 
-                                                //hist reset
-                                                if (delta > parm_ave_msg_sec_hist * 1000)
-                                                {
-                                                    _msgRateCheckpoint = now;
-                                                    _msgCount = 0;
-                                                }
+                            //rate limit
+                            _msgCount++;
+                            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            var delta = now - _msgRateCheckpoint;
+                            if (_msgCount > parm_ave_sec_ms &&
+                                (double)_msgCount * 1000 / delta > parm_ave_sec_ms)
+                            {
+                                BytesRead = 0;
+                                State = JobState.ProduceTo;
+                                _logger.Fatal($"Dropping spam {_msgCount}");
+                                _msgCount -= 2;
+                                return false;
+                            }
 
-                                                BytesRead = rx.Result;
+                            //hist reset
+                            if (delta > parm_ave_msg_sec_hist * 1000)
+                            {
+                                _msgRateCheckpoint = now;
+                                _msgCount = 0;
+                            }
 
-                                                UpdateBufferMetaData();
+                            BytesRead = rx;
 
-                                                State = JobState.Produced;
+                            UpdateBufferMetaData();
 
-                                                //_logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                            State = JobState.Produced;
 
-                                                break;
-                                            default:
-                                                State = JobState.ProduceErr;
-                                                throw new InvalidAsynchronousStateException(
-                                                    $"Job =`{Description}', JobState={rx.Status}");
-                                        }
-                                    }, AsyncTasks.Token).ConfigureAwait(false);
+                            //_logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+
                         }
                         else
                         {
@@ -314,10 +286,12 @@ namespace zero.cocoon.models
                     catch (ObjectDisposedException e) { _logger.Trace(e, Description); return false; }
                     catch (Exception e)
                     {
-                        _logger.Debug(e, $"Error in producing {Description}");
+                        State = JobState.ProduceErr;
+                        await Source.ZeroAsync(this).ConfigureAwait(false);
+                        _logger.Error(e, $"ReadAsync {Description}:");
                         return false;
                     }
-                }).ConfigureAwait(false);//don't .ConfigureAwait(false);
+                }).ConfigureAwait(false);
             }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
@@ -351,7 +325,7 @@ namespace zero.cocoon.models
                 var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
                 Interlocked.Add(ref BufferOffset, -bytesToTransfer);
                 Interlocked.Add(ref BytesRead, bytesToTransfer);
-                
+
                 UpdateBufferMetaData();
 
                 Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0), Buffer, BufferOffset, bytesToTransfer);
@@ -399,7 +373,7 @@ namespace zero.cocoon.models
                 {
                     var read = stream.Position;
                     var packet = Packet.Parser.ParseFrom(stream);
-                    Interlocked.Add(ref BufferOffset, (int) (stream.Position - read));
+                    Interlocked.Add(ref BufferOffset, (int)(stream.Position - read));
 
                     if (packet.Data != null && packet.Data.Length > 0)
                     {
@@ -454,7 +428,7 @@ namespace zero.cocoon.models
 
                 State = JobState.Consumed;
             }
-            catch (NullReferenceException e){ _logger.Trace(e, Description );}
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
@@ -491,7 +465,7 @@ namespace zero.cocoon.models
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
 
-                    if(_protocolMsgBatchIndex < parm_max_msg_batch_size)
+                    if (_protocolMsgBatchIndex < parm_max_msg_batch_size)
                         _protocolMsgBatch[_protocolMsgBatchIndex++] = Tuple.Create((IMessage)request, ProducerUserData, packet);
                     else
                     {
@@ -500,7 +474,7 @@ namespace zero.cocoon.models
                     }
                 }
             }
-            catch (NullReferenceException){}
+            catch (NullReferenceException) { }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to parse request type {typeof(T).Name} from {Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}, size = {packet.Data.Length}");
@@ -511,10 +485,10 @@ namespace zero.cocoon.models
         {
             try
             {
-                if(_protocolMsgBatchIndex == 0)
+                if (_protocolMsgBatchIndex == 0)
                     return;
 
-                if (_protocolMsgBatchIndex < parm_max_msg_batch_size )
+                if (_protocolMsgBatchIndex < parm_max_msg_batch_size)
                     _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
 
                 //cog the source
@@ -540,13 +514,13 @@ namespace zero.cocoon.models
                     _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
                 }
             }
-            catch(TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
-                _logger.Debug(e,$"Forwarding from {Description} to {ProtocolChannel.Description} failed");
+                _logger.Debug(e, $"Forwarding from {Description} to {ProtocolChannel.Description} failed");
             }
         }
 

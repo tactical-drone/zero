@@ -710,6 +710,8 @@ namespace zero.core.patterns.bushes
 
                 IoLoad<TJob> curJob = null;
                 bool hadOneJob = false;
+                long lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
                 //A job was produced. Dequeue it and process
                 while (!Zeroed() && _queue.TryDequeue(out curJob))
                 {
@@ -763,8 +765,10 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
-                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 1000)
+                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 1000 &&
+                                DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastStat > TimeSpan.FromMinutes(10).TotalSeconds)
                             {
+                                lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 _logger.Info(
                                     "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                                 _logger.Info(

@@ -598,7 +598,7 @@ namespace zero.cocoon.autopeer
                 {
                     if (_protocolChannel == null)
                     {
-                        _logger.Warn($"{(RoutedRequest ? "V>" : "X>")} Waiting for {Description} stream to spin up...");
+                        _logger.Debug($"{(RoutedRequest ? "V>" : "X>")} Waiting for {Description} stream to spin up...");
                         _protocolChannel = Source.AttachProducer<IoCcProtocolMessage>(nameof(IoCcNeighbor));
                         ArrayPoolProxy = ((IoCcProtocolBuffer) _protocolChannel?.Source)?.ArrayPoolProxy;
                         await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false);//TODO config
@@ -1369,16 +1369,9 @@ namespace zero.cocoon.autopeer
 
                 if (RoutedRequest)
                 {
-                    await SendMessageAsync(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping).ContinueWith(
-                        r =>
-                        {
-                            if (r.IsCompletedSuccessfully)
-                            {
-                                _pingRequest = pingRequest;
-                                Interlocked.Increment(ref _keepAliveLoss);
-                            }
-                                
-                        }).ConfigureAwait(false);
+                    await SendMessageAsync(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+                    _pingRequest = pingRequest;
+                    Interlocked.Increment(ref _keepAliveLoss);
                 }
                 else
                 {
@@ -1399,15 +1392,9 @@ namespace zero.cocoon.autopeer
 
                     if (!ccNeighbor.RoutedRequest)
                     {
-                        await ccNeighbor.SendMessageAsync(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping).ContinueWith(
-                            r =>
-                            {
-                                if (r.IsCompletedSuccessfully)
-                                {
-                                    ccNeighbor._pingRequests.TryAdd(Convert.ToBase64String(IoCcIdentity.Sha256.ComputeHash(pingRequest.ToByteArray())), pingRequest);
-                                    Interlocked.Increment(ref ccNeighbor._keepAliveLoss);
-                                }
-                            }).ConfigureAwait(false);
+                        await ccNeighbor.SendMessageAsync(dest, pingRequest.ToByteString(), IoCcPeerMessage.MessageTypes.Ping);
+                        ccNeighbor._pingRequests.TryAdd(Convert.ToBase64String(IoCcIdentity.Sha256.ComputeHash(pingRequest.ToByteArray())), pingRequest);
+                        Interlocked.Increment(ref ccNeighbor._keepAliveLoss);
                         return;
                     }
 
@@ -1444,16 +1431,10 @@ namespace zero.cocoon.autopeer
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error * parm_max_time_error + parm_max_time_error / 2
                 };
 
-                await SendMessageAsync(dest, discoveryRequest.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryRequest).ContinueWith(
-                    r =>
-                    {
-                        if (r.IsCompletedSuccessfully)
-                        {
-                            if(discoveryReq != null)
-                                _logger.Trace($"_discoveryRequest lost {Description}, {Math.Abs(DateTimeOffset.Now.ToUnixTimeSeconds() - discoveryReq.Timestamp)} ");
-                            _discoveryRequest = discoveryRequest;
-                        }
-                    }).ConfigureAwait(false);
+                await SendMessageAsync(dest, discoveryRequest.ToByteString(), IoCcPeerMessage.MessageTypes.DiscoveryRequest);
+                if(discoveryReq != null)
+                    _logger.Trace($"_discoveryRequest lost {Description}, {Math.Abs(DateTimeOffset.Now.ToUnixTimeSeconds() - discoveryReq.Timestamp)} ");
+                _discoveryRequest = discoveryRequest;
             }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
@@ -1484,16 +1465,10 @@ namespace zero.cocoon.autopeer
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error * parm_max_time_error + parm_max_time_error / 2
                 };
 
-                await SendMessageAsync(dest, peerRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringRequest).ContinueWith(
-                    r =>
-                    {
-                        if (r.IsCompletedSuccessfully)
-                        {
-                            if (peerReq != null)
-                                _logger.Trace($"_pingRequest lost {Description}, {Math.Abs(DateTimeOffset.Now.ToUnixTimeSeconds() - _pingRequest.Timestamp)} ");
-                            _peerRequest = peerRequest;
-                        }
-                    }).ConfigureAwait(false);
+                await SendMessageAsync(dest, peerRequest.ToByteString(), IoCcPeerMessage.MessageTypes.PeeringRequest);
+                if (peerReq != null)
+                    _logger.Trace($"_pingRequest lost {Description}, {Math.Abs(DateTimeOffset.Now.ToUnixTimeSeconds() - _pingRequest.Timestamp)} ");
+                _peerRequest = peerRequest;
             }
             catch (NullReferenceException e){_logger.Trace(e, Description);}
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }

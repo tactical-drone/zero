@@ -197,13 +197,14 @@ namespace zero.core.network.ip
         {            
             var connectAsyncTask = IoSocket.ConnectAsync(ListeningAddress);            
 
-            _logger.Debug($"Connecting to `{ListeningAddress}'");
-            
-            return await connectAsyncTask.ContinueWith(t =>
-            {
-                _logger.Debug(t.Result ? $"Connected to `{AddressString}'" : $"Failed to connect to `{AddressString}'");
-                return t.Result;
-            }).ConfigureAwait(false);
+            _logger.Debug($"Connecting to `{ListeningAddress}', {Description}");
+
+            if (await connectAsyncTask)
+                return true;
+            else
+                _logger.Error($"Connecting to `{ListeningAddress}', {Description} [FAILED]");
+
+            return false;
         }
 
         /// <summary>

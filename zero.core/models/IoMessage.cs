@@ -50,6 +50,11 @@ namespace zero.core.models
         public byte[] ByteBuffer => (byte[]) (Array) Buffer;
 
         /// <summary>
+        /// Array segment form
+        /// </summary>
+        public ArraySegment<byte> ByteSegment { get; protected set; }
+
+        /// <summary>
         /// Stream access to the input
         /// </summary>
         public Stream ByteStream => new MemoryStream(ByteBuffer, BufferOffset, BytesLeftToProcess);
@@ -128,6 +133,7 @@ namespace zero.core.models
 
 #if SAFE_RELEASE
             Buffer = null;
+            ByteSegment = null;
 #endif
         }
 

@@ -40,6 +40,7 @@ namespace zero.cocoon.models
                 DatumProvisionLengthMax = DatumSize - 1;
                 //DatumProvisionLength = DatumProvisionLengthMax;
                 Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+                ByteSegment = ByteBuffer;
             }
         }
 
@@ -84,7 +85,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_datum_size = 4;
+        public int parm_max_datum_size = 8;
 
         /// <summary>
         /// Userdata in the source
@@ -122,7 +123,7 @@ namespace zero.cocoon.models
                 if (Zeroed())
                     return State = JobState.ProdCancel;
 
-                await Source.ProduceAsync(async ioSocket =>
+                var produced = await Source.ProduceAsync(async ioSocket =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -138,47 +139,29 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (Source.IsOperational)
                         {
-                            await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
+                            BytesRead = await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize);
+
+                            //TODO WTF
+                            if (BytesRead == 0)
                             {
-                                switch (rx.Status)
-                                {
-                                    //Canceled
-                                    case TaskStatus.Canceled:
-                                    case TaskStatus.Faulted:
-                                        State = rx.Status == TaskStatus.Canceled ? JobState.ProdCancel : JobState.ProduceErr;
-                                        await Source.ZeroAsync(this).ConfigureAwait(false);
-                                        _logger.Debug(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
-                                        break;
-                                    //Success
-                                    case TaskStatus.RanToCompletion:
-                                        BytesRead = rx.Result;
+                                State = JobState.ProduceTo;
+                                return false;
+                            }
 
-                                        //TODO WTF
-                                        if (BytesRead == 0)
-                                        {
-                                            State = JobState.ProduceTo;
-                                            break;
-                                        }
+                            //UDP signals source ip
+                            ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
-                                        //UDP signals source ip
-                                        ProducerUserData = ((IoSocket)ioSocket).ExtraData();
+                            //Set how many datums we have available to process
+                            DatumCount = BytesLeftToProcess / DatumSize;
+                            DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                                        //Set how many datums we have available to process
-                                        DatumCount = BytesLeftToProcess / DatumSize;
-                                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
+                            //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                            StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
-                                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                            State = JobState.Produced;
 
-                                        State = JobState.Produced;
-
-                                        //_logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
-                                        break;
-                                    default:
-                                        State = JobState.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', JobState={rx.Status}");
-                                }
-                            }, AsyncTasks.Token).ConfigureAwait(false);
+                            //_logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                            
                         }
                         else
                         {
@@ -202,9 +185,19 @@ namespace zero.cocoon.models
                     {
                         _logger.Debug(e,$"Error producing {Description}");
                         await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false); //TODO
+
+                        State = JobState.ProduceErr;
+
+                        await Source.ZeroAsync(this).ConfigureAwait(false);
+
                         return false;
                     }
                 }).ConfigureAwait(false);
+
+                if (!produced)
+                {
+                    State = JobState.ProduceTo;
+                }
             }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
@@ -264,22 +257,58 @@ namespace zero.cocoon.models
             {
                 for (var i = 0; i < DatumCount; i++)
                 {
-                    var val = MemoryMarshal.Read<int>(BufferSpan.Slice(BufferOffset, 4));
-                    if (val == ((IoCcPeer)IoZero).AccountingBit)
+                    var req = MemoryMarshal.Read<long>(BufferSpan.Slice(BufferOffset, DatumSize));
+                    var exp = Interlocked.Read(ref ((IoCcPeer) IoZero).AccountingBit);
+                    if (req == exp)
                     {
-                        ((IoCcPeer)IoZero).AccountingBit = ++val;
+                        //_logger.Warn($"MATCH {((IoCcPeer)IoZero).AccountingBit}");
 
-                        MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, 4), ref val);
-                        await ((IoNetClient<IoCcGossipMessage>)Source).Socket.SendAsync(ByteBuffer, BufferOffset, 4).ConfigureAwait(false);
-                        if ((val % 1000000) == 0)
-                            _logger.Info($"4M>> {((IoCcPeer)IoZero).AccountingBit}");
+                        req++;
+                        MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
-                        Interlocked.Add(ref BufferOffset, DatumSize);
                         //if (Id % 10 == 0)
-                        //    await Task.Delay(1, AsyncTasks.Token).ConfigureAwait(false);
+                        //await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
+
+                        if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
+                            .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                        {
+                            Interlocked.Add(ref ((IoCcPeer) IoZero).AccountingBit, 2);
+                        }
+
+                        if ((req % 1000000) == 0)
+                            _logger.Info($"4M>> {exp}");
                     }
                     else
-                        _logger.Fatal($"{val} != {((IoCcPeer)IoZero).AccountingBit}");
+                    {
+                        //reset
+                        if (req == 0)
+                        {
+                            _logger.Fatal($"({DatumCount}) RESET! {req} != {exp}");
+
+                            req = 1;
+
+                            MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
+                            if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
+                                .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                            {
+                                Volatile.Write(ref ((IoCcPeer)IoZero).AccountingBit, 2);
+                            }
+                        }
+                        else
+                        {
+                            _logger.Fatal($"({DatumCount}) SET! {req} != {exp}");
+
+                            req = 0;
+                            MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
+                            if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
+                                .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                            {
+                                Volatile.Write(ref ((IoCcPeer)IoZero).AccountingBit, 1);
+                            }
+                        }
+                    }
+
+                    Interlocked.Add(ref BufferOffset, DatumSize);
                 }
             }
             catch (ArgumentOutOfRangeException e ) { _logger.Trace(e, Description); }
