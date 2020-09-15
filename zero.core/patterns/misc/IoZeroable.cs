@@ -16,9 +16,12 @@ namespace zero.core.patterns.misc
     /// </summary>
     public class IoZeroable : IDisposable, IIoZeroable
     {
-        public IoZeroable()
+        static IoZeroable()
         {
             _logger = LogManager.GetCurrentClassLogger();
+        }
+        public IoZeroable()
+        {
             _syncRootAuto.Set();
         }
         /// <summary>
@@ -32,7 +35,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// 
         /// </summary>
-        private ILogger _logger;
+        private static ILogger _logger;
 
         /// <summary>
         /// Description

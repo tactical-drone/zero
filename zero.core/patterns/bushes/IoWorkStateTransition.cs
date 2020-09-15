@@ -2,6 +2,7 @@
 using System.Linq;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes
 {
@@ -9,7 +10,7 @@ namespace zero.core.patterns.bushes
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
     /// <typeparam name="TJob">The type of job produced</typeparam>
-    public class IoWorkStateTransition<TJob> : IIoHeapItem
+    public class IoWorkStateTransition<TJob> : IoZeroable, IIoHeapItem
         where TJob : IIoJob
         
     {

@@ -106,11 +106,13 @@ namespace zero.core.patterns.bushes
         public virtual IIoHeapItem Constructor()
         {
 #if DEBUG
+            if (_stateMeta?.Previous != null)
+                _stateHeap.ReturnAsync(_stateMeta.Previous).ConfigureAwait(false).GetAwaiter().GetResult();
+
             _stateMeta = null;
-            PreviousJob = null;
 #else
-            _stateMeta.JobState = JobState.Undefined;
-            Id = Interlocked.Read(ref Source.Counters[(int)JobState.Undefined]);
+            _stateMeta.JobState = IoJobMeta.JobState.Undefined;
+            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
 #endif
 
             State = IoJobMeta.JobState.Undefined;
@@ -135,6 +137,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override void ZeroUnmanaged()
         {
+#if DEBUG
+            _stateHeap.Dispose();
+#endif
+
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
@@ -142,6 +148,9 @@ namespace zero.core.patterns.bushes
             //StateTransitionHistory = null;
             Source = null;
             PreviousJob = null;
+#if DEBUG
+            _stateHeap = null;
+#endif
 #endif
         }
 
@@ -150,6 +159,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected override async Task ZeroManagedAsync()
         {
+#if DEBUG
+            await _stateHeap.ReturnAsync(_stateMeta);
+            await _stateHeap.ZeroAsync(this); //TODO
+#endif
             await base.ZeroManagedAsync();
             if(PreviousJob != null)
                 await PreviousJob.ZeroAsync(this).ConfigureAwait(false);
@@ -220,6 +233,14 @@ namespace zero.core.patterns.bushes
         /// </summary>
         private readonly string _jobDescription;
 
+
+        /// <summary>
+        /// state heap
+        /// </summary>
+#if DEBUG        
+        private IoHeapIo<IoWorkStateTransition<TJob>> _stateHeap = new IoHeapIo<IoWorkStateTransition<TJob>>(64) { Make = o => new IoWorkStateTransition<TJob>() };
+#endif
+
         /// <summary>
         /// Gets and sets the state of the work
         /// </summary>
@@ -265,19 +286,30 @@ namespace zero.core.patterns.bushes
                 //Allocate memory for a new current state
                 var prevState = _stateMeta;
 
-                var newState = new IoWorkStateTransition<TJob>
+                var newState = _stateHeap.TakeAsync((transition, closure) =>
                 {
-                    Previous = prevState,
-                    JobState = value,
-                    EnterTime = DateTime.Now,
-                    ExitTime = DateTime.Now
-                };
+                    transition.Previous = ((IoJob<TJob>) closure)._stateMeta;
+                    transition.EnterTime = DateTime.Now;
+                    transition.ExitTime = DateTime.Now;
+
+                    return transition;
+                }, this).GetAwaiter().GetResult();
+
+                newState.JobState = value;
+
+                //var newState = new IoWorkStateTransition<TJob>
+                //{
+                //    Previous = prevState,
+                //    JobState = value,
+                //    EnterTime = DateTime.Now,
+                //    ExitTime = DateTime.Now
+                //};
 
                 _stateMeta = newState;
-
+                
                 //Configure the current state
                 if (prevState != null)
-                {                    
+                {
                     prevState.Next = _stateMeta;
 
                     StateTransitionHistory[(int)prevState.JobState] = _stateMeta;

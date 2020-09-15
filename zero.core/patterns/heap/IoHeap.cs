@@ -126,9 +126,8 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        public virtual Task<T> TakeAsync(Func<T, T> parms = null, object userData = null)
+        protected virtual ValueTask<T> TakeAsync(object userData = null)
         {
-            parms ??= arg => arg;
             try
             {
 //If the heap is empty
@@ -140,17 +139,17 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref CurrentHeapSize);
                         Interlocked.Increment(ref ReferenceCount);
-                        return Task.FromResult(parms(Make(userData)));
+                        return new ValueTask<T>(Make(userData));
                     }
                     else //we have run out of capacity
                     {
-                        return null;
+                        return new ValueTask<T>(default(T));
                     }
                 }
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref ReferenceCount);
-                    return Task.FromResult(item);
+                    return new ValueTask<T>(item);
                 }
             }
             catch (NullReferenceException) { }
@@ -159,14 +158,14 @@ namespace zero.core.patterns.heap
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
             }
 
-            return null;
+            return new ValueTask<T>(default(T)); ;
         }
 
         /// <summary>
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public async Task ReturnAsync(T item)
+        public async ValueTask ReturnAsync(T item)
         {
 #if DEBUG
             if (item == null)

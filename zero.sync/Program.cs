@@ -45,7 +45,7 @@ namespace zero.sync
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
 
-            Task.Run(() =>
+            var task = Task.Run(() =>
             {
                 Console.WriteLine("Starting autopeering...");
                 var c = 0;
@@ -300,7 +300,7 @@ namespace zero.sync
 
             return new Task<IoCcNode>(() =>
             {
-                cocoon.StartAsync();
+                cocoon.StartAsync().ConfigureAwait(false);
                 return cocoon;
             }, TaskCreationOptions.None);
         }

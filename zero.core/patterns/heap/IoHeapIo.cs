@@ -27,17 +27,20 @@ namespace zero.core.patterns.heap
         /// Take an item but call the constructor first
         /// </summary>
         /// <returns>The constructed heap item</returns>
-        public override async Task<T> TakeAsync(Func<T, T> parms = null, object userData = null)
+        public async ValueTask<T> TakeAsync(Func<T, object, T> parms = null, object userData = null)
         {
             object next = null;
             try
             {
                 //Allocate memory
-                if ((next = await base.TakeAsync(parms, userData).ConfigureAwait(false)) == null)
+                if ((next = await base.TakeAsync(userData).ConfigureAwait(false)) == null)
                     return null;
 
                 //Construct
                 next = ((T) next).Constructor();
+
+                //Custom constructor
+                parms?.Invoke((T) next, userData);
 
                 //The constructor signals a flush by returning null
                 while (next == null)
@@ -46,7 +49,7 @@ namespace zero.core.patterns.heap
                     _logger.Trace($"Flushing `{GetType()}'");
 
                     //Return another item from the heap
-                    if ((next = (T)await base.TakeAsync(parms, userData).ConfigureAwait(false)) == null)
+                    if ((next = (T)await base.TakeAsync(userData).ConfigureAwait(false)) == null)
                     {
                         _logger.Error($"`{GetType()}', unable to allocate memory");
                         return null;

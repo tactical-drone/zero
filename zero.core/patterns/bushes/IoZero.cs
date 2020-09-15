@@ -293,11 +293,11 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Allocate a job from the heap
-                        if (!Zeroed() && (nextJob = await JobHeap.TakeAsync(parms: load =>
+                        if (!Zeroed() && (nextJob = await JobHeap.TakeAsync(parms: (load,closure) =>
                         {
-                            load.IoZero = this;
+                            load.IoZero = (IIoZero) closure;
                             return load;
-                        }).ConfigureAwait(false)) != null) //TODO 
+                        }, this).ConfigureAwait(false)) != null) //TODO 
                         {
 
                             nextJob.State = IoJobMeta.JobState.Producing;
