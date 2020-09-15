@@ -52,7 +52,7 @@ namespace zero.core.patterns.bushes
         /// Consumes the job
         /// </summary>
         /// <returns>The state of the consumption</returns>
-        public abstract Task<JobState> ConsumeAsync();
+        public abstract Task<IoJobMeta.JobState> ConsumeAsync();
 
 
         /// <summary>

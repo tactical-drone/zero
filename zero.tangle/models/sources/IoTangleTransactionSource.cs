@@ -88,16 +88,18 @@ namespace zero.tangle.models.sources
             return base.ZeroManagedAsync();
         }
 
+
         /// <summary>
         /// Produces the specified callback.
         /// </summary>
         /// <param name="callback">The callback.</param>
+        /// <param name="barrier"></param>
         /// <returns>The async task</returns>        
-        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> callback)
+        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> callback, Func<IIoJob, ValueTask<bool>> barrier = null)
         {                        
             try
             {
-                return await callback(this);
+                return await callback(this, barrier);
             }
             catch (TimeoutException)
             {

@@ -67,14 +67,14 @@ namespace zero.core.patterns.bushes
         public IIoSource UpstreamIoSource { get; protected set; }
 
         /// <summary>
-        /// Counters for <see cref="IoJob{TJob}.JobState"/>
+        /// Counters for <see cref="IoJobMeta.JobState"/>
         /// </summary>
-        public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.JobState)).Length];
+        public long[] Counters { get; protected set; } = new long[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];
 
         /// <summary>
         /// Total service times per <see cref="Counters"/>
         /// </summary>
-        public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJob<>.JobState)).Length];
+        public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];
 
 
         public AsyncAutoResetEvent ProducerBarrier { get; protected set; }
@@ -303,9 +303,9 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoJob<TJob>.JobState.Undefined  && i < (int)IoJob<TJob>.JobState.Finished)
+                if (i > (int)IoJobMeta.JobState.Undefined  && i < (int)IoJobMeta.JobState.Finished)
                 {
-                    heading.Append($"{((IoJob<TJob>.JobState)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
+                    heading.Append($"{((IoJobMeta.JobState)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");
                 }
             }
@@ -317,7 +317,10 @@ namespace zero.core.patterns.bushes
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="func">The function.</param>
+        /// <param name="barrier"></param>
         /// <returns></returns>
-        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
+        //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
+        //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IoJob<IIoJob>, ValueTask<bool>>, Task<bool>> func, Func<IoJob<IIoJob>, ValueTask<bool>> barrier);
+        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> func, Func<IIoJob, ValueTask<bool>> barrier = null);
     }
 }

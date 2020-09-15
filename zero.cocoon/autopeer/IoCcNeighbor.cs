@@ -18,6 +18,7 @@ using zero.core.conf;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using Logger = NLog.Logger;
 
 namespace zero.cocoon.autopeer
@@ -564,7 +565,7 @@ namespace zero.cocoon.autopeer
                 
                 //Array.Clear(protocolMsgs, 0, count);
 
-                consumer.State = IoJob<IoCcProtocolMessage>.JobState.Consumed;
+                consumer.State = IoJobMeta.JobState.Consumed;
 
                 stopwatch.Stop();
                 //_logger.Trace($"{(RoutedRequest ? "V>" : "X>")} Processed `{protocolMsgs.Count}' consumer: t = `{stopwatch.ElapsedMilliseconds:D}', `{protocolMsgs.Count * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} t/s'");
@@ -668,8 +669,8 @@ namespace zero.cocoon.autopeer
                             }
                             finally
                             {
-                                if (batch != null && batch.State != IoJob<IoCcProtocolMessage>.JobState.Consumed)
-                                    batch.State = IoJob<IoCcProtocolMessage>.JobState.ConsumeErr;
+                                if (batch != null && batch.State != IoJobMeta.JobState.Consumed)
+                                    batch.State = IoJobMeta.JobState.ConsumeErr;
                             }
                         });
 

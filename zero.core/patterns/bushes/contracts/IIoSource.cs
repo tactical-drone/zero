@@ -107,8 +107,9 @@ namespace zero.core.patterns.bushes.contracts
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="func">The function.</param>
+        /// <param name="barrier">The barrier</param>
         /// <returns></returns>
-        Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
+        Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> func, Func<IIoJob, ValueTask<bool>> barrier);
 
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.

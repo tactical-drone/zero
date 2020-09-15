@@ -14,6 +14,7 @@ using zero.core.api.models;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 using zero.interop.entangled.common.model;
 using zero.tangle.api.interfaces;
@@ -152,12 +153,12 @@ namespace zero.tangle.api.controllers.generic
                                                 break;
                                         }
 
-                                        msg.State = IoJob<IoTangleTransaction<TKey>>.JobState.Consumed;
+                                        msg.State = IoJobMeta.JobState.Consumed;
                                     }
                                     finally
                                     {
-                                        if (msg.State == IoJob<IoTangleTransaction<TKey>>.JobState.Consuming)
-                                            msg.State = IoJob<IoTangleTransaction<TKey>>.JobState.ConsumeErr;
+                                        if (msg.State == IoJobMeta.JobState.Consuming)
+                                            msg.State = IoJobMeta.JobState.ConsumeErr;
                                     }
 
                                     return Task.CompletedTask;                                    

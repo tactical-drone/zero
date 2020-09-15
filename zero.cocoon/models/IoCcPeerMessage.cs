@@ -14,6 +14,7 @@ using zero.core.conf;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
@@ -200,11 +201,11 @@ namespace zero.cocoon.models
             return base.ZeroManagedAsync();
         }
 
-        public override async Task<JobState> ProduceAsync(Func<IoJob<IoCcPeerMessage>, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
         {
             try
             {
-                await Source.ProduceAsync(async ioSocket =>
+                await Source.ProduceAsync(async (ioSocket, barrier) =>
                 {
 
                     //----------------------------------------------------------------------------
@@ -231,7 +232,7 @@ namespace zero.cocoon.models
                             if (rx == 0)
                             {
                                 BytesRead = 0;
-                                State = JobState.ProduceTo;
+                                State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
 
@@ -243,7 +244,7 @@ namespace zero.cocoon.models
                                 (double)_msgCount * 1000 / delta > parm_ave_sec_ms)
                             {
                                 BytesRead = 0;
-                                State = JobState.ProduceTo;
+                                State = IoJobMeta.JobState.ProduceTo;
                                 _logger.Fatal($"Dropping spam {_msgCount}");
                                 _msgCount -= 2;
                                 return false;
@@ -260,7 +261,7 @@ namespace zero.cocoon.models
 
                             UpdateBufferMetaData();
 
-                            State = JobState.Produced;
+                            State = IoJobMeta.JobState.Produced;
 
                             //_logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
@@ -268,13 +269,13 @@ namespace zero.cocoon.models
                         else
                         {
                             _logger.Warn($"{GetType().Name}: Source {Source.Description} went non operational!");
-                            State = JobState.Cancelled;
+                            State = IoJobMeta.JobState.Cancelled;
                             await Source.ZeroAsync(this).ConfigureAwait(false);
                         }
 
                         if (Zeroed())
                         {
-                            State = JobState.Cancelled;
+                            State = IoJobMeta.JobState.Cancelled;
                             return false;
                         }
 
@@ -286,12 +287,12 @@ namespace zero.cocoon.models
                     catch (ObjectDisposedException e) { _logger.Trace(e, Description); return false; }
                     catch (Exception e)
                     {
-                        State = JobState.ProduceErr;
+                        State = IoJobMeta.JobState.ProduceErr;
                         await Source.ZeroAsync(this).ConfigureAwait(false);
                         _logger.Error(e, $"ReadAsync {Description}:");
                         return false;
                     }
-                }).ConfigureAwait(false);
+                }, (Func<IIoJob, ValueTask<bool>>) barrier).ConfigureAwait(false);
             }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
@@ -303,10 +304,10 @@ namespace zero.cocoon.models
             }
             finally
             {
-                if (State == JobState.Producing)
+                if (State == IoJobMeta.JobState.Producing)
                 {
                     // Set the state to ProduceErr so that the consumer knows to abort consumption
-                    State = JobState.ProduceErr;
+                    State = IoJobMeta.JobState.ProduceErr;
                 }
             }
             return State;
@@ -337,7 +338,7 @@ namespace zero.cocoon.models
                 Source.Synced = false;
                 DatumCount = 0;
                 BytesRead = 0;
-                State = JobState.ConInvalid;
+                State = IoJobMeta.JobState.ConInvalid;
                 DatumFragmentLength = 0;
                 StillHasUnprocessedFragments = false;
             }
@@ -357,7 +358,7 @@ namespace zero.cocoon.models
         /// Message sink
         /// </summary>
         /// <returns>Processing state</returns>
-        public override async Task<JobState> ConsumeAsync()
+        public override async Task<IoJobMeta.JobState> ConsumeAsync()
         {
             var stream = ByteStream;
             try
@@ -365,7 +366,7 @@ namespace zero.cocoon.models
                 //TransferPreviousBits();
 
                 if (BytesRead == 0 || Zeroed())
-                    return State = JobState.ConInvalid;
+                    return State = IoJobMeta.JobState.ConInvalid;
 
                 var verified = false;
                 //_protocolMsgBatch = ArrayPoolProxy<Tuple<IMessage, object, Packet>>.Shared.Rent(1000);
@@ -426,7 +427,7 @@ namespace zero.cocoon.models
                     }
                 }
 
-                State = JobState.Consumed;
+                State = IoJobMeta.JobState.Consumed;
             }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
@@ -438,8 +439,8 @@ namespace zero.cocoon.models
             }
             finally
             {
-                if (State == JobState.Consuming)
-                    State = JobState.ConsumeErr;
+                if (State == IoJobMeta.JobState.Consuming)
+                    State = IoJobMeta.JobState.ConsumeErr;
                 UpdateBufferMetaData();
             }
 
@@ -492,7 +493,7 @@ namespace zero.cocoon.models
                     _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
 
                 //cog the source
-                await ProtocolChannel.Source.ProduceAsync(source =>
+                await ProtocolChannel.Source.ProduceAsync((source,_) =>
                 {
                     //if (((IoCcProtocolBuffer) source).Count() ==
                     //    ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)

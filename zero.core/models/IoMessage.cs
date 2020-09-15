@@ -160,7 +160,7 @@ namespace zero.core.models
                 Source.Synced = false;
                 DatumCount = 0;
                 BytesRead = 0;
-                State = JobState.ConInvalid;
+                State = IoJobMeta.JobState.ConInvalid;
                 DatumFragmentLength = 0;
                 StillHasUnprocessedFragments = false;
             }

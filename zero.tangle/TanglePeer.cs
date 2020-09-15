@@ -10,6 +10,7 @@ using zero.core.data.contracts;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.models;
@@ -132,8 +133,8 @@ namespace zero.tangle
                     }
                     finally
                     {
-                        if (batch != null && batch.State != IoJob<IoTangleTransaction<TKey>>.JobState.Consumed)
-                            batch.State = IoJob<IoTangleTransaction<TKey>>.JobState.ConsumeErr;
+                        if (batch != null && batch.State != IoJobMeta.JobState.Consumed)
+                            batch.State = IoJobMeta.JobState.ConsumeErr;
                     }
                 });
 
@@ -177,7 +178,7 @@ namespace zero.tangle
                 }
             }
 
-            transactions.State = IoJob<IoTangleTransaction<TKey>>.JobState.Consumed;
+            transactions.State = IoJobMeta.JobState.Consumed;
 
             stopwatch.Stop();
             _logger.Trace($"{transactions.TraceDescription} Processed `{tangleTransactions.Length}' transactions: t = `{stopwatch.ElapsedMilliseconds:D}', `{tangleTransactions.Length*1000/(stopwatch.ElapsedMilliseconds+1):D} t/s'");
@@ -228,10 +229,10 @@ namespace zero.tangle
             }
             finally
             {
-                if (putResult == null && consumer.State != IoJob<IoTangleTransaction<TKey>>.JobState.SlowDup)
+                if (putResult == null && consumer.State != IoJobMeta.JobState.SlowDup)
                 {
                     transactionArbiter.IsArbitrating = false;
-                    consumer.State = IoJob<IoTangleTransaction<TKey>>.JobState.DbError;
+                    consumer.State = IoJobMeta.JobState.DbError;
 
                     //if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)
                     //    await transactionArbiter.Source.ChannelSource.RecentlyProcessed.DeleteKeyAsync(transaction.AsTrytes(transaction.HashBuffer));

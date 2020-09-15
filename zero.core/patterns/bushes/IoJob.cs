@@ -43,44 +43,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public IIoJob PreviousJob { get; set; }
 
-        /// <summary>
-        /// Respective States as the work goes through the source consumer pattern
-        /// </summary>
-        public enum JobState
-        {
-            Undefined,
-            Producing,
-            Produced,
-            ProStarting,
-            Queued,
-            Dequeued,
-            Consuming,            
-            Consumed,
-            ConInlined,
-            Error,
-            Race,
-            Accept,
-            Reject,
-            Finished,
-            Syncing,
-            RSync,
-            ProduceErr,
-            ConsumeErr,
-            DbError,
-            ConInvalid,
-            NoPow,
-            FastDup,
-            SlowDup,
-            ConCancel,
-            ProdCancel,
-            ConsumeTo,
-            ProduceTo,
-            Cancelled,
-            Timeout,
-            Oom,
-            Zeroed
-        }
-
         private string _description;
         /// <summary>
         /// A description of this kind of work
@@ -109,7 +71,7 @@ namespace zero.core.patterns.bushes
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
         /// </summary>
 #if DEBUG
-        public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(JobState)).Length];//TODO what should this size be?
+        public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];//TODO what should this size be?
 #else 
         public IoWorkStateTransition<TJob>[] StateTransitionHistory;
 #endif
@@ -135,7 +97,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="barrier">The normalized barrier that we pass to the source for quick release</param>
         /// <returns>The current state of the job</returns>
-        public abstract Task<JobState> ProduceAsync(Func<IoJob<TJob>, ValueTask<bool>> barrier);
+        public abstract Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier);
         
         /// <summary>
         /// Initializes this instance for reuse from the heap
@@ -151,7 +113,7 @@ namespace zero.core.patterns.bushes
             Id = Interlocked.Read(ref Source.Counters[(int)JobState.Undefined]);
 #endif
 
-            State = JobState.Undefined;
+            State = IoJobMeta.JobState.Undefined;
             StillHasUnprocessedFragments = false;
 
             //var curState = 0;
@@ -251,7 +213,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The total amount of states
         /// </summary>
-        public static readonly int StateMapSize = Enum.GetNames(typeof(JobState)).Length;
+        public static readonly int StateMapSize = Enum.GetNames(typeof(IoJobMeta.JobState)).Length;
 
         /// <summary>
         /// A description of this job
@@ -261,7 +223,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Gets and sets the state of the work
         /// </summary>
-        public JobState State
+        public IoJobMeta.JobState State
         {
             get => _stateMeta.JobState;
             set
@@ -272,11 +234,11 @@ namespace zero.core.patterns.bushes
                 //Update the previous state's exit time
                 if (_stateMeta != null)
                 {
-                    if (_stateMeta.JobState == JobState.Finished)
+                    if (_stateMeta.JobState == IoJobMeta.JobState.Finished)
                     {
                         //PrintStateHistory();
-                        _stateMeta.JobState = JobState.Race; //TODO
-                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{JobState.Finished}' to `{value}'");
+                        _stateMeta.JobState = IoJobMeta.JobState.Race; //TODO
+                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Finished}' to `{value}'");
                     }
 
                     if (_stateMeta.JobState == value)
@@ -292,10 +254,10 @@ namespace zero.core.patterns.bushes
                 }
                 else
                 {
-                    if (value != JobState.Undefined)
+                    if (value != IoJobMeta.JobState.Undefined)
                     {
                         //PrintStateHistory();
-                        throw new Exception($"{TraceDescription} First state transition history's first transition should be `{JobState.Undefined}', but is `{value}'");                        
+                        throw new Exception($"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");                        
                     }
                 }
 
@@ -326,15 +288,15 @@ namespace zero.core.patterns.bushes
                 _stateMeta.ExitTime = DateTime.Now;
 #endif
                 //generate a unique id
-                if (value == JobState.Undefined)
+                if (value == IoJobMeta.JobState.Undefined)
                 {
-                    Id = Interlocked.Read(ref Source.Counters[(int)JobState.Undefined]);
+                    Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
                 }
 
                 //terminate
-                if (value == JobState.Accept || value == JobState.Reject)
+                if (value == IoJobMeta.JobState.Accept || value == IoJobMeta.JobState.Reject)
                 {                    
-                    State = JobState.Finished;
+                    State = IoJobMeta.JobState.Finished;
                 }                
             }
         }        

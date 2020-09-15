@@ -4,6 +4,7 @@ using Google.Protobuf;
 using NLog;
 using zero.cocoon.models.sources;
 using zero.core.patterns.bushes;
+using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
@@ -42,11 +43,11 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<JobState> ProduceAsync(Func<IoJob<IoCcProtocolMessage>, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
         {
-            if (!await Source.ProduceAsync(async producer =>
+            if (!await Source.ProduceAsync(async (producer, consumeSync )=>
             {
-                if (!await barrier(this))
+                if (!await consumeSync(this))
                     return false;
 
                 try
@@ -59,12 +60,12 @@ namespace zero.cocoon.models
                         $"MessageQueue.DequeueAsync failed: {Description}"); 
                 }
 
-                State = Messages != null ? JobState.Produced : JobState.ProduceErr;
+                State = Messages != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProduceErr;
 
                 return true;
-            }).ConfigureAwait(false))
+            }, (Func<IIoJob, ValueTask<bool>>) barrier).ConfigureAwait(false))
             {
-                State = JobState.ProduceTo;
+                State = IoJobMeta.JobState.ProduceTo;
             }
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
@@ -77,10 +78,10 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state of the consumption
         /// </returns>
-        public override Task<JobState> ConsumeAsync()
+        public override Task<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
-            State = JobState.ConInlined;
+            State = IoJobMeta.JobState.ConInlined;
             return Task.FromResult(State);
         }
     }
