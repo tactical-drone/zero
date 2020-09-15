@@ -160,12 +160,15 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="callback">The callback.</param>
         /// <param name="barrier"></param>
+        /// <param name="zeroClosure"></param>
         /// <returns>The async task</returns>        
-        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> callback, Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<bool> ProduceAsync(
+            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, Task<bool>> callback,
+            Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
             {
-                return await callback(this, barrier).ConfigureAwait(false);
+                return await callback(this, barrier, zeroClosure).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

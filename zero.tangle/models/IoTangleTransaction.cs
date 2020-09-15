@@ -44,11 +44,11 @@ namespace zero.tangle.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {            
-            await Source.ProduceAsync(async (producer, consumeSync) =>
+            await Source.ProduceAsync(async (producer, consumeSync, closure) =>
             {
-                if (!await consumeSync(this))
+                if (!await consumeSync(this, closure))
                     return false;
                 
                 Transactions = ((IoTangleTransactionSource<TKey>)Source).TxQueue.Take();
@@ -56,7 +56,7 @@ namespace zero.tangle.models
                 State = IoJobMeta.JobState.Produced;
 
                 return true;
-            }, (Func<IIoJob, ValueTask<bool>>) barrier);
+            }, barrier, zeroClosure);
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;

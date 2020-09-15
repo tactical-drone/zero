@@ -380,36 +380,37 @@ namespace zero.core.patterns.bushes
                                 //Free(prevJobFragment, true);
 
                                 //Fetch a job from TProducer. Did we get one?
-                                if (await nextJob.ProduceAsync(async (job) =>
+                                if (await nextJob.ProduceAsync(async (job, closure) =>
                                 {
+                                    var _this = (IoZero<TJob>)closure;
                                     //The producer barrier
-                                    _producerStopwatch.Restart();
+                                    _this._producerStopwatch.Restart();
                                     try
                                     {
                                         try
                                         {
-                                            await job.Source.ProducerBarrier.WaitAsync(Source.AsyncTasks.Token).ConfigureAwait(false);
+                                            await job.Source.ProducerBarrier.WaitAsync(_this.Source.AsyncTasks.Token).ConfigureAwait(false);
                                         }
                                         catch 
                                         {
-                                            _producerStopwatch.Stop();
+                                            _this._producerStopwatch.Stop();
                                             job.State = IoJobMeta.JobState.ProdCancel;
                                             return false;
                                         }
                                     }
-                                    catch (NullReferenceException e) { _logger.Trace(e); }
-                                    catch (TaskCanceledException e) { _logger.Trace(e); }
-                                    catch (OperationCanceledException e) { _logger.Trace(e); }
-                                    catch (ObjectDisposedException e) { _logger.Trace(e); }
+                                    catch (NullReferenceException e) { _this._logger.Trace(e); }
+                                    catch (TaskCanceledException e) { _this._logger.Trace(e); }
+                                    catch (OperationCanceledException e) { _this._logger.Trace(e); }
+                                    catch (ObjectDisposedException e) { _this._logger.Trace(e); }
                                     catch (Exception e)
                                     {
-                                        _logger.Error(e, $"Producer barrier failed for {Description}");
+                                        _this._logger.Error(e, $"Producer barrier failed for {_this.Description}");
                                         job.State = IoJobMeta.JobState.ProduceErr;
                                         return false;
                                     }
 
                                     return true;
-                                }).ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
+                                }, this).ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
                                 {
                                     IsArbitrating = true;
 

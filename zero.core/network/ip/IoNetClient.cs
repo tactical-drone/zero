@@ -212,10 +212,13 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="callback">The tcp client functions</param>
         /// <param name="barrier"></param>
+        /// <param name="zeroClosure"></param>
         /// <returns>True on success, false otherwise</returns>
 
         //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
-        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> callback, Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<bool> ProduceAsync(
+            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, Task<bool>> callback,
+            Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             //Is the TCP connection up?
             if (!IsOperational)
@@ -225,7 +228,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await callback(IoSocket, barrier).ConfigureAwait(false);
+                return await callback(IoSocket, barrier, zeroClosure).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

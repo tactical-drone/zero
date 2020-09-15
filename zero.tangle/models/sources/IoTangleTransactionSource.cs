@@ -94,12 +94,15 @@ namespace zero.tangle.models.sources
         /// </summary>
         /// <param name="callback">The callback.</param>
         /// <param name="barrier"></param>
+        /// <param name="zeroClosure"></param>
         /// <returns>The async task</returns>        
-        public override async Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> callback, Func<IIoJob, ValueTask<bool>> barrier = null)
+        public override async Task<bool> ProduceAsync(
+            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, Task<bool>> callback,
+            Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null)
         {                        
             try
             {
-                return await callback(this, barrier);
+                return await callback(this, barrier, zeroClosure);
             }
             catch (TimeoutException)
             {

@@ -117,14 +117,14 @@ namespace zero.cocoon.models
             return sent;
         }
 
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
             {
                 if (Zeroed())
                     return State = IoJobMeta.JobState.ProdCancel;
 
-                var produced = await Source.ProduceAsync(async (ioSocket, consumeSync) =>
+                var produced = await Source.ProduceAsync(async (ioSocket, consumeSync, closure) =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -134,7 +134,7 @@ namespace zero.cocoon.models
                     //----------------------------------------------------------------------------
                     try
                     {
-                        if (!await consumeSync(this))
+                        if (!await consumeSync(this, closure))
                             return false;
 
                         //Async read the message from the message stream
@@ -193,7 +193,7 @@ namespace zero.cocoon.models
 
                         return false;
                     }
-                }, (Func<IIoJob, ValueTask<bool>>) barrier).ConfigureAwait(false);
+                }, barrier, zeroClosure).ConfigureAwait(false);
 
                 if (!produced)
                 {

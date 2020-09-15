@@ -152,7 +152,7 @@ namespace zero.sync
                         ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                         Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
+                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
                         Console.ResetColor();
                         lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     }

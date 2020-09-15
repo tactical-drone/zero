@@ -293,11 +293,11 @@ namespace zero.tangle.models
         private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _nodeServicesProxy.ProduceAsync((source, consumeSync) =>
+            await _nodeServicesProxy.ProduceAsync((source, _,__) =>
             {                
                 ((IoTangleTransactionSource<TKey>) source).TxQueue.TryAdd(newInteropTransactions);
                 return Task.FromResult(true);
-            }, null);
+            });
 
             //forward transactions
             if (!await NodeServicesArbiter.ProduceAsync( blockOnConsumerCongestion: false))
@@ -309,7 +309,7 @@ namespace zero.tangle.models
         private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _neighborProducer.ProduceAsync((source,_) => Task.FromResult(true));
+            await _neighborProducer.ProduceAsync((source,_, __) => Task.FromResult(true));
 
             //forward transactions
             if (!await NeighborServicesArbiter.ProduceAsync())
@@ -464,12 +464,12 @@ namespace zero.tangle.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                var sourceTaskSuccess = await Source.ProduceAsync(async (ioSocket, consumeSync) =>
+                var sourceTaskSuccess = await Source.ProduceAsync(async (ioSocket, consumeSync, closure) =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -477,66 +477,66 @@ namespace zero.tangle.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    if (!await consumeSync(this))
+                    if (!await consumeSync(this, closure))
                         return false;
 
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
                         await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
-                            {                                                                    
-                                switch (rx.Status)
-                                {
-                                    //Canceled
-                                    case TaskStatus.Canceled:
-                                    case TaskStatus.Faulted:
-                                        State = rx.Status == TaskStatus.Canceled ? IoJobMeta.JobState.ProdCancel : IoJobMeta.JobState.ProduceErr;
-                                        await Source.ZeroAsync(this).ConfigureAwait(false);
-                                        _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
-                                        break;
-                                    //Success
-                                    case TaskStatus.RanToCompletion:
-                                        var bytesRead = rx.Result;
-                                        BytesRead = bytesRead;
+                        {                                                                    
+                            switch (rx.Status)
+                            {
+                                //Canceled
+                                case TaskStatus.Canceled:
+                                case TaskStatus.Faulted:
+                                    State = rx.Status == TaskStatus.Canceled ? IoJobMeta.JobState.ProdCancel : IoJobMeta.JobState.ProduceErr;
+                                    await Source.ZeroAsync(this).ConfigureAwait(false);
+                                    _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
+                                    break;
+                                //Success
+                                case TaskStatus.RanToCompletion:
+                                    var bytesRead = rx.Result;
+                                    BytesRead = bytesRead;
 
-                                        //TODO double check this hack
-                                        if (BytesRead == 0)
+                                    //TODO double check this hack
+                                    if (BytesRead == 0)
+                                    {
+                                        State = IoJobMeta.JobState.ProStarting;
+                                        DatumFragmentLength = 0;
+                                        break;
+                                    }
+
+                                    if (Id == 0 && Source is IoTcpClient<IoTangleMessage<TKey>>)
+                                    {                                                                  
+                                        _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
+                                        Interlocked.Add(ref BufferOffset, 10);
+                                        bytesRead -= 10;
+                                        if (BytesLeftToProcess == 0)
                                         {
-                                            State = IoJobMeta.JobState.ProStarting;
+                                            State = IoJobMeta.JobState.Produced;
                                             DatumFragmentLength = 0;
                                             break;
                                         }
-
-                                        if (Id == 0 && Source is IoTcpClient<IoTangleMessage<TKey>>)
-                                        {                                                                  
-                                            _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
-                                            Interlocked.Add(ref BufferOffset, 10);
-                                            bytesRead -= 10;
-                                            if (BytesLeftToProcess == 0)
-                                            {
-                                                State = IoJobMeta.JobState.Produced;
-                                                DatumFragmentLength = 0;
-                                                break;
-                                            }
-                                        }
+                                    }
                                         
-                                        //Set how many datums we have available to process
-                                        DatumCount = BytesLeftToProcess / DatumSize;
-                                        DatumFragmentLength = BytesLeftToProcess % DatumSize;
+                                    //Set how many datums we have available to process
+                                    DatumCount = BytesLeftToProcess / DatumSize;
+                                    DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
-                                        //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                        StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                                    //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
+                                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
 
-                                        State = IoJobMeta.JobState.Produced;
+                                    State = IoJobMeta.JobState.Produced;
 
-                                        //_logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                                    //_logger.Trace($"{TraceDescription} RX=> read=`{bytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
 
-                                        break;
-                                    default:
-                                        State = IoJobMeta.JobState.ProduceErr;
-                                        throw new InvalidAsynchronousStateException($"Job =`{Description}', IoJobMeta.JobState={rx.Status}");
-                                }
-                            }, AsyncTasks.Token);
+                                    break;
+                                default:
+                                    State = IoJobMeta.JobState.ProduceErr;
+                                    throw new InvalidAsynchronousStateException($"Job =`{Description}', IoJobMeta.JobState={rx.Status}");
+                            }
+                        }, AsyncTasks.Token);
                     }
                     else
                     {
@@ -551,7 +551,7 @@ namespace zero.tangle.models
                         return false;
                     }
                     return true;
-                }, (Func<IIoJob, ValueTask<bool>>) barrier);
+                }, barrier, zeroClosure);
 
                 if (!sourceTaskSuccess)
                 {

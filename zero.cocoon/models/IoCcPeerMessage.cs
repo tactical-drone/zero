@@ -201,11 +201,11 @@ namespace zero.cocoon.models
             return base.ZeroManagedAsync();
         }
 
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
             {
-                await Source.ProduceAsync(async (ioSocket, barrier) =>
+                await Source.ProduceAsync(async (ioSocket, barrier, closure) =>
                 {
 
                     //----------------------------------------------------------------------------
@@ -214,7 +214,7 @@ namespace zero.cocoon.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    if (!await barrier(this))
+                    if (!await barrier(this, closure))
                         return false;
                     try
                     {
@@ -292,7 +292,7 @@ namespace zero.cocoon.models
                         _logger.Error(e, $"ReadAsync {Description}:");
                         return false;
                     }
-                }, (Func<IIoJob, ValueTask<bool>>) barrier).ConfigureAwait(false);
+                }, barrier, zeroClosure).ConfigureAwait(false);
             }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
@@ -493,7 +493,7 @@ namespace zero.cocoon.models
                     _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
 
                 //cog the source
-                await ProtocolChannel.Source.ProduceAsync((source,_) =>
+                await ProtocolChannel.Source.ProduceAsync((source,_,__) =>
                 {
                     //if (((IoCcProtocolBuffer) source).Count() ==
                     //    ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)

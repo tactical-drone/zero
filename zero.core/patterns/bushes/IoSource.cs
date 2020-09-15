@@ -316,11 +316,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
-        /// <param name="func">The function.</param>
+        /// <param name="callback">The function.</param>
         /// <param name="barrier"></param>
+        /// <param name="zeroClosure"></param>
         /// <returns></returns>
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IoJob<IIoJob>, ValueTask<bool>>, Task<bool>> func, Func<IoJob<IIoJob>, ValueTask<bool>> barrier);
-        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, ValueTask<bool>>, Task<bool>> func, Func<IIoJob, ValueTask<bool>> barrier = null);
+        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null);
     }
 }

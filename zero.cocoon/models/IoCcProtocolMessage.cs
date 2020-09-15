@@ -43,11 +43,11 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, ValueTask<bool>> barrier)
+        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
-            if (!await Source.ProduceAsync(async (producer, consumeSync )=>
+            if (!await Source.ProduceAsync(async (producer, consumeSync, closure )=>
             {
-                if (!await consumeSync(this))
+                if (!await consumeSync(this, closure))
                     return false;
 
                 try
@@ -63,7 +63,7 @@ namespace zero.cocoon.models
                 State = Messages != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProduceErr;
 
                 return true;
-            }, (Func<IIoJob, ValueTask<bool>>) barrier).ConfigureAwait(false))
+            }, barrier, zeroClosure).ConfigureAwait(false))
             {
                 State = IoJobMeta.JobState.ProduceTo;
             }
