@@ -643,14 +643,15 @@ namespace zero.core.patterns.bushes
         }
 
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-       
+
         /// <summary>
         /// Consumes the inline instead of from a spin loop
         /// </summary>
         /// <param name="inlineCallback">The inline callback.</param>
+        /// <param name="zeroClosure"></param>
         /// <param name="blockOnProduction">if set to <c>true</c> block when production is not ready</param>
         /// <returns>True if consumption happened</returns>
-        public async Task<bool> ConsumeAsync(Func<IoLoad<TJob>,Task> inlineCallback = null, bool blockOnProduction = true)
+        public async Task<bool> ConsumeAsync(Func<IoLoad<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null ,bool blockOnProduction = true)
         {
             var consumed = false;
             try
@@ -732,7 +733,7 @@ namespace zero.core.patterns.bushes
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
                                 //forward any jobs                                                                             
-                                await inlineCallback(curJob).ConfigureAwait(false);
+                                await inlineCallback(curJob, zeroClosure).ConfigureAwait(false);
                                 curJob.State = IoJobMeta.JobState.Consumed;
                             }
 
@@ -799,9 +800,11 @@ namespace zero.core.patterns.bushes
                 if (consumed)
                     return true;
 
+                //were we zeroed?
                 if (Zeroed())
                     return false;
 
+                //did we get a job but source queue was empty when we got there?
                 if (hadOneJob)
                 {
                     if (Source.BlockOnConsumeAheadBarrier)
@@ -834,91 +837,7 @@ namespace zero.core.patterns.bushes
         public virtual async Task SpawnProcessingAsync(bool spawnProducer = true)
         {
             _logger.Trace($"{GetType().Name}: Starting processing for `{Source.Description}'");
-
-            ////Source
-            //var producerTask = Task.Factory.StartNew(async () =>
-            //{
-            //    //While not cancellation requested
-            //    while (!Zeroed() && spawnProducer)
-            //    {
-            //        //var produceTask = ProduceAsync().ContinueWith(async t =>
-            //        //{
-            //        //    if (t.Result)
-            //        //    {
-            //        //        var doubleBuffer = await ProduceAsync(false);
-            //        //        if ( doubleBuffer )
-            //        //            _logger.Debug($"({GetType().Namespace})>> {Thread.CurrentThread.ManagedThreadId}");
-            //        //        return doubleBuffer;
-            //        //    }
-            //        //    return false;
-            //        //});
-
-            //        //var consumeTask = ConsumeAsync().ContinueWith(async t =>
-            //        //{
-            //        //    if (t.Result)
-            //        //    {
-            //        //        var doubleBuffer = await ConsumeAsync(blockOnProduction: false);
-            //        //        if ( doubleBuffer )
-            //        //            _logger.Debug($"({GetType().Namespace})<< {Thread.CurrentThread.ManagedThreadId}");
-            //        //        return doubleBuffer;
-            //        //    }
-            //        //    return false;
-            //        //});
-
-            //        Task<bool> consumeTask;
-            //        Task<bool> prevConsumeTask = null;
-            //        Task<bool> produceTask;
-
-            //        void Continue(Task<bool> r)
-            //        {
-            //            if (!produceTask.IsCompleted && r.Status == TaskStatus.RanToCompletion && !r.Result)
-            //            {
-            //                prevConsumeTask = consumeTask;
-            //                consumeTask = ConsumeAsync();
-            //                consumeTask.ContinueWith(Continue);
-
-            //                if (prevConsumeTask == null)
-            //                    prevConsumeTask = consumeTask;
-            //            }
-            //            else
-            //            {
-            //                _logger.Debug($"C: {r.Status}");
-            //            }
-            //        }
-
-
-            //        produceTask = ProduceAsync();
-            //        produceTask.ContinueWith(r=>_logger.Debug($"P: {r.Status}"));
-            //        consumeTask = ConsumeAsync();
-            //        consumeTask.ContinueWith(Continue);
-
-            //        if (!Source?.IsOperational??false)
-            //        {
-            //            _logger.Trace($"Source `{Description}' went non operational!");
-            //            break;
-            //        }
-
-            //        try
-            //        {
-            //            while (Task.WaitAny(produceTask, consumeTask) >= 0)
-            //            {
-            //                Thread.Sleep(100);
-            //                if (prevConsumeTask != null && produceTask.Status == TaskStatus.RanToCompletion &&
-            //                    prevConsumeTask.Status == TaskStatus.RanToCompletion)
-            //                    break;
-            //                _logger.Trace($"{GetType().Name}: Process retrying... P = {produceTask.Status}, C = {consumeTask.Status}");
-            //            }
-            //        }
-            //        catch (Exception e)
-            //        {
-            //            _logger.Debug(e, $"{GetType().Name}: Processing failed");
-            //        }
-            //    }
-
-            //    _logger.Debug($"{GetType().Name}: Processing exited for {Description}");
-            //}, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
-
-
+            
             Task<Task> consumerTask = null;
 
             //Producer

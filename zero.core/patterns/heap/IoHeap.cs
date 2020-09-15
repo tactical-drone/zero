@@ -126,7 +126,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        protected virtual ValueTask<T> TakeAsync(object userData = null)
+        protected ValueTask<T> TakeAsync(object userData = null)
         {
             try
             {

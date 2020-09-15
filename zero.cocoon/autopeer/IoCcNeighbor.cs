@@ -531,10 +531,11 @@ namespace zero.cocoon.autopeer
         /// <param name="consumer">The consumer that need processing</param>
         /// <param name="msgArbiter">The arbiter</param>
         /// <param name="processCallback">The process callback</param>
+        /// <param name="zeroClosure"></param>
         /// <returns></returns>
         private async Task ProcessMsgBatchAsync(IoLoad<IoCcProtocolMessage> consumer,
             IoChannel<IoCcProtocolMessage> msgArbiter,
-            Func<Tuple<IMessage, object, Packet>, IoChannel<IoCcProtocolMessage>, Task> processCallback)
+            Func<Tuple<IMessage, object, Packet>, IoChannel<IoCcProtocolMessage>, IIoZero, Task> processCallback, IIoZero zeroClosure)
         {
             if (consumer == null)
                 return;
@@ -552,7 +553,7 @@ namespace zero.cocoon.autopeer
 
                     try
                     {
-                        await processCallback(message, msgArbiter).ConfigureAwait(false);
+                        await processCallback(message, msgArbiter, zeroClosure).ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
@@ -560,8 +561,6 @@ namespace zero.cocoon.autopeer
                     }
                 }
                 
-                //Array.Clear(protocolMsgs, 0, count);
-
                 consumer.State = IoJobMeta.JobState.Consumed;
 
                 stopwatch.Stop();
@@ -573,9 +572,7 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                //ArrayPoolProxy.Return(((IoCcProtocolMessage)consumer).Messages, true);
                 ArrayPoolProxy.Return(((IoCcProtocolMessage)consumer).Messages);
-                ((IoCcProtocolMessage) consumer).Messages = null;
             }
         }
 
@@ -609,23 +606,25 @@ namespace zero.cocoon.autopeer
 
                     for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
                     {
-                        channelTasks[i] = _protocolChannel.ConsumeAsync(async batch =>
+                        channelTasks[i] = _protocolChannel.ConsumeAsync(async (batch, ioZero) =>
                         {
+                            var _this = (IoCcNeighbor) ioZero;
                             try
                             {
-                                await ProcessMsgBatchAsync(batch, _protocolChannel, async (msg, forward) =>
+                                await _this.ProcessMsgBatchAsync(batch, _this._protocolChannel, async (msg, forward, iioZero) =>
                                 {
+                                    var __this = (IoCcNeighbor) iioZero;
                                     var (message, extraData, packet) = msg;
                                     try
                                     {
                                         IoCcNeighbor ccNeighbor;
                                         //TODO optimize
-                                        Node.Neighbors.TryGetValue(
+                                        __this.Node.Neighbors.TryGetValue(
                                             MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span),
                                                 IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData)),
                                             out var n);
                                         if (n == null)
-                                            ccNeighbor = ((IoCcNeighborDiscovery)Node).LocalNeighbor;
+                                            ccNeighbor = ((IoCcNeighborDiscovery)__this.Node).LocalNeighbor;
                                         else
                                             ccNeighbor = (IoCcNeighbor) n;
 
@@ -654,22 +653,22 @@ namespace zero.cocoon.autopeer
                                                 break;
                                         }
                                     }
-                                    catch (TaskCanceledException e) { _logger.Trace(e, Description); }
-                                    catch (OperationCanceledException e) { _logger.Trace(e, Description); }
-                                    catch (NullReferenceException e) { _logger.Trace(e, Description); }
-                                    catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+                                    catch (TaskCanceledException e) { __this._logger.Trace(e, Description); }
+                                    catch (OperationCanceledException e) { __this._logger.Trace(e, Description); }
+                                    catch (NullReferenceException e) { __this._logger.Trace(e, Description); }
+                                    catch (ObjectDisposedException e) { __this._logger.Trace(e, Description); }
                                     catch (Exception e)
                                     {
-                                        _logger.Error(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {Id}");
+                                        __this._logger.Error(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {Id}");
                                     }
-                                }).ConfigureAwait(false);
+                                }, _this).ConfigureAwait(false);
                             }
                             finally
                             {
                                 if (batch != null && batch.State != IoJobMeta.JobState.Consumed)
                                     batch.State = IoJobMeta.JobState.ConsumeErr;
                             }
-                        });
+                        }, this);
 
                         if (!_protocolChannel.Source.IsOperational)
                             break;
