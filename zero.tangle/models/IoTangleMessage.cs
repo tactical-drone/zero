@@ -293,7 +293,7 @@ namespace zero.tangle.models
         private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _nodeServicesProxy.ProduceAsync((source, _,__) =>
+            await _nodeServicesProxy.ProduceAsync((source, _,__, ___) =>
             {                
                 ((IoTangleTransactionSource<TKey>) source).TxQueue.TryAdd(newInteropTransactions);
                 return Task.FromResult(true);
@@ -309,7 +309,7 @@ namespace zero.tangle.models
         private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _neighborProducer.ProduceAsync((source,_, __) => Task.FromResult(true));
+            await _neighborProducer.ProduceAsync((source,_, __, ___) => Task.FromResult(true));
 
             //forward transactions
             if (!await NeighborServicesArbiter.ProduceAsync())
@@ -469,7 +469,7 @@ namespace zero.tangle.models
             try
             {
                 // We run this piece of code inside this callback so that the source can do some error detections on itself on our behalf
-                var sourceTaskSuccess = await Source.ProduceAsync(async (ioSocket, consumeSync, closure) =>
+                var sourceTaskSuccess = await Source.ProduceAsync(async (ioSocket, consumeSync, ioZero, ioJob) =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -477,7 +477,7 @@ namespace zero.tangle.models
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    if (!await consumeSync(this, closure))
+                    if (!await consumeSync(ioJob, ioZero))
                         return false;
 
                     //Async read the message from the message stream
@@ -551,7 +551,7 @@ namespace zero.tangle.models
                         return false;
                     }
                     return true;
-                }, barrier, zeroClosure);
+                }, barrier, zeroClosure, this);
 
                 if (!sourceTaskSuccess)
                 {

@@ -545,13 +545,10 @@ namespace zero.cocoon.autopeer
             {
                 var protocolMsgs = ((IoCcProtocolMessage) consumer).Messages;
 
-                var count = 0;
                 foreach (var message in protocolMsgs)
                 {
                     if (message == null)
                         break;
-
-                    count++;
 
                     try
                     {

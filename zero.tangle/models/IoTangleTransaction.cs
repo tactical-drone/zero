@@ -46,9 +46,9 @@ namespace zero.tangle.models
         /// </returns>
         public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {            
-            await Source.ProduceAsync(async (producer, consumeSync, closure) =>
+            await Source.ProduceAsync(async (producer, consumeSync, ioZero, ioJob) =>
             {
-                if (!await consumeSync(this, closure))
+                if (!await consumeSync(ioJob, ioZero))
                     return false;
                 
                 Transactions = ((IoTangleTransactionSource<TKey>)Source).TxQueue.Take();
@@ -56,7 +56,7 @@ namespace zero.tangle.models
                 State = IoJobMeta.JobState.Produced;
 
                 return true;
-            }, barrier, zeroClosure);
+            }, barrier, zeroClosure, this);
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;

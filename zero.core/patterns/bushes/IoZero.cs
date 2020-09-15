@@ -8,6 +8,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using NLog;
 using zero.core.conf;
@@ -987,10 +988,14 @@ namespace zero.core.patterns.bushes
                     }
 
                     await Task.WhenAll(consumers);
-
-                    if (consumers.All(c => !c.Result))
+                    
+                    foreach (var c in consumers)
                     {
-                        _logger.Debug($"Failed to consume at {Description}");
+                        if (!c.Result)
+                        {
+                            _logger.Debug($"Failed to consume at {Description}");
+                            break;
+                        }
                     }
                 }
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach );

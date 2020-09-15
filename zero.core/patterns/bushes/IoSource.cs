@@ -319,9 +319,10 @@ namespace zero.core.patterns.bushes
         /// <param name="callback">The function.</param>
         /// <param name="barrier"></param>
         /// <param name="zeroClosure"></param>
+        /// <param name="jobClosure"></param>
         /// <returns></returns>
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IoJob<IIoJob>, ValueTask<bool>>, Task<bool>> func, Func<IoJob<IIoJob>, ValueTask<bool>> barrier);
-        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null);
+        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
     }
 }

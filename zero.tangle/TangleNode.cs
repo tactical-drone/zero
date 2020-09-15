@@ -92,7 +92,7 @@ namespace zero.tangle
 
                             if (newNeighbor.Result.Source.IsOperational)
 
-                                await newNeighbor.Result.Source.ProduceAsync((client,_, __) =>
+                                await newNeighbor.Result.Source.ProduceAsync((client,_, __, ___) =>
                                 {
                                     //TODO
                                     ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,

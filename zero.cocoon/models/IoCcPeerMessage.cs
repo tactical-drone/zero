@@ -205,16 +205,15 @@ namespace zero.cocoon.models
         {
             try
             {
-                await Source.ProduceAsync(async (ioSocket, barrier, closure) =>
+                await Source.ProduceAsync(async (ioSocket, barrier, ioZero, ioJob) =>
                 {
-
                     //----------------------------------------------------------------------------
                     // BARRIER
                     // We are only allowed to run ahead of the consumer by some configurable
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    if (!await barrier(this, closure))
+                    if (!await barrier(ioJob, ioZero))
                         return false;
                     try
                     {
@@ -292,7 +291,7 @@ namespace zero.cocoon.models
                         _logger.Error(e, $"ReadAsync {Description}:");
                         return false;
                     }
-                }, barrier, zeroClosure).ConfigureAwait(false);
+                }, barrier, zeroClosure, this).ConfigureAwait(false);
             }
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             catch (NullReferenceException e) { _logger.Trace(e, Description); }
@@ -493,21 +492,22 @@ namespace zero.cocoon.models
                     _protocolMsgBatch[_protocolMsgBatchIndex++] = null;
 
                 //cog the source
-                await ProtocolChannel.Source.ProduceAsync((source,_,__) =>
+                await ProtocolChannel.Source.ProduceAsync((source,_,__, ioJob) =>
                 {
+                    var _this = (IoCcPeerMessage)ioJob;
                     //if (((IoCcProtocolBuffer) source).Count() ==
                     //    ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)
                     //{
                     //    _logger.Warn($"MessageQueue depleted: {((IoCcProtocolBuffer)source).MessageQueue.Count}");
                     //} //TODO
 
-                    ((IoCcProtocolBuffer)source).Enqueue(_protocolMsgBatch);
+                    ((IoCcProtocolBuffer)source).Enqueue(_this._protocolMsgBatch);
 
-                    _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
-                    _protocolMsgBatchIndex = 0;
+                    _this._protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
+                    _this._protocolMsgBatchIndex = 0;
 
                     return Task.FromResult(true);
-                }).ConfigureAwait(false);
+                },jobClosure: this).ConfigureAwait(false);
 
                 //forward transactions
                 if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))

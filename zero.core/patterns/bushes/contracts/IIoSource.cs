@@ -109,8 +109,9 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="callback">The function.</param>
         /// <param name="barrier">The barrier</param>
         /// <param name="zeroClosure"></param>
+        /// <param name="jobClosure"></param>
         /// <returns></returns>
-        Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null);
+        Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
 
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.

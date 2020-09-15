@@ -45,25 +45,27 @@ namespace zero.cocoon.models
         /// </returns>
         public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
-            if (!await Source.ProduceAsync(async (producer, consumeSync, closure )=>
+            if (!await Source.ProduceAsync(async (producer, consumeSync, ioZero, ioJob )=>
             {
-                if (!await consumeSync(this, closure))
+                var _this = (IoCcProtocolMessage)ioJob;
+                
+                if (!await consumeSync(ioJob, ioZero))
                     return false;
 
                 try
                 {
-                    Messages = await ((IoCcProtocolBuffer) Source).DequeueAsync();
+                    _this.Messages = await ((IoCcProtocolBuffer) _this.Source).DequeueAsync();
                 }
                 catch (Exception e)
                 {
-                    _logger.Fatal(e,
-                        $"MessageQueue.DequeueAsync failed: {Description}"); 
+                    _this._logger.Fatal(e,
+                        $"MessageQueue.DequeueAsync failed: {_this.Description}"); 
                 }
 
-                State = Messages != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProduceErr;
+                _this.State = _this.Messages != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProduceErr;
 
                 return true;
-            }, barrier, zeroClosure).ConfigureAwait(false))
+            }, barrier, zeroClosure, this).ConfigureAwait(false))
             {
                 State = IoJobMeta.JobState.ProduceTo;
             }

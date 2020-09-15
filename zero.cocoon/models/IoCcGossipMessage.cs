@@ -124,7 +124,7 @@ namespace zero.cocoon.models
                 if (Zeroed())
                     return State = IoJobMeta.JobState.ProdCancel;
 
-                var produced = await Source.ProduceAsync(async (ioSocket, consumeSync, closure) =>
+                var produced = await Source.ProduceAsync(async (ioSocket, consumeSync, ioZero, ioJob) =>
                 {
                     //----------------------------------------------------------------------------
                     // BARRIER
@@ -134,32 +134,33 @@ namespace zero.cocoon.models
                     //----------------------------------------------------------------------------
                     try
                     {
-                        if (!await consumeSync(this, closure))
+                        var _this = (IoCcGossipMessage)ioJob;
+                        if (!await consumeSync(ioJob, ioZero))
                             return false;
 
                         //Async read the message from the message stream
-                        if (Source.IsOperational)
+                        if (_this.Source.IsOperational)
                         {
-                            BytesRead = await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize);
+                            _this.BytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize);
 
                             //TODO WTF
-                            if (BytesRead == 0)
+                            if (_this.BytesRead == 0)
                             {
-                                State = IoJobMeta.JobState.ProduceTo;
+                                _this.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
 
                             //UDP signals source ip
-                            ProducerUserData = ((IoSocket)ioSocket).ExtraData();
+                            _this.ProducerUserData = ((IoSocket)ioSocket).ExtraData();
 
                             //Set how many datums we have available to process
-                            DatumCount = BytesLeftToProcess / DatumSize;
-                            DatumFragmentLength = BytesLeftToProcess % DatumSize;
+                            _this.DatumCount = _this.BytesLeftToProcess / _this.DatumSize;
+                            _this.DatumFragmentLength = _this.BytesLeftToProcess % _this.DatumSize;
 
                             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                            StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                            _this.StillHasUnprocessedFragments = _this.DatumFragmentLength > 0;
 
-                            State = IoJobMeta.JobState.Produced;
+                            _this.State = IoJobMeta.JobState.Produced;
 
                             //_logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
                             
@@ -167,13 +168,13 @@ namespace zero.cocoon.models
                         else
                         {
 
-                            await Source.ZeroAsync(this).ConfigureAwait(false);
+                            await _this.Source.ZeroAsync(this).ConfigureAwait(false);
 
                         }
 
-                        if (Zeroed())
+                        if (_this.Zeroed())
                         {
-                            State = IoJobMeta.JobState.Cancelled;
+                            _this.State = IoJobMeta.JobState.Cancelled;
                             return false;
                         }
                         return true;
@@ -193,7 +194,7 @@ namespace zero.cocoon.models
 
                         return false;
                     }
-                }, barrier, zeroClosure).ConfigureAwait(false);
+                }, barrier, zeroClosure, this).ConfigureAwait(false);
 
                 if (!produced)
                 {
