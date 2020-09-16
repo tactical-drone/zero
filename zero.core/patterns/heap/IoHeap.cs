@@ -165,7 +165,7 @@ namespace zero.core.patterns.heap
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public async ValueTask ReturnAsync(T item)
+        public async Task ReturnAsync(T item)
         {
 #if DEBUG
             if (item == null)

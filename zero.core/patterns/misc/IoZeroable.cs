@@ -29,7 +29,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoZeroable()
         {
-            ZeroAsync(false).ConfigureAwait(false).GetAwaiter().GetResult();
+            ZeroAsync(false).ConfigureAwait(false);//.GetAwaiter().GetResult();
         }
 
         /// <summary>

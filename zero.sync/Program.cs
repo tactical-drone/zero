@@ -33,15 +33,18 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 1000;
+            int total = 3;
             var maxNeighbors = 10;
             var tasks = new ConcurrentBag<Task<IoCcNode>>();
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", null, $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
+
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15667 + portOffset}", $"udp://127.0.0.1:{15627 + portOffset}", null, $"udp://127.0.0.1:{15627 + portOffset}", new[] { $"udp://127.0.0.1:{14627 + portOffset}" }.ToList(), 1));
-            for (int i = 1; i < total; i++)
+
+            for (var i = 2; i < total; i++)
             {
-                tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15668 + portOffset + i}", $"udp://127.0.0.1:{15628 + portOffset + i}", null, $"udp://127.0.0.1:{15628 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15628 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
-                if(tasks.Count % 10 == 0)
+                //tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15668 + portOffset + i}", $"udp://127.0.0.1:{15628 + portOffset + i}", null, $"udp://127.0.0.1:{15628 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15628 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
+                tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15670 + portOffset + i}", $"udp://127.0.0.1:{15630 + portOffset + i}", null, $"udp://127.0.0.1:{15630 + portOffset + i}", new[] { $"udp://127.0.0.1:{15627 + portOffset}" }.ToList(), i));
+                if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
 
@@ -62,6 +65,7 @@ namespace zero.sync
 
                 Console.WriteLine("Starting accounting...");
                 c = 0;
+                return;
                 foreach (var task in tasks)
                 {
                     task.Result.Boot();
@@ -105,15 +109,16 @@ namespace zero.sync
                     ooutBound = 0;
                     oinBound = 0;
                     oavailable = 0;
+                    opeers = 0;
+
                     uptime = 0;
                     uptimeCount = 1;
-                    opeers = 0;
                     foreach (var ioCcNode in _nodes)
                     {
                         opeers += ioCcNode.Neighbors.Count;
                         ooutBound += ioCcNode.OutboundCount;
                         oinBound += ioCcNode.InboundCount;
-                        oavailable += ioCcNode.DiscoveryService.Neighbors.Count;
+                        oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).RoutedRequest);
                         if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
                             uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
                             {
@@ -129,8 +134,7 @@ namespace zero.sync
 
                     if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
                     {
-                        var oldTotal = outBound + inBound;
-                        var oldPeers = opeers;
+                        var prevPeers = peers;
                         outBound = ooutBound;
                         inBound = oinBound;
                         peers = opeers;
@@ -140,8 +144,8 @@ namespace zero.sync
                         ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
                         ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
-                        Console.ForegroundColor = oldPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}/{_nodes.Count * maxNeighbors}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
+                        Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
+                        Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{available} , peers = {peers}/{_nodes.Count * maxNeighbors}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
                         Console.ResetColor();
                     }
 
@@ -152,7 +156,7 @@ namespace zero.sync
                         ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                         Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, available = {available}, total = {inBound + outBound}, peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
+                        Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{available} , peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
                         Console.ResetColor();
                         lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     }

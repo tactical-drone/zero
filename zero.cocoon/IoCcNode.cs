@@ -19,8 +19,10 @@ using zero.cocoon.models;
 using zero.cocoon.models.services;
 using zero.core.conf;
 using zero.core.core;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.cocoon
 {
@@ -61,13 +63,13 @@ namespace zero.cocoon
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
                 Type = (uint)IoCcPeerMessage.MessageTypes.Handshake
             };
-            protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.ToByteArray(), 0, protocolMsg.Data.Length));
+            protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length));
 
             _handshakeRequestSize = protocolMsg.CalculateSize();
 
             var handshakeResponse = new HandshakeResponse
             {
-                ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(protocolMsg.Data.ToByteArray()))
+                ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray()))
             };
 
             protocolMsg = new Packet
@@ -76,7 +78,7 @@ namespace zero.cocoon
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
                 Type = (uint)IoCcPeerMessage.MessageTypes.Handshake
             };
-            protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.ToByteArray(), 0, protocolMsg.Data.Length));
+            protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length));
 
             _handshakeResponseSize = protocolMsg.CalculateSize();
 
@@ -113,7 +115,7 @@ namespace zero.cocoon
                         if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, trying to discover new ones...");
+                            _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
                             {
@@ -339,7 +341,7 @@ namespace zero.cocoon
         /// <param name="msg">The message</param>
         /// <param name="timeout"></param>
         /// <returns>The number of bytes sent</returns>
-        private async Task<int> SendMessageAsync(IoCcPeer peer, IMessage msg, int timeout = 0)
+        private async Task<(int sent, ByteString msgRaw)> SendMessageAsync(IoCcPeer peer, IMessage msg, int timeout = 0)
         {
             var msgRaw = msg.ToByteString();
             var responsePacket = new Packet
@@ -349,7 +351,7 @@ namespace zero.cocoon
                 Type = (uint)IoCcPeerMessage.MessageTypes.Handshake
             };
 
-            responsePacket.Signature = ByteString.CopyFrom(CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
+            responsePacket.Signature = ByteString.CopyFrom(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
 
             var protocolRaw = responsePacket.ToByteArray();
 
@@ -358,12 +360,12 @@ namespace zero.cocoon
             if (sent == protocolRaw.Length)
             {
                 _logger.Trace($"{msg.GetType().Name}: Sent {sent} bytes to {((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
-                return msgRaw.Length;
+                return (msgRaw.Length, msgRaw);
             }
             else
             {
                 _logger.Error($"{msg.GetType().Name}: Sent {sent}/{protocolRaw.Length}...");
-                return 0;
+                return (0, msgRaw);
             }
         }
 
@@ -401,7 +403,13 @@ namespace zero.cocoon
                         bytesRead += await socket
                             .ReadAsync(handshakeBuffer, bytesRead, _handshakeRequestSize - bytesRead, parm_handshake_timeout)
                             .ConfigureAwait(false);
-                    } while (!Zeroed() && bytesRead < _handshakeRequestSize && socket.NativeSocket.Available > 0 && bytesRead < handshakeBuffer.Length && socket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead);
+                    } while (
+                        !Zeroed() &&
+                         bytesRead < _handshakeRequestSize &&
+                         socket.NativeSocket.Available > 0 && 
+                         bytesRead < handshakeBuffer.Length && 
+                         socket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                    );
                 
 
                     if (bytesRead == 0)
@@ -421,14 +429,14 @@ namespace zero.cocoon
 
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
                     {
-                        var packetData = packet.Data.ToByteArray(); //TODO remove copy
+                        var packetData = packet.Data.Memory.AsArray();
 
                         //verify the signature
                         if (packet.Signature != null || packet.Signature?.Length != 0)
                         {
                             verified = CcId.Verify(packetData, 0,
-                                packetData.Length, packet.PublicKey.ToByteArray(), 0,
-                                packet!.Signature!.ToByteArray(), 0);
+                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
+                                packet!.Signature!.Memory.AsArray(), 0);
                         }
 
                         _logger.Debug($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
@@ -466,28 +474,24 @@ namespace zero.cocoon
                             //send response
                             var handshakeResponse = new HandshakeResponse
                             {
-                                ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.ToByteArray()))
+                                ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
                             };
-
-                            var sent = 0;
+                            
                             _sw.Restart();
-                            if ((sent = await SendMessageAsync(peer, handshakeResponse, parm_handshake_timeout).ConfigureAwait(false)) == 0)
+                            var (sent, handshake) = (await SendMessageAsync(peer, handshakeResponse, parm_handshake_timeout).ConfigureAwait(false));
+                            if (sent == 0)
                             {
-                                _logger.Debug($"Failed to send inbound handshake challange response, tried for = {_sw.ElapsedMilliseconds}ms");
+                                _logger.Debug($"{nameof(handshakeResponse)}: FAILED! {socket.Description}");
                                 return false;
-                            }
-                            else if( sent > 0 )
-                            {
-                                _logger.Trace($"Sent inbound handshake challange response size = {sent} b, socket = {socket.Description}");
                             }
                             else
                             {
-                                _logger.Warn($"Handshake: Sent {sent}/{handshakeResponse.CalculateSize()}...");
+                                _logger.Trace($"Sent inbound handshake challange response size = {sent} b, socket = {socket.Description}");
                             }
                         }
 
                         //Verify the connection 
-                        var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
+                        var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), socket.RemoteAddress);
                         if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
                         {
                             var direction = ((IoCcNeighbor)neighbor).Direction;
@@ -519,20 +523,16 @@ namespace zero.cocoon
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     };
 
-                    var sent = 0;
                     _sw.Restart();
-                    if ((sent = await SendMessageAsync(peer, handshakeRequest, parm_handshake_timeout).ConfigureAwait(false)) == 0)
+                    var (sent, handshake) = await SendMessageAsync(peer, handshakeRequest, parm_handshake_timeout).ConfigureAwait(false);
+                    if (sent == 0)
                     {
-                        _logger.Debug($"Failed to send inbound handshake challange response, tried for = {_sw.ElapsedMilliseconds}ms");
+                        _logger.Debug($"Failed to send inbound handshake challange response, socket = {socket.Description}");
                         return false;
                     }
-                    else if (sent > 0)
+                    else 
                     {
                         _logger.Trace($"Sent inbound handshake challange response size = {sent} b, socket = {socket.Description}");
-                    }
-                    else
-                    {
-                        _logger.Warn($"Handshake: Sent {sent}/{handshakeRequest.CalculateSize()}...");
                     }
 
                     do
@@ -540,17 +540,22 @@ namespace zero.cocoon
                         bytesRead += await socket
                             .ReadAsync(handshakeBuffer, bytesRead, _handshakeResponseSize - bytesRead, parm_handshake_timeout)
                             .ConfigureAwait(false);
-                    } while (!Zeroed() && bytesRead < _handshakeResponseSize && socket.NativeSocket != null && socket.NativeSocket.Available > 0 && bytesRead < handshakeBuffer.Length && socket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead );
+                    } while (
+                        !Zeroed() && 
+                         bytesRead < _handshakeResponseSize && 
+                         socket.NativeSocket != null &&
+                         socket.NativeSocket.Available > 0 &&
+                         bytesRead < handshakeBuffer.Length && 
+                         socket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                    );
 
                     if (bytesRead == 0)
                     {
                         _logger.Debug($"Failed to read outbound handshake challange response, waited = {_sw.ElapsedMilliseconds}ms, address = {socket.RemoteAddress}, socket nill? = {socket.NativeSocket == null}, zeroed {Zeroed()}");
                         return false;
                     }
-                    else
-                    {
-                        _logger.Trace($"Read outbound handshake challange response size = {bytesRead} b, addess = {socket.RemoteAddress}");
-                    }
+
+                    _logger.Trace($"Read outbound handshake challange response size = {bytesRead} b, addess = {socket.RemoteAddress}");
 
                     var verified = false;
                     
@@ -558,14 +563,14 @@ namespace zero.cocoon
 
                     if (packet.Data != null && packet.Data.Length > 0)
                     {
-                        var packetData = packet.Data.ToByteArray(); //TODO remove copy
+                        var packetData = packet.Data.Memory.AsArray();
 
                         //verify signature
                         if (packet.Signature != null || packet.Signature?.Length != 0)
                         {
                             verified = CcId.Verify(packetData, 0,
-                                packetData.Length, packet.PublicKey.ToByteArray(), 0,
-                                packet!.Signature!.ToByteArray(), 0);
+                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
+                                packet!.Signature!.Memory.AsArray(), 0);
                         }
 
                         _logger.Trace($"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
@@ -582,7 +587,7 @@ namespace zero.cocoon
                         if (handshakeResponse != null)
                         {
                             if (!IoCcIdentity.Sha256
-                                .ComputeHash(handshakeRequest.ToByteArray())
+                                .ComputeHash(handshake.Memory.AsArray())
                                 .SequenceEqual(handshakeResponse.ReqHash))
                             {
                                 _logger.Error($"Invalid handshake response! Closing {socket.Key}");
@@ -591,7 +596,7 @@ namespace zero.cocoon
                         }
 
                         //Verify the connection 
-                        var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.ToByteArray()), socket.RemoteAddress);
+                        var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), socket.RemoteAddress);
                         if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
                         {
                             var direction = ((IoCcNeighbor)neighbor).Direction;
@@ -646,7 +651,7 @@ namespace zero.cocoon
                     {
                         if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
                         {
-                            _logger.Debug($"Peer {neighbor.Direction}: Connected! ({peer.Id}:{neighbor.RemoteAddress.Port})");
+                            _logger.Info($"Peer {neighbor.Direction}: Connected! ({peer.Id}:{neighbor.RemoteAddress.Port})");
                             NeighborTasks.Add(peer.SpawnProcessingAsync());
                         }
                         else

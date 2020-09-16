@@ -97,7 +97,7 @@ namespace zero.tangle.models.sources
         /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns>The async task</returns>        
-        public override async Task<bool> ProduceAsync(
+        public override async ValueTask<bool> ProduceAsync(
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
         {                        

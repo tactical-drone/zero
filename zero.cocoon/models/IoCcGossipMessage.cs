@@ -8,10 +8,12 @@ using Google.Protobuf;
 using NLog;
 using Proto;
 using zero.core.conf;
+using zero.core.misc;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.cocoon.models
@@ -108,7 +110,7 @@ namespace zero.cocoon.models
             };
 
             responsePacket.Signature =
-                ByteString.CopyFrom(CcNode.CcId.Sign(responsePacket.Data.ToByteArray(), 0, responsePacket.Data.Length));
+                ByteString.CopyFrom(CcNode.CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
 
             var msgRaw = responsePacket.ToByteArray();
 

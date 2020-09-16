@@ -451,7 +451,7 @@ namespace zero.tangle.models
         /// <summary>
         /// Manages the barrier between the consumer and the source
         /// </summary>
-        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoWorkStateTransition`1.IoJobMeta.JobState" /> of the barrier's outcome</returns>
+        /// <returns>The <see cref="F:zero.core.patterns.bushes.IoStateTransition`1.IoJobMeta.CurrentState" /> of the barrier's outcome</returns>
         public override async Task<IoJobMeta.JobState> ConsumeAsync()
         {
             TransferPreviousBits();
@@ -483,7 +483,7 @@ namespace zero.tangle.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync((byte[])(Array)Buffer, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
+                        await ((IoSocket)ioSocket).ReadAsync(ByteSegment, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
                         {                                                                    
                             switch (rx.Status)
                             {
@@ -534,7 +534,7 @@ namespace zero.tangle.models
                                     break;
                                 default:
                                     State = IoJobMeta.JobState.ProduceErr;
-                                    throw new InvalidAsynchronousStateException($"Job =`{Description}', IoJobMeta.JobState={rx.Status}");
+                                    throw new InvalidAsynchronousStateException($"Job =`{Description}', IoJobMeta.CurrentState={rx.Status}");
                             }
                         }, AsyncTasks.Token);
                     }

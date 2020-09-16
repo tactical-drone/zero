@@ -207,7 +207,7 @@ namespace zero.tangle
                 //    {
                 //        stopwatch.Stop();
                 //        _logger.Trace($"{consumer.TraceDescription} Slow duplicate tx dropped: [{transaction.AsKeyString(transaction.HashBuffer)}], t = `{stopwatch.ElapsedMilliseconds}ms', T = `{transaction.Timestamp.DateTime()}'");
-                //        consumer.State = IoJob<IoTangleTransaction<TKey>>.JobState.SlowDup;
+                //        consumer.State = IoJob<IoTangleTransaction<TKey>>.CurrentState.SlowDup;
                 //        return;
                 //    }
                 //}

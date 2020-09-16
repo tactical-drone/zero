@@ -146,7 +146,7 @@ namespace zero.cocoon
                 Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             }
             
-            _logger.Debug($" Attached to neighbor {neighbor.Description}");
+            _logger.Debug($" IsPeerAttached to neighbor {neighbor.Description}");
 
             //Attach the other way
             var result = Neighbor.AttachPeer(this);

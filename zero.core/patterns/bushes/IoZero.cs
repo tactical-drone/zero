@@ -25,7 +25,6 @@ namespace zero.core.patterns.bushes
     //public abstract class IoZero<TJob> : IoConfigurable, IObservable<IoLoad<TJob>>, IIoZero
     public abstract class IoZero<TJob> : IoConfigurable, IIoZero
         where TJob : IIoJob
-
     {
         /// <summary>
         /// Constructor
@@ -40,8 +39,6 @@ namespace zero.core.patterns.bushes
         {
             ProducerCount = producers;
             ConsumerCount = consumers;
-            //ProducerCount = 1;
-            //ConsumerCount = 1;
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -282,7 +279,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <param name="blockOnConsumerCongestion">if set to <c>true</c> block on consumer congestion</param>
         /// <returns></returns>
-        public async Task<bool> ProduceAsync(bool blockOnConsumerCongestion = true) 
+        public async ValueTask<bool> ProduceAsync(bool blockOnConsumerCongestion = true) 
         {
             try
             {
@@ -297,7 +294,7 @@ namespace zero.core.patterns.bushes
                         if (!Zeroed() && (nextJob = await JobHeap.TakeAsync(parms: (load,closure) =>
                         {
                             load.IoZero = (IIoZero) closure;
-                            return load;
+                            return new ValueTask<IoLoad<TJob>>(load);
                         }, this).ConfigureAwait(false)) != null) //TODO 
                         {
 
@@ -464,10 +461,10 @@ namespace zero.core.patterns.bushes
                                         return false;
                                     }
 
-                                    //if (nextJob.State == IoJobMeta.JobState.Producing)
+                                    //if (nextJob.State == IoJobMeta.CurrentState.Producing)
                                     //{
-                                    //    _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.JobState.Producing}");
-                                    //    nextJob.State = IoJobMeta.JobState.Cancelled;
+                                    //    _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.CurrentState.Producing}");
+                                    //    nextJob.State = IoJobMeta.CurrentState.Cancelled;
                                     //}
 
                                     var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
@@ -533,7 +530,7 @@ namespace zero.core.patterns.bushes
                             //TODO Double check this hack
                             if (nextJob.State != IoJobMeta.JobState.Finished)
                             {
-                                //_logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job status should be {nameof(IoJobMeta.JobState.Finished)}");
+                                //_logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job status should be {nameof(IoJobMeta.CurrentState.Finished)}");
                                 nextJob.State = IoJobMeta.JobState.Reject;
                             }
                             
@@ -585,7 +582,7 @@ namespace zero.core.patterns.bushes
                 job.PreviousJob = null;
                 return null;
             }
-            //else if (!parent && job.CurrentState.Previous.JobState == IoJobMeta.JobState.Accept)
+            //else if (!parent && job.CurrentState.Previous.CurrentState == IoJobMeta.CurrentState.Accept)
             //{
             //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
             //}
@@ -594,52 +591,6 @@ namespace zero.core.patterns.bushes
                 await JobHeap.ReturnAsync(job).ConfigureAwait(false);
 
             return null;
-
-            //try
-            //{
-            //    if (job.PreviousJob != null)
-            //    {
-            //        if (((IoLoad<TJob>) job.PreviousJob).State != IoJobMeta.JobState.Accept ||
-            //            ((IoLoad<TJob>) job.PreviousJob).State != IoJobMeta.JobState.Reject)
-            //        {
-            //            _logger.Warn($"{GetType().Name}: JobState = {((IoLoad<TJob>)job.PreviousJob).State}");
-            //        }
-
-            //        JobHeap.Return((IoLoad<TJob>) job.PreviousJob);
-            //        job.PreviousJob = null;
-            //        return null;
-
-            //        //if (job.StillHasUnprocessedFragments)
-            //        //{
-            //        //    _previousJobFragment.Enqueue(job);
-            //        //    job = null;
-            //        //}
-            //        //else
-            //        //{
-            //        //    if (job.State != IoJobMeta.JobState.Accept ||
-            //        //        job.State != IoJobMeta.JobState.Reject)
-            //        //    {
-            //        //        _logger.Warn($"{GetType().Name}: JobState = {job.State}");
-            //        //    }
-
-            //        //    JobHeap.Return(job);
-            //        //    job = null;
-            //        //}
-            //    }
-            //    else
-            //    {
-            //        JobHeap.Return(job);
-            //        job = null;
-            //    }
-            //}
-            //catch (Exception e)
-            //{
-            //    _logger.Debug(e, $"Free returned with errors");
-            //    job?.ZeroAsync(this);
-            //    return null;
-            //}
-
-            //return job;
         }
 
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -651,7 +602,7 @@ namespace zero.core.patterns.bushes
         /// <param name="zeroClosure"></param>
         /// <param name="blockOnProduction">if set to <c>true</c> block when production is not ready</param>
         /// <returns>True if consumption happened</returns>
-        public async Task<bool> ConsumeAsync(Func<IoLoad<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null ,bool blockOnProduction = true)
+        public async ValueTask<bool> ConsumeAsync(Func<IoLoad<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null ,bool blockOnProduction = true)
         {
             var consumed = false;
             try
@@ -720,7 +671,7 @@ namespace zero.core.patterns.bushes
                 while (!Zeroed() && _queue.TryDequeue(out curJob))
                 {
                     hadOneJob = true;
-                    //curJob.State = IoJobMeta.JobState.Dequeued;
+                    //curJob.State = IoJobMeta.CurrentState.Dequeued;
                     curJob.State = IoJobMeta.JobState.Consuming;
                     try
                     {
@@ -861,7 +812,7 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
-                            producers[i] = ProduceAsync();
+                            producers[i] = ProduceAsync().AsTask();
                         }
                         catch (Exception e)
                         {
@@ -874,10 +825,10 @@ namespace zero.core.patterns.bushes
                         _logger.Trace($"{GetType().Name}: Producer {Description} went non operational!");
                         break;
                     }
-
+                    
                     await Task.WhenAll(producers).ConfigureAwait(false);
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
@@ -890,14 +841,12 @@ namespace zero.core.patterns.bushes
                     {
                         try
                         {
-                            consumers[i] = ConsumeAsync();
+                            consumers[i] = ConsumeAsync().AsTask();
                         }
                         catch (Exception e)
                         {
                             _logger.Error(e,$"Consumption failed {Description}");
                         }
-
-                        
                     }
 
                     if (!Source?.IsOperational ?? false)
@@ -910,14 +859,12 @@ namespace zero.core.patterns.bushes
                     
                     foreach (var c in consumers)
                     {
-                        if (!c.Result)
-                        {
-                            _logger.Debug($"Failed to consume at {Description}");
-                            break;
-                        }
+                        if (await c) continue;
+                        _logger.Debug($"Failed to consume at {Description}");
+                        break;
                     }
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach );
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Wait for tear down                
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ConfigureAwait(false);

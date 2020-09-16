@@ -7,11 +7,11 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <DefineConstants>TRACE;SAFE_RELEASE</DefineConstants>
+    <DefineConstants>TRACE;GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY; SAFE_RELEASE</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>TRACE;SAFE_RELEASE</DefineConstants>
+    <DefineConstants>TRACE;SAFE_RELEASE; GOOGLE_PROTOBUF_SUPPORT_SYSTEM_MEMORY</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

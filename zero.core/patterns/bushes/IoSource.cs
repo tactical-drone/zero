@@ -292,7 +292,7 @@ namespace zero.core.patterns.bushes
             heading.AppendLine();
             str.AppendLine();
 
-            var padding = IoWorkStateTransition<TJob>.StateStrPadding;
+            var padding = IoStateTransition<IoJobMeta.JobState>.StateStrPadding;
 
             for (var i = 0; i < IoJob<TJob>.StateMapSize; i++)
             {
@@ -323,6 +323,6 @@ namespace zero.core.patterns.bushes
         /// <returns></returns>
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IoJob<IIoJob>, ValueTask<bool>>, Task<bool>> func, Func<IoJob<IIoJob>, ValueTask<bool>> barrier);
-        public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
+        public abstract ValueTask<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
     }
 }

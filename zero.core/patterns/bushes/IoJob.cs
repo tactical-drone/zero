@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
@@ -71,9 +72,9 @@ namespace zero.core.patterns.bushes
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
         /// </summary>
 #if DEBUG
-        public IoWorkStateTransition<TJob>[] StateTransitionHistory = new IoWorkStateTransition<TJob>[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];//TODO what should this size be?
-#else 
-        public IoWorkStateTransition<TJob>[] StateTransitionHistory;
+        public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory = new IoStateTransition<IoJobMeta.JobState>[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];//TODO what should this size be?
+#else
+        public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory;
 #endif
 
 
@@ -81,9 +82,9 @@ namespace zero.core.patterns.bushes
         /// The current state
         /// </summary>
 #if DEBUG
-        private volatile IoWorkStateTransition<TJob> _stateMeta;
+        private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta;
 #else
-        private volatile IoWorkStateTransition<TJob> _stateMeta = new IoWorkStateTransition<TJob>();
+        private volatile IoStateTransition<IoJobMeta.JobState> _stateMeta = new IoStateTransition<IoJobMeta.JobState>();
 #endif
 
 
@@ -107,13 +108,16 @@ namespace zero.core.patterns.bushes
         public virtual IIoHeapItem Constructor()
         {
 #if DEBUG
-            if (_stateMeta?.Previous != null)
-                _stateHeap.ReturnAsync(_stateMeta.Previous).ConfigureAwait(false).GetAwaiter().GetResult();
+            foreach (var ioWorkStateTransition in StateTransitionHistory)
+            {
+                if(ioWorkStateTransition != null)
+                    _stateHeap.ReturnAsync(ioWorkStateTransition).ConfigureAwait(false).GetAwaiter().GetResult();
+            }
 
             _stateMeta = null;
 #else
-            _stateMeta.JobState = IoJobMeta.JobState.Undefined;
-            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
+            _stateMeta.CurrentState = IoJobMeta.CurrentState.Undefined;
+            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.CurrentState.Undefined]);
 #endif
 
             State = IoJobMeta.JobState.Undefined;
@@ -126,7 +130,7 @@ namespace zero.core.patterns.bushes
             //while (StateTransitionHistory[curState] != null)
             //{
             //    var prevState = curState;
-            //    curState = (int) StateTransitionHistory[curState].JobState;
+            //    curState = (int) StateTransitionHistory[curState].CurrentState;
             //    StateTransitionHistory[prevState] = null;
             //}
 
@@ -212,7 +216,7 @@ namespace zero.core.patterns.bushes
         /// Log the state
         /// </summary>
         /// <param name="_stateMeta">The instance to be printed</param>
-        public void PrintState(IoWorkStateTransition<TJob> _stateMeta)
+        public void PrintState(IoStateTransition<IoJobMeta.JobState> _stateMeta)
         {
             _logger.Info("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
                 Description,
@@ -239,7 +243,8 @@ namespace zero.core.patterns.bushes
         /// state heap
         /// </summary>
 #if DEBUG        
-        private IoHeapIo<IoWorkStateTransition<TJob>> _stateHeap = new IoHeapIo<IoWorkStateTransition<TJob>>(64) { Make = o => new IoWorkStateTransition<TJob>() };
+        //TODO
+        private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length) { Make = o => new IoStateTransition<IoJobMeta.JobState>() };
 #endif
 
         /// <summary>
@@ -247,7 +252,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public IoJobMeta.JobState State
         {
-            get => _stateMeta.JobState;
+            get => _stateMeta.Value;
             set
             {
                 if(Source?.Zeroed()??true)
@@ -256,23 +261,23 @@ namespace zero.core.patterns.bushes
                 //Update the previous state's exit time
                 if (_stateMeta != null)
                 {
-                    if (_stateMeta.JobState == IoJobMeta.JobState.Finished)
+                    if (_stateMeta.Value == IoJobMeta.JobState.Finished)
                     {
                         //PrintStateHistory();
-                        _stateMeta.JobState = IoJobMeta.JobState.Race; //TODO
+                        _stateMeta.Value = IoJobMeta.JobState.Race; //TODO
                         throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Finished}' to `{value}'");
                     }
 
-                    if (_stateMeta.JobState == value)
+                    if (_stateMeta.Value == value)
                     {
-                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.JobState]);
+                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
                         return;
                     }
                     
                     _stateMeta.ExitTime = DateTime.Now;
                     
-                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.JobState]);
-                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.JobState], (long)(_stateMeta.Mu.TotalMilliseconds));
+                    Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], (long)(_stateMeta.Mu.TotalMilliseconds));
                 }
                 else
                 {
@@ -289,19 +294,20 @@ namespace zero.core.patterns.bushes
 
                 var newState = _stateHeap.TakeAsync((transition, closure) =>
                 {
+
                     transition.Previous = ((IoJob<TJob>) closure)._stateMeta;
                     transition.EnterTime = DateTime.Now;
                     transition.ExitTime = DateTime.Now;
 
-                    return transition;
-                }, this).GetAwaiter().GetResult();
+                    return new ValueTask<IoStateTransition<IoJobMeta.JobState>>(transition);
+                }, this).ConfigureAwait(false).GetAwaiter().GetResult();
 
-                newState.JobState = value;
+                newState.Value = value;
 
-                //var newState = new IoWorkStateTransition<TJob>
+                //var newState = new IoStateTransition<TJob>
                 //{
                 //    Previous = prevState,
-                //    JobState = value,
+                //    CurrentState = value,
                 //    EnterTime = DateTime.Now,
                 //    ExitTime = DateTime.Now
                 //};
@@ -313,10 +319,10 @@ namespace zero.core.patterns.bushes
                 {
                     prevState.Next = _stateMeta;
 
-                    StateTransitionHistory[(int)prevState.JobState] = _stateMeta;
+                    StateTransitionHistory[(int)prevState.Value] = _stateMeta;
                 }
 #else
-                _stateMeta.JobState = value;
+                _stateMeta.CurrentState = value;
                 _stateMeta.EnterTime = DateTime.Now;
                 _stateMeta.ExitTime = DateTime.Now;
 #endif

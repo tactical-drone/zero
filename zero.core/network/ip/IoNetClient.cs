@@ -58,45 +58,6 @@ namespace zero.core.network.ip
         /// </summary>
         public IoNodeAddress RemoteAddress => IoSocket.RemoteAddress;
 
-        ///// <summary>
-        ///// Creates a new channel from id
-        ///// </summary>
-        ///// <typeparam name="TFJob">The type of items this channel carries</typeparam>
-        ///// <param name="id">The id of the channel</param>
-        ///// <param name="channelSource">The upstream channel when creating a new channel</param>
-        ///// <param name="jobMalloc">Allocates jobs</param>
-        ///// <returns><see cref="IoChannel{TJob}"/>The created channel</returns>
-        //public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
-        //    Func<object, IoLoad<TFJob>> jobMalloc = null)
-        //{
-        //    if (!IoChannels.ContainsKey(id))
-        //    {
-        //        if (channelSource == null || jobMalloc == null)
-        //        {
-        //            _logger.Warn($"Waiting for the channel source of `{Description}' to initialize... ??");
-        //            return null;
-        //        }
-
-        //        lock (this)
-        //        {
-        //            IoChannels.TryAdd(id, new IoChannel<TFJob>($"CHANNEL: ({channelSource.GetType().Name}) -> ({typeof(TFJob).Name})", channelSource, jobMalloc));
-        //        }                
-        //    }
-               
-        //    return (IoChannel<TFJob>) IoChannels[id];
-        //}
-
-        //public override IoChannel<TFJob> GetChannel<TFJob>(string id)
-        //{
-        //    try
-        //    {
-        //        return (IoChannel<TFJob>)IoChannels[id];
-        //    }
-        //    catch { }
-
-        //    return null;
-        //}
-
         /// <summary>
         /// Keys this instance.
         /// </summary>
@@ -120,6 +81,9 @@ namespace zero.core.network.ip
         /// </summary>
         private string _key;
 
+        /// <summary>
+        /// Backing description
+        /// </summary>
         private string _description;
         /// <summary>
         /// A description of this client. Currently the remote address
@@ -217,7 +181,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
 
         //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
-        public override async Task<bool> ProduceAsync(
+        public override async ValueTask<bool> ProduceAsync(
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
         {

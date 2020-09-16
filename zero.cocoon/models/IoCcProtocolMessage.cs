@@ -58,8 +58,7 @@ namespace zero.cocoon.models
                 }
                 catch (Exception e)
                 {
-                    _this._logger.Fatal(e,
-                        $"MessageQueue.DequeueAsync failed: {_this.Description}"); 
+                    _this._logger.Fatal(e,$"MessageQueue.DequeueAsync failed: {_this.Description}"); 
                 }
 
                 _this.State = _this.Messages != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProduceErr;

@@ -27,7 +27,7 @@ namespace zero.core.patterns.heap
         /// Take an item but call the constructor first
         /// </summary>
         /// <returns>The constructed heap item</returns>
-        public async ValueTask<T> TakeAsync(Func<T, object, T> parms = null, object userData = null)
+        public async ValueTask<T> TakeAsync(Func<T, object, ValueTask<T>> parms = null, object userData = null)
         {
             object next = null;
             try
