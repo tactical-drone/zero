@@ -682,13 +682,20 @@ namespace zero.cocoon
         /// <summary>
         /// Boots the node
         /// </summary>
-        public void Boot()
+        public async Task BootAsync()
         {
             Interlocked.Exchange(ref Testing, 1);
             
             foreach (var ioNeighbor in Neighbors.Values)
             {
-                ((IoCcPeer) ioNeighbor).StartTestMode();
+                try
+                {
+                    await ((IoCcPeer) ioNeighbor).StartTestModeAsync().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.Debug(e,Description);
+                }
             }
         }
 

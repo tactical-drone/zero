@@ -299,8 +299,10 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException e) { _logger.Trace(e, Description);}
             catch (SocketException e)
             {
+#if DEBUG
                 _logger.Error(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
                 await ZeroAsync(this).ConfigureAwait(false);
+#endif
             }
             catch (Exception e)
             {
@@ -345,14 +347,14 @@ namespace zero.core.network.ip
             tcpSocket.LingerState = new LingerOption(true, 10);
 
             // Disable the Nagle Algorithm for this tcp socket.
-            tcpSocket.NoDelay = true;
+            tcpSocket.NoDelay = false;
 
             // Set the receive buffer size to 8k
             tcpSocket.ReceiveBufferSize = 8192 * 2;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
-            tcpSocket.ReceiveTimeout = 1000;
+            tcpSocket.ReceiveTimeout = 10000;
 
             // Set the send buffer size to 8k.
             tcpSocket.SendBufferSize = 8192 * 2;

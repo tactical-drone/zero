@@ -146,7 +146,7 @@ namespace zero.cocoon
             {
                 _logger.Debug($"{nameof(AttachNeighbor)}: {direction} attach to neighbor {neighbor.Description}");
 
-                StartTestMode();
+                StartTestModeAsync();
             }
             else
             {
@@ -169,7 +169,7 @@ namespace zero.cocoon
         /// <summary>
         /// A test mode
         /// </summary>
-        public void StartTestMode()
+        public async Task StartTestModeAsync()
         {
             if (Interlocked.Read(ref ((IoCcNode) Node).Testing) == 0)
                 return;
@@ -188,8 +188,7 @@ namespace zero.cocoon
 
                 if (!Zeroed())
                 {
-                    if (((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false)
-                        .GetAwaiter().GetResult() > 0)
+                    if (await((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
                     {
                         Interlocked.Increment(ref AccountingBit);
                     }

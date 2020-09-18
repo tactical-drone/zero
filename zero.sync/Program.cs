@@ -33,7 +33,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 200;
+            int total = 2000;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<IoCcNode>>();
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
@@ -49,9 +49,9 @@ namespace zero.sync
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
 
-            var task = Task.Run(() =>
+            var task = Task.Run(async () =>
             {
-                Console.WriteLine("Starting autopeering...");
+                Console.WriteLine($"Starting autopeering...  {tasks.Count}");
                 var c = 0;
                 foreach (var task in tasks)
                 {
@@ -60,21 +60,22 @@ namespace zero.sync
                     if (c % 20 == 0)
                     {
                         Console.WriteLine($"Provisioned {c}/{total}...");
-                        Thread.Sleep(1000);
+                        await Task.Delay(2000).ConfigureAwait(false);
                     }
                 }
 
-                Console.WriteLine("Starting accounting...");
+                await Task.Delay(60 * total);
+                Console.WriteLine($"Starting accounting... {tasks.Count}");
                 c = 0;
-                return;
                 foreach (var task in tasks)
                 {
-                    task.Result.Boot();
+                    //continue;
+                    await task.Result.BootAsync();
                     c++;
-                    if (c % 20 == 0)
+                    //if (c % 20 == 0)
                     {
-                        Console.WriteLine($"Testing {c}/{total}...");
-                        Thread.Sleep(1000);
+                        Console.WriteLine($"<<<Testing {c}/{total}...>>>");
+                        //Thread.Sleep(1000);
                     }
                 }
             });

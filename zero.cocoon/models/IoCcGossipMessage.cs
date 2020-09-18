@@ -272,7 +272,7 @@ namespace zero.cocoon.models
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        //await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(300, AsyncTasks.Token).ConfigureAwait(false);
 
                         if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
                             .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
@@ -280,8 +280,8 @@ namespace zero.cocoon.models
                             Interlocked.Add(ref ((IoCcPeer) IoZero).AccountingBit, 2);
                         }
 
-                        if ((req % 1000000) == 0)
-                            _logger.Info($"4M>> {exp}");
+                        //if ((req % 1000) == 0)
+                        //    _logger.Info($"1000>> {exp}");
                     }
                     else
                     {
