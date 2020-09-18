@@ -82,7 +82,7 @@ namespace zero.tangle
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
             {
-                await SpawnConnectionAsync(connectBackAddress).ContinueWith(async newNeighbor =>
+                await RetryConnectionAsync(connectBackAddress).ContinueWith(async newNeighbor =>
                 {
                     if (newNeighbor.Status == TaskStatus.RanToCompletion)
                     {

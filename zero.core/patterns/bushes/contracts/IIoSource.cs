@@ -44,7 +44,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        AsyncAutoResetEvent ProduceAheadBarrier { get; }
+        AsyncAutoResetEvent ProducerPrefetchPressure { get; }
 
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
@@ -54,7 +54,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
-        bool BlockOnProduceAheadBarrier { get; }
+        bool PrefetchEnabled { get; }
 
         /// <summary>
         /// Which source job is next in line

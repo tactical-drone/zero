@@ -230,13 +230,13 @@ namespace zero.core.patterns.bushes
         /// <param name="_stateMeta">The instance to be printed</param>
         public void PrintState(IoStateTransition<IoJobMeta.JobState> _stateMeta)
         {
-            _logger.Info("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
+            _logger.Fatal("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
                 Description,
-                (_stateMeta.Previous == null ? _stateMeta.DefaultPadded : _stateMeta.Previous.PaddedStr()),
+                _stateMeta.Previous == null ? _stateMeta.DefaultPadded : _stateMeta.Previous.PaddedStr(),
                 (_stateMeta.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
                 _stateMeta.PaddedStr(),
                 (_stateMeta.Mu.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                (_stateMeta.Next == null ? _stateMeta.DefaultPadded : _stateMeta.Next.PaddedStr()),
+                _stateMeta.Next == null ? _stateMeta.DefaultPadded : _stateMeta.Next.PaddedStr(),
                 (_stateMeta.Delta.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
         }
 
@@ -275,7 +275,7 @@ namespace zero.core.patterns.bushes
                 {
                     if (_stateMeta.Value == IoJobMeta.JobState.Finished)
                     {
-                        //PrintStateHistory();
+                        PrintStateHistory();
                         _stateMeta.Value = IoJobMeta.JobState.Race; //TODO
                         throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Finished}' to `{value}'");
                     }

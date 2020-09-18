@@ -33,7 +33,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 2000;
+            int total = 200;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<IoCcNode>>();
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
@@ -42,8 +42,9 @@ namespace zero.sync
 
             for (var i = 2; i < total; i++)
             {
-                tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
-                //tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15630 + portOffset}" }.ToList(), i));
+                //tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
+                tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15630 + portOffset + i - 2}", $"udp://127.0.0.1:{15630 + portOffset + total - i + 2}", $"udp://127.0.0.1:{15630 + portOffset + Math.Abs(total/2 - i)}" }.ToList(), i));
+                Console.WriteLine($"udp://127.0.0.1:{15630 + portOffset + i - 2}");
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }

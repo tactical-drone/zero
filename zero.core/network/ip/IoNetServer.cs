@@ -76,11 +76,11 @@ namespace zero.core.network.ip
 
 
         /// <summary>
-        /// The amount of socket reads the producer is allowed to lead the consumer
+        /// Connection timeout
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_connection_timeout = 1000;
+        protected int parm_connection_timeout = 10000;
 
         /// <summary>
         /// Listens for new connections
@@ -111,13 +111,12 @@ namespace zero.core.network.ip
 
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
-                await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
-                if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
+                //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
+                //if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 {
-                    _logger.Warn($"Cancelling existing connection attemp to `{address}'");
+                    _logger.Warn($"Cancelling existing connection attempt to `{address}'");
 
                     await _connectionAttempts[address.Key].ZeroAsync(this).ConfigureAwait(false);
-
                     _connectionAttempts.TryRemove(address.Key, out _);
                     return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
                 }
@@ -129,46 +128,52 @@ namespace zero.core.network.ip
                 connected = await ioNetClient.ConnectAsync().ConfigureAwait(false);
                 if (connected)
                 {
-                    ZeroOnCascade(ioNetClient);
-
+                    //Check things
                     if (ioNetClient.IsOperational)
                     {
-                        _logger.Debug($"Connection established to `{ioNetClient.AddressString}'");
+                        //Ensure ownership
+                        if (!await ZeroEnsureAsync(() => Task.FromResult(ZeroOnCascade(ioNetClient) != null)).ConfigureAwait(false))
+                        {
+                            _logger.Debug($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
+                            //REJECT
+                            connected = false;
+                        }
+
+                        _logger.Debug($"{nameof(ConnectAsync)}: [SUCCESS], dest = {ioNetClient.ListeningAddress}");
                     }
-                    else // On connect failure
+                    else // On connection failure after successful connect?
                     {
-                        _logger.Warn($"Unable to connect to `{ioNetClient.AddressString}'");
+                        _logger.Debug($"{nameof(ConnectAsync)}: [STALE], {ioNetClient.ListeningAddress}");
+                        //REJECT
+                        connected = false;
                     }
 
-                    return ioNetClient;
+                    //ACCEPT
                 }
             }
-            catch (TaskCanceledException) {}
-            catch (NullReferenceException) {}
-            catch (ObjectDisposedException) {}
-            catch (OperationCanceledException) {}
+            catch (TaskCanceledException e) {_logger.Trace(e, Description);}
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             finally
             {
                 if (!connected)
                 {
                     await ioNetClient.ZeroAsync(this).ConfigureAwait(false);
+
                     if (!Zeroed())
-                        _logger.Error($"Failed to connect to `{ioNetClient.AddressString}':");
+                        _logger.Error($"{nameof(ConnectAsync)}: [FAILED], dest = {ioNetClient.ListeningAddress}");
+
+                    ioNetClient = null;
 
                     if (!_connectionAttempts.TryRemove(address.Key, out _))
                     {
-                        _logger.Debug($"Expected key `{address.Key}'");
+                        _logger.Fatal($"Unable find existing connection {address.Key},");
                     }
-
-                    //if (_connectionAttempts.Count > 0)
-                    //{
-                    //    _logger.Warn($"Empty connection attempts expected!");
-                    //    _connectionAttempts.Clear();
-                    //}
                 }
             }
 
-            return null;
+            return ioNetClient;
         }
 
         /// <summary>

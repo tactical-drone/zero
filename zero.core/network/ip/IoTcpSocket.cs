@@ -293,18 +293,18 @@ namespace zero.core.network.ip
                 Socket.ReceiveTimeout = timeout;
                 return Socket.Receive(buffer.Array!, offset, length, SocketFlags.None);
             }
-            catch (NullReferenceException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
-            catch (ObjectDisposedException) { }
+            catch (NullReferenceException e) { _logger.Trace(e, Description);}
+            catch (TaskCanceledException e) { _logger.Trace(e, Description);}
+            catch (OperationCanceledException e) { _logger.Trace(e, Description);}
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description);}
             catch (SocketException e)
             {
-                _logger.Debug(e, $"{Key}");
+                _logger.Error(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
                 await ZeroAsync(this).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Unable to read from socket `{Key}', length = `{length}', offset = `{offset}' :");
+                _logger.Error(e, $"Unable to read from socket {Description}, length = `{length}', offset = `{offset}' :");
                 await ZeroAsync(this).ConfigureAwait(false);
             }
 

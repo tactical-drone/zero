@@ -144,40 +144,27 @@ namespace zero.core.core
                 {
                     try
                     {
-                        // Does this neighbor exist?
+                        // Does this neighbor already exist?
                         if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
                         {
+                            //Drop incoming //TODO? Drop existing? No because of race.
                             if (Neighbors.TryGetValue(newNeighbor.Id, out var existingNeighbor))
                             {
+                                //Only drop incoming if the existing one is working
                                 if (existingNeighbor.Source.IsOperational)
                                 {
                                     await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                                    _logger.Warn(
-                                        $"{GetType().Name}: Neighbor `{existingNeighbor.Id}' already connected, dropping...");
+                                    _logger.Debug($" [DROPPED] {newNeighbor.Description}, {existingNeighbor.Description} already connected!");
                                     return false;
                                 }
-                                else
+                                else//else drop existing
                                 {
                                     await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                                    if (!Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
-                                    {
-                                        await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                                        _logger.Fatal($"{GetType().Name}: Unable to usurp previous connection!");
-                                        return false;
-                                    }
-                                    else
-                                    {
-                                        _logger.Warn(
-                                            $"{GetType().Name}: PreviousJob stale peer closed and reconnected {newNeighbor.Id}!");
-                                    }
                                 }
                             }
-
-                            await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                            return false;
                         }
 
-                        ZeroOnCascade(newNeighbor); //TODO: double check, why was this not see?
+                        ZeroOnCascade(newNeighbor); //TODO: double check, why was this not seen?
 
                         //Add new neighbor
                         return await newNeighbor.ZeroEnsureAsync(() =>
@@ -245,7 +232,7 @@ namespace zero.core.core
         /// <param name="retry">Retry on failure</param>
         /// <param name="retryTimeoutMs">Retry timeout in ms</param>
         /// <returns>The async task</returns>
-        public async Task<IoNeighbor<TJob>> SpawnConnectionAsync(IoNodeAddress address, object extraData = null, bool retry = false, int retryTimeoutMs = 10000)
+        public async Task<IoNeighbor<TJob>> RetryConnectionAsync(IoNodeAddress address, object extraData = null, bool retry = false, int retryTimeoutMs = 10000)
         {
             var connectedAtLeastOnce = false;
 
@@ -253,7 +240,7 @@ namespace zero.core.core
             {
                 
                 var newClient = await _netServer.ConnectAsync(address).ConfigureAwait(false);
-                if (newClient?.IsOperational??false)
+                if (newClient != null)
                 {
                     IoNeighbor<TJob> newNeighbor = null;
                     var neighbor = newNeighbor = MallocNeighbor(this, newClient, extraData);
@@ -313,7 +300,7 @@ namespace zero.core.core
                 }
                 else if(!Zeroed())
                 {
-                    _logger.Error($"Failed to connect to: {address}, {address.ValidationErrorString}");
+                    _logger.Error($"{nameof(_netServer.ConnectAsync)}: Connection to {address} failed, valid = `{address.ValidationErrorString}'");
                 }
                 
                 if(!retry)

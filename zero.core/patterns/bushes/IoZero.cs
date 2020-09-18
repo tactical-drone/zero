@@ -174,7 +174,7 @@ namespace zero.core.patterns.bushes
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_max_q_size = 1000;
+        public long parm_max_q_size = 100;
 
         /// <summary>
         /// Time to wait for insert before complaining about it
@@ -217,7 +217,14 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_producer_consumer_throttle_delay = 100;
+        public int parm_producer_consumer_throttle_delay = 1000;
+        
+        /// <summary>
+        /// Minimum time a failed production should block
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_min_failed_production_time = 100;
 
         /// <summary>
         /// The time a source will wait for a consumer to release it before aborting in ms
@@ -233,6 +240,9 @@ namespace zero.core.patterns.bushes
         // ReSharper disable once InconsistentNaming
         public int parm_producer_start_retry_time = 1000;
 
+        /// <summary>
+        /// Used to detect spamming non performing producers
+        /// </summary>
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
 
         /// <summary>
@@ -378,11 +388,11 @@ namespace zero.core.patterns.bushes
                                 //Free(prevJobFragment, true);
 
                                 //Fetch a job from TProducer. Did we get one?
+                                _producerStopwatch.Restart();
                                 if (await nextJob.ProduceAsync(async (job, closure) =>
                                 {
                                     var _this = (IoZero<TJob>)closure;
                                     //The producer barrier
-                                    _this._producerStopwatch.Restart();
                                     try
                                     {
                                         try
@@ -392,7 +402,7 @@ namespace zero.core.patterns.bushes
                                         }
                                         catch 
                                         {
-                                            _this._producerStopwatch.Stop();
+                                            
                                             job.State = IoJobMeta.JobState.ProdCancel;
                                             return false;
                                         }
@@ -411,6 +421,7 @@ namespace zero.core.patterns.bushes
                                     return true;
                                 }, this).ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
                                 {
+                                    _producerStopwatch.Stop();
                                     IsArbitrating = true;
 
                                     //_previousJobFragment.TryAdd(nextJob.Id, nextJob);
@@ -419,8 +430,8 @@ namespace zero.core.patterns.bushes
 
                                     try
                                     {
-                                        if (nextJob.Source.BlockOnProduceAheadBarrier)
-                                            nextJob.Source.ProduceAheadBarrier.Set();                                
+                                        if (nextJob.Source.PrefetchEnabled)
+                                            nextJob.Source.ProducerPrefetchPressure.Set();                                
                                     }
                                     catch
                                     {
@@ -454,6 +465,10 @@ namespace zero.core.patterns.bushes
                                 }
                                 else //produce job returned with errors or nothing...
                                 {
+                                    //how long did this failure take?
+                                    _producerStopwatch.Stop();
+                                    
+                                    //Are we in teardown?
                                     if (Zeroed())
                                     {
                                         //Free job
@@ -461,51 +476,61 @@ namespace zero.core.patterns.bushes
                                         nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
                                         return false;
                                     }
-
-                                    //if (nextJob.State == IoJobMeta.CurrentState.Producing)
-                                    //{
-                                    //    _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.CurrentState.Producing}");
-                                    //    nextJob.State = IoJobMeta.CurrentState.Cancelled;
-                                    //}
-
-                                    var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
-                                    var releaseBarrier = nextJob.Source?.BlockOnProduceAheadBarrier ?? false;
-                                    var backPressure = Source?.ProduceBackPressure;
-
-                                    if (nextJob.State == IoJobMeta.JobState.Cancelled ||
-                                        nextJob.State == IoJobMeta.JobState.ProdCancel)
+                                    
+#if  DEBUG
+                                    //Is there a bug in the producer?
+                                    if (nextJob.State == IoJobMeta.JobState.Producing)
                                     {
-                                        _logger.Trace($"{GetType().Name}: {nextJob.TraceDescription} Source {Description} is shutting down");
+                                        _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.JobState.Producing}");
+                                        nextJob.State = IoJobMeta.JobState.Error;
+                                    }
+#endif
+                                    
+                                    //Handle failure
+                                    if (nextJob.State == IoJobMeta.JobState.Cancelled ||
+                                        nextJob.State == IoJobMeta.JobState.ProdCancel ||
+                                        nextJob.State == IoJobMeta.JobState.Error)
+                                    {
+                                        _logger.Trace($"{nameof(ProduceAsync)}: [FAILED], s = `{nextJob}', {Description}");
 
                                         //Free job
                                         nextJob.State = IoJobMeta.JobState.Reject;
                                         nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
                                         IsArbitrating = false;
 
+                                        //TEARDOWN
                                         await ZeroAsync(this).ConfigureAwait(false);
-
                                         return false;
+                                    }
+                                    
+                                    //Is the producer spinning?
+                                    if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time 
+                                        //&&nextJob.State == IoJobMeta.JobState.ProduceTo
+                                        )
+                                    {
+                                        await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(false);
                                     }
 
                                     //Free job
                                     nextJob.State = IoJobMeta.JobState.Reject;
                                     nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
 
-                                    // Release the next production after error
-                                    if (releaseBarrier)
-                                        aheadBarrier?.Set();
-                                    backPressure?.Set();
+                                    // Signal prefetch back pressure
+                                    if (nextJob.Source.PrefetchEnabled)
+                                        nextJob.Source.ProducerPrefetchPressure.Set();
+                                    
+                                    //signal back pressure
+                                    Source.ProduceBackPressure.Set();
                                 }
                             }
                         }
                         else
-                        {                        
+                        {
+                            //Are we in teardown?
+                            if (Zeroed()) return false;
                             
-                            if (!Zeroed())
-                            {
-                                _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!");
-                                await Task.Delay(parm_error_timeout, AsyncTasks.Token).ConfigureAwait(false);
-                            }
+                            _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!");
+                            await Task.Delay(parm_error_timeout, AsyncTasks.Token).ConfigureAwait(false);
                             return false;
                         }
                     }
@@ -549,14 +574,13 @@ namespace zero.core.patterns.bushes
                 }                
             }
 
-            catch(TaskCanceledException) { return false; }
-            catch(OperationCanceledException){ return false; }
-            catch(ObjectDisposedException){ return false; }
-            catch(NullReferenceException){ return false; }
+            catch(TaskCanceledException e) { _logger.Trace(e,Description); }
+            catch(OperationCanceledException e){ _logger.Trace(e,Description); }
+            catch(ObjectDisposedException e){ _logger.Trace(e,Description); }
+            catch(NullReferenceException e){ _logger.Trace(e,Description); }
             catch(Exception e)
             {
                 _logger.Fatal(e, $"{GetType().Name}: {Description}: ");
-                return false;
             }
             finally
             {
@@ -764,7 +788,7 @@ namespace zero.core.patterns.bushes
                     //if (Source.BlockOnConsumeAheadBarrier)
                     //    Source.ConsumeAheadBarrier.Set();
 
-                    Source.ProduceBackPressure.Set();
+                    //Source.ProduceBackPressure.Set();
 
                     _logger.Warn($"{GetType().Name}: `{Description}' produced nothing");
                 }

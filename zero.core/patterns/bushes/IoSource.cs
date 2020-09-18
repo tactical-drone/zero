@@ -31,7 +31,7 @@ namespace zero.core.patterns.bushes
             ProduceBackPressure = new AsyncAutoResetEvent(true);
             ProduceBackPressure.Set();
             ProducerPressure = new AsyncAutoResetEvent(true);
-            ProduceAheadBarrier = new AsyncAutoResetEvent(true);
+            ProducerPrefetchPressure = new AsyncAutoResetEvent(true);
             ConsumeAheadBarrier = new AsyncAutoResetEvent(true);
 
             //ProducerPressure = new SemaphoreSlim(0);
@@ -84,7 +84,7 @@ namespace zero.core.patterns.bushes
 
         public AsyncAutoResetEvent ConsumeAheadBarrier { get; protected set; }
 
-        public AsyncAutoResetEvent ProduceAheadBarrier { get; protected set; }
+        public AsyncAutoResetEvent ProducerPrefetchPressure { get; protected set; }
         ///// <summary>
         ///// The source semaphore
         ///// </summary>
@@ -114,7 +114,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Whether to only consume one at a time, but produce many at a time
         /// </summary>
-        public bool BlockOnProduceAheadBarrier { get; protected set; } = false;
+        public bool PrefetchEnabled { get; protected set; } = false;
 
         ref long IIoSource.NextProducerId()
         {
@@ -190,7 +190,7 @@ namespace zero.core.patterns.bushes
 #if SAFE_RELEASE
             ProducerPressure = null;
             ConsumeAheadBarrier = null;
-            ProduceAheadBarrier = null;
+            ProducerPrefetchPressure = null;
             ProduceBackPressure = null;
             RecentlyProcessed = null;
             IoChannels = null;

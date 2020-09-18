@@ -56,6 +56,9 @@ namespace zero.core.patterns.misc
         /// </summary>
         private readonly object _syncRoot = 0;
 
+        /// <summary>
+        /// Sync root
+        /// </summary>
         private readonly AsyncAutoResetEvent _syncRootAuto = new AsyncAutoResetEvent(true);
 
         /// <summary>

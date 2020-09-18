@@ -116,7 +116,7 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
+                        if (Neighbors.Count < MaxClients * 0.75 && secondsSinceEnsured.Delta() > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
@@ -292,7 +292,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_discovery_force_time_multiplier = 20;
+        public int parm_discovery_force_time_multiplier = 2;
 
         /// <summary>
         /// Maximum clients allowed
@@ -331,7 +331,7 @@ namespace zero.cocoon
                 {
                     try
                     {
-                        _logger.Debug($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
+                        _logger.Info($"Connected {peer!.Description}");
                     }
                     catch 
                     {
@@ -339,6 +339,7 @@ namespace zero.cocoon
                     }
 
                     //ACCEPT
+
                     return true; 
                 }
 
@@ -650,12 +651,12 @@ namespace zero.cocoon
                     neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip)
                 )
             {
-                var peer = await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor).ConfigureAwait(false);
+                var peer = await RetryConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor).ConfigureAwait(false);
                 if (Zeroed() || peer == null)
                 {
-                    _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {neighbor.Description}");
+                    _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {neighbor.Description}, {neighbor.MetaDesc}");
                     await neighbor.DetachPeerAsync().ConfigureAwait(false);
-                    peer = null;
+                    return false;
                 }
                 
                 //Race for a connection
@@ -668,7 +669,6 @@ namespace zero.cocoon
                 else
                 {
                     await peer!.ZeroAsync(this).ConfigureAwait(false);
-                    peer = null;
                     return false;
                 }
             }

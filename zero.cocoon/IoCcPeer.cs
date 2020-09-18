@@ -139,8 +139,6 @@ namespace zero.cocoon
 
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             
-            
-
             //Attach the other way
             var attached = Neighbor.AttachPeer(this, direction);
 
@@ -149,6 +147,10 @@ namespace zero.cocoon
                 _logger.Debug($"{nameof(AttachNeighbor)}: {direction} attach to neighbor {neighbor.Description}");
 
                 StartTestMode();
+            }
+            else
+            {
+                _logger.Trace($"{nameof(AttachNeighbor)}: [RACE LOST]{direction} attach to neighbor {neighbor.Description}, {neighbor.MetaDesc}");
             }
 
             return attached;

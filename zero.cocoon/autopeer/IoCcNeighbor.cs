@@ -141,17 +141,17 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The gossip peer associated with this neighbor
         /// </summary>
-        protected volatile IoCcPeer Peer;
+        private volatile IoCcPeer _peer;
 
         /// <summary>
         /// Whether The peer is attached
         /// </summary>
-        public bool IsPeerAttached => Peer != null;
+        public bool IsPeerAttached => _peer != null;
 
         /// <summary>
         /// Whether the peer is nominal
         /// </summary>
-        public bool IsPeerConnected => IsPeerAttached && Peer.IoSource.IsOperational;
+        public bool IsPeerConnected => IsPeerAttached && _peer.IoSource.IsOperational;
 
         /// <summary>
         /// Is this the local listener
@@ -479,7 +479,7 @@ namespace zero.cocoon.autopeer
             //_pingRequestBarrier = null;
 #if SAFE_RELEASE
             _pingRequests = null;
-            Peer = null;
+            _peer = null;
             NeighborDiscoveryNode = null;
             _protocolChannel = null;
             _neighborZeroSub = null;
@@ -830,14 +830,14 @@ namespace zero.cocoon.autopeer
             }
 
             //only verified nodes get to drop
-            if (!Verified || Peer == null)
+            if (!Verified || _peer == null)
                 return;
 
-            _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringDrop)}: {Direction} Peer= {Peer?.Id ?? "null"}");
+            _logger.Debug($"{(RoutedRequest?"V>":"X>")}{nameof(PeeringDrop)}: {Direction} Peer= {_peer?.Id ?? "null"}");
 
             try
             {
-                await Peer.ZeroAsync(this).ConfigureAwait(false);
+                await _peer.ZeroAsync(this).ConfigureAwait(false);
             }
             catch { }
         }
@@ -927,7 +927,7 @@ namespace zero.cocoon.autopeer
             {
                 if (!await ConnectAsync().ConfigureAwait(false))
                 {
-                    _logger.Warn($"<<{nameof(PeeringResponse)}: Lost race to {Description}, {MetaDesc}");
+                    _logger.Debug($"<<{nameof(PeeringResponse)}: [FAILED] Connect to {Description}, {MetaDesc}");
                 }
             }//Were we inbound?
             else if (Direction == Kind.Inbound)
@@ -955,7 +955,7 @@ namespace zero.cocoon.autopeer
             if (PolledZombie)
             {
                 _logger.Warn($"{nameof(EnsureZombieAsync)}: Found zombie {Description}, {MetaDesc}");
-                await Peer.ZeroAsync(this).ConfigureAwait(false);
+                await _peer.ZeroAsync(this).ConfigureAwait(false);
 
                 //Was it outbound?
                 if(direction == Kind.OutBound)
@@ -1732,16 +1732,16 @@ namespace zero.cocoon.autopeer
             lock (this)
             {
                 //Race for direction
-                if (Peer != null || Interlocked.CompareExchange(ref _direction, (int)direction, (int)Kind.Undefined) != (int)Kind.Undefined)
+                if (_peer != null || Interlocked.CompareExchange(ref _direction, (int)direction, (int)Kind.Undefined) != (int)Kind.Undefined)
                 {
-                    _logger.Warn($"oz: {Direction} Peer id = {Peer?.Id} already won {Direction}");
+                    _logger.Warn($"oz: {_peer?.Description} already won {Direction}, race for {direction} lost");
                     return false;
                 }
                 
-                Peer = ioCcPeer ?? throw new ArgumentNullException($"{(RoutedRequest?"V>":"X>")}{nameof(ioCcPeer)}");
+                _peer = ioCcPeer ?? throw new ArgumentNullException($"{nameof(ioCcPeer)}");
             }
 
-            _logger.Debug($"{(RoutedRequest ? "V>" : "X>")}{GetType().Name}: Attached to peer {Peer.Description}");
+            _logger.Debug($"{nameof(AttachPeer)}: [WON] {_peer.Description}");
 
             State = NeighborState.Connected;
             ConnectedAtLeastOnce = true;
@@ -1751,7 +1751,7 @@ namespace zero.cocoon.autopeer
             {
                 try
                 {
-                    await Peer.ZeroAsync(this).ConfigureAwait(false);
+                    await _peer.ZeroAsync(this).ConfigureAwait(false);
                 }
                 catch { }
             });
@@ -1764,13 +1764,13 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async Task DetachPeerAsync(bool force = false)
         {
-            var peer = Peer;
+            var peer = _peer;
 
             lock (this)
             {
-                if (Peer == null && !force)
+                if (_peer == null && !force)
                     return;
-                Peer = null;
+                _peer = null;
             }
 
             _logger.Trace($"{(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction} peer detaching: s = {State}, a = {IsAutopeering}, p = {IsPeerConnected}, {peer?.Description??Description}");
