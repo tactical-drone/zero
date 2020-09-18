@@ -109,7 +109,7 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async Task SpawnListenerAsync(Func<IoNeighbor<TJob>, Task<bool>> acceptConnection = null)
+        protected virtual async Task SpawnListenerAsync(Func<IoNeighbor<TJob>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
@@ -177,6 +177,8 @@ namespace zero.core.core
                             return false;
                         }
 
+                        ZeroOnCascade(newNeighbor); //TODO: double check, why was this not see?
+
                         //Add new neighbor
                         return await newNeighbor.ZeroEnsureAsync(() =>
                         {
@@ -206,13 +208,13 @@ namespace zero.core.core
                                 return Task.CompletedTask;
                             });
                             return Task.FromResult(sub != null);
-                        });
+                        }).ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
                     catch (TaskCanceledException) { return false; }
                     catch (OperationCanceledException) { return false; }
                     catch (ObjectDisposedException) { return false; }
-                }))
+                }).ConfigureAwait(false))
                 {
                     //New peer connection event
                     //ConnectedEvent?.Invoke(this, newNeighbor);
@@ -232,7 +234,7 @@ namespace zero.core.core
                         _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
                     }
                 }
-            }, parm_tcp_readahead).ConfigureAwait(false);
+            }, parm_tcp_readahead, bootstrapAsync).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -324,12 +326,13 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async Task StartAsync()
+        public async Task StartAsync(Func<Task> bootstrapFunc = null)
         {
             _logger.Debug($"Unimatrix Zero: {Description}");
             try
             {
-                _listenerTask = SpawnListenerAsync();
+                _listenerTask = SpawnListenerAsync(bootstrapAsync: bootstrapFunc);
+                
                 var nodeTask = _listenerTask;
                 await nodeTask.ConfigureAwait(false);
 

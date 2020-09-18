@@ -62,7 +62,7 @@ namespace zero.tangle.models.sources
         public override bool IsOperational => false;
 
         /// <inheritdoc />        
-        //public override IoChannel<TFJob> AttachProducer<TFJob>(string id, IoSource<TFJob> channelSource = null,
+        //public override IoChannel<TFJob> EnsureChannel<TFJob>(string id, IoSource<TFJob> channelSource = null,
         //    Func<object, IoLoad<TFJob>> jobMalloc = null)
         //{
         //    throw new NotImplementedException();

@@ -36,13 +36,13 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAhead"></param>
+        /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAhead)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAhead, Func<Task> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, readAhead).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, readAhead, bootstrapAsync).ConfigureAwait(false);
 
             IoListenSocket = ZeroOnCascade(new IoTcpSocket());
-
 
             await IoListenSocket.ListenAsync(ListeningAddress, async newConnectionSocket =>
             {
@@ -57,7 +57,7 @@ namespace zero.core.network.ip
                     await newConnectionSocket.ZeroAsync(this).ConfigureAwait(false);
 
                 }
-            }).ConfigureAwait(false);
+            }, bootstrapAsync).ConfigureAwait(false);
         }
 
         /// <summary>

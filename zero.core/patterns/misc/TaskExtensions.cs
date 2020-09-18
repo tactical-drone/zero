@@ -46,7 +46,7 @@ namespace zero.core.patterns.misc
         public static async Task ForEachAsync<T>(this List<T> enumerable, Func<T, Task> action)
         {
             foreach (var item in enumerable)                
-                await Task.Run(async () => { await action(item); }).ConfigureAwait(false);
+                await Task.Run(async () => { await action(item).ConfigureAwait(false); }).ConfigureAwait(false);
         }
     }    
 }

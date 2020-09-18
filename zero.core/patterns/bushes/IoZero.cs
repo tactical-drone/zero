@@ -160,7 +160,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Indicates whether jobs are being processed
         /// </summary>
-        public bool IsArbitrating { get; set; } = false;
+        public bool IsArbitrating { get; set; }
 
         /// <summary>
         /// Maintains a handle to a job if fragmentation was detected so that the
@@ -303,42 +303,42 @@ namespace zero.core.patterns.bushes
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
 
-                            while (nextJob.Source.BlockOnProduceAheadBarrier && !Zeroed())
-                            {
-                                if (blockOnConsumerCongestion)
-                                {
-                                    try
-                                    {
-                                        await nextJob.Source.ProduceAheadBarrier.WaitAsync(AsyncTasks.Token);
-                                    }
-                                    catch
-                                    {
-                                        Interlocked.Increment(ref nextJob.Source.NextProducerId());
-                                        return false;
-                                    }
-                                }
-                                else
-                                {
-                                    try
-                                    {
-                                        await nextJob.Source.ProduceAheadBarrier.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-                                    }
-                                    catch 
-                                    {
-                                        Interlocked.Increment(ref nextJob.Source.NextProducerId());
-                                        return false;
-                                    }
-                                }
+                            //while (nextJob.Source.BlockOnProduceAheadBarrier && !Zeroed())
+                            //{
+                            //    if (blockOnConsumerCongestion)
+                            //    {
+                            //        try
+                            //        {
+                            //            await nextJob.Source.ProduceAheadBarrier.WaitAsync(AsyncTasks.Token);
+                            //        }
+                            //        catch
+                            //        {
+                            //            Interlocked.Increment(ref nextJob.Source.NextProducerId());
+                            //            return false;
+                            //        }
+                            //    }
+                            //    else
+                            //    {
+                            //        try
+                            //        {
+                            //            await nextJob.Source.ProduceAheadBarrier.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                            //        }
+                            //        catch 
+                            //        {
+                            //            Interlocked.Increment(ref nextJob.Source.NextProducerId());
+                            //            return false;
+                            //        }
+                            //    }
 
-                                var nextProducerId = Interlocked.Read(ref nextJob.Source.NextProducerId());
-                                if (nextJob.Id == nextProducerId)
-                                {
-                                    Interlocked.Increment(ref nextJob.Source.NextProducerId());
-                                    break;
-                                }
-                                _logger.Warn($"{GetType().Name}: {nextJob.TraceDescription} Next id = `{nextJob.Id}' is not {nextProducerId}!!");
-                                //nextJob.Source.ProduceAheadBarrier.Release();
-                            }
+                            //    var nextProducerId = Interlocked.Read(ref nextJob.Source.NextProducerId());
+                            //    if (nextJob.Id == nextProducerId)
+                            //    {
+                            //        Interlocked.Increment(ref nextJob.Source.NextProducerId());
+                            //        break;
+                            //    }
+                            //    _logger.Warn($"{GetType().Name}: {nextJob.TraceDescription} Next id = `{nextJob.Id}' is not {nextProducerId}!!");
+                            //    //nextJob.Source.ProduceAheadBarrier.Release();
+                            //}
 
                             //if(!Zeroed())
                             {
@@ -387,7 +387,8 @@ namespace zero.core.patterns.bushes
                                     {
                                         try
                                         {
-                                            await job.Source.ProducerBarrier.WaitAsync(_this.Source.AsyncTasks.Token).ConfigureAwait(false);
+                                            //await job.Source.BackPressureWaitAsync();
+                                            await job.Source.ProduceBackPressure.WaitAsync(_this.Source.AsyncTasks.Token).ConfigureAwait(false);
                                         }
                                         catch 
                                         {
@@ -442,7 +443,7 @@ namespace zero.core.patterns.bushes
                                     //Signal to the consumer that there is work to do
                                     try
                                     {                                
-                                        Source.ConsumerBarrier.Set();
+                                        Source.ProducerPressure.Set();
                                     }
                                     catch
                                     {
@@ -451,7 +452,7 @@ namespace zero.core.patterns.bushes
 
                                     return true;
                                 }
-                                else //produce job returned with errors
+                                else //produce job returned with errors or nothing...
                                 {
                                     if (Zeroed())
                                     {
@@ -469,7 +470,7 @@ namespace zero.core.patterns.bushes
 
                                     var aheadBarrier = nextJob.Source?.ProduceAheadBarrier;
                                     var releaseBarrier = nextJob.Source?.BlockOnProduceAheadBarrier ?? false;
-                                    var barrier = Source?.ProducerBarrier;
+                                    var backPressure = Source?.ProduceBackPressure;
 
                                     if (nextJob.State == IoJobMeta.JobState.Cancelled ||
                                         nextJob.State == IoJobMeta.JobState.ProdCancel)
@@ -493,7 +494,7 @@ namespace zero.core.patterns.bushes
                                     // Release the next production after error
                                     if (releaseBarrier)
                                         aheadBarrier?.Set();
-                                    barrier?.Set();
+                                    backPressure?.Set();
                                 }
                             }
                         }
@@ -624,12 +625,12 @@ namespace zero.core.patterns.bushes
                         //Was shutdown requested?
                         if (Zeroed())
                         {
-                            _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
+                            _logger.Trace($"{GetType().Name}: Consumer {Description} is shutting down");
                             return false;
-                        }
+                        } 
 
                         _logger.Trace(
-                            $"{GetType().Name}: Consumer `{Description}' [[ReadAheadBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                            $"{GetType().Name}: Consumer {Description} [[ReadAheadBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
 
                         //Try again                    
                         return false;
@@ -637,11 +638,12 @@ namespace zero.core.patterns.bushes
                 }
 
                 //Waiting for a job to be produced. Did production fail?
-                if (blockOnProduction)
+                if (_queue.IsEmpty && blockOnProduction) //TODO autoresetevent
                 {
                     try
                     {
-                        await Source.ConsumerBarrier.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                        //Wait for producer pressure
+                        await Source.ProducerPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                     }
                     catch (Exception)
                     {
@@ -655,9 +657,8 @@ namespace zero.core.patterns.bushes
 
                         //wait...
                         //_logger.Trace(
-                        //$"{GetType().Name}: Consumer `{Description}' [[ConsumerBarrier]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
-                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token)
-                            .ConfigureAwait(false);
+                        //$"{GetType().Name}: Consumer `{Description}' [[ProducerPressure]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
 
                         //Try again
                         return false;
@@ -668,7 +669,7 @@ namespace zero.core.patterns.bushes
                 bool hadOneJob = false;
 
                 //A job was produced. Dequeue it and process
-                while (!Zeroed() && _queue.TryDequeue(out curJob))
+                while (!Zeroed() && _queue.TryDequeue(out curJob)) //TODO autoresetevent
                 {
                     hadOneJob = true;
                     //curJob.State = IoJobMeta.CurrentState.Dequeued;
@@ -698,8 +699,9 @@ namespace zero.core.patterns.bushes
                             curJob.State = IoJobMeta.JobState.Error;
                         }
                     }
-                    catch (NullReferenceException)
+                    catch (NullReferenceException e)
                     {
+                        _logger.Trace(e, Description);
                     }
                     catch (ArgumentNullException e)
                     {
@@ -734,11 +736,12 @@ namespace zero.core.patterns.bushes
 
                             curJob = await FreeAsync(curJob).ConfigureAwait(false);
 
-                            if (Source.BlockOnConsumeAheadBarrier)
-                                Source.ConsumeAheadBarrier.Set();
+                            //if (Source.BlockOnConsumeAheadBarrier)
+                            //    Source.ConsumeAheadBarrier.Set();
 
                             //Signal the source that it can continue to get more work                        
-                                Source.ProducerBarrier.Set();
+                            if(consumed)
+                                Source.ProduceBackPressure.Set();
                         }
                         catch
                         {
@@ -758,26 +761,37 @@ namespace zero.core.patterns.bushes
                 //did we get a job but source queue was empty when we got there?
                 if (hadOneJob)
                 {
-                    if (Source.BlockOnConsumeAheadBarrier)
-                        Source.ConsumeAheadBarrier.Set();
+                    //if (Source.BlockOnConsumeAheadBarrier)
+                    //    Source.ConsumeAheadBarrier.Set();
 
-                    Source.ProducerBarrier.Set();
+                    Source.ProduceBackPressure.Set();
 
                     _logger.Warn($"{GetType().Name}: `{Description}' produced nothing");
                 }
                 
                 return false;
             }
-            catch (NullReferenceException) { }
-            catch (ObjectDisposedException) { }
-            catch (TimeoutException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
+            catch (NullReferenceException e) { _logger.Trace(e, Description);}
+            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (TimeoutException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 _logger.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
             }
-            
+            finally
+            {
+                //if (Source != null)
+                //{
+                //    if (Source.BlockOnConsumeAheadBarrier)
+                //        Source.ConsumeAheadBarrier.Set();
+
+                //    //Signal the source that it can continue to get more work
+                //    Source.ProduceBackPressure.Set();
+                //}
+            }
+
             return false;
         }
 
@@ -855,12 +869,12 @@ namespace zero.core.patterns.bushes
                         break;
                     }
 
-                    await Task.WhenAll(consumers);
+                    await Task.WhenAll(consumers).ConfigureAwait(false);
                     
                     foreach (var c in consumers)
                     {
-                        if (await c) continue;
-                        _logger.Debug($"Failed to consume at {Description}");
+                        if (await c.ConfigureAwait(false)) continue;
+                        _logger.Trace($"Failed to consume at {Description}");
                         break;
                     }
                 }

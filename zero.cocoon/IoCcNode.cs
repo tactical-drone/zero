@@ -111,13 +111,17 @@ namespace zero.cocoon
                             available = _autoPeering.Neighbors.Count - 1;
                         }
 
+                        if (Neighbors.Count == 0)
+                        {
+                            await BootStrapAsync().ConfigureAwait(false);
+                        }
                         //Search for peers
                         if (Neighbors.Count < MaxClients * 0.75 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - secondsSinceEnsured > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
                             {
                                 if (Zeroed())
                                     break;
@@ -128,7 +132,7 @@ namespace zero.cocoon
                                 }
                             }
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).LastKeepAliveReceived < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
                             {
                                 if (Zeroed())
                                     break;
@@ -166,7 +170,7 @@ namespace zero.cocoon
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
             //Services.IoCcRecord.Endpoints.Clear();
             try
@@ -178,7 +182,7 @@ namespace zero.cocoon
                 // ignored
             }
 
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
             //GC.Collect(GC.MaxGeneration);
         }
 
@@ -259,14 +263,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 5;
+        public int parm_max_inbound = 4;
 
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_outbound = 5;
+        public int parm_max_outbound = 4;
 
         /// <summary>
         /// Protocol version
@@ -304,34 +308,42 @@ namespace zero.cocoon
         /// Spawn the node listeners
         /// </summary>
         /// <param name="acceptConnection"></param>
+        /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcGossipMessage>, Task<bool>> acceptConnection = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcGossipMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
-            //start peering
-            _autoPeeringTask = Task.Factory.StartNew(async () => await _autoPeering.StartAsync().ConfigureAwait(false), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            _autoPeeringTask = Task.Factory.StartNew(async () =>
+            {
+                //start peering
+                await _autoPeering.StartAsync(BootStrapAsync).ConfigureAwait(false);
 
-            //DO the continuation inside this callback should always return on the same thread
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+
+            //start node listener
             await base.SpawnListenerAsync(async peer =>
             {
                 //limit connects
                 if (Zeroed() || InboundCount > parm_max_inbound || peer == null)
                     return false;
 
+                //Handshake
                 if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
                 {
                     try
                     {
                         _logger.Debug($"Peer {((IoCcPeer)peer).Neighbor.Direction}: Connected! ({peer.Id}:{((IoCcPeer)peer).Neighbor.RemoteAddress.Port})");
                     }
-                    catch //this is just a legitimate race, pure and simple.
+                    catch 
                     {
                         return false;
                     }
-                    return true; //Everything checks out
+
+                    //ACCEPT
+                    return true; 
                 }
 
                 return false;
-            }).ConfigureAwait(false);
+            }, bootstrapAsync).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -486,32 +498,11 @@ namespace zero.cocoon
                             }
                             else
                             {
-                                _logger.Trace($"Sent inbound handshake challange response size = {sent} b, socket = {socket.Description}");
+                                _logger.Trace($"Sent {sent } inbound handshake challange response, socket = {socket.Description}");
                             }
                         }
 
-                        //Verify the connection 
-                        var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), socket.RemoteAddress);
-                        if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
-                        {
-                            var direction = ((IoCcNeighbor)neighbor).Direction;
-                            if (((IoCcNeighbor)neighbor).Verified &&
-                                ((IoCcNeighbor)neighbor).Direction == IoCcNeighbor.Kind.Inbound &&
-                                !((IoCcNeighbor)neighbor).Peered())
-                            {
-                                return peer.AttachNeighbor((IoCcNeighbor)neighbor);
-                            }
-                            else
-                            {
-                                _logger.Debug($"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}");
-                                return false;
-                            }
-                        }
-                        else
-                        {
-                            _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.Inbound} connection from {socket.RemoteAddress}");
-                            return false;
-                        }
+                        return ConnectForTheWin(IoCcNeighbor.Kind.Inbound, peer, packet, socket);
                     }
                 }
                 else if (((IoNetClient<IoCcGossipMessage>)peer.IoSource).Socket.Egress)//Outbound
@@ -532,7 +523,7 @@ namespace zero.cocoon
                     }
                     else 
                     {
-                        _logger.Trace($"Sent inbound handshake challange response size = {sent} b, socket = {socket.Description}");
+                        _logger.Trace($"Sent {sent } inbound handshake challange response, socket = {socket.Description}");
                     }
 
                     do
@@ -595,28 +586,7 @@ namespace zero.cocoon
                             }
                         }
 
-                        //Verify the connection 
-                        var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), socket.RemoteAddress);
-                        if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
-                        {
-                            var direction = ((IoCcNeighbor)neighbor).Direction;
-                            if (((IoCcNeighbor)neighbor).Verified &&
-                                ((IoCcNeighbor)neighbor).Direction == IoCcNeighbor.Kind.OutBound &&
-                                !((IoCcNeighbor)neighbor).Peered())
-                            {
-                                return peer.AttachNeighbor((IoCcNeighbor)neighbor);
-                            }
-                            else
-                            {
-                                _logger.Debug($"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: v = {((IoCcNeighbor)neighbor).Verified}");
-                                return false;
-                            }
-                        }
-                        else
-                        {
-                            _logger.Error($"Neighbor {id} not found, dropping {IoCcNeighbor.Kind.OutBound} connection to {socket.RemoteAddress}");
-                            return false;
-                        }
+                        return ConnectForTheWin(IoCcNeighbor.Kind.OutBound, peer, packet, socket);
                     }
                 }
 
@@ -629,7 +599,40 @@ namespace zero.cocoon
             return false;
         }
 
-
+        /// <summary>
+        /// Race for a connection locked on the neighbor it finds
+        /// </summary>
+        /// <param name="direction">The direction of the lock</param>
+        /// <param name="peer">The peer requesting the lock</param>
+        /// <param name="packet">The handshake packet</param>
+        /// <param name="socket">The socket</param>
+        /// <returns>True if it won, false otherwise</returns>
+        private bool ConnectForTheWin(IoCcNeighbor.Kind direction, IoCcPeer peer, Packet packet, IoNetSocket socket)
+        {
+            //Race for connection...
+            var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), socket.RemoteAddress);
+            if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
+            {
+                var ccNeighbor = ((IoCcNeighbor) neighbor);
+                if (ccNeighbor.IsAutopeering && !ccNeighbor.IsPeerAttached)
+                {
+                    //did we win?
+                    return peer.AttachNeighbor((IoCcNeighbor) neighbor, direction);
+                }
+                else
+                {
+                    _logger.Debug(
+                        $"{direction} handshake [REJECT] {id} - {socket.RemoteAddress}: s = {ccNeighbor.State}, a = {ccNeighbor.IsAutopeering}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.Error(
+                    $"Neighbor {id} not found, dropping {direction} connection to {socket.RemoteAddress}");
+                return false;
+            }
+        }
 
         /// <summary>
         /// Opens an <see cref="IoCcNeighbor.Kind.OutBound"/> connection to a gossip peer
@@ -637,47 +640,41 @@ namespace zero.cocoon
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
         public async Task<bool> ConnectToPeerAsync(IoCcNeighbor neighbor)
         {
-            if (!Zeroed() && neighbor.RoutedRequest && 
-                neighbor.Direction == IoCcNeighbor.Kind.OutBound &&
-                OutboundCount < parm_max_outbound &&
-                //TODO add distance calc &&
-                neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip))
+            //Validate
+            if (
+                    !Zeroed() && 
+                    neighbor.IsAutopeering &&
+                    !neighbor.IsPeerConnected &&
+                    OutboundCount < parm_max_outbound &&
+                    //TODO add distance calc &&
+                    neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip)
+                )
             {
-                if (neighbor.Direction == IoCcNeighbor.Kind.OutBound)
+                var peer = await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor).ConfigureAwait(false);
+                if (Zeroed() || peer == null)
                 {
-                    var peer = await SpawnConnectionAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor);
-
-                    if (!Zeroed() && peer != null)
-                    {
-                        if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
-                        {
-                            _logger.Info($"Peer {neighbor.Direction}: Connected! ({peer.Id}:{neighbor.RemoteAddress.Port})");
-                            NeighborTasks.Add(peer.SpawnProcessingAsync());
-                        }
-                        else
-                        {
-                            await peer.ZeroAsync(this).ConfigureAwait(false);
-                        }
-                    }
-                    else
-                    {
-                        neighbor.DetachPeer();
-                        _logger.Error($"Peer select {neighbor.RemoteAddress} failed on {Description}");
-                    }
-
-                    //Connect success?
-                    return peer != null;
+                    _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {neighbor.Description}");
+                    await neighbor.DetachPeerAsync().ConfigureAwait(false);
+                    peer = null;
+                }
+                
+                //Race for a connection
+                if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
+                {
+                    _logger.Info($"Connected {peer!.Description}");
+                    NeighborTasks.Add(peer.SpawnProcessingAsync());
+                    return true;
                 }
                 else
                 {
-                    neighbor.DetachPeer();
-                    throw new ApplicationException($"Unexpected direction {neighbor.Direction}");
+                    await peer!.ZeroAsync(this).ConfigureAwait(false);
+                    peer = null;
+                    return false;
                 }
             }
             else
             {
-                neighbor.DetachPeer();
-                _logger.Trace($"Handled {neighbor.Description}");
+                _logger.Debug($"{nameof(ConnectToPeerAsync)}: Connect skipped: {neighbor.Description}");
                 return false;
             }
         }
@@ -692,6 +689,26 @@ namespace zero.cocoon
             foreach (var ioNeighbor in Neighbors.Values)
             {
                 ((IoCcPeer) ioNeighbor).StartTestMode();
+            }
+        }
+
+        /// <summary>
+        /// Boostrap node
+        /// </summary>
+        /// <returns></returns>
+        private async Task BootStrapAsync()
+        {
+            _logger.Debug($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
+            if (BootstrapAddress != null)
+            {
+                foreach (var ioNodeAddress in BootstrapAddress)
+                {
+                    _logger.Debug($"{Description} Boostrapping from {ioNodeAddress}");
+                    if (!await DiscoveryService.LocalNeighbor.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
+                    {
+                        _logger.Fatal($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                    }
+                }
             }
         }
     }

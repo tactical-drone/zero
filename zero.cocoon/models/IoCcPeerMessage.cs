@@ -41,8 +41,8 @@ namespace zero.cocoon.models
             if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
                 IoCcProtocolBuffer protocol = null;
-                //var task = Task.Factory.StartNew(async () =>
-                //{
+
+                //Transfer ownership
                 if (Source.ZeroEnsureAsync(() =>
                 {
                     protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
@@ -54,18 +54,14 @@ namespace zero.cocoon.models
                     return Task.FromResult(false);
                 }).ConfigureAwait(false).GetAwaiter().GetResult())
                 {
-                    ProtocolChannel = Source.AttachProducer(
+                    ProtocolChannel = Source.EnsureChannel(
                         nameof(IoCcNeighbor),
                         false,
                         protocol,
-                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
-                        1, 2
+                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/)
                     );
 
-                    //ProtocolChannel.parm_consumer_wait_for_producer_timeout =
-                    //    250; //We block and never report slow production
-                    //ProtocolChannel.parm_producer_start_retry_time = 0;
-
+                    //get reference to a central mempool
                     _arrayPool = ((IoCcProtocolBuffer) ProtocolChannel.Source).ArrayPoolProxy;
                 }
                 else
@@ -81,7 +77,7 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolChannel = Source.AttachProducer<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+                ProtocolChannel = Source.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
             }
         }
 
@@ -115,7 +111,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_forward_queue_length = 64; //TODO
+        [IoParameter] public int parm_forward_queue_length = 2; //TODO
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -143,7 +139,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 10;
+        public int parm_max_msg_batch_size = 16;//TODO
 
         /// <summary>
         /// 
@@ -158,7 +154,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Userdata in the source
         /// </summary>
-        protected volatile object ProducerUserData;
+        protected volatile object ProducerExtraData;
 
         public enum MessageTypes
         {
@@ -185,7 +181,7 @@ namespace zero.cocoon.models
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            ProducerUserData = null;
+            ProducerExtraData = null;
             ProtocolChannel = null;
             _protocolMsgBatch = null;
             _arrayPool = null;
@@ -195,12 +191,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
             if (_protocolMsgBatch != null)
                 _arrayPool.Return(_protocolMsgBatch, true);
 
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
@@ -208,16 +204,16 @@ namespace zero.cocoon.models
         {
             try
             {
-                await Source.ProduceAsync(async (ioSocket, consumerSync, ioZero, ioJob) =>
+                await Source.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (IoCcPeerMessage) ioJob;
+                    var _this = (IoCcPeerMessage)ioJob;
                     //----------------------------------------------------------------------------
                     // BARRIER
                     // We are only allowed to run ahead of the consumer by some configurable
                     // amount of steps. Instead of say just filling up memory buffers.
                     // This allows us some kind of (anti DOS?) congestion control
                     //----------------------------------------------------------------------------
-                    if (!await consumerSync(ioJob, ioZero))
+                    if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
                         return false;
                     try
                     {
@@ -225,12 +221,12 @@ namespace zero.cocoon.models
                         if (_this.Source.IsOperational)
                         {
                             var rx = await ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,
-                                _this.BufferSize);
+                                _this.BufferSize).ConfigureAwait(false);
 
 
                             //Success
                             //UDP signals source ip
-                            _this.ProducerUserData = ((IoSocket) ioSocket).ExtraData();
+                            _this.ProducerExtraData = ((IoSocket) ioSocket).ExtraData();
 
                             //Drop zero reads
                             if (rx == 0)
@@ -267,7 +263,7 @@ namespace zero.cocoon.models
 
                             _this.State = IoJobMeta.JobState.Produced;
 
-                            //_logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                            _logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
                         }
                         else
                         {
@@ -388,7 +384,6 @@ namespace zero.cocoon.models
         /// </summary>
         public IoCcIdentity CcId => CcNode.CcId;
 
-        private volatile int counter = 0;
         /// <summary>
         /// Message sink
         /// </summary>
@@ -398,8 +393,6 @@ namespace zero.cocoon.models
             var stream = ByteStream;
             try
             {
-                //TransferPreviousBits();
-
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
 
@@ -428,8 +421,7 @@ namespace zero.cocoon.models
                     //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
                     packet.Type = packet.Data[0];
-                    _logger.Trace(
-                        $"{messageType ?? "Unknown"}[{(verified ? "signed" : "un-signed")}], s = {BytesRead}, s = `{(IPEndPoint) ProducerUserData}', d = {Source.Description}");
+                    _logger.Trace($"/{((IPEndPoint)ProducerExtraData).Port}<<{messageType ?? "Unknown"}[{(verified ? "signed" : "un-signed")}], id = {Id}, o = {_currBatch}, r = {BytesRead}, s = `{(IPEndPoint) ProducerExtraData}', d = {Source.Description}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
@@ -467,6 +459,7 @@ namespace zero.cocoon.models
 
                 }
 
+                //Release a waiter
                 await ForwardToNeighborAsync().ConfigureAwait(false);
 
                 State = IoJobMeta.JobState.Consumed;
@@ -506,7 +499,10 @@ namespace zero.cocoon.models
             return State;
         }
 
-        private volatile int _protocolMsgBatchIndex;
+        /// <summary>
+        /// offset into the batch
+        /// </summary>
+        private volatile int _currBatch;
 
         private async Task ProcessRequestAsync<T>(Packet packet)
             where T : IMessage<T>, new()
@@ -520,16 +516,16 @@ namespace zero.cocoon.models
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
 
-                    if (_protocolMsgBatchIndex < parm_max_msg_batch_size)
+                    if (_currBatch < parm_max_msg_batch_size)
                     {
-                        _protocolMsgBatch[Interlocked.Increment(ref _protocolMsgBatchIndex) - 1] =
-                            Tuple.Create((IMessage)request, ProducerUserData, packet);
+                        _protocolMsgBatch[_currBatch] = Tuple.Create((IMessage)request, ProducerExtraData, packet);
+                        Interlocked.Increment(ref _currBatch);
                     }
                     else
                     {
                         await ForwardToNeighborAsync().ConfigureAwait(false);
-                        _protocolMsgBatch[Interlocked.Increment(ref _protocolMsgBatchIndex) - 1] =
-                            Tuple.Create((IMessage) request, ProducerUserData, packet);
+                        _protocolMsgBatch[_currBatch] = Tuple.Create((IMessage) request, ProducerExtraData, packet);
+                        Interlocked.Increment(ref _currBatch);
                     }
                 }
             }
@@ -547,36 +543,50 @@ namespace zero.cocoon.models
         {
             try
             {
-                if (_protocolMsgBatchIndex == 0)
+                if (_currBatch == 0)
                     return;
 
-                if (_protocolMsgBatchIndex < parm_max_msg_batch_size)
-                    _protocolMsgBatch[Interlocked.Increment(ref _protocolMsgBatchIndex)] = null;
-
+                if (_currBatch < parm_max_msg_batch_size)
+                {
+                    _protocolMsgBatch[_currBatch] = null;
+                    Interlocked.Increment(ref _currBatch);
+                }
+                
                 //cog the source
-                await ProtocolChannel.Source.ProduceAsync((source, _, __, ioJob) =>
+                var cogSuccess = await ProtocolChannel.Source.ProduceAsync(async (source, _, __, ioJob) =>
                 {
                     var _this = (IoCcPeerMessage) ioJob;
-                    //if (((IoCcProtocolBuffer) source).Count() ==
-                    //    ((IoCcProtocolBuffer) source).MessageQueue.BoundedCapacity)
-                    //{
-                    //    _logger.Warn($"MessageQueue depleted: {((IoCcProtocolBuffer)source).MessageQueue.Count}");
-                    //} //TODO
 
-                    ((IoCcProtocolBuffer) source).Enqueue(_this._protocolMsgBatch);
+                    if (!await ((IoCcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+                    {
+                        _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {Description}");
+                        return false;
+                    }
 
-                    _this._protocolMsgBatch =
-                        ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
-                    _this._protocolMsgBatchIndex = 0;
+                    //Retrieve batch buffer
+                    try
+                    {
+                        _this._protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Fatal(e,$"Unable to rent from mempool: {Description}");
+                        return false;
+                    }
 
-                    return Task.FromResult(true);
+                    _this._currBatch = 0;
+
+                    return true;
                 }, jobClosure: this).ConfigureAwait(false);
 
-                //forward transactions
-                if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
-                {
-                    _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
-                }
+                ////forward transactions
+                //if (cogSuccess)
+                //{
+                //    if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
+                //    {
+                //        _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
+                //    }
+                //}
             }
             catch (TaskCanceledException e)
             {

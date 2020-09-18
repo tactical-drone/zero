@@ -56,7 +56,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         private readonly object _syncRoot = 0;
 
-        private readonly AsyncAutoResetEvent _syncRootAuto = new AsyncAutoResetEvent();
+        private readonly AsyncAutoResetEvent _syncRootAuto = new AsyncAutoResetEvent(true);
 
         /// <summary>
         /// Who zeroed this object
@@ -98,7 +98,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(true).ConfigureAwait(false).GetAwaiter().GetResult();
+            ZeroAsync(true).ConfigureAwait(false);//.GetAwaiter().GetResult();
             GC.SuppressFinalize(this);
         }
 
@@ -245,7 +245,8 @@ namespace zero.core.patterns.misc
                 CascadeTime.Restart();
                 try
                 {
-                    AsyncTasks.Cancel(true);
+                    //TODO
+                    AsyncTasks.Cancel();
                 }
                 catch (Exception e)
                 {
@@ -255,19 +256,22 @@ namespace zero.core.patterns.misc
                 TeardownTime.Restart();
 
                 var subs = new ZeroSub[10];
+                var popped = 0;
                 //emit zero event
-                while (_zeroSubs.TryPopRange(subs) > 0)
+                while ((popped = _zeroSubs.TryPopRange(subs)) > 0)
                 {
-                    foreach (var zeroSub in subs)
+                    for (var i = 0; i < popped; i++)
                     {
+                        var zeroSub = subs[i];
                         try
                         {
                             if (!zeroSub.Schedule)
                                 continue;
                             await zeroSub.Action(this).ConfigureAwait(false);
                         }
-                        catch (NullReferenceException)
+                        catch (NullReferenceException e)
                         {
+                            _logger.Trace(e,Description);
                         }
                         catch (Exception e)
                         {
@@ -303,9 +307,7 @@ namespace zero.core.patterns.misc
                         ZeroedFrom = null;
                         _zeroSubs = null; 
                     }
-                    catch (NullReferenceException)
-                    {
-                    }
+                    catch (NullReferenceException) { }
                     catch (Exception e)
                     {
                         _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
@@ -320,7 +322,7 @@ namespace zero.core.patterns.misc
                 _logger = null;
 
                 return true;
-            }, true);
+            }, true).ConfigureAwait(false);
         }
 
         /// <summary>

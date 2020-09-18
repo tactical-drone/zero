@@ -93,8 +93,9 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">The address to listen on</param>
         /// <param name="callback">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
+        /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> callback)
+        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> callback, Func<Task> bootstrapAsync = null)
         {
             
             Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
@@ -106,16 +107,19 @@ namespace zero.core.network.ip
                 null
             );
 
-            if (!await base.ListenAsync(address, callback).ConfigureAwait(false))
+            if (!await base.ListenAsync(address, callback, bootstrapAsync).ConfigureAwait(false))
                 return false;
 
             try
             {
                 //Call the new connection established handler
-                await callback(this);
+                await callback(this).ConfigureAwait(false);
 
                 // Prepare UDP connection orientated things                
                 _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 88);
+
+                if (bootstrapAsync != null)
+                    await bootstrapAsync().ConfigureAwait(false);
 
                 _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Zeroed())
@@ -170,7 +174,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await Socket.SendToAsync(buffer, SocketFlags.None, endPoint);
+                return await Socket.SendToAsync(buffer, SocketFlags.None, endPoint).ConfigureAwait(false);
             }
             catch (NullReferenceException e){_logger.Trace(e, Description);}
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
@@ -212,7 +216,7 @@ namespace zero.core.network.ip
                 if (timeout == 0)
                 {
                     
-                    var readResult = await Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _udpRemoteEndpointInfo);
+                    var readResult = await Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _udpRemoteEndpointInfo).ConfigureAwait(false);
                     _udpRemoteEndpointInfo = readResult.RemoteEndPoint;
                     read = readResult.ReceivedBytes;
 

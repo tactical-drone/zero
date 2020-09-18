@@ -108,14 +108,14 @@ namespace zero.core.models
         /// Prepares this item for use after being popped from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        public override IIoHeapItem Constructor()
+        public override ValueTask<IIoHeapItem> ConstructorAsync()
         {
             BytesRead = 0;
             //DatumProvisionLength = DatumProvisionLengthMax;
             BufferOffset = DatumProvisionLengthMax;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
-            return base.Constructor();
+            return base.ConstructorAsync();
         }
 
         /// <summary>

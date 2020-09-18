@@ -40,9 +40,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -66,10 +66,11 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">The <see cref="IoNodeAddress"/> that this socket listener will initialize with</param>
         /// <param name="connectionHandler">A handler that is called once a new connection was formed</param>
+        /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler)
+        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler, Func<Task> bootstrapAsync = null)
         {
-            if (!await base.ListenAsync(address, connectionHandler).ConfigureAwait(false))
+            if (!await base.ListenAsync(address, connectionHandler, bootstrapAsync).ConfigureAwait(false))
                 return false;
 
             try
@@ -85,6 +86,10 @@ namespace zero.core.network.ip
             //Configure the socket
             ConfigureTcpSocket(Socket);
 
+            //Execute bootstrap
+            if(bootstrapAsync!=null)
+                await bootstrapAsync().ConfigureAwait(false);
+
             // Accept incoming connections
             while (!Zeroed())
             {
@@ -96,7 +101,7 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO control passed to connection handler
-                    var newSocket = new IoTcpSocket(await listenerAcceptTask, ListeningAddress)
+                    var newSocket = new IoTcpSocket(await listenerAcceptTask.ConfigureAwait(false), ListeningAddress)
                     {
                         Kind = Connection.Ingress
                     };
@@ -133,7 +138,7 @@ namespace zero.core.network.ip
                 }
             }
 
-            _logger.Debug($"Listener at `{ListeningAddress}' exited");
+            _logger.Debug($"Listener {Description} exited");
             return true;
         }
 
@@ -163,7 +168,7 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                await Socket.ConnectAsync(address.Ip, address.Port);
+                await Socket.ConnectAsync(address.Ip, address.Port).ConfigureAwait(false);
 
                 Socket.Blocking = true;
                 //Do some pointless sanity checking
@@ -243,7 +248,7 @@ namespace zero.core.network.ip
             {
                 if (timeout == 0)
                 {
-                    return await Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
+                    return await Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).ConfigureAwait(false);
                 }
 
                 Socket.SendTimeout = timeout;

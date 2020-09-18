@@ -11,11 +11,6 @@ namespace zero.core.patterns.bushes.contracts
     /// <seealso cref="IIoJob" />
     public class IoJobStub: IoZeroable, IIoJob
     {
-        public IIoHeapItem Constructor()
-        {
-            throw new NotImplementedException();
-        }
-
         public override string Description { get; } = "Job Stub";
         public long Id { get; } = -1;
         public IoJobMeta.JobState State { get; set; }
@@ -24,6 +19,11 @@ namespace zero.core.patterns.bushes.contracts
         public bool StillHasUnprocessedFragments { get; } = false;
 
         public Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ValueTask<IIoHeapItem> ConstructorAsync()
         {
             throw new NotImplementedException();
         }

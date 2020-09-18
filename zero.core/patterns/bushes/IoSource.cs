@@ -26,15 +26,16 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected IoSource(int readAheadBufferSize = 2) //TODO
         {
-            ReadAheadBufferSize = readAheadBufferSize;
-            ProducerBarrier = new AsyncAutoResetEvent(true);
-            ProducerBarrier.Set();
-            ConsumerBarrier = new AsyncAutoResetEvent(true);
+            //ReadAheadBufferSize = _backPressure = readAheadBufferSize - 1;
+            ReadAheadBufferSize = _backPressure = readAheadBufferSize;
+            ProduceBackPressure = new AsyncAutoResetEvent(true);
+            ProduceBackPressure.Set();
+            ProducerPressure = new AsyncAutoResetEvent(true);
             ProduceAheadBarrier = new AsyncAutoResetEvent(true);
             ConsumeAheadBarrier = new AsyncAutoResetEvent(true);
 
-            //ConsumerBarrier = new SemaphoreSlim(0);
-            //ProducerBarrier = new SemaphoreSlim(readAheadBufferSize);
+            //ProducerPressure = new SemaphoreSlim(0);
+            //ProduceBackPressure = new SemaphoreSlim(readAheadBufferSize);
             //ConsumeAheadBarrier = new SemaphoreSlim(1);
             //ProduceAheadBarrier = new SemaphoreSlim(1);
             _logger = LogManager.GetCurrentClassLogger();
@@ -77,9 +78,9 @@ namespace zero.core.patterns.bushes
         public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];
 
 
-        public AsyncAutoResetEvent ProducerBarrier { get; protected set; }
+        public AsyncAutoResetEvent ProduceBackPressure { get; protected set; }
 
-        public AsyncAutoResetEvent ConsumerBarrier { get; protected set; }
+        public AsyncAutoResetEvent ProducerPressure { get; protected set; }
 
         public AsyncAutoResetEvent ConsumeAheadBarrier { get; protected set; }
 
@@ -87,12 +88,12 @@ namespace zero.core.patterns.bushes
         ///// <summary>
         ///// The source semaphore
         ///// </summary>
-        //public SemaphoreSlim ConsumerBarrier { get; protected set; }
+        //public SemaphoreSlim ProducerPressure { get; protected set; }
 
         ///// <summary>
         ///// The consumer semaphore
         ///// </summary>
-        //public SemaphoreSlim ProducerBarrier { get; protected set; }
+        //public SemaphoreSlim ProduceBackPressure { get; protected set; }
 
         ///// <summary>
         ///// The consumer semaphore
@@ -139,6 +140,11 @@ namespace zero.core.patterns.bushes
         public int ReadAheadBufferSize { get; set; }
 
         /// <summary>
+        /// a counting semaphore for managing back pressure
+        /// </summary>
+        private volatile int _backPressure;
+
+        /// <summary>
         /// Used to identify work that was done recently
         /// </summary>
         public IIoDupChecker RecentlyProcessed { get; set; }
@@ -174,18 +180,18 @@ namespace zero.core.patterns.bushes
         protected override void ZeroUnmanaged()
         {
             //Unblock any blockers
-            //ProducerBarrier.Dispose();
-            //ConsumerBarrier.Dispose();
+            //ProduceBackPressure.Dispose();
+            //ProducerPressure.Dispose();
             //ConsumeAheadBarrier.Dispose();
             //ProduceAheadBarrier.Dispose();
 
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            ConsumerBarrier = null;
+            ProducerPressure = null;
             ConsumeAheadBarrier = null;
             ProduceAheadBarrier = null;
-            ProducerBarrier = null;
+            ProduceBackPressure = null;
             RecentlyProcessed = null;
             IoChannels = null;
             ObjectStorage = null;
@@ -199,7 +205,7 @@ namespace zero.core.patterns.bushes
         {
             //foreach (var objectStorageValue in ObjectStorage.Values)
             //{
-            //    ((IIoZeroable)objectStorageValue).ZeroAsync(this);
+            //    await ((IIoZeroable)objectStorageValue).ZeroAsync(this).ConfigureAwait(false);
             //}
 
             ObjectStorage.Clear();
@@ -218,7 +224,7 @@ namespace zero.core.patterns.bushes
 
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.
-        /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
+        /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers.
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
@@ -228,7 +234,7 @@ namespace zero.core.patterns.bushes
         /// /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
-        public IoChannel<TFJob> AttachProducer<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
+        public IoChannel<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoLoad<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
         where TFJob : IIoJob
         {
@@ -244,24 +250,65 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel = new IoChannel<TFJob>($"`channel({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
 
-
-                    //var longRunningAsyncWork = Task.Factory.StartNew(async delegate
-                    //{
-                        ZeroEnsureAsync(() =>
-                        {
-                            if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
-                            ZeroOnCascade(newChannel, cascade);
-                            return Task.FromResult(true);
-                        }).ConfigureAwait(false).GetAwaiter().GetResult();
-                    //});
-
+                    ZeroEnsureAsync(() =>
+                    {
+                        if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
+                        ZeroOnCascade(newChannel, cascade);
+                        return Task.FromResult(true);
+                    }).ConfigureAwait(false).GetAwaiter().GetResult();
                 }
             }
 
             return (IoChannel<TFJob>)IoChannels[id];
         }
 
+        /// <summary>
+        /// Waits on back pressure
+        /// </summary>
+        /// <returns>A completed task</returns>
+        public async Task BackPressureWaitAsync()
+        {
+            if (Interlocked.Decrement(ref _backPressure) > 0)
+                return;
 
+            try
+            {
+                await ProduceBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e, Description);
+            }
+            finally
+            {
+                Interlocked.Increment(ref _backPressure);
+            }
+        }
+
+        /// <summary>
+        /// Release back pressure
+        /// </summary>
+        public void BackPressureRelease(int count = 1)
+        {
+            lock (ProduceBackPressure)
+            {
+                //Are there any blockers?
+                if (_backPressure <= 0)
+                {
+                    //Release a blocker
+                    ProduceBackPressure.Set();
+                }
+                else
+                {
+                    Interlocked.Add(ref _backPressure, count);
+                }
+#if DEBUG
+                //This should not happen
+                if (_backPressure > ReadAheadBufferSize)
+                    throw new ApplicationException($"{nameof(BackPressureRelease)}: Back pressure {_backPressure} overflow, not less than max allowed {ReadAheadBufferSize}!");
+#endif
+            }
+        }
 
         /// <summary>
         /// Gets a channel with a certain Id

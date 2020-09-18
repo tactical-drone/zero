@@ -105,7 +105,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
 
             try
@@ -118,7 +118,7 @@ namespace zero.core.patterns.heap
             }
             catch { }
 
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         /// <summary>

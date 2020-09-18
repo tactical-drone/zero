@@ -126,8 +126,9 @@ namespace zero.cocoon.models
                 if (Zeroed())
                     return State = IoJobMeta.JobState.ProdCancel;
 
-                var produced = await Source.ProduceAsync(async (ioSocket, consumeSync, ioZero, ioJob) =>
+                var produced = await Source.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
+                    var _this = (IoCcGossipMessage)ioJob;
                     //----------------------------------------------------------------------------
                     // BARRIER
                     // We are only allowed to run ahead of the consumer by some configurable
@@ -136,14 +137,13 @@ namespace zero.cocoon.models
                     //----------------------------------------------------------------------------
                     try
                     {
-                        var _this = (IoCcGossipMessage)ioJob;
-                        if (!await consumeSync(ioJob, ioZero))
+                        if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
                             return false;
 
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            _this.BytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize);
+                            _this.BytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize).ConfigureAwait(false);
 
                             //TODO WTF
                             if (_this.BytesRead == 0)
@@ -169,9 +169,7 @@ namespace zero.cocoon.models
                         }
                         else
                         {
-
-                            await _this.Source.ZeroAsync(this).ConfigureAwait(false);
-
+                            await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
                         }
 
                         if (_this.Zeroed())
@@ -181,18 +179,18 @@ namespace zero.cocoon.models
                         }
                         return true;
                     }
-                    catch (NullReferenceException e){_logger.Trace(e, Description); return false;}
-                    catch (TaskCanceledException e){ _logger.Trace(e, Description); return false; }
-                    catch (ObjectDisposedException e) { _logger.Trace(e, Description); return false; }
-                    catch (OperationCanceledException e) { _logger.Trace(e, Description); return false; }
+                    catch (NullReferenceException e){ _this._logger.Trace(e, Description); return false;}
+                    catch (TaskCanceledException e){ _this._logger.Trace(e, Description); return false; }
+                    catch (ObjectDisposedException e) { _this._logger.Trace(e, Description); return false; }
+                    catch (OperationCanceledException e) { _this._logger.Trace(e, Description); return false; }
                     catch (Exception e)
                     {
-                        _logger.Debug(e,$"Error producing {Description}");
-                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false); //TODO
+                        _logger.Debug(e,$"Error producing {_this.Description}");
+                        await Task.Delay(250, _this.AsyncTasks.Token).ConfigureAwait(false); //TODO
 
-                        State = IoJobMeta.JobState.ProduceErr;
+                        _this.State = IoJobMeta.JobState.ProduceErr;
 
-                        await Source.ZeroAsync(this).ConfigureAwait(false);
+                        await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
 
                         return false;
                     }

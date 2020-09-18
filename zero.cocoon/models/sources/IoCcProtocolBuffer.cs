@@ -44,7 +44,12 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Sync used to access the Q
         /// </summary>
-        private AsyncAutoResetEvent _messageQueueSync = new AsyncAutoResetEvent(true);
+        private AsyncAutoResetEvent _queuePressure = new AsyncAutoResetEvent(true);
+
+        /// <summary>
+        /// Sync used to access the Q
+        /// </summary>
+        private AsyncAutoResetEvent _queueBackPressure = new AsyncAutoResetEvent(true);
 
         /// <summary>
         /// Keys this instance.
@@ -94,7 +99,7 @@ namespace zero.cocoon.models.sources
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _messageQueueSync = null;
+            _queuePressure = null;
             MessageQueue = null;
             ArrayPoolProxy = null;
 #endif
@@ -103,10 +108,10 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
             MessageQueue.Clear();
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -114,15 +119,17 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public bool Enqueue(Tuple<IMessage, object, Packet>[] item)
+        public async Task<bool> EnqueueAsync(Tuple<IMessage, object, Packet>[] item)
         {
             try
             {
+                //await _queueBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                 MessageQueue.Enqueue(item);
-                _messageQueueSync.Set();
+                _queuePressure.Set();
             }
-            catch
+            catch(Exception e)
             {
+                _logger.Trace(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
                 return false;
             }
 
@@ -138,10 +145,17 @@ namespace zero.cocoon.models.sources
         {
             try
             {
-                await _messageQueueSync.WaitAsync(AsyncTasks.Token);
-                return MessageQueue.TryDequeue(out var dq) ? dq : null;
+                Tuple<IMessage, object, Packet>[] batch = null;
+                while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
+                {
+                    await _queuePressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                }
+                return batch;
             }
-            catch { }
+            catch (Exception e)
+            {
+                _logger.Trace(e,$"{Description}");
+            }
 
             return null;
         }
@@ -171,20 +185,24 @@ namespace zero.cocoon.models.sources
             {
                 return await callback(this, barrier, zeroClosure, jobClosure).ConfigureAwait(false);
             }
-            catch (TimeoutException)
+            catch (TimeoutException e)
             {
+                _logger.Trace(e, Description);
                 return false;
             }
-            catch (TaskCanceledException)
+            catch (TaskCanceledException e)
             {
+                _logger.Trace(e, Description);
                 return false;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException e)
             {
+                _logger.Trace(e, Description);
                 return false;
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException e)
             {
+                _logger.Trace(e, Description);
                 return false;
             }
             catch (Exception e)

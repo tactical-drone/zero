@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Threading;
@@ -105,21 +106,31 @@ namespace zero.core.patterns.bushes
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        public virtual IIoHeapItem Constructor()
+        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
         {
 #if DEBUG
             foreach (var ioWorkStateTransition in StateTransitionHistory)
             {
-                if(ioWorkStateTransition != null)
-                    _stateHeap.ReturnAsync(ioWorkStateTransition).ConfigureAwait(false).GetAwaiter().GetResult();
+                var c = ioWorkStateTransition;
+                while (c != null)
+                {
+                    var r = c;
+                    c = c.Repeat;
+                    await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
+                }
             }
 
-            _stateMeta = null;
-#else
-            _stateMeta.CurrentState = IoJobMeta.CurrentState.Undefined;
-            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.CurrentState.Undefined]);
-#endif
 
+            if (_stateMeta != null)
+            {
+                await _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
+                _stateMeta = null;
+            }
+
+#else
+            _stateMeta.Value = IoJobMeta.JobState.Undefined;
+            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
+#endif
             State = IoJobMeta.JobState.Undefined;
             StillHasUnprocessedFragments = false;
 
@@ -165,10 +176,11 @@ namespace zero.core.patterns.bushes
         protected override async Task ZeroManagedAsync()
         {
 #if DEBUG
-            await _stateHeap.ReturnAsync(_stateMeta);
-            await _stateHeap.ZeroAsync(this); //TODO
+            await _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
+            Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
+            await _stateHeap.ZeroAsync(this).ConfigureAwait(false); //TODO
 #endif
-            await base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
             if(PreviousJob != null)
                 await PreviousJob.ZeroAsync(this).ConfigureAwait(false);
         }
@@ -244,7 +256,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG        
         //TODO
-        private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length) { Make = o => new IoStateTransition<IoJobMeta.JobState>() };
+        private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
 #endif
 
         /// <summary>
@@ -302,15 +314,15 @@ namespace zero.core.patterns.bushes
                     return new ValueTask<IoStateTransition<IoJobMeta.JobState>>(transition);
                 }, this).ConfigureAwait(false).GetAwaiter().GetResult();
 
-                newState.Value = value;
+                if (newState == null)
+                {
+                    if(!Zeroed())
+                        throw new OutOfMemoryException();
 
-                //var newState = new IoStateTransition<TJob>
-                //{
-                //    Previous = prevState,
-                //    CurrentState = value,
-                //    EnterTime = DateTime.Now,
-                //    ExitTime = DateTime.Now
-                //};
+                    return;
+                }
+                
+                newState.Value = value;
 
                 _stateMeta = newState;
                 
@@ -318,11 +330,15 @@ namespace zero.core.patterns.bushes
                 if (prevState != null)
                 {
                     prevState.Next = _stateMeta;
-
-                    StateTransitionHistory[(int)prevState.Value] = _stateMeta;
+                    if (StateTransitionHistory[(int) prevState.Value] != null)
+                    {
+                        StateTransitionHistory[(int)prevState.Value].Repeat = prevState;
+                    }
+                    else
+                        StateTransitionHistory[(int)prevState.Value] = prevState;
                 }
 #else
-                _stateMeta.CurrentState = value;
+                _stateMeta.Value = value;
                 _stateMeta.EnterTime = DateTime.Now;
                 _stateMeta.ExitTime = DateTime.Now;
 #endif

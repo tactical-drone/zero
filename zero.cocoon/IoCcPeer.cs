@@ -124,7 +124,7 @@ namespace zero.cocoon
         /// </summary>
         protected override async Task ZeroManagedAsync()
         {
-            DetachNeighbor();
+            await DetachNeighborAsync().ConfigureAwait(false);
             await Source.ZeroAsync(this).ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
@@ -133,38 +133,34 @@ namespace zero.cocoon
         /// Attaches a neighbor to this peer
         /// </summary>
         /// <param name="neighbor"></param>
-        public bool AttachNeighbor(IoCcNeighbor neighbor)
+        /// <param name="direction"></param>
+        public bool AttachNeighbor(IoCcNeighbor neighbor, IoCcNeighbor.Kind direction)
         {
-            //lock (this)
-            {
-                //if (Neighbor == neighbor || Neighbor != null)
-                //{
-                //    _logger.Fatal($"Peer id = {Neighbor?.Id} already attached!");
-                //    return false;
-                //}
-                
-                Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
-            }
+
+            Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             
-            _logger.Debug($" IsPeerAttached to neighbor {neighbor.Description}");
+            
 
             //Attach the other way
-            var result = Neighbor.AttachPeer(this);
+            var attached = Neighbor.AttachPeer(this, direction);
 
-            if (result)
-            { 
+            if (attached)
+            {
+                _logger.Debug($"{nameof(AttachNeighbor)}: {direction} attach to neighbor {neighbor.Description}");
+
                 StartTestMode();
             }
 
-            return result;
+            return attached;
         }
 
         /// <summary>
         /// Detaches current neighbor
         /// </summary>
-        public void DetachNeighbor()
+        public async Task DetachNeighborAsync()
         {
-            Neighbor?.DetachPeer();
+            if(Neighbor != null)
+                await Neighbor.DetachPeerAsync().ConfigureAwait(false);
             Neighbor = null;
         }
 

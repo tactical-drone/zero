@@ -61,9 +61,9 @@ namespace zero.core.core
         /// <summary>
         /// 
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
-            return  base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
     }
 }

@@ -87,8 +87,9 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAhead">TCP read ahead</param>
+        /// <param name="bootstrapAsync">Bootstrap code</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task ListenAsync(Func<IoNetClient<TJob>,Task> connectionReceivedAction, int readAhead)
+        public virtual Task ListenAsync(Func<IoNetClient<TJob>,Task> connectionReceivedAction, int readAhead, Func<Task> bootstrapAsync = null)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
@@ -125,7 +126,7 @@ namespace zero.core.network.ip
             var connected = false;
             try
             {
-                connected = await ioNetClient.ConnectAsync();
+                connected = await ioNetClient.ConnectAsync().ConfigureAwait(false);
                 if (connected)
                 {
                     ZeroOnCascade(ioNetClient);

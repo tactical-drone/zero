@@ -1,4 +1,6 @@
-﻿namespace zero.core.patterns.heap
+﻿using System.Threading.Tasks;
+
+namespace zero.core.patterns.heap
 {
     /// <summary>
     /// Provides access to lower level heap processes
@@ -11,6 +13,6 @@
         /// and a new malloc will be done
         /// </summary>
         /// <returns>This instance</returns>
-        IIoHeapItem Constructor();
+        ValueTask<IIoHeapItem> ConstructorAsync();
     }
 }

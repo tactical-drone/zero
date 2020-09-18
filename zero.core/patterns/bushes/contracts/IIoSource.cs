@@ -29,12 +29,12 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// The source semaphore
         /// </summary>
-        AsyncAutoResetEvent ConsumerBarrier { get; }
+        AsyncAutoResetEvent ProducerPressure { get; }
 
         /// <summary>
         /// The consumer semaphore
         /// </summary>
-        AsyncAutoResetEvent ProducerBarrier { get; }
+        AsyncAutoResetEvent ProduceBackPressure { get; }
 
         /// <summary>
         /// The consumer semaphore
@@ -127,8 +127,14 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
-        IoChannel<TFJob> AttachProducer<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
+        IoChannel<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoLoad<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
             where TFJob : IIoJob;
+
+        /// <summary>
+        /// Blocks on back pressure
+        /// </summary>
+        /// <returns></returns>
+        Task BackPressureWaitAsync();
     }
 }

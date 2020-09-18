@@ -35,10 +35,11 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="readAheadBufferSize"></param>
+        /// <param name="bootstrapAsync"></param>
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAheadBufferSize)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAheadBufferSize, Func<Task> bootstrapAsync = null)
         {
             await base.ListenAsync(connectionReceivedAction, readAheadBufferSize).ConfigureAwait(false);
 
@@ -57,7 +58,7 @@ namespace zero.core.network.ip
                     await ioSocket.ZeroAsync(this).ConfigureAwait(false);
 
                 }
-            }).ConfigureAwait(false);
+            }, bootstrapAsync).ConfigureAwait(false);
         }
 
         /// <inheritdoc />

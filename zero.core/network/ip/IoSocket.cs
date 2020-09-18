@@ -209,8 +209,9 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">Address to listen on</param>
         /// <param name="connectionHandler">The callback that handles a new connection</param>
+        /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler)
+        public virtual Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler, Func<Task> bootstrapAsync = null)
         {
             //If there was a coding mistake throw
             if (Socket.IsBound)

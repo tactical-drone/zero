@@ -16,7 +16,7 @@ namespace zero.core.patterns.bushes
         where TState : Enum {
         public IoStateTransition()
         {
-            Constructor();
+            ConstructorAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -33,6 +33,11 @@ namespace zero.core.patterns.bushes
         /// The next state
         /// </summary>
         public volatile IoStateTransition<TState> Next;
+
+        /// <summary>
+        /// A repeat state
+        /// </summary>
+        public volatile IoStateTransition<TState> Repeat;
 
         /// <summary>
         /// The represented state
@@ -78,12 +83,13 @@ namespace zero.core.patterns.bushes
         /// Prepares this item for use after popped from the heap
         /// </summary>
         /// <returns>The instance</returns>
-        public IIoHeapItem Constructor()
+        public ValueTask<IIoHeapItem> ConstructorAsync()
         {
             ExitTime = EnterTime = DateTime.Now;
-            Previous = Next = NullState;
+            Previous = Next = null;
+            Repeat = null;
             Value = default(TState);
-            return this;
+            return new ValueTask<IIoHeapItem>(this);
         }
 
         /// <summary>

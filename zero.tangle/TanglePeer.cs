@@ -85,7 +85,7 @@ namespace zero.tangle
         /// <returns></returns>
         private async Task ProcessTransactionsAsync(IIoDataSource<RowSet> dataSource)
         {
-            var transactionArbiter = Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
+            var transactionArbiter = Source.EnsureChannel<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
 
             _logger.Debug($"Starting persistence for `{Description}'");
             while (!Zeroed())
@@ -93,7 +93,7 @@ namespace zero.tangle
                 if (transactionArbiter == null)
                 {
                     _logger.Debug("Waiting for transaction stream to spin up...");
-                    transactionArbiter = Source.AttachProducer<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
+                    transactionArbiter = Source.EnsureChannel<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
                     await Task.Delay(2000);//TODO config
                     continue;
                 }

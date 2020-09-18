@@ -70,9 +70,9 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// ZeroAsync managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
@@ -24,17 +25,17 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public volatile Tuple<IMessage,object, Proto.Packet>[] Messages;
+        public volatile Tuple<IMessage,object, Proto.Packet>[] Batch;
 
         protected override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-            Messages = null;
+            Batch = null;
         }
 
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -45,30 +46,30 @@ namespace zero.cocoon.models
         /// </returns>
         public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
-            if (!await Source.ProduceAsync(async (producer, consumeSync, ioZero, ioJob )=>
+            if (!await Source.ProduceAsync(async (producer, backPressure, ioZero, ioJob )=>
             {
                 var _this = (IoCcProtocolMessage)ioJob;
                 
-                if (!await consumeSync(ioJob, ioZero))
+                if (!await backPressure(ioJob, ioZero).ConfigureAwait(false))
                     return false;
 
                 try
                 {
-                    _this.Messages = await ((IoCcProtocolBuffer) _this.Source).DequeueAsync();
+                    _this.Batch = await ((IoCcProtocolBuffer) _this.Source).DequeueAsync().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     _this._logger.Fatal(e,$"MessageQueue.DequeueAsync failed: {_this.Description}"); 
                 }
 
-                _this.State = _this.Messages != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProduceErr;
+                _this.State = _this.Batch != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProdCancel;
 
                 return true;
             }, barrier, zeroClosure, this).ConfigureAwait(false))
             {
                 State = IoJobMeta.JobState.ProduceTo;
             }
-
+            
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;
         }

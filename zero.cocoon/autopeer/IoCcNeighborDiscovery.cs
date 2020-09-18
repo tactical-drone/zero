@@ -54,27 +54,30 @@ namespace zero.cocoon.autopeer
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             CcNode = null;
+            LocalNeighbor = null;
 #endif
         }
 
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        protected override async Task ZeroManagedAsync()
         {
             //foreach (var neighborsValue in Neighbors.Values)
             //    neighborsValue.ZeroAsync(this);
 
-            return base.ZeroManagedAsync();
+            //await LocalNeighbor.ZeroAsync(this);
+
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcPeerMessage>, Task<bool>> acceptConnection = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcPeerMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             await base.SpawnListenerAsync(async neighbor =>
             {
                 LocalNeighbor ??= (IoCcNeighbor) neighbor;
-                return acceptConnection == null || await acceptConnection(neighbor);
-            });
+                return acceptConnection == null || await acceptConnection(neighbor).ConfigureAwait(false);
+            }, bootstrapAsync).ConfigureAwait(false);
         }
     }
 }
