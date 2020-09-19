@@ -160,11 +160,9 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
-            if (Zeroed())
-            {
-                await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
+            //fail fast
+            if (!(Socket.IsBound) || Zeroed())
                 return 0;
-            }
             
             if (endPoint == null)
             {
@@ -174,7 +172,13 @@ namespace zero.core.network.ip
 
             try
             {
-                return await Socket.SendToAsync(buffer, SocketFlags.None, endPoint).ConfigureAwait(false);
+                var sendTask = Socket.SendToAsync(buffer, SocketFlags.None, endPoint);
+                
+                //slow path
+                if (!sendTask.IsCompletedSuccessfully)
+                    await sendTask.ConfigureAwait(false);
+
+                return sendTask.Result;
             }
             catch (NullReferenceException e){_logger.Trace(e, Description);}
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
@@ -203,82 +207,31 @@ namespace zero.core.network.ip
         {
             try
             {
-
-                if (!(Socket?.IsBound ?? false) || Zeroed())
-                {
-                    await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
+                //fail fast
+                if (!(Socket.IsBound) || Zeroed())
                     return 0;
-                }
-
-                Socket.ReceiveTimeout = timeout;
+                
                 var read = 0;
-
                 if (timeout == 0)
                 {
+                    var readResult = Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _udpRemoteEndpointInfo);
                     
-                    var readResult = await Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _udpRemoteEndpointInfo).ConfigureAwait(false);
-                    _udpRemoteEndpointInfo = readResult.RemoteEndPoint;
-                    read = readResult.ReceivedBytes;
+                    //slow path
+                    if (!readResult.IsCompletedSuccessfully)
+                        await readResult.ConfigureAwait(false);
+                    
+                    _udpRemoteEndpointInfo = readResult.Result.RemoteEndPoint;
+                    read = readResult.Result.ReceivedBytes;
 
                     //Set the remote address
                     if (RemoteNodeAddress == null)
                         RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
                     else
                         RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
-
-                    //read = await Task.Factory.FromAsync(
-                    //    Socket.BeginReceiveFrom(buffer, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo, null, null),
-                    //    result =>
-                    //    {
-                    //        try
-                    //        {
-                    //            if (Zeroed())
-                    //                return 0;
-
-                    //            if (Socket != null && Socket.IsBound && result.IsCompleted)
-                    //            {
-                    //                var r = Socket.EndReceiveFrom(result, ref _udpRemoteEndpointInfo);
-
-                    //                //Set the remote address
-                    //                if (RemoteNodeAddress == null)
-                    //                {
-                    //                    RemoteNodeAddress =
-                    //                        IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
-                    //                    //_udpRemoteEndpointInfo = Socket.RemoteEndPoint;
-                    //                    //RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", Socket.RemoteEndPoint);
-                    //                }
-                    //                else
-                    //                    RemoteAddress.Update((IPEndPoint) _udpRemoteEndpointInfo);
-                    //                //RemoteAddress.Update((IPEndPoint)Socket.RemoteEndPoint);
-
-                    //                return r;
-                    //            }
-
-
-                    //            return 0;
-                    //        }
-                    //        catch (NullReferenceException) { return 0; }
-                    //        catch (TaskCanceledException) { return 0; }
-                    //        catch (OperationCanceledException) { return 0; }
-                    //        catch (ObjectDisposedException) { return 0; }
-                    //        catch (SocketException e)
-                    //        {
-                    //            _logger.Debug(e, $"Unable to read from {ListeningAddress}");
-                    //            ZeroAsync(this);
-                    //            return 0;
-                    //        }
-                    //        catch (Exception e)
-                    //        {
-                    //            _logger.Error(e, $"Unable to read from {ListeningAddress}");
-                    //            ZeroAsync(this);
-                    //            return 0;
-                    //        }
-                    //    }).ConfigureAwait(false);
-
-
                 }
                 else if (timeout > 0)
                 {
+                    Socket.ReceiveTimeout = timeout;
                     read = Socket.ReceiveFrom(buffer.Array!, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo );
 
                     //Set the remote address
@@ -294,10 +247,10 @@ namespace zero.core.network.ip
                 }
                 return read;
             }
-            catch (NullReferenceException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
-            catch (ObjectDisposedException) { }
+            catch (NullReferenceException e) {_logger.Trace(e,Description);}
+            catch (TaskCanceledException e)  {_logger.Trace(e,Description);}
+            catch (OperationCanceledException e) {_logger.Trace(e,Description);}
+            catch (ObjectDisposedException e) {_logger.Trace(e,Description);}
             catch (SocketException e)
             {
                 _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");

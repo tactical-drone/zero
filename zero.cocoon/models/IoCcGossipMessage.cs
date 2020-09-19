@@ -113,10 +113,14 @@ namespace zero.cocoon.models
                 ByteString.CopyFrom(CcNode.CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
 
             var msgRaw = responsePacket.ToByteArray();
+            
+            var sentTask =  ((IoTcpClient<IoCcGossipMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length);
 
-            var sent = await ((IoTcpClient<IoCcGossipMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length).ConfigureAwait(false);
-            _logger.Debug($"{nameof(IoCcGossipMessage)}: Sent {sent} bytes to {((IoTcpClient<IoCcGossipMessage>)Source).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
-            return sent;
+            if (!sentTask.IsCompletedSuccessfully)
+                await sentTask.ConfigureAwait(false);
+            
+            _logger.Debug($"{nameof(IoCcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<IoCcGossipMessage>)Source).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
+            return sentTask.Result;
         }
 
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
@@ -143,7 +147,13 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            _this.BytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize).ConfigureAwait(false);
+                            var readTask = ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize);
+
+                            //slow path
+                            if (!readTask.IsCompletedSuccessfully)
+                                _this.BytesRead = await readTask.ConfigureAwait(false);
+                            else
+                                _this.BytesRead = readTask.Result;
 
                             //TODO WTF
                             if (_this.BytesRead == 0)
@@ -274,8 +284,13 @@ namespace zero.cocoon.models
                         //if (Id % 10 == 0)
                         //await Task.Delay(150, AsyncTasks.Token).ConfigureAwait(false);
 
-                        if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
-                            .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                        var sentTask = ((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(ByteSegment, BufferOffset, DatumSize);
+                        
+                        //slow path
+                        if (!sentTask.IsCompletedSuccessfully)
+                            await sentTask.ConfigureAwait(false);
+                        
+                        if (sentTask.Result > 0)
                         {
                             Interlocked.Add(ref ((IoCcPeer) IoZero).AccountingBit, 2);
                         }

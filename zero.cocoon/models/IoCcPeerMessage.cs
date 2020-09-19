@@ -220,10 +220,15 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            var rx = await ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,
-                                _this.BufferSize).ConfigureAwait(false);
+                            int rx = 0;
+                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize);
 
-
+                            //slow path
+                            if (!readTask.IsCompletedSuccessfully)
+                                rx = await readTask.ConfigureAwait(false);
+                            else//fast path
+                                rx = readTask.Result;
+                            
                             //Success
                             //UDP signals source ip
                             _this.ProducerExtraData = ((IoSocket) ioSocket).ExtraData();

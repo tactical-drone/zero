@@ -242,22 +242,22 @@ namespace zero.core.network.ip
         /// <param name="length">The length of the data to be sent</param>
         /// <param name="endPoint">not used</param>
         /// <returns>The amount of bytes sent</returns>
-        public override async ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
+        public override ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
                 if (timeout == 0)
                 {
-                    return await Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).ConfigureAwait(false);
+                    return Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
                 }
 
                 Socket.SendTimeout = timeout;
-                return Socket.Send(buffer.Array!, offset, length, SocketFlags.None);
+                return ValueTask.FromResult(Socket.Send(buffer.Array!, offset, length, SocketFlags.None));
             }
-            catch (NullReferenceException) { }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
-            catch (ObjectDisposedException) { }
+            catch (NullReferenceException e) {_logger.Trace(e, Description);}
+            catch (TaskCanceledException e) {_logger.Trace(e, Description);}
+            catch (OperationCanceledException e) {_logger.Trace(e, Description);}
+            catch (ObjectDisposedException e) {_logger.Trace(e, Description);}
             catch (SocketException e)
             {
                 _logger.Trace(e, $"Failed to send on {Key}:");
@@ -267,8 +267,8 @@ namespace zero.core.network.ip
                 _logger.Error(e, $"Unable to send bytes to ({(Zeroed() ? "closed" : "open")})[connected = {Socket.Connected}] socket `tcp://{RemoteIpAndPort}' :");
             }
 
-            await ZeroAsync(this).ConfigureAwait(false);
-            return 0;
+            ZeroAsync(this).ConfigureAwait(false);
+            return ValueTask.FromResult(0);
         }
 
         /// <inheritdoc />
@@ -280,18 +280,17 @@ namespace zero.core.network.ip
         /// <param name="length">The maximum bytes to read into the buffer</param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
+        public override ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
         {
             try
             {
                 if (timeout == 0)
                 {
-                    return await Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,
-                            AsyncTasks.Token).ConfigureAwait(false);
+                    return Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,AsyncTasks.Token);
                 }
 
                 Socket.ReceiveTimeout = timeout;
-                return Socket.Receive(buffer.Array!, offset, length, SocketFlags.None);
+                return ValueTask.FromResult(Socket.Receive(buffer.Array!, offset, length, SocketFlags.None));
             }
             catch (NullReferenceException e) { _logger.Trace(e, Description);}
             catch (TaskCanceledException e) { _logger.Trace(e, Description);}
@@ -308,10 +307,10 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to read from socket {Description}, length = `{length}', offset = `{offset}' :");
-                await ZeroAsync(this).ConfigureAwait(false);
+                ZeroAsync(this).ConfigureAwait(false);
             }
 
-            return 0;
+            return ValueTask.FromResult(0);
         }
 
         /// <inheritdoc />

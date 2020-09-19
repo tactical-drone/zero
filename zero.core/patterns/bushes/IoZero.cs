@@ -746,7 +746,7 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
-                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 1000000 &&
+                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 10000000 &&
                                 _lastStat.UtDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
                             {
                                 _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -832,7 +832,7 @@ namespace zero.core.patterns.bushes
             var producerTask = Task.Factory.StartNew(async () =>
             {
                 //While supposed to be working
-                var producers = new Task[ProducerCount];
+                var producers = new ValueTask<bool>[ProducerCount];
                 while (!Zeroed())
                 {
                     try
@@ -846,10 +846,14 @@ namespace zero.core.patterns.bushes
 
                     for (var i = 0; i < ProducerCount; i++)
                     {
-
                         try
                         {
-                            producers[i] = ProduceAsync().AsTask();
+                            //fast path
+                            producers[i] = ProduceAsync();
+                            
+                            // //slow path
+                            // if (i % 2 == 1 && !producers[i - 1].IsCompletedSuccessfully)
+                            //     await producers[i - 1].ConfigureAwait(false);
                         }
                         catch (Exception e)
                         {
@@ -863,14 +867,22 @@ namespace zero.core.patterns.bushes
                         break;
                     }
                     
-                    await Task.WhenAll(producers).ConfigureAwait(false);
+                    //wait for all to completes
+                    for (int i = 0; i < producers.Length; i++)
+                    {
+                        //slow path
+                        if (!producers[i].IsCompletedSuccessfully)
+                            await producers[i].ConfigureAwait(false);
+                    }
+                    
                 }
             }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
             {
-                var consumers = new Task<bool>[ConsumerCount];
+                var consumers = new ValueTask<bool>[ConsumerCount];
+                
                 //While supposed to be working
                 while (!Zeroed() && !producerTask.Unwrap().IsCompleted )
                 {
@@ -878,7 +890,7 @@ namespace zero.core.patterns.bushes
                     {
                         try
                         {
-                            consumers[i] = ConsumeAsync().AsTask();
+                            consumers[i] = ConsumeAsync();
                         }
                         catch (Exception e)
                         {
@@ -892,7 +904,13 @@ namespace zero.core.patterns.bushes
                         break;
                     }
 
-                    await Task.WhenAll(consumers).ConfigureAwait(false);
+                    //wait for all to completes
+                    for (int i = 0; i < consumers.Length; i++)
+                    {
+                        //slow path
+                        if (!consumers[i].IsCompletedSuccessfully)
+                            await consumers[i].ConfigureAwait(false);
+                    }
                     
                     foreach (var c in consumers)
                     {

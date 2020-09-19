@@ -1045,9 +1045,12 @@ namespace zero.cocoon.autopeer
 
                 var msgRaw = packet.ToByteArray();
 
-                var sent = await ((IoUdpClient<IoCcPeerMessage>) Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint).ConfigureAwait(false);
-                _logger.Trace($"/{dest.IpEndPoint.Port}>>{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}({GetHashCode()}): Sent {sent} bytes to {(RoutedRequest?$"{Identity.IdString()}":"")}@{dest.IpEndPoint}");
-                return (sent, packet);
+                var sentTask = ((IoUdpClient<IoCcPeerMessage>) Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint);
+                if (!sentTask.IsCompletedSuccessfully)
+                    await sentTask.ConfigureAwait(false);
+                    
+                _logger.Trace($"/{dest.IpEndPoint.Port}>>{Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)}({GetHashCode()}): Sent {sentTask.Result} bytes to {(RoutedRequest?$"{Identity.IdString()}":"")}@{dest.IpEndPoint}");
+                return (sentTask.Result, packet);
             }
             catch (NullReferenceException e) { _logger.Trace(e, Description);}
             catch (TaskCanceledException e) { _logger.Trace(e, Description); }
