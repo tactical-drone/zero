@@ -19,21 +19,27 @@ namespace zero.core.patterns.bushes
         where TJob : IIoJob
     {
         /// <summary>
+        /// static constructor
+        /// </summary>
+        static IoJob()
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
+        
+        /// <summary>
         /// Constructor
         /// </summary>
         protected IoJob(string description, IoSource<TJob> source)
-        {            
-            _logger = LogManager.GetCurrentClassLogger();
+        {
             source.ZeroOnCascade(this);
             Source = source;
             _jobDescription = description;
-            var p = Description;
         }
 
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private static readonly Logger _logger;
 
         /// <summary>
         /// A unique id for this work

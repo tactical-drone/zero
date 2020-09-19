@@ -32,6 +32,7 @@ namespace zero.core.patterns.bushes
             ProduceBackPressure.Set();
             ProducerPressure = new AsyncAutoResetEvent(true);
             ProducerPrefetchPressure = new AsyncAutoResetEvent(true);
+            ProducerPrefetchPressure.Set();
             ConsumeAheadBarrier = new AsyncAutoResetEvent(true);
 
             //ProducerPressure = new SemaphoreSlim(0);

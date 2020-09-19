@@ -300,7 +300,7 @@ namespace zero.tangle.models
             });
 
             //forward transactions
-            if (!await NodeServicesArbiter.ProduceAsync( blockOnConsumerCongestion: false))
+            if (!await NodeServicesArbiter.ProduceAsync( enablePrefetchOption: false))
             {
                 _logger.Warn($"{TraceDescription} Failed to forward to `{NodeServicesArbiter.Source.Description}'");
             }

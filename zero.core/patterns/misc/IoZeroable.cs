@@ -16,11 +16,18 @@ namespace zero.core.patterns.misc
     /// </summary>
     public class IoZeroable : IDisposable, IIoZeroable
     {
+        /// <summary>
+        /// static constructor
+        /// </summary>
         static IoZeroable()
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
-        public IoZeroable()
+        
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        protected IoZeroable()
         {
             _syncRootAuto.Set();
         }
@@ -50,12 +57,7 @@ namespace zero.core.patterns.misc
             public Func<IIoZeroable, Task> Action;
             public volatile bool Schedule;
         }
-
-        /// <summary>
-        /// Used to atomically transfer ownership
-        /// </summary>
-        private readonly object _syncRoot = 0;
-
+        
         /// <summary>
         /// Sync root
         /// </summary>
@@ -64,22 +66,22 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Who zeroed this object
         /// </summary>
-        public IIoZeroable ZeroedFrom { get; protected set; }
+        public IIoZeroable ZeroedFrom { get; private set; }
 
         /// <summary>
         /// Measures how long teardown takes
         /// </summary>
-        public Stopwatch TeardownTime = new Stopwatch();
+        public Stopwatch TearDownTime { get; protected set; } = new Stopwatch();
 
         /// <summary>
         /// Measures how long cascading takes
         /// </summary>
-        public Stopwatch CascadeTime = new Stopwatch();
+        public Stopwatch CascadeTime { get; protected set; } = new Stopwatch();
 
         /// <summary>
         /// Uptime
         /// </summary>
-        public Stopwatch Uptime = Stopwatch.StartNew();
+        public Stopwatch Uptime { get; protected set; } = Stopwatch.StartNew();
 
         /// <summary>
         /// Used by superclass to manage all async calls
@@ -120,6 +122,9 @@ namespace zero.core.patterns.misc
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Debug teardown path printout
+        /// </summary>
         private void PrintPathToZero()
         {
             var builder = new StringBuilder();
@@ -146,7 +151,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Subscribe to disposed event
+        /// Subscribe to zero event
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
@@ -167,7 +172,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Unsubscribe
+        /// Unsubscribe to a zero event
         /// </summary>
         /// <param name="sub">The original subscription</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -183,7 +188,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Cascade zero the <see cref="target"/>
+        /// Cascade zero events to <see cref="target"/>
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">Enforces mutual zero</param>
@@ -219,7 +224,7 @@ namespace zero.core.patterns.misc
             }
             else //Release source if target goes
             {
-                var sub = ZeroEvent(async @from => await target.ZeroAsync(@from).ConfigureAwait(false));
+                var sub = ZeroEvent(async from => await target.ZeroAsync(@from).ConfigureAwait(false));
 
                 target.ZeroEvent(s =>
                 {
@@ -236,7 +241,7 @@ namespace zero.core.patterns.misc
         /// Our dispose implementation
         /// </summary>
         /// <param name="disposing">Whether we are disposing unmanaged objects</param>
-        protected virtual async Task ZeroAsync(bool disposing)
+        private async Task ZeroAsync(bool disposing)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0)
@@ -256,7 +261,7 @@ namespace zero.core.patterns.misc
                     _logger.Error(e, $"Cancel async tasks failed for {Description}");
                 }
                 
-                TeardownTime.Restart();
+                TearDownTime.Restart();
 
                 var subs = new ZeroSub[10];
                 var popped = 0;
@@ -317,11 +322,11 @@ namespace zero.core.patterns.misc
                     }
                 }
 
-                TeardownTime.Stop();
+                TearDownTime.Stop();
                 //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
                 //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
-                if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > CascadeTime.ElapsedMilliseconds + 200)
-                    _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, t = {TeardownTime.ElapsedMilliseconds/1000.0:0.000}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.000}");
+                if (Uptime.Elapsed.TotalSeconds > 10 && TearDownTime.ElapsedMilliseconds > CascadeTime.ElapsedMilliseconds + 200)
+                    _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, t = {TearDownTime.ElapsedMilliseconds/1000.0:0.000}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.000}");
                 _logger = null;
 
                 return true;
@@ -380,6 +385,10 @@ namespace zero.core.patterns.misc
             }
         }
 
+        /// <summary>
+        /// A description of this object
+        /// </summary>
+        /// <returns>A description</returns>
         public override string ToString()
         {
             return Description;

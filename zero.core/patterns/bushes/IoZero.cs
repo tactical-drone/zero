@@ -288,9 +288,9 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Produces the inline instead of in a spin loop
         /// </summary>
-        /// <param name="blockOnConsumerCongestion">if set to <c>true</c> block on consumer congestion</param>
+        /// <param name="enablePrefetchOption">if set to <c>true</c> block on consumer congestion</param>
         /// <returns></returns>
-        public async ValueTask<bool> ProduceAsync(bool blockOnConsumerCongestion = true) 
+        public async ValueTask<bool> ProduceAsync(bool enablePrefetchOption = true) 
         {
             try
             {
@@ -313,44 +313,13 @@ namespace zero.core.patterns.bushes
 
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
-
-                            //while (nextJob.Source.BlockOnProduceAheadBarrier && !Zeroed())
-                            //{
-                            //    if (blockOnConsumerCongestion)
-                            //    {
-                            //        try
-                            //        {
-                            //            await nextJob.Source.ProduceAheadBarrier.WaitAsync(AsyncTasks.Token);
-                            //        }
-                            //        catch
-                            //        {
-                            //            Interlocked.Increment(ref nextJob.Source.NextProducerId());
-                            //            return false;
-                            //        }
-                            //    }
-                            //    else
-                            //    {
-                            //        try
-                            //        {
-                            //            await nextJob.Source.ProduceAheadBarrier.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-                            //        }
-                            //        catch 
-                            //        {
-                            //            Interlocked.Increment(ref nextJob.Source.NextProducerId());
-                            //            return false;
-                            //        }
-                            //    }
-
-                            //    var nextProducerId = Interlocked.Read(ref nextJob.Source.NextProducerId());
-                            //    if (nextJob.Id == nextProducerId)
-                            //    {
-                            //        Interlocked.Increment(ref nextJob.Source.NextProducerId());
-                            //        break;
-                            //    }
-                            //    _logger.Warn($"{GetType().Name}: {nextJob.TraceDescription} Next id = `{nextJob.Id}' is not {nextProducerId}!!");
-                            //    //nextJob.Source.ProduceAheadBarrier.Release();
-                            //}
-
+                            
+                            //wait for prefetch pressure
+                            if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
+                            {
+                                try{ await nextJob.Source.ProducerPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false); } catch{return false;}
+                            }
+                            
                             //if(!Zeroed())
                             {
 //sanity check _previousJobFragment
@@ -368,37 +337,24 @@ namespace zero.core.patterns.bushes
                                     //});
 
                                 }
-
-                                //if (!_previousJobFragment.TryRemove(nextJob.Id - 1, out var prevJobFragment))
-                                //{
-                                //    _previousJobFragment.ToList().ForEach(j=>Free(j.Value));
-                                //    _previousJobFragment.Clear();
-                                //}
-
+                                
                                 if (SupportsSync && _previousJobFragment.TryDequeue(out var prevJobFragment))
                                 {
                                     //if( prevJobFragment.Id == nextJob.Id + 1)
                                         nextJob.PreviousJob = prevJobFragment;
                                     //_logger.Fatal($"{GetHashCode()}:{nextJob.GetHashCode()}: {nextJob.Id}");
                                 }
-                                    
-
-                                //if(prevJobFragment?.Id + 1 == nextJob.Id)
-
-                                //else
-                                //Free(prevJobFragment, true);
-
-                                //Fetch a job from TProducer. Did we get one?
+                                
                                 _producerStopwatch.Restart();
+                                //Produce job input
                                 if (await nextJob.ProduceAsync(async (job, closure) =>
                                 {
                                     var _this = (IoZero<TJob>)closure;
-                                    //The producer barrier
+                                    //Block on producer backpressure
                                     try
                                     {
                                         try
                                         {
-                                            //await job.Source.BackPressureWaitAsync();
                                             await job.Source.ProduceBackPressure.WaitAsync(_this.Source.AsyncTasks.Token).ConfigureAwait(false);
                                         }
                                         catch 
@@ -425,20 +381,16 @@ namespace zero.core.patterns.bushes
                                     _producerStopwatch.Stop();
                                     IsArbitrating = true;
 
-                                    //_previousJobFragment.TryAdd(nextJob.Id, nextJob);
+                                    //if(SupportsSync)
+                                        //_previousJobFragment.TryAdd(nextJob.Id, nextJob);
+                                    
                                     if(SupportsSync)
                                         _previousJobFragment.Enqueue(nextJob);
-
-                                    try
-                                    {
-                                        if (nextJob.Source.PrefetchEnabled)
-                                            nextJob.Source.ProducerPrefetchPressure.Set();                                
-                                    }
-                                    catch
-                                    {
-                                        // ignored
-                                    }
-
+                                    
+                                    //signal back pressure
+                                    if (nextJob.Source.PrefetchEnabled)
+                                        nextJob.Source.ProducerPrefetchPressure.Set();                                
+                                    
                                     //Enqueue the job for the consumer
                                     nextJob.State = IoJobMeta.JobState.Queued;
                             
@@ -487,7 +439,7 @@ namespace zero.core.patterns.bushes
                                     }
 #endif
                                     
-                                    //Handle failure
+                                    //Handle failure that leads to teardown
                                     if (nextJob.State == IoJobMeta.JobState.Cancelled ||
                                         nextJob.State == IoJobMeta.JobState.ProdCancel ||
                                         nextJob.State == IoJobMeta.JobState.Error)
@@ -505,12 +457,8 @@ namespace zero.core.patterns.bushes
                                     }
                                     
                                     //Is the producer spinning?
-                                    if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time 
-                                        //&&nextJob.State == IoJobMeta.JobState.ProduceTo
-                                        )
-                                    {
+                                    if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
                                         await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(false);
-                                    }
 
                                     //Free job
                                     nextJob.State = IoJobMeta.JobState.Reject;
@@ -567,7 +515,7 @@ namespace zero.core.patterns.bushes
                 }
                 else //We have run out of buffer space. Wait for the consumer to catch up
                 {
-                    if (blockOnConsumerCongestion)
+                    if (enablePrefetchOption)
                     {
                         _logger.Warn($"{GetType().Name}: Source for `{Description}' is waiting for consumer to catch up! parm_max_q_size = `{parm_max_q_size}'");
                         await Task.Delay(parm_producer_consumer_throttle_delay, AsyncTasks.Token).ConfigureAwait(false);
@@ -820,11 +768,11 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Starts this source consumer
+        /// Starts the processors
         /// </summary>
         public virtual async Task AssimilateAsync()
         {
-            _logger.Trace($"{GetType().Name}: Starting processing for `{Source.Description}'");
+            _logger.Debug($"{GetType().Name}: Assimulating {Description}");
             
             Task<Task> consumerTask = null;
 
@@ -850,10 +798,6 @@ namespace zero.core.patterns.bushes
                         {
                             //fast path
                             producers[i] = ProduceAsync();
-                            
-                            // //slow path
-                            // if (i % 2 == 1 && !producers[i - 1].IsCompletedSuccessfully)
-                            //     await producers[i - 1].ConfigureAwait(false);
                         }
                         catch (Exception e)
                         {
@@ -876,7 +820,7 @@ namespace zero.core.patterns.bushes
                     }
                     
                 }
-            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
+            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach , TaskScheduler.Default);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
@@ -910,13 +854,6 @@ namespace zero.core.patterns.bushes
                         //slow path
                         if (!consumers[i].IsCompletedSuccessfully)
                             await consumers[i].ConfigureAwait(false);
-                    }
-                    
-                    foreach (var c in consumers)
-                    {
-                        if (await c.ConfigureAwait(false)) continue;
-                        _logger.Trace($"Failed to consume at {Description}");
-                        break;
                     }
                 }
             }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
