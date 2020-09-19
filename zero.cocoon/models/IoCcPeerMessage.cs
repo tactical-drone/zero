@@ -118,7 +118,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 40;
+        public int parm_datums_per_buffer = 10;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -139,7 +139,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 16;//TODO
+        public int parm_max_msg_batch_size = 4;//TODO
 
         /// <summary>
         /// 
@@ -199,7 +199,7 @@ namespace zero.cocoon.models
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
             IIoZero zeroClosure)
         {
             try
@@ -263,7 +263,7 @@ namespace zero.cocoon.models
 
                             _this.State = IoJobMeta.JobState.Produced;
 
-                            _logger.Trace($"RX=> {GetType().Name}[{Id}] ({Description}): read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
+                            //_this._logger.Trace($"RX=> {GetType().Name}[{_this.Id}] ({_this.Description}): read=`{_this.BytesRead}', ready=`{_this.BytesLeftToProcess}', datumcount=`{_this.DatumCount}', datumsize=`{_this.DatumSize}', fragment=`{_this.DatumFragmentLength}', buffer = `{_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}', buf = `{(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%'");
                         }
                         else
                         {
@@ -388,7 +388,7 @@ namespace zero.cocoon.models
         /// Message sink
         /// </summary>
         /// <returns>Processing state</returns>
-        public override async Task<IoJobMeta.JobState> ConsumeAsync()
+        public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             var stream = ByteStream;
             try
@@ -397,12 +397,44 @@ namespace zero.cocoon.models
                     return State = IoJobMeta.JobState.ConInvalid;
 
                 var verified = false;
-                for (var i = 0; i <= DatumCount; i++)
+                for (var i = 0; i <= DatumCount && BytesLeftToProcess > 0; i++)
                 {
+                    Packet packet = null;
                     var read = stream.Position;
-                    var packet = Packet.Parser.ParseFrom(stream);
 
-                    Interlocked.Add(ref BufferOffset, (int) (stream.Position - read));
+                    //deserialize
+                    try
+                    {
+                        packet = Packet.Parser.ParseFrom(stream);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, Description);
+                    }
+
+                    //did we get anything?
+                    read = stream.Position - read;
+
+                    Interlocked.Add(ref BufferOffset, (int) read);
+
+#if !DEBUG
+                    if (read == 0)
+                    {
+                        continue;
+                    }
+#endif
+
+                    if (DatumCount > 0)
+                    {
+                        if (i == 0 && BytesLeftToProcess > 0)
+                        {
+                            _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}, d = {read}, l = {BytesLeftToProcess}>>");
+                        }
+                        if (i == 1 ) //&& read > 0)
+                        {
+                            _logger.Debug($"MULTI - READ <<D = {DatumCount}, r = {BytesRead}, d = {read}, l = {BytesLeftToProcess}>>");
+                        }
+                    }
 
                     //Sanity check the datas
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)

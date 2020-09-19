@@ -25,8 +25,14 @@ namespace zero.core.misc
             return timestamp.DateTime().ToUnixTimeMilliseconds();            
         }
 
+
+        /// <summary>
+        /// Delta time since in unix time
+        /// </summary>
+        /// <param name="timestamp"></param>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long Delta(this long timestamp)
+        public static long UtDelta(this long timestamp)
         {
             var delta = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp ;
             if (delta < 0)

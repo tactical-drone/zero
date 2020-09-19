@@ -116,7 +116,7 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < MaxClients * 0.75 && secondsSinceEnsured.Delta() > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
+                        if (Neighbors.Count < MaxClients * 0.75 && secondsSinceEnsured.UtDelta() > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
@@ -663,7 +663,7 @@ namespace zero.cocoon
                 if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
                 {
                     _logger.Info($"Connected {peer!.Description}");
-                    NeighborTasks.Add(peer.SpawnProcessingAsync());
+                    NeighborTasks.Add(peer.AssimilateAsync());
                     return true;
                 }
                 else

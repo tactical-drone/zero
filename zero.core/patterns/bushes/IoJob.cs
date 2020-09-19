@@ -100,7 +100,7 @@ namespace zero.core.patterns.bushes
         /// <param name="barrier">The normalized barrier that we pass to the source for quick release</param>
         /// <param name="zeroClosure">Adds closure manually</param>
         /// <returns>The current state of the job</returns>
-        public abstract Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure);
+        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure);
         
         /// <summary>
         /// Initializes this instance for reuse from the heap

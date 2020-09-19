@@ -300,8 +300,9 @@ namespace zero.core.network.ip
             catch (SocketException e)
             {
 #if DEBUG
-                _logger.Error(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
-                await ZeroAsync(this).ConfigureAwait(false);
+                _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}");
+                _logger.Debug(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
+                //await ZeroAsync(this).ConfigureAwait(false);
 #endif
             }
             catch (Exception e)
@@ -349,8 +350,8 @@ namespace zero.core.network.ip
             // Disable the Nagle Algorithm for this tcp socket.
             tcpSocket.NoDelay = false;
 
-            // Set the receive buffer size to 8k
-            tcpSocket.ReceiveBufferSize = 8192 * 2;
+            // Set the receive buffer size to 32k
+            tcpSocket.ReceiveBufferSize = 8192 * 4;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)

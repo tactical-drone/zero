@@ -26,7 +26,7 @@ namespace zero.cocoon.autopeer
 {
     public class IoCcNeighbor : IoNeighbor<IoCcPeerMessage>
     {
-        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 1,1)
+        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 2,2)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -560,14 +560,13 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="spawnProducer">Spawns a source thread</param>
         /// <returns></returns>
-        public override async Task SpawnProcessingAsync(bool spawnProducer = true)
+        public override async Task AssimilateAsync()
         {
-            var processingAsync = base.SpawnProcessingAsync(spawnProducer);
+            var processingAsync = base.AssimilateAsync();
             var protocol = ProcessAsync();
 
             try
             {
- 
                 await Task.WhenAll(processingAsync, protocol).ConfigureAwait(false);
 
                 if (processingAsync.IsFaulted)
@@ -850,7 +849,7 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
-            if (!IsAutopeering || request.Timestamp.Delta() > parm_max_time_error * 2)
+            if (!IsAutopeering || request.Timestamp.UtDelta() > parm_max_time_error * 2)
             {
                 if (!RoutedRequest)
                 {
@@ -1207,9 +1206,9 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            if (!IsAutopeering || request.Timestamp.Delta() > parm_max_time_error * 2)
+            if (!IsAutopeering || request.Timestamp.UtDelta() > parm_max_time_error * 2)
             {
-                _logger.Trace($"<<{nameof(DiscoveryRequest)}: [ABORTED], age = {request.Timestamp.Delta()}, {Description}, {MetaDesc}");
+                _logger.Trace($"<<{nameof(DiscoveryRequest)}: [ABORTED], age = {request.Timestamp.UtDelta()}, {Description}, {MetaDesc}");
                 return;
             }
 

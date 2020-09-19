@@ -209,7 +209,7 @@ namespace zero.core.core
                     //Start the source consumer on the neighbor scheduler
                     try
                     {
-                        NeighborTasks.Add(newNeighbor.SpawnProcessingAsync());
+                        NeighborTasks.Add(newNeighbor.AssimilateAsync());
 
                         //prune finished tasks
                         var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();

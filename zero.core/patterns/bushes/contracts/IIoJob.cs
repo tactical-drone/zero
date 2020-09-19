@@ -14,6 +14,6 @@ namespace zero.core.patterns.bushes.contracts
         
         bool StillHasUnprocessedFragments { get; }
 
-        Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure);
+        ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure);
     }
 }

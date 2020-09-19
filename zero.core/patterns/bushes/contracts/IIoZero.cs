@@ -12,8 +12,7 @@ namespace zero.core.patterns.bushes.contracts
     {
         IIoSource IoSource { get; }
         public object IoJobHeap { get; }
-        bool IsArbitrating { get; set; }
-        ValueTask<bool> ProduceAsync(bool blockOnConsumerCongestion = true);
-        Task SpawnProcessingAsync(bool spawnProducer = true);  
+        bool IsArbitrating { get; }
+        Task AssimilateAsync();  
     }
 }

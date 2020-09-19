@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 using NLog;
 using zero.cocoon.models.sources;
 using zero.core.patterns.bushes;
@@ -44,7 +45,7 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             if (!await Source.ProduceAsync(async (producer, backPressure, ioZero, ioJob )=>
             {
@@ -80,11 +81,11 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state of the consumption
         /// </returns>
-        public override Task<IoJobMeta.JobState> ConsumeAsync()
+        public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
             State = IoJobMeta.JobState.ConInlined;
-            return Task.FromResult(State);
+            return ValueTask.FromResult(State);
         }
     }
 }

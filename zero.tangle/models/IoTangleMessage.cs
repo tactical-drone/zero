@@ -452,7 +452,7 @@ namespace zero.tangle.models
         /// Manages the barrier between the consumer and the source
         /// </summary>
         /// <returns>The <see cref="F:zero.core.patterns.bushes.IoStateTransition`1.IoJobMeta.CurrentState" /> of the barrier's outcome</returns>
-        public override async Task<IoJobMeta.JobState> ConsumeAsync()
+        public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             TransferPreviousBits();
             
@@ -464,7 +464,7 @@ namespace zero.tangle.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
             {

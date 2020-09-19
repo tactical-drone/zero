@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using NLog;
 using zero.core.conf;
+using zero.core.misc;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -191,7 +192,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
         public int parm_stats_mod_count = 10000;
 #else
-        public int parm_stats_mod_count = 2000;
+        public int parm_stats_mod_count = 1000000;
 #endif
 
         /// <summary>
@@ -675,7 +676,6 @@ namespace zero.core.patterns.bushes
                         if (Zeroed() || AsyncTasks.IsCancellationRequested)
                         {
                             _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
-                            await Task.Delay(10000);//TODO 
                             return false;
                         }
 
@@ -746,8 +746,8 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
-                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 1000 &&
-                                DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _lastStat > TimeSpan.FromMinutes(10).TotalSeconds)
+                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 1000000 &&
+                                _lastStat.UtDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
                             {
                                 _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 _logger.Info(
@@ -822,8 +822,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Starts this source consumer
         /// </summary>
-        /// <param name="spawnProducer">Sometimes we don't want to start the source, for example when we are forwarding to another source consumer queue</param>
-        public virtual async Task SpawnProcessingAsync(bool spawnProducer = true)
+        public virtual async Task AssimilateAsync()
         {
             _logger.Trace($"{GetType().Name}: Starting processing for `{Source.Description}'");
             

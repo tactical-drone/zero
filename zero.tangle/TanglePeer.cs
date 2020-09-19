@@ -66,12 +66,11 @@ namespace zero.tangle
         /// <summary>
         /// Start processors for this neighbor
         /// </summary>
-        /// <param name="cancellationToken">The cancellation token</param>
         /// <param name="spawnProducer">Spawns a source thread</param>
         /// <returns></returns>
-        public override async Task SpawnProcessingAsync(bool spawnProducer = true)
+        public override async Task AssimilateAsync()
         {
-            var processing = base.SpawnProcessingAsync(spawnProducer);            
+            var processing = base.AssimilateAsync();            
             var persisting = ProcessTransactionsAsync(await IoTangleCassandraDb<TKey>.DefaultAsync());
 
             await Task.WhenAll(processing, persisting);

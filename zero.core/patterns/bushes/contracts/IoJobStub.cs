@@ -18,7 +18,7 @@ namespace zero.core.patterns.bushes.contracts
         public IIoSource Source { get; } = null;
         public bool StillHasUnprocessedFragments { get; } = false;
 
-        public Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             throw new NotImplementedException();
         }

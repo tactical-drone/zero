@@ -44,7 +44,7 @@ namespace zero.tangle.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {            
             await Source.ProduceAsync(async (producer, consumeSync, ioZero, ioJob) =>
             {
@@ -68,11 +68,11 @@ namespace zero.tangle.models
         /// <returns>
         /// The state of the consumption
         /// </returns>
-        public override Task<IoJobMeta.JobState> ConsumeAsync()
+        public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 
             State = IoJobMeta.JobState.ConInlined;
-            return Task.FromResult(State);
+            return ValueTask.FromResult(State);
         }
     }    
 }

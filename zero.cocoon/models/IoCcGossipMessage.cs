@@ -119,7 +119,7 @@ namespace zero.cocoon.models
             return sent;
         }
 
-        public override async Task<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
             {
@@ -255,7 +255,7 @@ namespace zero.cocoon.models
 
         }
 
-        public override async Task<IoJobMeta.JobState> ConsumeAsync()
+        public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             TransferPreviousBits();
             try
@@ -272,7 +272,7 @@ namespace zero.cocoon.models
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        await Task.Delay(300, AsyncTasks.Token).ConfigureAwait(false);
+                        //await Task.Delay(150, AsyncTasks.Token).ConfigureAwait(false);
 
                         if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
                             .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
