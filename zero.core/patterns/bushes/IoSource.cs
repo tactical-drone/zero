@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
@@ -27,18 +28,18 @@ namespace zero.core.patterns.bushes
         protected IoSource(int readAheadBufferSize = 2) //TODO
         {
             //ReadAheadBufferSize = _backPressure = readAheadBufferSize - 1;
-            ReadAheadBufferSize = _backPressure = readAheadBufferSize;
-            ProduceBackPressure = new AsyncAutoResetEvent(true);
-            ProduceBackPressure.Set();
-            ProducerPressure = new AsyncAutoResetEvent(true);
-            ProducerPrefetchPressure = new AsyncAutoResetEvent(true);
-            ProducerPrefetchPressure.Set();
-            ConsumeAheadBarrier = new AsyncAutoResetEvent(true);
+            ReadAheadBufferSize = readAheadBufferSize;
 
-            //ProducerPressure = new SemaphoreSlim(0);
-            //ProduceBackPressure = new SemaphoreSlim(readAheadBufferSize);
-            //ConsumeAheadBarrier = new SemaphoreSlim(1);
-            //ProduceAheadBarrier = new SemaphoreSlim(1);
+            
+            _pressure = new AsyncAutoResetEvent(true);
+            _prefetchPressure = new AsyncAutoResetEvent(true);
+            
+            _backPressure = new AsyncAutoResetEvent(true);
+            _backPressure.Set();
+            
+            _prefetchPressure = new AsyncAutoResetEvent(true);
+            _prefetchPressure.Set();
+            
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -66,7 +67,8 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Sets an upstream source
         /// </summary>
-        public IIoSource UpstreamIoSource { get; protected set; }
+        public IIoSource Upstream { get; protected set; }
+        
 
         /// <summary>
         /// Counters for <see cref="IoJobMeta.JobState"/>
@@ -77,46 +79,32 @@ namespace zero.core.patterns.bushes
         /// Total service times per <see cref="Counters"/>
         /// </summary>
         public long[] ServiceTimes { get; protected set; } = new long[Enum.GetNames(typeof(IoJobMeta.JobState)).Length];
-
-
-        public AsyncAutoResetEvent ProduceBackPressure { get; protected set; }
-
-        public AsyncAutoResetEvent ProducerPressure { get; protected set; }
-
-        public AsyncAutoResetEvent ConsumeAheadBarrier { get; protected set; }
-
-        public AsyncAutoResetEvent ProducerPrefetchPressure { get; protected set; }
-        ///// <summary>
-        ///// The source semaphore
-        ///// </summary>
-        //public SemaphoreSlim ProducerPressure { get; protected set; }
-
-        ///// <summary>
-        ///// The consumer semaphore
-        ///// </summary>
-        //public SemaphoreSlim ProduceBackPressure { get; protected set; }
-
-        ///// <summary>
-        ///// The consumer semaphore
-        ///// </summary>
-        //public SemaphoreSlim ConsumeAheadBarrier { get; protected set; }
-
-        ///// <summary>
-        ///// The consumer semaphore
-        ///// </summary>
-        //public SemaphoreSlim ProduceAheadBarrier { get; protected set; }
-
-
+        
         /// <summary>
-        /// Whether to only consume one at a time, but produce many at a time
+        /// The sink is being throttled against source
         /// </summary>
-        public bool BlockOnConsumeAheadBarrier { get; protected set; } = false;
-
+        private AsyncAutoResetEvent _pressure;
+        
         /// <summary>
-        /// Whether to only consume one at a time, but produce many at a time
+        /// The source is being throttled by the sink 
         /// </summary>
-        public bool PrefetchEnabled { get; protected set; } = false;
-
+        private AsyncAutoResetEvent _backPressure;
+        
+        /// <summary>
+        /// The source is bing throttled on prefetch config
+        /// </summary>
+        private AsyncAutoResetEvent _prefetchPressure;
+        
+        /// <summary>
+        /// Enable prefetch throttling (only allow a certain amount of prefetch
+        /// in the presence of concurrent production
+        /// </summary>
+        public bool PrefetchEnabled { get; protected set; }
+        
+        /// <summary>
+        /// The next job Id
+        /// </summary>
+        /// <returns>The next job Id</returns>
         ref long IIoSource.NextProducerId()
         {
             return ref _nextProducerId;
@@ -138,12 +126,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The amount of productions that can be made while consumption is behind
         /// </summary>
-        public int ReadAheadBufferSize { get; set; }
-
-        /// <summary>
-        /// a counting semaphore for managing back pressure
-        /// </summary>
-        private volatile int _backPressure;
+        public int ReadAheadBufferSize { get; protected set; }
 
         /// <summary>
         /// Used to identify work that was done recently
@@ -175,6 +158,8 @@ namespace zero.core.patterns.bushes
         /// </summary>
         private long _nextProducerId;
 
+        private AsyncAutoResetEvent _consumeAheadBarrier;
+
         /// <summary>
         /// zero unmanaged
         /// </summary>
@@ -189,10 +174,9 @@ namespace zero.core.patterns.bushes
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            ProducerPressure = null;
-            ConsumeAheadBarrier = null;
-            ProducerPrefetchPressure = null;
-            ProduceBackPressure = null;
+            _pressure = null;
+            _backPressure = null;
+            _prefetchPressure = null;
             RecentlyProcessed = null;
             IoChannels = null;
             ObjectStorage = null;
@@ -263,52 +247,9 @@ namespace zero.core.patterns.bushes
             return (IoChannel<TFJob>)IoChannels[id];
         }
 
-        /// <summary>
-        /// Waits on back pressure
-        /// </summary>
-        /// <returns>A completed task</returns>
-        public async Task BackPressureWaitAsync()
+        public Task BackPressureWaitAsync()
         {
-            if (Interlocked.Decrement(ref _backPressure) > 0)
-                return;
-
-            try
-            {
-                await ProduceBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e, Description);
-            }
-            finally
-            {
-                Interlocked.Increment(ref _backPressure);
-            }
-        }
-
-        /// <summary>
-        /// Release back pressure
-        /// </summary>
-        public void BackPressureRelease(int count = 1)
-        {
-            lock (ProduceBackPressure)
-            {
-                //Are there any blockers?
-                if (_backPressure <= 0)
-                {
-                    //Release a blocker
-                    ProduceBackPressure.Set();
-                }
-                else
-                {
-                    Interlocked.Add(ref _backPressure, count);
-                }
-#if DEBUG
-                //This should not happen
-                if (_backPressure > ReadAheadBufferSize)
-                    throw new ApplicationException($"{nameof(BackPressureRelease)}: Back pressure {_backPressure} overflow, not less than max allowed {ReadAheadBufferSize}!");
-#endif
-            }
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -372,5 +313,88 @@ namespace zero.core.patterns.bushes
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IoJob<IIoJob>, ValueTask<bool>>, Task<bool>> func, Func<IoJob<IIoJob>, ValueTask<bool>> barrier);
         public abstract ValueTask<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
+        
+        /// <summary>
+        /// Signal source pressure
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Pressure()
+        {
+            _pressure.Set();
+        }
+
+        /// <summary>
+        /// Wait for source pressure
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async ValueTask<bool> WaitForPressureAsync()
+        {
+            try
+            {
+                await _pressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Wait for source pressure
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void BackPressure()
+        {
+            _backPressure.Set();
+        }
+
+        /// <summary>
+        /// Wait for sink pressure
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async ValueTask<bool> WaitForBackPressureAsync()
+        {
+            try
+            {
+                await _backPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Signal prefetch pressures
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void PrefetchPressure()
+        {
+            _prefetchPressure.Set();
+        }
+
+        /// <summary>
+        /// Wait on prefetch pressure
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async ValueTask<bool> WaitForPrefetchPressureAsync()
+        {
+            try
+            {
+                await _prefetchPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }

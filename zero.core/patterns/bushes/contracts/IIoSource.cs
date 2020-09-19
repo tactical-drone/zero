@@ -8,6 +8,9 @@ using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes.contracts
 {
+    /// <summary>
+    /// Universal source of stuff
+    /// </summary>
     public interface IIoSource : IIoSourceBase, IIoZeroable
     {
         /// <summary>
@@ -22,40 +25,48 @@ namespace zero.core.patterns.bushes.contracts
         string SourceUri { get; }
 
         /// <summary>
-        /// Sets an upstream source
+        /// Sets an upstream source if we using <see cref="IIoChannel"/>
         /// </summary>
-        public IIoSource UpstreamIoSource { get; }
+        public IIoSource Upstream { get; }
 
         /// <summary>
-        /// The source semaphore
+        /// Signal source pressure
         /// </summary>
-        AsyncAutoResetEvent ProducerPressure { get; }
+        public void Pressure();
 
         /// <summary>
-        /// The consumer semaphore
+        /// Wait for source pressure
         /// </summary>
-        AsyncAutoResetEvent ProduceBackPressure { get; }
-
-        /// <summary>
-        /// The consumer semaphore
-        /// </summary>o
-        AsyncAutoResetEvent ConsumeAheadBarrier { get; }
-
-        /// <summary>
-        /// The consumer semaphore
-        /// </summary>
-        AsyncAutoResetEvent ProducerPrefetchPressure { get; }
-
-        /// <summary>
-        /// Whether to only consume one at a time, but produce many at a time
-        /// </summary>
-        bool BlockOnConsumeAheadBarrier { get; }
+        /// <returns></returns>
+        public ValueTask<bool> WaitForPressureAsync();
         
         /// <summary>
-        /// Whether to only consume one at a time, but produce many at a time
+        /// Signal sink pressure
+        /// </summary>
+        public void BackPressure();
+
+        /// <summary>
+        /// Wait for sink pressure
+        /// </summary>
+        /// <returns></returns>
+        public ValueTask<bool> WaitForBackPressureAsync();
+        
+        /// <summary>
+        /// Enable prefetch
         /// </summary>
         bool PrefetchEnabled { get; }
-
+        
+        /// <summary>
+        /// Signal prefetch pressure
+        /// </summary>
+        public void PrefetchPressure();
+        
+        /// <summary>
+        /// Wait on prefetch pressure
+        /// </summary>
+        /// <returns></returns>
+        public ValueTask<bool> WaitForPrefetchPressureAsync();
+        
         /// <summary>
         /// Which source job is next in line
         /// </summary>
@@ -65,8 +76,7 @@ namespace zero.core.patterns.bushes.contracts
         /// Makes available normalized storage for all downstream usages
         /// </summary>
         ConcurrentDictionary<string, object> ObjectStorage { get; }
-
-
+        
         /// <summary>
         /// Counters for <see cref="IoJob{TJob}.JobState"/>
         /// </summary>
