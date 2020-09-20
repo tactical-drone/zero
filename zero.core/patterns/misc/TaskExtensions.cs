@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -48,5 +49,19 @@ namespace zero.core.patterns.misc
             foreach (var item in enumerable)                
                 await Task.Run(async () => { await action(item).ConfigureAwait(false); }).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Over boosts a ValueTask
+        /// </summary>
+        /// <param name="task">The value task to boost</param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static async ValueTask OverBoostAsync<T>(this ValueTask<T> task)
+        {
+            if (!task.IsCompletedSuccessfully)
+                await task.ConfigureAwait(false);
+        }
+        
     }    
 }

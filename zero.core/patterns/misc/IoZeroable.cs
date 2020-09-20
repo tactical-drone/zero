@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Threading;
 using NLog;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.misc
 {
@@ -23,14 +24,20 @@ namespace zero.core.patterns.misc
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
-        
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        protected IoZeroable()
+
+        public IoZeroable(IIoMutex zeroMutex)
         {
-            _syncRootAuto.Set();
+            _syncRootAuto = zeroMutex?? ZeroOnCascade(new IoAutoMutex(true));
         }
+
+        /// <summary>
+        /// constructor
+        /// </summary>
+        public IoZeroable(bool zeroMutex = false)
+        {
+            _syncRootAuto = zeroMutex? (IIoMutex)this:ZeroOnCascade(new IoAutoMutex(true));
+        }
+        
         /// <summary>
         /// Destructor
         /// </summary>
@@ -57,11 +64,11 @@ namespace zero.core.patterns.misc
             public Func<IIoZeroable, Task> Action;
             public volatile bool Schedule;
         }
-        
+
         /// <summary>
         /// Sync root
         /// </summary>
-        private readonly AsyncAutoResetEvent _syncRootAuto = new AsyncAutoResetEvent(true);
+        private readonly IIoMutex _syncRootAuto;
 
         /// <summary>
         /// Who zeroed this object
@@ -361,8 +368,10 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    await _syncRootAuto.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-                    return (_zeroed == 0 || force) && await ownershipAction().ConfigureAwait(false);
+                    var syncRoot = _syncRootAuto.WaitAsync();
+                    await syncRoot.OverBoostAsync().ConfigureAwait(false);
+
+                    return (_zeroed == 0 || force) && syncRoot.Result && await ownershipAction().ConfigureAwait(false);
                 }
                 catch
                 {
@@ -370,7 +379,7 @@ namespace zero.core.patterns.misc
                 }
                 finally
                 {
-                    _syncRootAuto.Set();
+                    await _syncRootAuto.SetAsync().ConfigureAwait(false);
                 }
             }
             catch (NullReferenceException e)

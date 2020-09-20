@@ -14,6 +14,7 @@ using zero.core.conf;
 using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.bushes
 {
@@ -29,17 +30,11 @@ namespace zero.core.patterns.bushes
         {
             //ReadAheadBufferSize = _backPressure = readAheadBufferSize - 1;
             ReadAheadBufferSize = readAheadBufferSize;
+            
+            _pressure = ZeroOnCascade(new IoSemaphoreOne<IoAutoMutex>(), true);
+            _backPressure = ZeroOnCascade(new IoSemaphoreOne<IoAutoMutex>(1), true);
+            _prefetchPressure = ZeroOnCascade(new IoSemaphoreOne<IoAutoMutex>(1), true);
 
-            
-            _pressure = new AsyncAutoResetEvent(true);
-            _prefetchPressure = new AsyncAutoResetEvent(true);
-            
-            _backPressure = new AsyncAutoResetEvent(true);
-            _backPressure.Set();
-            
-            _prefetchPressure = new AsyncAutoResetEvent(true);
-            _prefetchPressure.Set();
-            
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -83,17 +78,17 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The sink is being throttled against source
         /// </summary>
-        private AsyncAutoResetEvent _pressure;
+        private IIoSemaphore _pressure;
         
         /// <summary>
         /// The source is being throttled by the sink 
         /// </summary>
-        private AsyncAutoResetEvent _backPressure;
+        private IIoSemaphore _backPressure;
         
         /// <summary>
         /// The source is bing throttled on prefetch config
         /// </summary>
-        private AsyncAutoResetEvent _prefetchPressure;
+        private IIoSemaphore _prefetchPressure;
         
         /// <summary>
         /// Enable prefetch throttling (only allow a certain amount of prefetch
@@ -154,11 +149,9 @@ namespace zero.core.patterns.bushes
         protected long parm_event_min_ave_display = 0;
 
         /// <summary>
-        /// 
+        /// holds the next job Id
         /// </summary>
         private long _nextProducerId;
-
-        private AsyncAutoResetEvent _consumeAheadBarrier;
 
         /// <summary>
         /// zero unmanaged
@@ -247,11 +240,6 @@ namespace zero.core.patterns.bushes
             return (IoChannel<TFJob>)IoChannels[id];
         }
 
-        public Task BackPressureWaitAsync()
-        {
-            throw new NotImplementedException();
-        }
-
         /// <summary>
         /// Gets a channel with a certain Id
         /// </summary>
@@ -318,9 +306,9 @@ namespace zero.core.patterns.bushes
         /// Signal source pressure
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Pressure()
+        public ValueTask PressureAsync()
         {
-            _pressure.Set();
+            return _pressure.ReleaseAsync();
         }
 
         /// <summary>
@@ -328,17 +316,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public async ValueTask<bool> WaitForPressureAsync()
+        public ValueTask<bool> WaitForPressureAsync()
         {
-            try
-            {
-                await _pressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
+            return _pressure.WaitAsync();
         }
 
         /// <summary>
@@ -346,9 +326,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void BackPressure()
+        public ValueTask BackPressureAsync()
         {
-            _backPressure.Set();
+            return _backPressure.ReleaseAsync();
         }
 
         /// <summary>
@@ -356,17 +336,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public async ValueTask<bool> WaitForBackPressureAsync()
+        public ValueTask<bool> WaitForBackPressureAsync()
         {
-            try
-            {
-                await _backPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
+            return _backPressure.WaitAsync();
         }
         
         /// <summary>
@@ -374,9 +346,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PrefetchPressure()
+        public ValueTask PrefetchPressureAsync()
         {
-            _prefetchPressure.Set();
+            return _prefetchPressure.ReleaseAsync();
         }
 
         /// <summary>
@@ -384,17 +356,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public async ValueTask<bool> WaitForPrefetchPressureAsync()
+        public ValueTask<bool> WaitForPrefetchPressureAsync()
         {
-            try
-            {
-                await _prefetchPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
+            return _prefetchPressure.WaitAsync();
         }
     }
 }

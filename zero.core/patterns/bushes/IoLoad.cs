@@ -28,6 +28,7 @@ namespace zero.core.patterns.bushes
         private readonly string _loadDescription;
 
         private string _description;
+
         /// <inheritdoc />
         /// <summary>
         /// The overall description of the work that needs to be done and the job that is doing it

@@ -11,6 +11,7 @@ using NLog;
 using Proto;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.semaphore;
 
 namespace zero.cocoon.models.sources
 {
@@ -24,6 +25,7 @@ namespace zero.cocoon.models.sources
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
             MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
+            _queuePressure = ZeroOnCascade(new IoAutoMutex());
         }
 
         /// <summary>
@@ -44,12 +46,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Sync used to access the Q
         /// </summary>
-        private AsyncAutoResetEvent _queuePressure = new AsyncAutoResetEvent(true);
-
-        /// <summary>
-        /// Sync used to access the Q
-        /// </summary>
-        private AsyncAutoResetEvent _queueBackPressure = new AsyncAutoResetEvent(true);
+        private IoAutoMutex _queuePressure;
 
         /// <summary>
         /// Keys this instance.
@@ -125,7 +122,7 @@ namespace zero.cocoon.models.sources
             {
                 //await _queueBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                 MessageQueue.Enqueue(item);
-                _queuePressure.Set();
+                await _queuePressure.SetAsync().ConfigureAwait(false);
             }
             catch(Exception e)
             {
@@ -148,7 +145,7 @@ namespace zero.cocoon.models.sources
                 Tuple<IMessage, object, Packet>[] batch = null;
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
-                    await _queuePressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                    await _queuePressure.WaitAsync().ConfigureAwait(false);
                 }
                 return batch;
             }

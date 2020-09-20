@@ -1,45 +1,75 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Threading;
+using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore
 {
     /// <summary>
     /// An async semaphore that supports back pressure, but no timeouts
     /// </summary>
-    public class IoSemaphore
+    public class IoSemaphore : IoZeroable, IIoSemaphore
     {
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="initialCount">The initial open slots</param>
         /// <param name="maxCapacity">Max open slots</param>
-        /// <param name="cancellationToken">The cancellation token</param>
+        /// <param name="enableRangeCheck">Range check semaphore</param>
         /// <param name="allowInliningAwaiters">Allow awaiters to complete synchronously</param>
-        public IoSemaphore(CancellationToken cancellationToken, int initialCount = 0, int maxCapacity = 1, bool allowInliningAwaiters = true)
+        /// <param name="options"></param>
+        public IoSemaphore(int initialCount = 0, int maxCapacity = 1, bool enableRangeCheck = false,
+            bool allowInliningAwaiters = true, TaskCreationOptions options = TaskCreationOptions.None)
         {
-            _cancellationToken = cancellationToken;
-            _count = initialCount;
-            _maxCapacity = maxCapacity;
-            _allowInliningAwaiters = allowInliningAwaiters;
+#if DEBUG
+            enableRangeCheck = true;
+#endif
 
-            var reg = _cancellationToken.Register(s => ((IoSemaphore)s).Release(),this);
+            Configure(initialCount, maxCapacity, enableRangeCheck, allowInliningAwaiters, options);
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        protected override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+            _signalAwaiters = null;
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        /// <returns></returns>
+        protected override async Task ZeroManagedAsync()
+        {
+            //Unblock all blockerss
+            foreach (var zeroCompletionSource in _signalAwaiters)
+                await zeroCompletionSource.ZeroAsync(this).ConfigureAwait(false);
+
+            _signalAwaiters.Clear();
+
+            await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
         /// <summary>
         /// A queue of folks awaiting signals.
         /// </summary>
-        private readonly ConcurrentQueue<TaskCompletionSource<bool>> _signalAwaiters = new ConcurrentQueue<TaskCompletionSource<bool>>();
+        private ConcurrentQueue<ZeroCompletionSource<bool>> _signalAwaiters =
+            new ConcurrentQueue<ZeroCompletionSource<bool>>();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private IoHeap<ZeroCompletionSource<bool>> _csHeap;
 
         /// <summary>
         /// Max Capacity
         /// </summary>
-        private readonly int _maxCapacity;
+        private int _maxCapacity;
 
         /// <summary>
         /// Initial count
@@ -47,32 +77,65 @@ namespace zero.core.patterns.semaphore
         private volatile int _count;
 
         /// <summary>
-        /// Allow synchronous awaiters
+        /// Is range check enabled?
         /// </summary>
-        private readonly bool _allowInliningAwaiters;
+        private bool _enableRangeCheck;
 
-        /// <summary>
-        /// The cancellation token used
-        /// </summary>
-        private readonly CancellationToken _cancellationToken;
+        public void Configure(int initialCount, int maxCapacity = 1, bool rangeCheck = false,
+            bool allowInliningContinuations = true, TaskCreationOptions options = TaskCreationOptions.None)
+        {
+            if (initialCount < 0 || maxCapacity < 1 || initialCount > maxCapacity)
+                throw new ArgumentException($"invalid initial = {initialCount} & maxCapacity = {maxCapacity} supplied");
+
+            _enableRangeCheck = rangeCheck;
+
+            _csHeap = new IoHeap<ZeroCompletionSource<bool>>(maxCapacity)
+            {
+                Make = o => ((IoSemaphore)o).ZeroOnCascade(new ZeroCompletionSource<bool>(allowInliningContinuations, options))
+            };
+
+            _count = initialCount;
+            _maxCapacity = maxCapacity;
+        }
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="count"></param>
         /// <returns></returns>
-        public void Release(int count = 1)
+        public async ValueTask ReleaseAsync(int count = 1)
         {
+            //trivial case
+            if (count == 0)
+                return;
+
+            //range check
+#if DEBUG
+            if (_enableRangeCheck && _count + count >= _maxCapacity)
+                throw new SemaphoreFullException($"Unable to release {count}, only {_maxCapacity - _count} slots left");
+#endif
+
             var dequeued = 0;
-            while(!_signalAwaiters.IsEmpty && 
-                  (dequeued < count || _cancellationToken.IsCancellationRequested) && 
-                  _signalAwaiters.TryDequeue(out var completionSource))
+            while (dequeued < count && _count < _maxCapacity && _signalAwaiters.TryDequeue(out var completionSource))
             {
+                await _csHeap.ReturnAsync(completionSource).ConfigureAwait(false);
                 dequeued++;
-                completionSource.SetResult(_cancellationToken.IsCancellationRequested);
+                completionSource.SetResult(!AsyncTasks.IsCancellationRequested);
                 Interlocked.Increment(ref _count);
             }
+
+            //range check
+#if DEBUG
+            if (_enableRangeCheck && dequeued < count)
+            {
+                throw new SemaphoreFullException(
+                    $"requested {count} release signals, sent = {dequeued}, missing = {dequeued - count}");
+            }
+#endif
         }
+
+        private static readonly ValueTask<bool> FalseResult = new ValueTask<bool>(false);
+        private static readonly ValueTask<bool> TrueResult = new ValueTask<bool>(true);
 
         /// <summary>
         /// Blocks if there are no slots available
@@ -81,17 +144,27 @@ namespace zero.core.patterns.semaphore
         public async ValueTask<bool> WaitAsync()
         {
             //fail fast
-            if (_cancellationToken.IsCancellationRequested)
+            if (Zeroed())
                 return false;
 
             //fast path
             if (Interlocked.Decrement(ref _count) > -1)
                 return true;
 
-            var waiter = new TaskCompletionSource<bool>(this, !_allowInliningAwaiters ? TaskCreationOptions.RunContinuationsAsynchronously:TaskCreationOptions.None);
+            var takeTask = _csHeap.TakeAsync(this);
+            
+            await takeTask.OverBoostAsync().ConfigureAwait(false);
+            
+            var waiter = takeTask.Result;
+
+#if DEBUG
+            if (waiter == null)
+                throw new OutOfMemoryException(
+                    $"{nameof(IoHeap<ZeroCompletionSource<bool>>)}: Heap depleted: taken = {_signalAwaiters.Count}, max = {_csHeap.MaxSize}");
+#endif
 
             //fail fast
-            if (_cancellationToken.IsCancellationRequested)
+            if (Zeroed())
             {
                 return false;
             }
@@ -100,7 +173,7 @@ namespace zero.core.patterns.semaphore
                 _signalAwaiters.Enqueue(waiter);
             }
 
-            return await waiter.Task;
+            return await new ValueTask<bool>(waiter.Task);
         }
     }
 }

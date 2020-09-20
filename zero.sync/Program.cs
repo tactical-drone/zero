@@ -5,11 +5,14 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MathNet.Numerics;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
@@ -24,6 +27,7 @@ namespace zero.sync
 
         static void Main(string[] args)
         {
+            //Test();
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 3000;
 
@@ -203,6 +207,43 @@ namespace zero.sync
             //c2.Wait();
             //CoCoonAsync(IoCcIdentity.Generate(true),"tcp://127.0.0.1:14667", "udp://127.0.0.1:14627", null, "udp://127.0.0.1:14627", "udp://127.0.0.1:14626").GetAwaiter().GetResult();
             //CoCoonAsync(IoCcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627").GetAwaiter().GetResult();
+        }
+
+        private static void Test()
+        {
+            IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(1);
+            IIoMutex mut = new IoAutoMutex(true);
+            var running = true;
+            
+            Task.Run(async () =>
+            {
+                var c = 0;
+                while (running)
+                {
+                    // var block = sem.WaitAsync();
+                    // await block.OverBoostAsync().ConfigureAwait(false);
+                    // if(!block.Result)
+                    //     break;
+
+                    await mut.WaitAsync().ConfigureAwait(false);
+                    Console.WriteLine($"{mut.Description}({c++})");
+                }
+            });
+            
+            Task.Run(async () =>
+            {
+                while (running)
+                {
+                    await Task.Delay(2000).ConfigureAwait(false);
+                    //await sem.ReleaseAsync().ConfigureAwait(false);s
+                    await mut.SetAsync().ConfigureAwait(false);
+                }
+            });
+
+            Console.ReadLine();
+            mut.ZeroAsync(null).GetAwaiter().GetResult();
+            sem.ZeroAsync(null).GetAwaiter().GetResult();
+            Console.ReadLine();
         }
 
         private static void Zero(int total)

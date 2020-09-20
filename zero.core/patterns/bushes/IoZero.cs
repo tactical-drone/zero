@@ -317,7 +317,12 @@ namespace zero.core.patterns.bushes
                             //wait for prefetch pressure
                             if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
                             {
-                                try{ await nextJob.Source.WaitForPrefetchPressureAsync().ConfigureAwait(false); } catch{return false;}
+                                var prefetch = nextJob.Source.WaitForPrefetchPressureAsync();
+                                await prefetch.OverBoostAsync().ConfigureAwait(false);
+                                if (!prefetch.Result)
+                                {
+                                    return false;
+                                }
                             }
                             
                             //if(!Zeroed())
@@ -353,14 +358,13 @@ namespace zero.core.patterns.bushes
                                     //Block on producer backpressure
                                     try
                                     {
-                                        try
-                                        {
-                                            await job.Source.WaitForBackPressureAsync().ConfigureAwait(false);
-                                        }
-                                        catch 
+                                        var backPressure = job.Source.WaitForBackPressureAsync();
+                                        await backPressure.OverBoostAsync();
+
+                                        if (!backPressure.Result)
                                         {
                                             job.State = IoJobMeta.JobState.ProdCancel;
-                                            return false;
+                                            return false;    
                                         }
                                     }
                                     catch (NullReferenceException e) { _this._logger.Trace(e); }
@@ -388,7 +392,7 @@ namespace zero.core.patterns.bushes
                                     
                                     //signal back pressure
                                     if (nextJob.Source.PrefetchEnabled)
-                                        nextJob.Source.PrefetchPressure();                                
+                                        await nextJob.Source.PrefetchPressureAsync().ConfigureAwait(false);                                
                                     
                                     //Enqueue the job for the consumer
                                     nextJob.State = IoJobMeta.JobState.Queued;
@@ -404,9 +408,9 @@ namespace zero.core.patterns.bushes
                                     //}                            
                             
                                     //Signal to the consumer that there is work to do
-                                                                    
-                                    Source.Pressure();
 
+                                    await Source.PressureAsync();
+                                    
                                     return true;
                                 }
                                 else //produce job returned with errors or nothing...
@@ -459,10 +463,10 @@ namespace zero.core.patterns.bushes
 
                                     // Signal prefetch back pressure
                                     if (nextJob.Source.PrefetchEnabled)
-                                        nextJob.Source.PrefetchPressure();
+                                        await nextJob.Source.PrefetchPressureAsync();
                                     
                                     //signal back pressure
-                                    Source.BackPressure();
+                                    await Source.BackPressureAsync();
                                 }
                             }
                         }
@@ -582,12 +586,14 @@ namespace zero.core.patterns.bushes
                 //Waiting for a job to be produced. Did production fail?
                 if (_queue.IsEmpty) //TODO autoresetevent
                 {
-                    try
-                    {
-                        //Wait for producer pressure
-                        await Source.WaitForPressureAsync().ConfigureAwait(false);
-                    }
-                    catch (Exception)
+                    //wait for the producer pressure
+                    var pressure = Source.WaitForPressureAsync();
+                    
+                    //fast path
+                    await pressure.OverBoostAsync().ConfigureAwait(false);
+                    
+                    //Wait for producer pressure
+                    if (!pressure.Result)
                     {
                         //Was shutdown requested?
                         if (Zeroed() || AsyncTasks.IsCancellationRequested)
@@ -602,7 +608,7 @@ namespace zero.core.patterns.bushes
                         await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
 
                         //Try again
-                        return false;
+                        return false;    
                     }
                 }
 
@@ -682,7 +688,7 @@ namespace zero.core.patterns.bushes
 
                             //Signal the source that it can continue to get more work                        
                             if(consumed)
-                                Source.BackPressure();
+                                await Source.BackPressureAsync();
                         }
                         catch
                         {

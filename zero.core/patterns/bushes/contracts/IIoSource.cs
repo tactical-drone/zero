@@ -32,7 +32,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal source pressure
         /// </summary>
-        public void Pressure();
+        public ValueTask PressureAsync();
 
         /// <summary>
         /// Wait for source pressure
@@ -43,7 +43,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal sink pressure
         /// </summary>
-        public void BackPressure();
+        public ValueTask BackPressureAsync();
 
         /// <summary>
         /// Wait for sink pressure
@@ -59,7 +59,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal prefetch pressure
         /// </summary>
-        public void PrefetchPressure();
+        public ValueTask PrefetchPressureAsync();
         
         /// <summary>
         /// Wait on prefetch pressure
@@ -140,11 +140,5 @@ namespace zero.core.patterns.bushes.contracts
         IoChannel<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoLoad<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
             where TFJob : IIoJob;
-
-        /// <summary>
-        /// Blocks on back pressure
-        /// </summary>
-        /// <returns></returns>
-        Task BackPressureWaitAsync();
     }
 }

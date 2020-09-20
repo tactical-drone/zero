@@ -263,6 +263,15 @@ namespace zero.core.patterns.bushes
 #if DEBUG        
         //TODO
         private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
+
+        /// <summary>
+        /// ctor
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        protected IoJob()
+        {
+            throw new NotImplementedException();
+        }
 #endif
 
         /// <summary>

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.heap
 {
@@ -18,12 +19,14 @@ namespace zero.core.patterns.heap
     /// <typeparam name="T">The type of item managed</typeparam>
     public class IoHeap<T> : IoZeroable
         where T:class,IIoZeroable
-    {               
+    {
         /// <summary>
         /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
         /// </summary>
         /// <param name="maxSize">The maximum capacity of this heap</param>
-        public IoHeap(long maxSize)
+        /// <param name="zeroMutex">provides a mutex to avoid recursive framework elements</param>
+        public IoHeap(long maxSize, IIoMutex zeroMutex = null)
+        :base(zeroMutex)
         {
             _maxSize = maxSize;
             _logger = LogManager.GetCurrentClassLogger();
@@ -126,7 +129,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        protected ValueTask<T> TakeAsync(object userData = null)
+        public ValueTask<T> TakeAsync(object userData = null)
         {
             try
             {
@@ -139,17 +142,17 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref CurrentHeapSize);
                         Interlocked.Increment(ref ReferenceCount);
-                        return new ValueTask<T>(Make(userData));
+                        return ValueTask.FromResult(Make(userData));
                     }
                     else //we have run out of capacity
                     {
-                        return new ValueTask<T>(default(T));
+                        return FromNullTask;
                     }
                 }
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref ReferenceCount);
-                    return new ValueTask<T>(item);
+                    return ValueTask.FromResult(item);
                 }
             }
             catch (NullReferenceException) { }
@@ -158,14 +161,16 @@ namespace zero.core.patterns.heap
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
             }
 
-            return new ValueTask<T>(default(T)); ;
+            return FromNullTask;
         }
+
+        private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) null);
 
         /// <summary>
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public async Task ReturnAsync(T item)
+        public async ValueTask ReturnAsync(T item)
         {
 #if DEBUG
             if (item == null)
