@@ -45,5 +45,42 @@ namespace zero.core.misc
         {
             return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp;
         }
+        
+        /// <summary>
+        /// Delta ticks
+        /// </summary>
+        /// <param name="timestamp"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long DeltaTicks(this long timestamp)
+        {
+            var delta = System.DateTime.Now.Ticks - timestamp ;
+            if (delta < 0)
+                return -delta;
+            return delta;
+        }
+
+        /// <summary>
+        /// Delta ticks
+        /// </summary>
+        /// <param name="ticks"># of ticks</param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static TimeSpan TicksToSpan(this long ticks)
+        {
+            return TimeSpan.FromTicks(ticks);
+        }
+        
+        /// <summary>
+        /// Delta ticks
+        /// </summary>
+        /// <param name="ticks"># of ticks</param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double TickSec(this long ticks)
+        {
+            return ticks.DeltaTicks().TicksToSpan().TotalSeconds;
+        }
+        
     }
 }

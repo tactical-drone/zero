@@ -4,18 +4,18 @@ using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore
 {
-    public interface IIoSemaphore : IIoZeroable
+    public interface IIoSemaphore 
     {
         /// <summary>
         /// Configure the semaphore
         /// </summary>
+        /// <param name="asyncTasks"></param>
         /// <param name="initialCount">initial waiters skipped</param>
         /// <param name="maxCapacity">maximum capacity</param>
         /// <param name="rangeCheck">Range check the semaphore on use</param>
         /// <param name="allowInliningContinuations">allow sync continuations</param>
-        /// <param name="token">Cancellation token</param>
         /// <param name="options">Continuation options</param>
-        void Configure(int initialCount = 0, int maxCapacity = 1, bool rangeCheck = false,
+        void Configure(CancellationTokenSource asyncTasks, int initialCount = 0, int maxCapacity = 1, bool rangeCheck = false,
             bool allowInliningContinuations = true, TaskCreationOptions options = TaskCreationOptions.None);
 
         /// <summary>
@@ -23,7 +23,7 @@ namespace zero.core.patterns.semaphore
         /// </summary>
         /// <param name="count"></param>
         /// <returns></returns>
-        ValueTask ReleaseAsync(int count = 1);
+        void Release(int count = 1);
 
         /// <summary>
         /// Blocks if there are no slots available

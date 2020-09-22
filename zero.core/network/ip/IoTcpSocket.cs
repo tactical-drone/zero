@@ -28,7 +28,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
@@ -40,7 +40,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
@@ -248,7 +248,7 @@ namespace zero.core.network.ip
             {
                 if (timeout == 0)
                 {
-                    return Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
+                    return Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTokenProxy.Token);
                 }
 
                 Socket.SendTimeout = timeout;
@@ -286,7 +286,7 @@ namespace zero.core.network.ip
             {
                 if (timeout == 0)
                 {
-                    return Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,AsyncTasks.Token);
+                    return Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,AsyncTokenProxy.Token);
                 }
 
                 Socket.ReceiveTimeout = timeout;

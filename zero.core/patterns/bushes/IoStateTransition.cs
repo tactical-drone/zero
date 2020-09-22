@@ -12,7 +12,7 @@ namespace zero.core.patterns.bushes
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
     /// <typeparam name="TState">The state enum</typeparam>
-    public class IoStateTransition<TState> : IoZeroable, IIoHeapItem
+    public class IoStateTransition<TState> : IoNanoprobe, IIoHeapItem
         where TState : Enum {
         public IoStateTransition()
         {

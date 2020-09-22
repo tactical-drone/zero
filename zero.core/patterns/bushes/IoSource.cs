@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Globalization;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
-using MathNet.Numerics;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
@@ -21,7 +17,7 @@ namespace zero.core.patterns.bushes
     /// <summary>
     /// Used by <see cref="IoZero{TJob}"/> as a source of work of type <see cref="TJob"/>
     /// </summary>
-    public abstract class IoSource<TJob> : IoConfigurable, IIoSource where TJob : IIoJob
+    public abstract class IoSource<TJob> : IoNanoprobe, IIoSource where TJob : IIoJob
     {
         /// <summary>
         /// Constructor
@@ -31,9 +27,10 @@ namespace zero.core.patterns.bushes
             //ReadAheadBufferSize = _backPressure = readAheadBufferSize - 1;
             ReadAheadBufferSize = readAheadBufferSize;
             
-            _pressure = ZeroOnCascade(new IoSemaphoreOne<IoAutoMutex>(), true);
-            _backPressure = ZeroOnCascade(new IoSemaphoreOne<IoAutoMutex>(1), true);
-            _prefetchPressure = ZeroOnCascade(new IoSemaphoreOne<IoAutoMutex>(1), true);
+            //todo GENERALIZE
+            _pressure = new IoSemaphoreOne<IoAsyncMutex>(AsyncTokenProxy);
+            _backPressure = new IoSemaphoreOne<IoAsyncMutex>(AsyncTokenProxy, 1);
+            _prefetchPressure =new IoSemaphoreOne<IoAsyncMutex>(AsyncTokenProxy,1);
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -156,7 +153,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             //Unblock any blockers
             //ProduceBackPressure.Dispose();
@@ -179,7 +176,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             //foreach (var objectStorageValue in ObjectStorage.Values)
             //{
@@ -228,7 +225,7 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel = new IoChannel<TFJob>($"`channel({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
 
-                    ZeroEnsureAsync(() =>
+                    ZeroEnsureAsync(s =>
                     {
                         if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
                         ZeroOnCascade(newChannel, cascade);
@@ -306,9 +303,9 @@ namespace zero.core.patterns.bushes
         /// Signal source pressure
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask PressureAsync()
+        public void Pressure()
         {
-            return _pressure.ReleaseAsync();
+            _pressure.Release();
         }
 
         /// <summary>
@@ -326,9 +323,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask BackPressureAsync()
+        public void BackPressure()
         {
-            return _backPressure.ReleaseAsync();
+            _backPressure.Release();
         }
 
         /// <summary>
@@ -346,9 +343,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask PrefetchPressureAsync()
+        public void PrefetchPressure()
         {
-            return _prefetchPressure.ReleaseAsync();
+            _prefetchPressure.Release();
         }
 
         /// <summary>

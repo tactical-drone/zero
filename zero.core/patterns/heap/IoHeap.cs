@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
-using System.Linq;
 using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.heap
 {
@@ -17,30 +14,41 @@ namespace zero.core.patterns.heap
     /// Basic heap construct
     /// </summary>
     /// <typeparam name="T">The type of item managed</typeparam>
-    public class IoHeap<T> : IoZeroable
-        where T:class,IIoZeroable
+    public class IoHeap<T>
+        where T:class,IIoNanoprobe
     {
+        /// <summary>
+        /// ctor
+        /// </summary>
+        static IoHeap()
+        {
+            _logger = LogManager.GetCurrentClassLogger();
+        }
+        
         /// <summary>
         /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
         /// </summary>
         /// <param name="maxSize">The maximum capacity of this heap</param>
-        /// <param name="zeroMutex">provides a mutex to avoid recursive framework elements</param>
-        public IoHeap(long maxSize, IIoMutex zeroMutex = null)
-        :base(zeroMutex)
+        /// 
+        public IoHeap(long maxSize)
         {
             _maxSize = maxSize;
-            _logger = LogManager.GetCurrentClassLogger();
+            _buffer = new ConcurrentBag<T>();
+            CurrentHeapSize = 0;
+            ReferenceCount = 0;
+            IoFpsCounter = new IoFpsCounter();
+            Make = default;
         }
 
         /// <summary>
         /// Logger
         /// </summary>
-        private Logger _logger;
+        private static readonly Logger _logger;
 
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private ConcurrentBag<T> _buffer = new ConcurrentBag<T>();
+        private ConcurrentBag<T> _buffer;
 
         /// <summary>
         /// The current WorkHeap size
@@ -60,7 +68,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Jobs per second
         /// </summary>
-        public IoFpsCounter IoFpsCounter { get; } = new IoFpsCounter();
+        public IoFpsCounter IoFpsCounter;
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
@@ -95,10 +103,8 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public void ZeroUnmanaged()
         {
-            base.ZeroUnmanaged();
-
 #if SAFE_RELEASE
             _buffer = null;
             Make = null;
@@ -108,7 +114,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public ValueTask ZeroManagedAsync()
         {
 
             try
@@ -121,7 +127,8 @@ namespace zero.core.patterns.heap
             }
             catch { }
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            //await base.ZeroManagedAsync().ConfigureAwait(false);
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>
@@ -164,17 +171,17 @@ namespace zero.core.patterns.heap
             return FromNullTask;
         }
 
-        private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) null);
+        private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) default);
 
         /// <summary>
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public async ValueTask ReturnAsync(T item)
+        public ValueTask ReturnAsync(T item)
         {
 #if DEBUG
-            if (item == null)
-                throw new ArgumentException($"{nameof(item)} cannot be null");
+            // if (item == null)
+            //     throw new ArgumentException($"{nameof(item)} cannot be null");
 #endif
             try
             {
@@ -184,8 +191,9 @@ namespace zero.core.patterns.heap
             }
             catch (NullReferenceException)
             {
-                await item.ZeroAsync(this).ConfigureAwait(false);
+                //await item.ZeroAsync(this).ConfigureAwait(false);
             }
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

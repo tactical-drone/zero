@@ -27,7 +27,7 @@ namespace zero.sync
 
         static void Main(string[] args)
         {
-            //Test();
+            Test();
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 3000;
 
@@ -211,38 +211,80 @@ namespace zero.sync
 
         private static void Test()
         {
-            IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(1);
-            IIoMutex mut = new IoAutoMutex(true);
+            CancellationTokenSource asyncTasks = new CancellationTokenSource();
+            IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(asyncTasks, 1);
+            IIoMutex mut = new IoAsyncMutex(asyncTasks);
             var running = true;
             
+            var c = 0;
             Task.Run(async () =>
             {
-                var c = 0;
-                while (running)
+                try
                 {
-                    // var block = sem.WaitAsync();
-                    // await block.OverBoostAsync().ConfigureAwait(false);
-                    // if(!block.Result)
-                    //     break;
-
-                    await mut.WaitAsync().ConfigureAwait(false);
-                    Console.WriteLine($"{mut.Description}({c++})");
+                    while (running)
+                    {
+                        // var block = sem.WaitAsync();
+                        // await block.OverBoostAsync().ConfigureAwait(false);
+                        // if(!block.Result)
+                        //     break;
+            
+                        if (await mut.WaitAsync().ConfigureAwait(false))
+                            Console.WriteLine($"T1:{mut}({c++})");
+                        else 
+                            Console.WriteLine($"F1:{mut}({c++})");
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[[1]]:{e}");
+                    throw;
                 }
             });
             
+            // Task.Run(async () =>
+            // {
+            //     try
+            //     {
+            //         while (running)
+            //         {
+            //             // var block = sem.WaitAsync();
+            //             // await block.OverBoostAsync().ConfigureAwait(false);
+            //             // if(!block.Result)
+            //             //     break;
+            //
+            //             if (await mut.WaitAsync().ConfigureAwait(false))
+            //                 Console.WriteLine($"T2:{mut}({c++})");
+            //             else 
+            //                 Console.WriteLine($"F2:{mut}({c++})");
+            //         }
+            //     }
+            //     catch (Exception e)
+            //     {
+            //         Console.WriteLine($"[[2]]:{e}");
+            //         throw;
+            //     }
+            // });
+            
             Task.Run(async () =>
             {
-                while (running)
+                try
                 {
-                    await Task.Delay(2000).ConfigureAwait(false);
-                    //await sem.ReleaseAsync().ConfigureAwait(false);s
-                    await mut.SetAsync().ConfigureAwait(false);
+                    while (running)
+                    {
+                        await Task.Delay(1000).ConfigureAwait(false);
+                        //await sem.ReleaseAsync().ConfigureAwait(false);s
+                        mut.Set();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"3:{e}");
+                    throw;
                 }
             });
 
             Console.ReadLine();
-            mut.ZeroAsync(null).GetAwaiter().GetResult();
-            sem.ZeroAsync(null).GetAwaiter().GetResult();
+            asyncTasks.Cancel();
             Console.ReadLine();
         }
 

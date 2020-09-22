@@ -10,12 +10,12 @@ namespace zero.core.conf
     /// <summary>
     /// Configuration storage, retrieval and mutation
     /// </summary>
-    public class IoConfigurable: IoZeroable
+    public class IoConfigurable
     {
         /// <summary>
         /// Constructor that gathers all parameters from instances by scanning for the <see cref="IoParameter"/> attribute
         /// </summary>
-        public IoConfigurable()
+        protected IoConfigurable()
         {
             //Initialize the parameter dictionary
             GetType().GetFields().ToList().Where(p => p.IsDefined(typeof(IoParameter))).ToList().ForEach(

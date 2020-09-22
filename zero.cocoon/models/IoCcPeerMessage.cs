@@ -43,12 +43,12 @@ namespace zero.cocoon.models
                 IoCcProtocolBuffer protocol = null;
 
                 //Transfer ownership
-                if (Source.ZeroEnsureAsync(() =>
+                if (Source.ZeroEnsureAsync(s =>
                 {
                     protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
                     if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
                     {
-                        return Task.FromResult(Source.ZeroOnCascade(protocol, true) != null);
+                        return Task.FromResult(Source.ZeroOnCascade(protocol, true).success);
                     }
 
                     return Task.FromResult(false);
@@ -177,7 +177,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
@@ -191,7 +191,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             if (_protocolMsgBatch != null)
                 _arrayPool.Return(_protocolMsgBatch, true);
@@ -273,7 +273,7 @@ namespace zero.cocoon.models
                         else
                         {
                             _this._logger.Warn(
-                                $"{GetType().Name}: Source {_this.Source.Description} went non operational!");
+                                $"Source {_this.Source.Description} produce failed!");
                             _this.State = IoJobMeta.JobState.Cancelled;
                             await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
                         }
@@ -288,22 +288,22 @@ namespace zero.cocoon.models
                     }
                     catch (NullReferenceException e)
                     {
-                        _this._logger.Trace(e, Description);
+                        _this._logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (TaskCanceledException e)
                     {
-                        _this._logger.Trace(e, Description);
+                        _this._logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (OperationCanceledException e)
                     {
-                        _this._logger.Trace(e, Description);
+                        _this._logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (ObjectDisposedException e)
                     {
-                        _this._logger.Trace(e, Description);
+                        _this._logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (Exception e)

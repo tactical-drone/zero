@@ -26,7 +26,7 @@ namespace zero.core.network.ip
         /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         protected IoNetClient(IoSocket socket,int readAheadBufferSize) : base(readAheadBufferSize)
         {
-            IoSocket = ZeroOnCascade((IoNetSocket)socket, true);
+            (IoSocket, _) = ZeroOnCascade((IoNetSocket)socket, true);
 
             _logger = LogManager.GetCurrentClassLogger();
             ListeningAddress = socket.ListeningAddress; 
@@ -136,7 +136,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// ZeroAsync unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
@@ -148,7 +148,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// ZeroAsync managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }

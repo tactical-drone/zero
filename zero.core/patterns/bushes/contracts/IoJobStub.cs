@@ -9,7 +9,7 @@ namespace zero.core.patterns.bushes.contracts
     /// Empty worker stub used to signal that a consumer should not forward jobs
     /// </summary>
     /// <seealso cref="IIoJob" />
-    public class IoJobStub: IoZeroable, IIoJob
+    public class IoJobStub: IoNanoprobe, IIoJob
     {
         public override string Description { get; } = "Job Stub";
         public long Id { get; } = -1;

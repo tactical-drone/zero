@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
 using zero.core.patterns.bushes;
@@ -25,7 +22,9 @@ namespace zero.cocoon.models.sources
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
             MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
-            _queuePressure = ZeroOnCascade(new IoAutoMutex());
+            
+            _queuePressure = new IoAutoMutex(AsyncTokenProxy);
+            //_queuePressure = ZeroOnCascade(new IoAutoMutex()).target;
         }
 
         /// <summary>
@@ -91,12 +90,12 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _queuePressure = null;
+            _queuePressure = default;
             MessageQueue = null;
             ArrayPoolProxy = null;
 #endif
@@ -105,7 +104,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             MessageQueue.Clear();
             await base.ZeroManagedAsync().ConfigureAwait(false);
@@ -116,21 +115,21 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public async Task<bool> EnqueueAsync(Tuple<IMessage, object, Packet>[] item)
+        public Task<bool> EnqueueAsync(Tuple<IMessage, object, Packet>[] item)
         {
             try
             {
                 //await _queueBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                 MessageQueue.Enqueue(item);
-                await _queuePressure.SetAsync().ConfigureAwait(false);
+                _queuePressure.Set();
             }
             catch(Exception e)
             {
                 _logger.Trace(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
-                return false;
+                return Task.FromResult(false);
             }
 
-            return true;
+            return Task.FromResult(true);
         }
 
 

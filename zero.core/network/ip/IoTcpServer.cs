@@ -42,13 +42,13 @@ namespace zero.core.network.ip
         {
             await base.ListenAsync(connectionReceivedAction, readAhead, bootstrapAsync).ConfigureAwait(false);
 
-            IoListenSocket = ZeroOnCascade(new IoTcpSocket());
+            IoListenSocket = ZeroOnCascade(new IoTcpSocket()).target;
 
             await IoListenSocket.ListenAsync(ListeningAddress, async newConnectionSocket =>
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead)));
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead)).target);
                 }
                 catch (Exception e)
                 {

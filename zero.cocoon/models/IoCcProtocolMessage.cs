@@ -28,13 +28,13 @@ namespace zero.cocoon.models
         /// </summary>
         public volatile Tuple<IMessage,object, Proto.Packet>[] Batch;
 
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
             Batch = null;
         }
 
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }

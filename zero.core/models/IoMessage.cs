@@ -127,7 +127,7 @@ namespace zero.core.models
             return await Source.RecentlyProcessed.KeyExistsAsync(key).ConfigureAwait(false);
         }
 
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 

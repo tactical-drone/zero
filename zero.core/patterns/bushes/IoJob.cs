@@ -8,6 +8,7 @@ using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes
 {
@@ -15,7 +16,7 @@ namespace zero.core.patterns.bushes
     /// Meta data about produced work that needs to be done
     /// </summary>
     /// <typeparam name="TJob">The job type</typeparam>
-    public abstract class IoJob<TJob> : IoConfigurable, IIoJob
+    public abstract class IoJob<TJob> : IoNanoprobe, IIoJob
         where TJob : IIoJob
     {
         /// <summary>
@@ -31,7 +32,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected IoJob(string description, IoSource<TJob> source)
         {
-            source.ZeroOnCascade(this);
+            source.ZeroOnCascade(Nanoprobe);
             Source = source;
             _jobDescription = description;
         }
@@ -112,7 +113,7 @@ namespace zero.core.patterns.bushes
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
+        public virtual ValueTask<IIoHeapItem> ConstructorAsync()
         {
 #if DEBUG
             foreach (var ioWorkStateTransition in StateTransitionHistory)
@@ -122,14 +123,15 @@ namespace zero.core.patterns.bushes
                 {
                     var r = c;
                     c = c.Repeat;
-                    await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
+                    //await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
+                    _stateHeap.ReturnAsync(r).ConfigureAwait(false);
                 }
             }
 
 
             if (_stateMeta != null)
             {
-                await _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
+                _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
                 _stateMeta = null;
             }
 
@@ -151,16 +153,16 @@ namespace zero.core.patterns.bushes
             //    StateTransitionHistory[prevState] = null;
             //}
 
-            return this;
+            return ValueTask.FromResult((IIoHeapItem)this);
         }
 
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
 #if DEBUG
-            _stateHeap.Dispose();
+            //_stateHeap.Dispose();
 #endif
 
             base.ZeroUnmanaged();
@@ -179,12 +181,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
 #if DEBUG
             await _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
-            await _stateHeap.ZeroAsync(this).ConfigureAwait(false); //TODO
+            // await _stateHeap.ZeroAsync(this).ConfigureAwait(false); //TODO
 #endif
             await base.ZeroManagedAsync().ConfigureAwait(false);
             if(PreviousJob != null)
@@ -262,7 +264,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG        
         //TODO
-        private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
+        private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
 
         /// <summary>
         /// ctor

@@ -48,14 +48,14 @@ namespace zero.core.network.ip
         /// </returns>
         public override async Task<bool> ConnectAsync()
         {
-            IoSocket = ZeroOnCascade(new IoTcpSocket(), true);
+            (IoSocket,_) = ZeroOnCascade(new IoTcpSocket(), true);
             return await base.ConnectAsync().ConfigureAwait(false);
         }
 
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
@@ -70,9 +70,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            return base.ZeroManagedAsync();
         }
     }
 }

@@ -109,7 +109,7 @@ namespace zero.cocoon
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
@@ -122,7 +122,7 @@ namespace zero.cocoon
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             await DetachNeighborAsync().ConfigureAwait(false);
             await Source.ZeroAsync(this).ConfigureAwait(false);

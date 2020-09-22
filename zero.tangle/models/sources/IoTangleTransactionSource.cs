@@ -72,7 +72,7 @@ namespace zero.tangle.models.sources
         //{
         //    throw new NotImplementedException();
         //}
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             TxQueue.Dispose();
 
@@ -83,7 +83,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override Task ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
             return base.ZeroManagedAsync();
         }

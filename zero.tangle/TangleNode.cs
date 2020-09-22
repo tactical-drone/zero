@@ -24,7 +24,7 @@ namespace zero.tangle
         public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
         {
             _logger = LogManager.GetCurrentClassLogger();            
-            Milestones = new Milestone<TKey>(AsyncTasks.Token);
+            Milestones = new Milestone<TKey>(AsyncTokenProxy.Token);
         }
 
         private readonly Logger _logger;
@@ -88,7 +88,7 @@ namespace zero.tangle
                     {
                         if (newNeighbor.Result != null)
                         {
-                            ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent(s => newNeighbor.Result.ZeroAsync(this));
+                            ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent(async s => await newNeighbor.Result.ZeroAsync(this).ConfigureAwait(false));
 
                             if (newNeighbor.Result.Source.IsOperational)
 

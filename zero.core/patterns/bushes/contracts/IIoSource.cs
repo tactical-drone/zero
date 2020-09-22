@@ -5,13 +5,14 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.Threading;
 using zero.core.data.contracts;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.bushes.contracts
 {
     /// <summary>
     /// Universal source of stuff
     /// </summary>
-    public interface IIoSource : IIoSourceBase, IIoZeroable
+    public interface IIoSource : IIoSourceBase, IIoNanoprobe
     {
         /// <summary>
         /// Keys this instance.
@@ -32,7 +33,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal source pressure
         /// </summary>
-        public ValueTask PressureAsync();
+        public void Pressure();
 
         /// <summary>
         /// Wait for source pressure
@@ -43,7 +44,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal sink pressure
         /// </summary>
-        public ValueTask BackPressureAsync();
+        public void BackPressure();
 
         /// <summary>
         /// Wait for sink pressure
@@ -59,7 +60,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal prefetch pressure
         /// </summary>
-        public ValueTask PrefetchPressureAsync();
+        public void PrefetchPressure();
         
         /// <summary>
         /// Wait on prefetch pressure
@@ -78,7 +79,7 @@ namespace zero.core.patterns.bushes.contracts
         ConcurrentDictionary<string, object> ObjectStorage { get; }
         
         /// <summary>
-        /// Counters for <see cref="IoJob{TJob}.JobState"/>
+        /// Counters for <see cref="IoJobMeta.JobState"/>
         /// </summary>
         public long[] Counters { get; }
 

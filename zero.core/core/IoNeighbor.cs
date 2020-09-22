@@ -49,7 +49,7 @@ namespace zero.core.core
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
@@ -61,7 +61,7 @@ namespace zero.core.core
         /// <summary>
         /// 
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }

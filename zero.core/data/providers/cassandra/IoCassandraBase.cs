@@ -10,6 +10,7 @@ using zero.core.network.ip;
 using Logger = NLog.Logger;
 using System.Linq;
 using System.Text;
+using zero.core.patterns.misc;
 
 namespace zero.core.data.providers.cassandra
 {
@@ -17,7 +18,7 @@ namespace zero.core.data.providers.cassandra
     /// Based to support different transaction models
     /// </summary>
     /// <typeparam name="TKey">key type</typeparam>
-    public abstract class IoCassandraBase<TKey> : IoConfigurable
+    public abstract class IoCassandraBase<TKey> : IoNanoprobe
     {
         protected IoCassandraBase(IIoCassandraKeySpace keySpaceConfiguration)
         {

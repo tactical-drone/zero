@@ -49,7 +49,7 @@ namespace zero.cocoon.autopeer
 
         public IoCcNeighbor LocalNeighbor { get; protected set; }
 
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
@@ -61,7 +61,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             //foreach (var neighborsValue in Neighbors.Values)
             //    neighborsValue.ZeroAsync(this);

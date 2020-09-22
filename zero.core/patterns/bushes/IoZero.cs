@@ -23,8 +23,8 @@ namespace zero.core.patterns.bushes
     /// Source Consumer pattern
     /// </summary>    
     /// <typeparam name="TJob">The type of job</typeparam>
-    //public abstract class IoZero<TJob> : IoConfigurable, IObservable<IoLoad<TJob>>, IIoZero
-    public abstract class IoZero<TJob> : IoConfigurable, IIoZero
+    //public abstract class IoZero<TJob> : IoNanoprobe, IObservable<IoLoad<TJob>>, IIoZero
+    public abstract class IoZero<TJob> : IoNanoprobe, IIoZero
         where TJob : IIoJob
     {
         /// <summary>
@@ -75,7 +75,9 @@ namespace zero.core.patterns.bushes
             Func<object, IoLoad<TJob>> mallocMessage, bool sourceZeroCascade = false)
         {
             _description = description;
-            JobHeap = ZeroOnCascade(new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage }, true);
+            
+            //JobHeap = ZeroOnCascade(new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage }, true);
+            JobHeap = new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
             Source = source;
 
@@ -249,7 +251,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
@@ -265,7 +267,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
 
             _queue.ToList().ForEach(q => q.ZeroAsync(this).ConfigureAwait(false));
@@ -392,7 +394,7 @@ namespace zero.core.patterns.bushes
                                     
                                     //signal back pressure
                                     if (nextJob.Source.PrefetchEnabled)
-                                        await nextJob.Source.PrefetchPressureAsync().ConfigureAwait(false);                                
+                                        nextJob.Source.PrefetchPressure();                                
                                     
                                     //Enqueue the job for the consumer
                                     nextJob.State = IoJobMeta.JobState.Queued;
@@ -409,7 +411,7 @@ namespace zero.core.patterns.bushes
                             
                                     //Signal to the consumer that there is work to do
 
-                                    await Source.PressureAsync();
+                                    Source.Pressure();
                                     
                                     return true;
                                 }
@@ -455,7 +457,7 @@ namespace zero.core.patterns.bushes
                                     
                                     //Is the producer spinning?
                                     if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
-                                        await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(false);
+                                        await Task.Delay(parm_min_failed_production_time, AsyncTokenProxy.Token).ConfigureAwait(false);
 
                                     //Free job
                                     nextJob.State = IoJobMeta.JobState.Reject;
@@ -463,10 +465,10 @@ namespace zero.core.patterns.bushes
 
                                     // Signal prefetch back pressure
                                     if (nextJob.Source.PrefetchEnabled)
-                                        await nextJob.Source.PrefetchPressureAsync();
+                                        nextJob.Source.PrefetchPressure();
                                     
                                     //signal back pressure
-                                    await Source.BackPressureAsync();
+                                    Source.BackPressure();
                                 }
                             }
                         }
@@ -476,7 +478,7 @@ namespace zero.core.patterns.bushes
                             if (Zeroed()) return false;
                             
                             _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!");
-                            await Task.Delay(parm_error_timeout, AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(parm_error_timeout, AsyncTokenProxy.Token).ConfigureAwait(false);
                             return false;
                         }
                     }
@@ -515,7 +517,7 @@ namespace zero.core.patterns.bushes
                     if (enablePrefetchOption)
                     {
                         _logger.Warn($"{GetType().Name}: Source for `{Description}' is waiting for consumer to catch up! parm_max_q_size = `{parm_max_q_size}'");
-                        await Task.Delay(parm_producer_consumer_throttle_delay, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(parm_producer_consumer_throttle_delay, AsyncTokenProxy.Token).ConfigureAwait(false);
                     }
                 }                
             }
@@ -596,7 +598,7 @@ namespace zero.core.patterns.bushes
                     if (!pressure.Result)
                     {
                         //Was shutdown requested?
-                        if (Zeroed() || AsyncTasks.IsCancellationRequested)
+                        if (Zeroed() || AsyncTokenProxy.IsCancellationRequested)
                         {
                             _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
                             return false;
@@ -605,7 +607,7 @@ namespace zero.core.patterns.bushes
                         //wait...
                         //_logger.Trace(
                         //$"{GetType().Name}: Consumer `{Description}' [[ProducerPressure]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
-                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTokenProxy.Token).ConfigureAwait(false);
 
                         //Try again
                         return false;    
@@ -688,7 +690,7 @@ namespace zero.core.patterns.bushes
 
                             //Signal the source that it can continue to get more work                        
                             if(consumed)
-                                await Source.BackPressureAsync();
+                                Source.BackPressure();
                         }
                         catch
                         {
@@ -795,7 +797,7 @@ namespace zero.core.patterns.bushes
                     }
                     
                 }
-            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach , TaskScheduler.Default);
+            }, AsyncTokenProxy.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach , TaskScheduler.Default);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
@@ -831,7 +833,7 @@ namespace zero.core.patterns.bushes
                             await consumers[i].ConfigureAwait(false);
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, AsyncTokenProxy.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Wait for tear down                
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ConfigureAwait(false);

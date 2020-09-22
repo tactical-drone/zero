@@ -20,6 +20,7 @@ using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 using Logger = NLog.Logger;
 
 namespace zero.cocoon.autopeer
@@ -52,10 +53,10 @@ namespace zero.cocoon.autopeer
                 {
                     while (!Zeroed())
                     {
-                        await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000, AsyncTokenProxy.Token).ConfigureAwait(false);
                         await EnsurePeerAsync().ConfigureAwait(false);
                     }
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                }, AsyncTokenProxy.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             }
             else
             {
@@ -445,7 +446,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Handle to neighbor zero sub
         /// </summary>
-        private ZeroSub _neighborZeroSub;
+        private IoZeroSub _neighborZeroSub;
 
         /// <summary>
         /// A service map helper
@@ -471,7 +472,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             //_pingRequestBarrier.Dispose();
             base.ZeroUnmanaged();
@@ -482,7 +483,7 @@ namespace zero.cocoon.autopeer
             _peer = null;
             NeighborDiscoveryNode = null;
             _protocolChannel = null;
-            _neighborZeroSub = null;
+            _neighborZeroSub = default;
             ArrayPoolProxy = null;
             StateTransitionHistory = null;
 #endif
@@ -491,7 +492,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             _pingRequests.Clear();
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
@@ -714,7 +715,7 @@ namespace zero.cocoon.autopeer
                             ArrayPoolProxy = ((IoCcProtocolBuffer) _protocolChannel.Source).ArrayPoolProxy;
                         else
                         {
-                            await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false);//TODO config
+                            await Task.Delay(2000, AsyncTokenProxy.Token).ConfigureAwait(false);//TODO config
                         }
                         continue;
                     }
@@ -1150,18 +1151,18 @@ namespace zero.cocoon.autopeer
 
                 //create neighbor
                 IoCcNeighbor newNeighbor = null;
-                if( await Node.ZeroEnsureAsync(() =>
+                if( await Node.ZeroEnsureAsync(async s =>
                 {
                     newNeighbor = (IoCcNeighbor) Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>) Source, Tuple.Create(id, services, newRemoteEp));
 
                     //Transfer?
-                    if (!Node.Neighbors.TryAdd(newNeighbor.Id, newNeighbor)) return Task.FromResult(false);
+                    if (!Node.Neighbors.TryAdd(newNeighbor.Id, newNeighbor)) return false;
 
                     _logger.Debug($"Discovered new neighbor: {newNeighbor.Description}");
 
                     Node.ZeroOnCascade(newNeighbor); //TODO: Maybe remove? Use the one that floods through source?
 
-                    return newNeighbor.ZeroEnsureAsync(() =>
+                    return await newNeighbor.ZeroEnsureAsync(s =>
                     {
                         var sub = newNeighbor.ZeroEvent(source =>
                         {
@@ -1178,7 +1179,7 @@ namespace zero.cocoon.autopeer
                             }
                             return Task.CompletedTask;
                         });
-                        return Task.FromResult(sub != null);
+                        return Task.FromResult(true);
                     });
                 }).ConfigureAwait(false))
                 {
@@ -1432,18 +1433,17 @@ namespace zero.cocoon.autopeer
                     var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices, (IPEndPoint)extraData));
 
                     //Add new neighbor
-                    if(await Node.ZeroEnsureAsync(() =>
+                    if(await Node.ZeroEnsureAsync(async s =>
                     {
-
                         //transfer?
                         if (!newNeighbor.RemoteAddress.IpEndPoint.Address.Equals(((IPEndPoint) extraData).Address) ||
                             newNeighbor.RemoteAddress.IpEndPoint.Port != ((IPEndPoint) extraData).Port ||
-                            !Node.Neighbors.TryAdd(keyStr, newNeighbor)) return Task.FromResult(false);
+                            !Node.Neighbors.TryAdd(keyStr, newNeighbor)) return false;
 
                         // Handle zero
                         Node.ZeroOnCascade(newNeighbor);
 
-                        return newNeighbor.ZeroEnsureAsync(() =>
+                        return await newNeighbor.ZeroEnsureAsync(s =>
                         {
                             var id = newNeighbor.Id;
                             var sub = newNeighbor.ZeroEvent(source =>
@@ -1458,7 +1458,7 @@ namespace zero.cocoon.autopeer
 
                                 return Task.CompletedTask;
                             });
-                            return Task.FromResult(sub != null);
+                            return Task.FromResult(true);
                         });
 
                     }).ConfigureAwait(false))
@@ -1780,9 +1780,8 @@ namespace zero.cocoon.autopeer
             await DetachPeerAsync().ConfigureAwait(false);
 
             //Detach zeroed
-            if(_neighborZeroSub != null)
-                Unsubscribe(_neighborZeroSub);
-            _neighborZeroSub = null;
+            Unsubscribe(_neighborZeroSub);
+            _neighborZeroSub = default;
 
             if(peer != null)
                 await peer.DetachNeighborAsync().ConfigureAwait(false);

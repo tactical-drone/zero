@@ -16,7 +16,7 @@ namespace zero.core.network.ip
     /// Abstracts TCP and UDP
     /// </summary>
     public abstract class
-        IoSocket : IoZeroable
+        IoSocket : IoNanoprobe
     {
         /// <inheritdoc />
         /// <summary>
@@ -271,7 +271,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             Socket.Dispose();
 
@@ -287,7 +287,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             try
             {

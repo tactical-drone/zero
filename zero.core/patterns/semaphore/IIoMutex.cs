@@ -4,10 +4,11 @@ using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore
 {
-    public interface IIoMutex : IIoZeroable
+    public interface IIoMutex
     {
-        void Configure(bool signalled = false, bool allowInliningContinuations = true);
-        ValueTask SetAsync();
+        void Configure( CancellationTokenSource asyncTasks, bool signalled = false,
+            bool allowInliningContinuations = true);
+        void Set();
         ValueTask<bool> WaitAsync();
     }
 }

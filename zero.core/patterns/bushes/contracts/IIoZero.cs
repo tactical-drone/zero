@@ -8,7 +8,7 @@ using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoZero: IIoZeroable
+    public interface IIoZero: IIoNanoprobe
     {
         IIoSource IoSource { get; }
         public object IoJobHeap { get; }

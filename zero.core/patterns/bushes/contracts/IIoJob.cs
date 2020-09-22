@@ -2,10 +2,11 @@
 using System.Threading.Tasks;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoJob : IIoHeapItem, IIoZeroable
+    public interface IIoJob : IIoHeapItem, IIoNanoprobe
     {
         long Id { get; }
         IoJobMeta.JobState State { get; set; }

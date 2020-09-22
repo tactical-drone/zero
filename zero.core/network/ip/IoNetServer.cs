@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.SignalR.Protocol;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -16,7 +17,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
     /// </summary>
-    public abstract class IoNetServer<TJob> : IoConfigurable
+    public abstract class IoNetServer<TJob> : IoNanoprobe
     where TJob : IIoJob
 
     {
@@ -132,7 +133,7 @@ namespace zero.core.network.ip
                     if (ioNetClient.IsOperational)
                     {
                         //Ensure ownership
-                        if (!await ZeroEnsureAsync(() => Task.FromResult(ZeroOnCascade(ioNetClient) != null)).ConfigureAwait(false))
+                        if (!await ZeroEnsureAsync(s => Task.FromResult(s.ZeroOnCascade(ioNetClient.Nanoprobe).success)).ConfigureAwait(false))
                         {
                             _logger.Debug($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                             //REJECT
@@ -179,7 +180,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 
@@ -193,7 +194,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             _connectionAttempts.Clear();
             await base.ZeroManagedAsync().ConfigureAwait(false);

@@ -47,7 +47,7 @@ namespace zero.cocoon
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.gossip, _gossipAddress);
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = ZeroOnCascade(new IoCcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead), true);
+            _autoPeering = ZeroOnCascade(new IoCcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead), true).target;
 
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -97,7 +97,7 @@ namespace zero.cocoon
                 var random = new Random((int)DateTime.Now.Ticks);
                 while (true)
                 {
-                    await Task.Delay(random.Next(30000) + 15000, AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay(random.Next(30000) + 15000, AsyncTokenProxy.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
@@ -156,7 +156,7 @@ namespace zero.cocoon
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
@@ -170,7 +170,7 @@ namespace zero.cocoon
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             //Services.IoCcRecord.Endpoints.Clear();
             try

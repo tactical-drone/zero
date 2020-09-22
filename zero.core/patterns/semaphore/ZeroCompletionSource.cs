@@ -1,12 +1,12 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Threading;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore
 {
-    public class ZeroCompletionSource<T> : TaskCompletionSource<T>, IIoZeroable
+    public class ZeroCompletionSource<T> : TaskCompletionSource<T>, IIoNanoprobe
     {
         /// <summary>
         /// ctor
@@ -17,29 +17,29 @@ namespace zero.core.patterns.semaphore
             TaskCreationOptions options = TaskCreationOptions.None)
             : base(null, AdjustFlags(options, allowInliningContinuations))
         {
+            _nanoprobe = new IoNanoprobe();
         }
 
-        /// <summary>
-        /// Implements <see cref="IIoZeroable"/>
-        /// </summary>
-        private readonly IoZeroable _zeroComposition = new IoZeroable();
-        
+        private readonly IIoNanoprobe _nanoprobe;
+
+        public IIoZeroable ZeroedFrom => _nanoprobe.ZeroedFrom;
+
+        public ulong NpId => _nanoprobe.NpId;
+
         /// <summary>
         /// Description 
         /// </summary>
         public virtual string Description => $"{nameof(ZeroCompletionSource<T>)}";
         
-        public IIoZeroable ZeroedFrom => _zeroComposition.ZeroedFrom;
-
         /// <summary>
         /// zero unmanaged
         /// </summary>
         /// <param name="from"></param>
         /// <returns></returns>
-        public Task ZeroAsync(IIoZeroable from)
+        public ValueTask ZeroAsync(IIoZeroable from)
         {
-            TrySetCanceled(_zeroComposition.AsyncTasks.Token);
-            return _zeroComposition.ZeroAsync(from);
+            TrySetCanceled(_nanoprobe.AsyncTokenProxy.Token);
+            return _nanoprobe.ZeroAsync(from);
         }
 
         /// <summary>
@@ -47,29 +47,40 @@ namespace zero.core.patterns.semaphore
         /// </summary>
         /// <param name="sub"></param>
         /// <returns></returns>
-        public IoZeroable.ZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
+        public IoZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
         {
-            return _zeroComposition.ZeroEvent(sub);
+            return _nanoprobe.ZeroEvent(sub);
         }
 
-        public void Unsubscribe(IoZeroable.ZeroSub sub)
+        public void Unsubscribe(IoZeroSub sub)
         {
-            _zeroComposition.Unsubscribe(sub);
+            _nanoprobe.Unsubscribe(sub);
         }
 
-        public T1 ZeroOnCascade<T1>(T1 target, bool twoWay = false) where T1 : class, IIoZeroable
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoZeroable
         {
-            return _zeroComposition.ZeroOnCascade(target, twoWay);
+            return ((IIoZeroable) _nanoprobe).ZeroOnCascade(target, twoWay);
         }
 
         public bool Zeroed()
         {
-            return _zeroComposition.Zeroed();
+            return _nanoprobe.Zeroed();
         }
 
-        public Task<bool> ZeroEnsureAsync(Func<Task<bool>> ownershipAction, bool force = false)
+        public ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, Task<bool>> ownershipAction, bool force = false)
         {
-            return _zeroComposition.ZeroEnsureAsync(ownershipAction, force);
+            return _nanoprobe.ZeroEnsureAsync(ownershipAction, force);
+        }
+
+        public void ZeroUnmanaged()
+        {
+            _nanoprobe.ZeroUnmanaged();
+        }
+
+        public ValueTask ZeroManagedAsync()
+        {
+            return _nanoprobe.ZeroManagedAsync();
         }
 
         private static TaskCreationOptions AdjustFlags(TaskCreationOptions options, bool allowInliningContinuations)
@@ -77,6 +88,12 @@ namespace zero.core.patterns.semaphore
             return allowInliningContinuations
                 ? (options & ~TaskCreationOptions.RunContinuationsAsynchronously)
                 : (options | TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+        public CancellationTokenSource AsyncTokenProxy => _nanoprobe.AsyncTokenProxy;
+        
+        public bool Equals(IIoZeroable other)
+        {
+            throw new NotImplementedException();
         }
     }
 }

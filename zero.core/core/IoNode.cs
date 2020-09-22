@@ -11,13 +11,14 @@ using zero.core.conf;
 using zero.core.data.market;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.core
 {
     /// <summary>
     /// A p2p node
     /// </summary>
-    public class IoNode<TJob> : IoConfigurable        
+    public class IoNode<TJob> : IoNanoprobe        
     where TJob:IIoJob    
     {
         /// <summary>
@@ -114,7 +115,7 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead), true);
+            (_netServer, _) = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead), true);
 
             await _netServer.ListenAsync(async ioNetClient =>
             {
@@ -140,7 +141,7 @@ namespace zero.core.core
                     return;
                 }
 
-                if (await ZeroEnsureAsync( async() =>
+                if (await ZeroEnsureAsync( async s =>
                 {
                     try
                     {
@@ -167,12 +168,12 @@ namespace zero.core.core
                         ZeroOnCascade(newNeighbor); //TODO: double check, why was this not seen?
 
                         //Add new neighbor
-                        return await newNeighbor.ZeroEnsureAsync(() =>
+                        return await newNeighbor.ZeroEnsureAsync(s =>
                         {
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             string id = newNeighbor.Id;
                             // Remove from lists if closed
-                            var sub = newNeighbor.ZeroEvent(s =>
+                            var sub = newNeighbor.ZeroEvent(@base =>
                             {
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
                                 try
@@ -194,7 +195,7 @@ namespace zero.core.core
                                 }
                                 return Task.CompletedTask;
                             });
-                            return Task.FromResult(sub != null);
+                            return Task.FromResult(true);
                         }).ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
@@ -334,9 +335,9 @@ namespace zero.core.core
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        protected override void ZeroUnmanaged()
+        public override void ZeroUnmanaged()
         {
-            base.ZeroUnmanaged();
+            Nanoprobe.ZeroUnmanaged();
 
 #if SAFE_RELEASE
             Neighbors = null;
@@ -350,7 +351,7 @@ namespace zero.core.core
         /// <summary>
         /// zero managed
         /// </summary>
-        protected override async Task ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
 
             //Neighbors.ToList().ForEach(kv=>kv.Value.ZeroAsync(this));

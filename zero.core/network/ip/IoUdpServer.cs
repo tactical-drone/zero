@@ -43,13 +43,13 @@ namespace zero.core.network.ip
         {
             await base.ListenAsync(connectionReceivedAction, readAheadBufferSize).ConfigureAwait(false);
 
-            IoListenSocket = ZeroOnCascade(new IoUdpSocket());
+            (IoListenSocket,_) = ZeroOnCascade(new IoUdpSocket());
 
             await IoListenSocket.ListenAsync(ListeningAddress, async ioSocket =>
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, parm_read_ahead)));
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, parm_read_ahead)).Item1);
                 }
                 catch (Exception e)
                 {

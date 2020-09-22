@@ -6,7 +6,7 @@ namespace zero.core.misc
     /// <summary>
     /// A basic fps counter
     /// </summary>
-    public class IoFpsCounter
+    public struct IoFpsCounter
     {
         /// <summary>
         /// Construct
@@ -17,11 +17,15 @@ namespace zero.core.misc
         {
             _range = new[] {range, range};
             _time = time;
+            _count = new int[2];
+            _timeStamp = new []{ DateTime.Now, DateTime.Now };
+            _index = 0;
+            _total = 0;
         }
 
-        private readonly int[] _count = new int[2];
-        private readonly DateTime[] _timeStamp = { DateTime.Now, DateTime.Now };
-        private volatile int _index = 0;
+        private readonly int[] _count;
+        private readonly DateTime[] _timeStamp;
+        private volatile int _index;
         private readonly int[] _range;
         private long _total;
         private readonly int _time;
@@ -36,7 +40,7 @@ namespace zero.core.misc
 
             if (Volatile.Read(ref _count[_index]) < Volatile.Read(ref _range[_index])) return;
             
-            lock (this)
+            lock (Environment.CommandLine)
             {
                 _range[_index] = (int)(_time * _time * Fps() / 1000000);
                 Interlocked.Increment(ref _index);
@@ -52,7 +56,7 @@ namespace zero.core.misc
         /// <returns></returns>
         public double Fps()
         {
-            lock(this)
+            lock(Environment.CommandLine)
                 return  Volatile.Read(ref _count[_index]) / (DateTime.Now - _timeStamp[_index]).TotalSeconds * Volatile.Read(ref _count[_index]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]))
                       + Volatile.Read(ref _count[(_index + 1) % 2]) / (DateTime.Now - _timeStamp[(_index + 1) % 2]).TotalSeconds * Volatile.Read(ref _count[(_index + 1) % 2]) / (Volatile.Read(ref _count[_index]) + Volatile.Read(ref _count[(_index + 1) % 2]));
         }
