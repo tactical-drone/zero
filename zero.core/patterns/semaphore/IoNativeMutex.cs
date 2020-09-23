@@ -1,6 +1,8 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using Microsoft.VisualStudio.Threading;
 
 namespace zero.core.patterns.semaphore
@@ -48,6 +50,61 @@ namespace zero.core.patterns.semaphore
                 wait = false;
             }
             return wait;
+        }
+
+        public int GetWaited()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetWaited()
+        {
+            throw new NotImplementedException();
+        }
+
+        public int GetHooked()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetHooked()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetResult(bool result)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Reset()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetRoot(ref IIoMutex[] root)
+        {
+            
+        }
+
+        public short Version()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool GetResult(short token)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ValueTaskSourceStatus GetStatus(short token)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
+        {
+            throw new NotImplementedException();
         }
     }
 }

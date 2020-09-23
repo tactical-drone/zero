@@ -5,11 +5,14 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using MathNet.Numerics;
+using Microsoft.VisualBasic;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
@@ -209,29 +212,142 @@ namespace zero.sync
             //CoCoonAsync(IoCcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627").GetAwaiter().GetResult();
         }
 
+        class MutexClass : IIoMutex
+        {
+            public IIoMutex[] AsyncMutex;
+            public void Configure(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true)
+            {
+                AsyncMutex = new[]{(IIoMutex)new IoAsyncMutex(asyncTasks)};
+                AsyncMutex[0].SetRoot(ref AsyncMutex);
+
+                AsyncMutex[0].Configure(asyncTasks, signalled, allowInliningContinuations);
+            }
+
+            public void Set()
+            {
+                Console.WriteLine($"WAITED IS {AsyncMutex[0].GetWaited()}");
+                Console.WriteLine($"HOOKED IS {AsyncMutex[0].GetHooked()}");
+                AsyncMutex[0].Set();
+            }
+
+            public ValueTask<bool> WaitAsync()
+            {
+                var retval = AsyncMutex[0].WaitAsync();
+                Console.WriteLine($"WAITED SHOULD BE one => {AsyncMutex[0].GetWaited()}");
+                return retval;
+            }
+
+            public int GetWaited()
+            {
+                throw new NotImplementedException();
+            }
+
+            public void SetWaited()
+            {
+                throw new NotImplementedException();
+            }
+
+            public int GetHooked()
+            {
+                throw new NotImplementedException();
+            }
+
+            public void SetHooked()
+            {
+                throw new NotImplementedException();
+            }
+
+            public void SetResult(bool result)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void Reset()
+            {
+                throw new NotImplementedException();
+            }
+
+            public void SetRoot(ref IIoMutex[] root)
+            {
+                throw new NotImplementedException();
+            }
+
+            public short Version()
+            {
+                throw new NotImplementedException();
+            }
+
+            public bool GetResult(short token)
+            {
+                throw new NotImplementedException();
+            }
+
+            public ValueTaskSourceStatus GetStatus(short token)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
+            {
+                throw new NotImplementedException();
+            }
+        }
+        
         private static void Test()
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
             IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(asyncTasks, 1);
-            IIoMutex mut = new IoAsyncMutex(asyncTasks);
-            var running = true;
             
+            // var mutex = new MutexClass
+            // {
+            //     AsyncMutex = new IoAsyncMutex( asyncTasks)
+            // };
+            
+            var mutex = new MutexClass();
+            mutex.Configure(asyncTasks);
+            var targetSleep = (long)1000;
+            var sw = new Stopwatch();
             var c = 0;
-            Task.Run(async () =>
+            IoFpsCounter fps = new IoFpsCounter(250,1000);
+            
+            var t2= Task.Factory.StartNew(async o =>
             {
+                var mut = (MutexClass) o;
                 try
                 {
-                    while (running)
+                    while (true)
                     {
                         // var block = sem.WaitAsync();
                         // await block.OverBoostAsync().ConfigureAwait(false);
                         // if(!block.Result)
                         //     break;
-            
-                        if (await mut.WaitAsync().ConfigureAwait(false))
-                            Console.WriteLine($"T1:{mut}({c++})");
-                        else 
-                            Console.WriteLine($"F1:{mut}({c++})");
+
+                        sw.Restart();
+                        if (await mut.AsyncMutex[0].WaitAsync().ConfigureAwait(false))
+                        {
+                            fps.Tick();
+                            var t = sw.ElapsedMilliseconds;
+
+                            Action a = (t - targetSleep) switch
+                            {
+                                >5 => () => Console.ForegroundColor = ConsoleColor.Red,
+                                <-5 => () => Console.ForegroundColor = ConsoleColor.Red,
+                                _ => () => Console.ForegroundColor = ConsoleColor.Green,
+                            };
+                            a();
+                            Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
+                            Console.ResetColor();
+                        }
+                            
+                        else
+                        {
+
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine($"F1:{mut.AsyncMutex}({--c})");
+                            Console.ResetColor();
+                            await Task.Delay(500).ConfigureAwait(false);
+                        }
+                            
                     }
                 }
                 catch (Exception e)
@@ -239,7 +355,7 @@ namespace zero.sync
                     Console.WriteLine($"[[1]]:{e}");
                     throw;
                 }
-            });
+            }, mutex);
             
             // Task.Run(async () =>
             // {
@@ -265,15 +381,16 @@ namespace zero.sync
             //     }
             // });
             
-            Task.Run(async () =>
+            var t = Task.Factory.StartNew(async o=>
             {
+                var mut = (MutexClass) o;
                 try
                 {
-                    while (running)
+                    while (true)
                     {
-                        await Task.Delay(1000).ConfigureAwait(false);
+                        await Task.Delay((int) targetSleep).ConfigureAwait(false);
                         //await sem.ReleaseAsync().ConfigureAwait(false);s
-                        mut.Set();
+                        mut.AsyncMutex[0].Set();
                     }
                 }
                 catch (Exception e)
@@ -281,7 +398,7 @@ namespace zero.sync
                     Console.WriteLine($"3:{e}");
                     throw;
                 }
-            });
+            }, mutex, asyncTasks.Token);
 
             Console.ReadLine();
             asyncTasks.Cancel();

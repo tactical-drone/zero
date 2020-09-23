@@ -122,6 +122,41 @@ namespace zero.core.patterns.semaphore
             //return new ValueTask<bool>(waiter.Task);
         }
 
+        public int GetWaited()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetWaited()
+        {
+            throw new NotImplementedException();
+        }
+
+        public int GetHooked()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetHooked()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetResult(bool result)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetRoot(ref IIoMutex[] root)
+        {
+            throw new NotImplementedException();
+        }
+
+        public short Version()
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Not applicable
         /// </summary>
