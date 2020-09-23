@@ -305,10 +305,10 @@ namespace zero.sync
             
             var mutex = new MutexClass();
             mutex.Configure(asyncTasks);
-            var targetSleep = (long)1000;
+            var targetSleep = (long)0;
             var sw = new Stopwatch();
             var c = 0;
-            IoFpsCounter fps = new IoFpsCounter(250,1000);
+            IoFpsCounter fps = new IoFpsCounter(250,30000);
             
             var t2= Task.Factory.StartNew(async o =>
             {
@@ -335,7 +335,9 @@ namespace zero.sync
                                 _ => () => Console.ForegroundColor = ConsoleColor.Green,
                             };
                             a();
-                            Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
+                            //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
+                             if( ++c % 100000 == 0 )
+                                 Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                         }
                             
@@ -388,7 +390,7 @@ namespace zero.sync
                 {
                     while (true)
                     {
-                        await Task.Delay((int) targetSleep).ConfigureAwait(false);
+                        //await Task.Delay((int) targetSleep).ConfigureAwait(false);
                         //await sem.ReleaseAsync().ConfigureAwait(false);s
                         mut.AsyncMutex[0].Set();
                     }
