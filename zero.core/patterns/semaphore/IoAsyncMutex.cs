@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Mvc;
+using zero.core.misc;
 
 namespace zero.core.patterns.semaphore
 {
@@ -20,6 +21,7 @@ namespace zero.core.patterns.semaphore
         public IoAsyncMutex(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true):this()
         {
             _version = 0;
+            _versionSet = 0;
             _manualReset = new ManualResetValueTaskSourceCore<bool>();
             _falseSentinel = ValueTask.FromResult(false);
             _trueSentinel = ValueTask.FromResult(true);
@@ -62,7 +64,7 @@ namespace zero.core.patterns.semaphore
             {
                 // if (_description != null)
                 //     return _description;
-                return _description = $"{nameof(IoAsyncMutex)}({_manualReset.Version})";
+                return _description = $"{nameof(IoAsyncMutex)}({_version})";
             }
         }
         
@@ -112,14 +114,15 @@ namespace zero.core.patterns.semaphore
             //init frame buffer
             try
             {
+                
                 //clone sentinel frame buffer
                 _sentinel = 1;
-                IIoMutex clone = this;
-                _sentinelCore[0] = clone;
-                _sentinelTask[0] = new ValueTask<bool>(clone, 0);
-                clone = this;
-                _sentinelCore[1] = clone;
-                _sentinelTask[1] = new ValueTask<bool>(clone, 1);
+                for (int i = 0; i < BufferSize; i++)
+                {
+                    IIoMutex clone = this;
+                    _sentinelCore[i] = clone;
+                    _sentinelTask[i] = new ValueTask<bool>(clone, (short) i);    
+                }
             }
             catch (Exception e)
             {
@@ -130,8 +133,7 @@ namespace zero.core.patterns.semaphore
             { 
                 //reset the factory
                 _version = 0;
-                _manualReset = new ManualResetValueTaskSourceCore<bool>();
-                
+
                 //init
                 _sentinel = 0;
                 if (signalled)
@@ -205,7 +207,7 @@ namespace zero.core.patterns.semaphore
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set()
         {
-            var id = _frameId;
+            var frameId = _frameId;
             //signal
             try
             {
@@ -217,9 +219,9 @@ namespace zero.core.patterns.semaphore
                     return;
                 }
                 
-                var frame = _sentinelCore[id];
+                var frame = _sentinelCore[frameId];
                 //root
-                if (frame.GetStatus(id) < ValueTaskSourceStatus.Succeeded)
+                if (frame.GetStatus(frameId) < ValueTaskSourceStatus.Succeeded)
                 {
                     frame.SetResult(!_asyncToken.IsCancellationRequested);
                 }
@@ -228,7 +230,7 @@ namespace zero.core.patterns.semaphore
             }
             catch (Exception e)
             {
-                Console.WriteLine($"SET> v = {_version}, f = {_frameId}, m = {Map(_frameId)}");
+                Console.WriteLine($"SET> v = {_version}, f = {frameId}, m = {GetFrameToken(frameId)}");
                 Console.WriteLine(e);
             }
         }
@@ -261,6 +263,7 @@ namespace zero.core.patterns.semaphore
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitAsync()
         {
+            var frameId = _frameId;
             try
             {
                 //fail fast
@@ -270,28 +273,28 @@ namespace zero.core.patterns.semaphore
                 }
 
                 //current frame 
-                var frame = _sentinelCore[_frameId];
+                var frame = _sentinelCore[frameId];
                 
                 //fast path
-                if (frame.GetStatus(_frameId) > ValueTaskSourceStatus.Pending)
+                if (frame.GetStatus(frameId) > ValueTaskSourceStatus.Pending)
                 {
                     //Console.WriteLine($"FAST PATH> s = {frame.GetStatus(_frameId)}, v = {_version}, f = {_frameId}, r = {_sentinelRefCount[_frameId]}, {_sentinelResult[_frameId]}");
                     //Reset(_manualReset.Version);
-                    return frame.GetResult(_frameId) ? _trueSentinel : _falseSentinel;
+                    return frame.GetResult(frameId) ? _trueSentinel : _falseSentinel;
                 }
                 
                 //Console.WriteLine($"WAITASYNC(({_sentinel}))> s = {frame.GetStatus(_frameId)}, v = {_version}, r = {_sentinelRefCount[_frameId]}, {_sentinelResult[_frameId]}");
 
                 //This is the concurrent case, //TODO
-                if (Interlocked.Increment(ref _sentinelRefCount[_frameId]) > 1)
+                if (Interlocked.Increment(ref _sentinelRefCount[frameId]) > 1)
                 {
-                    throw new NotImplementedException();
-                    return _sentinelTask[_frameId];//TODO make bucket
+                    //throw new NotImplementedException();
+                    return _sentinelTask[frameId];//TODO make bucket
                 }
 
-                _sentinelCore[_frameId].SetWaited();
+                _sentinelCore[frameId].SetWaited();
 
-                var sentinel =  _sentinelTask[_frameId];
+                var sentinel =  _sentinelTask[frameId];
                 
                 return sentinel;
             }
@@ -308,37 +311,40 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
+            var frameId = _frameId;
             //Console.WriteLine($"RESET(({_sentinel})) {_frameId}> v = {_frameId}, r = {_sentinelRefCount[_frameId]}]{_sentinelResult[_frameId]}");
             //sentinel
             if (_sentinel > 0)
             {
-                if (Interlocked.CompareExchange(ref _version, _version + 1, _version) == _version - 1)
+                if (Interlocked.CompareExchange(ref _versionSet, _versionSet + 1, _versionSet) == _versionSet - 1)
                 {
                     _manualReset.Reset();
+                    Interlocked.Increment(ref _version);
                 }
                 else
                 {
-                    Console.WriteLine($"Sentinel RESET RACE!!!!! fid = {_frameId}, v = {_version}");
+                    Console.WriteLine($"Sentinel RESET RACE!!!!! fid = {frameId}, v = {_version}");
                 }
                 return;
             }
 
-            if (Interlocked.CompareExchange(ref _version, _version + 1, _version) ==  _version - 1)
+            if (Interlocked.CompareExchange(ref _versionSet, _versionSet + 1, _versionSet) ==  _versionSet - 1)
             {
                 //_frameId = (byte)(1 - _frameId);
-                var frameId =(byte) ((_frameId + 1) % BufferSize);
+                var nextFrameId =(byte) ((_frameId + 1) % BufferSize);
                 
                 //reset
                 //Bloom(_frameId, true);
-                _sentinelRefCount[frameId] = 0;
-                _sentinelResult[frameId] = default;
-                _sentinelStatus[frameId] = ValueTaskSourceStatus.Pending;
-                _sentinelCore[frameId].Reset();
-                _frameId = frameId;
+                _sentinelRefCount[nextFrameId] = 0;
+                _sentinelResult[nextFrameId] = default;
+                _sentinelStatus[nextFrameId] = ValueTaskSourceStatus.Pending;
+                _sentinelCore[nextFrameId].Reset();
+                _frameId = nextFrameId;
+                Interlocked.Increment(ref _version);
             }
             else
             {
-                Console.WriteLine($"Root RESET RACE!!!!! fid = {_frameId}, v = {_version}");
+                Console.WriteLine($"Root RESET RACE!!!!! fid = {frameId}, v = {_version}");
             }
         }
 
@@ -350,24 +356,29 @@ namespace zero.core.patterns.semaphore
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool GetResult(short token)
         {
-            ValidateToken(token = Map(token));
+            ValidateToken(token = GetFrameToken(token));
             
             //Console.WriteLine($"get(({_sentinel}))>, t = {token}, r = {_sentinelRefCount[_frameId]}, {_sentinelResult[_frameId]}");
             
-            //root
+            //roots
             if (_sentinel <= 0)
                 throw new NotImplementedException($"We should not get here? s = {_sentinel}, token = {token}");
             
             //sentinel validation?
             //TODO does this make sense?
-            if (token == _version -1)
+            if (token != (short)_version)
             {
-                return _sentinelCore[1 - _frameId].GetResult((short)(_version - 1));
+                if (token < (short)_version && token > (short)_version - BufferSize)
+                {
+                    Console.WriteLine($"We are racing...diff = {(short)_version - token}");
+                    var cachedVersion = (_frameId + (BufferSize - 1)) % BufferSize;
+                    return _sentinelCore[cachedVersion].GetResult((short)(cachedVersion));    
+                }
+                else
+                {
+                    throw new NotImplementedException($">2 frame deep race? token = {token}, version = {_version}, diff = {_version - token}");
+                }
             }
-            // else if( token != _version)
-            // {
-            //     throw new NotImplementedException($">2 frame deep race? token = {token}, version = {_version}, diff = {_version - token}");
-            // }
 
             //prep buffer
             GetSentinelRoot().Reset();
@@ -386,9 +397,9 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private short Map(short token)
+        private short GetFrameToken(short frame)
         {
-            return _sentinelCore[token].Version();
+            return _sentinelCore[frame].Version();
         }
         
         /// <summary>
@@ -399,13 +410,15 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
-            ValidateToken(token = Map(token));
+            ValidateToken(token = GetFrameToken(token));
             
             //sentinel
             try
             {
                 if (_sentinel > 0)
+                {
                     return _manualReset.GetStatus(token);
+                }
                 else
                 {
                     throw new NotImplementedException("We should not get here");
@@ -414,7 +427,7 @@ namespace zero.core.patterns.semaphore
             }
             catch (Exception e)
             {
-                Console.WriteLine($"GetStatus> t = {token}, v =  {_version}, V = {_manualReset.Version}");
+                Console.WriteLine($"ERROR: GetStatus> t = {token}, v =  {_version}, V = {_manualReset.Version}");
                 Console.WriteLine(e);
                 //return _manualReset.GetStatus(token);
                 return ValueTaskSourceStatus.Pending;
@@ -447,13 +460,15 @@ namespace zero.core.patterns.semaphore
         volatile int _waited;
         volatile int _hooked;
         private volatile int _version;
+        private volatile int _versionSet;
         private volatile byte _frameId;
         private byte _sentinel;
 
         public IoAsyncMutex State => this;
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
-            ValidateToken(token = Map(token));
+            var frameId = _frameId;
+            ValidateToken(token = GetFrameToken(token));
             
             try
             {
@@ -461,17 +476,19 @@ namespace zero.core.patterns.semaphore
                 //sentinal
                 if (_sentinel > 0)
                 {
+                    var b = _manualReset;
                     _manualReset.OnCompleted(continuation, state,token, flags); 
                     return; 
                 }
                 //root
                 
-                _sentinelCore[_frameId].OnCompleted(continuation, state, token, flags);
-                _sentinelCore[_frameId].SetHooked();
+                _sentinelCore[frameId].OnCompleted(continuation, state, token, flags);
+                _sentinelCore[frameId].SetHooked();
                 return;
             }
             catch (Exception e)
             {
+                Console.WriteLine($"ERROR: OnComplete> s = {_sentinel}, f ={frameId}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
                 Console.WriteLine(e);
                 throw;
             }
