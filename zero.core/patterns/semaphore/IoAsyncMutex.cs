@@ -20,6 +20,7 @@ namespace zero.core.patterns.semaphore
         {
             _version = 0;
             _versionSet = 0;
+            _completed = 0;
             _manualReset = new ManualResetValueTaskSourceCore<bool>();
             _falseSentinel = ValueTask.FromResult(false);
             _trueSentinel = ValueTask.FromResult(true);
@@ -41,22 +42,23 @@ namespace zero.core.patterns.semaphore
         {
             _sentinelRoot = root;
         }
-        
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetRootRef(ref IoAsyncMutex root)
-        {
-            //SetRoot();
-        }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public short Version()
         {
             return (short) _version;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref IIoMutex GetRef(ref IIoMutex mutex)
         {
             return ref mutex;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public short GetCurFrame()
+        {
+            return _frameId;
         }
 
         /// <summary>
@@ -364,13 +366,14 @@ namespace zero.core.patterns.semaphore
                 _sentinelResult[nextFrameId] = -1;
                 _sentinelStatus[nextFrameId] = ValueTaskSourceStatus.Pending;
                 _sentinelCore[nextFrameId].Reset();
+                _hooked = 0;
                 _frameId = nextFrameId;
                 _continuation = null;
                 _state = null;
                 _versionSet = 0;
-                _hooked = 0;
                 _continuation = null;
                 _state = null;
+                _completed = 0;
                 Interlocked.Increment(ref _version);
             }
             else
@@ -414,27 +417,79 @@ namespace zero.core.patterns.semaphore
             }
             
             //teardown once
-            if ((_sentinelResult[reqFrame] = Interlocked.CompareExchange(ref _sentinelResult[reqFrame],
-                _manualReset.GetResult(token) ? 1 : 0, -1)) == -1)
+            // if ((_sentinelResult[reqFrame] = Interlocked.CompareExchange(ref _sentinelResult[reqFrame],
+            //     _manualReset.GetResult(token) ? 1 : 0, -1)) == -1)
+            if(Interlocked.CompareExchange(ref _completed, 1, 0) == 0)
             {
                 //prep buffer
-                _sentinelResult[reqFrame] = _manualReset.GetResult(token) ? 1 : 0;
-                GetSentinelRoot().Reset();
+                //_sentinelResult[reqFrame] = _manualReset.GetResult(token) ? 1 : 0;
                 
-                //signal one extra waiter
+                //Signal one more
+                
+                // This contraption is not going to work. Stopping work here. Maybe if you new design fails we can try further here:
+                // Things we can still try to add is making this _continuation a list of continuations. Then I think we have a manual reset event?
+                // But with this it becomes hard to visualize liveness, so one would have to test using formal verification. Regardless, it is clear that
+                // one waiter sometimes get left behind and eventually when it gets loose it will cause problems. 
+                //
+                // The fundamental issue is that ManualResetValueTaskSourceCore is too primitive. It can be made better with 
+                // my ByRef trick allowing it to scale horizontally with the amount of waiters without having to 
+                // specify (and implement) the max supported waiters in some kind of memory consuming pool (like we did here with BufferSize)
+                //
+                // ByRef effectively allows us to create a queue of waiters, which means you can (or should be able to) clone AsyncAutoResetEvent
+                // almost trivially. Thus we have a struct asyncautoresetevent that gets those juicy zero alloc bonuses from
+                // IValueTaskSource, as supposed to having to use any TaskCompletionSources. The only drawback with this new approach will be the mutex init
+                // where you have to perform the ByRef call. A oneliner is simply not possible, for inception reasons.
+                
                 Action<object> c = null;
-                //do we have backlog?
+                var state = _state;
+                _state = null;
                 if ((c = Interlocked.CompareExchange(ref _continuation, null, _continuation)) != null)
                 {
-                    var state = _state;
-                    _continuation = null;
-                    _state = null;
                     c.Invoke(state);
-                    _hooked = 0;
+                    //_hooked = 0;
                 }
+                
+                GetSentinelRoot().Reset();
             }
-
+            
             return _sentinelResult[reqFrame] == 1;
+            
+            // //teardown once
+            // if ((_sentinelResult[reqFrame] = Interlocked.CompareExchange(ref _sentinelResult[reqFrame],
+            //     _manualReset.GetResult(token) ? 1 : 0, -1)) == -1)
+            // {
+            //     //prep buffer
+            //     _sentinelResult[reqFrame] = _manualReset.GetResult(token) ? 1 : 0;
+            //     
+            //     //Signal one more
+            //     
+            //     // This contraption is not going to work. Stopping work here. Maybe if you new design fails we can try further here:
+            //     // Things we can still try to add is making this _continuation a list of continuations. Then I think we have a manual reset event?
+            //     // But with this it becomes hard to visualize liveness, so one would have to test using formal verification. Regardless, it is clear that
+            //     // one waiter sometimes get left behind and eventually when it gets loose it will cause problems. 
+            //     //
+            //     // The fundamental issue is that ManualResetValueTaskSourceCore is too primitive. It can be made better with 
+            //     // my ByRef trick allowing it to scale horizontally with the amount of waiters without having to 
+            //     // specify (and implement) the max supported waiters in some kind of memory consuming pool (like we did here with BufferSize)
+            //     //
+            //     // ByRef effectively allows us to create a queue of waiters, which means you can (or should be able to) clone AsyncAutoResetEvent
+            //     // almost trivially. Thus we have a struct asyncautoresetevent that gets those juicy zero alloc bonuses from
+            //     // IValueTaskSource, as supposed to having to use any TaskCompletionSources. The only drawback with this new approach will be the mutex init
+            //     // where you have to perform the ByRef call. A oneliner is simply not possible, for inception reasons.
+            //     
+            //     Action<object> c = null;
+            //     var state = _state;
+            //     _state = null;
+            //     if ((c = Interlocked.CompareExchange(ref _continuation, null, _continuation)) != null)
+            //     {
+            //         c.Invoke(state);
+            //         //_hooked = 0;
+            //     }
+            //     
+            //     GetSentinelRoot().Reset();
+            // }
+            //
+            // return _sentinelResult[reqFrame] == 1;
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -460,6 +515,7 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
+            var reqFrameId = token;
             ValidateToken(token = GetFrameToken(token));
             
             //sentinel
@@ -467,7 +523,10 @@ namespace zero.core.patterns.semaphore
             {
                 if (_sentinel > 0)
                 {
-                    return _manualReset.GetStatus(token);
+                    var status = _manualReset.GetStatus(token);
+                    if(status == ValueTaskSourceStatus.Succeeded && Interlocked.CompareExchange(ref _sentinelResult[reqFrameId], _manualReset.GetResult(token) ? 1 : 0, -1 ) == -1 )
+                        _sentinelStatus[reqFrameId] = status;
+                    return status;
                 }
                 else
                 {
@@ -477,7 +536,7 @@ namespace zero.core.patterns.semaphore
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: GetStatus> t = {token}, v =  {_version}, V = {_manualReset.Version}");
+                Console.WriteLine($"ERROR: GetStatus> t = {token}, v =  {(short)_version}, V = {_manualReset.Version}");
                 Console.WriteLine(e);
                 //return _manualReset.GetStatus(token);
                 return ValueTaskSourceStatus.Pending;
@@ -513,6 +572,7 @@ namespace zero.core.patterns.semaphore
         private volatile int _versionSet;
         private volatile byte _frameId;
         private byte _sentinel;
+        private int _completed;
 
         public IoAsyncMutex State => this;
         public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
@@ -523,39 +583,68 @@ namespace zero.core.patterns.semaphore
             try
             {
                 //Console.WriteLine($"HOOK(({_sentinel}))<{((IoAsyncMutex)_sentinelCore[_frameId]).GetWaited()},{((IoAsyncMutex)_sentinelCore[_frameId]).GetHooked()}>((({Thread.CurrentThread.ManagedThreadId}){GetHashCode()}){_manualReset.GetHashCode()})({state})>[{continuation.Target}] v = {_version}, r = {_sentinelRefCount[_frameId]}, {_sentinelResult[_frameId]}");
-                //sentinal
+                //sentinel
                 if (_sentinel > 0)
                 {
-                    if (_manualReset.GetStatus(token) == ValueTaskSourceStatus.Succeeded)
+                    if (_sentinelStatus[frameId] == ValueTaskSourceStatus.Succeeded)
                     {
                         //fast path
                         continuation(state);
+                        Console.WriteLine($"OnComplete> FAST PATH! s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S(c) = {_sentinelStatus[frameId]}, R(c) = {_sentinelResult[frameId]}");
                     }
                     else if (Interlocked.CompareExchange(ref _hooked, 1, 0) == 0)
                     {
-                        _manualReset.OnCompleted(continuation, state,token, flags);
+                        try
+                        {
+                            _manualReset.OnCompleted(continuation, state,token, flags);
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            ValueTaskSourceStatus status = ValueTaskSourceStatus.Faulted;
+
+                            try
+                            {
+                                status = _manualReset.GetStatus(token);
+                            }
+                            catch 
+                            {
+                                Console.WriteLine($"ERROR: OnComplete> FAST PATH getting status, s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S(c) = {_sentinelStatus[frameId]}, R(c) = {_sentinelResult[frameId]}");
+                            }
+                                
+                            if (_sentinelStatus[frameId] == ValueTaskSourceStatus.Succeeded)
+                            {
+                                Console.WriteLine($"OnComplete1> FAST PATH! (RACED!!!) s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S(c) = {_sentinelStatus[frameId]}, R(c) = {_sentinelResult[frameId]}");
+                                continuation(state);
+                                Console.WriteLine($"OnComplete2> FAST PATH! (RACED!!!) s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S(c) = {_sentinelStatus[frameId]}, R(c) = {_sentinelResult[frameId]}");
+                            }
+                            else if(status == ValueTaskSourceStatus.Pending)
+                            {
+                                Console.WriteLine($"OnComplete1> FAST PATH! (Re-/>RACED!!!) s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S(c) = {_sentinelStatus[frameId]}, R(c) = {_sentinelResult[frameId]}");
+                                _manualReset.OnCompleted(continuation, state,token, flags);
+                                Console.WriteLine($"OnComplete2> FAST PATH! (Re-/>RACED!!!) s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S(c) = {_sentinelStatus[frameId]}, R(c) = {_sentinelResult[frameId]}");
+                            }
+                        }
                     }
-                    else if(_continuation == null)
+                    else if(Interlocked.CompareExchange(ref _continuation, continuation, null) == null)
                     {
-                        _continuation = continuation;
                         _state = state;
                         //Console.WriteLine($"OnComplete> We raced! s = {_sentinel}, f ={frameId}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
                     }
                     else
                     {
-                        Console.WriteLine($"OnComplete> We DROPPED! s = {_sentinel}, f ={frameId}, h = {_hooked}, v = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
+                        Console.WriteLine($"OnComplete> We DROPPED! s = {_sentinel}, rf ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, h = {_hooked}, v = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
                     }
                     return; 
                 }
                 //root
                 
                 _sentinelCore[frameId].OnCompleted(continuation, state, token, flags);
-                _sentinelCore[frameId].SetHooked();
                 return;
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: OnComplete> s = {_sentinel}, f ={frameId}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
+                Console.WriteLine($"ERROR: OnComplete> target = {continuation?.Target}");
+                Console.WriteLine($"ERROR: OnComplete> s = {_sentinel}, f ={frameId}, cf = {_sentinelRoot.GetCurFrame()}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
                 Console.WriteLine(e);
                 throw;
             }

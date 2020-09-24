@@ -282,6 +282,11 @@ namespace zero.sync
                 throw new NotImplementedException();
             }
 
+            public short GetCurFrame()
+            {
+                throw new NotImplementedException();
+            }
+
             public bool GetResult(short token)
             {
                 throw new NotImplementedException();
@@ -310,8 +315,8 @@ namespace zero.sync
             
             var mutex = new MutexClass();
             mutex.Configure(asyncTasks);
-            var targetSleep = (long)1000;
-            var logSpam = 1000;
+            var targetSleep = (long)0;
+            var logSpam = 10000;
             var thread2 = true;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
@@ -343,15 +348,17 @@ namespace zero.sync
                                 _ => () => Console.ForegroundColor = ConsoleColor.Green,
                             };
                             a();
-                            Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
-                             // if( Interlocked.Increment(ref c) % logSpam == 0 )
-                             //     Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            if (Interlocked.Increment(ref c) % logSpam == 0)
+                                Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                         }
                         else
                         {
+                            var tt = sw.ElapsedMilliseconds;
+                            fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F1:{mut.AsyncMutex}({--c})");
+                            Console.WriteLine($"F1:{mut.AsyncMutex}({--c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                             await Task.Delay(500).ConfigureAwait(false);
                         }
@@ -390,15 +397,17 @@ namespace zero.sync
                                 _ => () => Console.ForegroundColor = ConsoleColor.Green,
                             };
                             a();
-                            Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
-                            // if( Interlocked.Increment(ref c) % logSpam == 0 )
-                            //     Console.WriteLine($"T2:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            //Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            if (Interlocked.Increment(ref c) % logSpam == 0)
+                                Console.WriteLine($"T2:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                         }
                         else
                         {
+                            var tt = sw.ElapsedMilliseconds;
+                            fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F2:{mut.AsyncMutex}({--c})");
+                            Console.WriteLine($"F2:{mut.AsyncMutex}({--c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                             await Task.Delay(500).ConfigureAwait(false);
                         }

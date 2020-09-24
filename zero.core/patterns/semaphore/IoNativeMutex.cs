@@ -97,6 +97,11 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
+        public short GetCurFrame()
+        {
+            throw new NotImplementedException();
+        }
+
         public ref IIoMutex GetRef()
         {
             throw new NotImplementedException();

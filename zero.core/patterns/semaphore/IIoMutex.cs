@@ -26,5 +26,6 @@ namespace zero.core.patterns.semaphore
         short Version();
 
         ref IIoMutex GetRef(ref IIoMutex mutex);
+        short GetCurFrame();
     }
 }

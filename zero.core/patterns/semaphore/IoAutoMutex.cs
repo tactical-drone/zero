@@ -162,6 +162,11 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
+        public short GetCurFrame()
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Not applicable
         /// </summary>
