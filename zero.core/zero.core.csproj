@@ -50,6 +50,7 @@
 
   <ItemGroup>
     <Folder Include="api\commands\" />
+    <Folder Include="patterns\semaphore\core" />
   </ItemGroup>
 
   <ItemGroup>

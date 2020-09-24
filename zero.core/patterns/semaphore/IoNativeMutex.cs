@@ -82,12 +82,22 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public void SetRoot(ref IIoMutex[] root)
+        public void ByRef(ref IIoMutex root)
         {
             
         }
 
         public short Version()
+        {
+            throw new NotImplementedException();
+        }
+
+        public ref IIoMutex GetRef(ref IIoMutex mutex)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ref IIoMutex GetRef()
         {
             throw new NotImplementedException();
         }

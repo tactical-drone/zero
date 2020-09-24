@@ -22,7 +22,9 @@ namespace zero.core.patterns.semaphore
         /// </summary>
         void Reset();
 
-        void SetRoot(ref IIoMutex[] root);
+        void ByRef(ref IIoMutex root);
         short Version();
+
+        ref IIoMutex GetRef(ref IIoMutex mutex);
     }
 }

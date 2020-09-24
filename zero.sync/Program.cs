@@ -214,26 +214,26 @@ namespace zero.sync
 
         class MutexClass : IIoMutex
         {
-            public IIoMutex[] AsyncMutex;
+            public IIoMutex AsyncMutex;
             public void Configure(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true)
             {
-                AsyncMutex = new[]{(IIoMutex)new IoAsyncMutex(asyncTasks)};
-                AsyncMutex[0].SetRoot(ref AsyncMutex);
+                AsyncMutex = new IoAsyncMutex(asyncTasks);
+                AsyncMutex.ByRef(ref AsyncMutex);
 
-                AsyncMutex[0].Configure(asyncTasks, signalled, allowInliningContinuations);
+                AsyncMutex.Configure(asyncTasks, signalled, allowInliningContinuations);
             }
 
             public void Set()
             {
-                Console.WriteLine($"WAITED IS {AsyncMutex[0].GetWaited()}");
-                Console.WriteLine($"HOOKED IS {AsyncMutex[0].GetHooked()}");
-                AsyncMutex[0].Set();
+                Console.WriteLine($"WAITED IS {AsyncMutex.GetWaited()}");
+                Console.WriteLine($"HOOKED IS {AsyncMutex.GetHooked()}");
+                AsyncMutex.Set();
             }
 
             public ValueTask<bool> WaitAsync()
             {
-                var retval = AsyncMutex[0].WaitAsync();
-                Console.WriteLine($"WAITED SHOULD BE one => {AsyncMutex[0].GetWaited()}");
+                var retval = AsyncMutex.WaitAsync();
+                Console.WriteLine($"WAITED SHOULD BE one => {AsyncMutex.GetWaited()}");
                 return retval;
             }
 
@@ -267,12 +267,17 @@ namespace zero.sync
                 throw new NotImplementedException();
             }
 
-            public void SetRoot(ref IIoMutex[] root)
+            public void ByRef(ref IIoMutex root)
             {
                 throw new NotImplementedException();
             }
 
             public short Version()
+            {
+                throw new NotImplementedException();
+            }
+
+            public ref IIoMutex GetRef(ref IIoMutex mutex)
             {
                 throw new NotImplementedException();
             }
@@ -305,7 +310,9 @@ namespace zero.sync
             
             var mutex = new MutexClass();
             mutex.Configure(asyncTasks);
-            var targetSleep = (long)0;
+            var targetSleep = (long)1000;
+            var logSpam = 1000;
+            var thread2 = true;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
@@ -324,27 +331,25 @@ namespace zero.sync
                         //     break;
 
                         sw.Restart();
-                        if (await mut.AsyncMutex[0].WaitAsync().ConfigureAwait(false))
+                        if (await mut.AsyncMutex.WaitAsync().ConfigureAwait(false))
                         {
+                            var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
-                            var t = sw.ElapsedMilliseconds;
-
-                            Action a = (t - targetSleep) switch
+                            
+                            Action a = (tt - targetSleep) switch
                             {
                                 >5 => () => Console.ForegroundColor = ConsoleColor.Red,
                                 <-5 => () => Console.ForegroundColor = ConsoleColor.Red,
                                 _ => () => Console.ForegroundColor = ConsoleColor.Green,
                             };
                             a();
-                            //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
-                             if( ++c % 100000 == 0 )
-                                 Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
+                            Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                             // if( Interlocked.Increment(ref c) % logSpam == 0 )
+                             //     Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                         }
-                            
                         else
                         {
-
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine($"F1:{mut.AsyncMutex}({--c})");
                             Console.ResetColor();
@@ -365,7 +370,7 @@ namespace zero.sync
                 var mut = (MutexClass)o;
                 try
                 {
-                    while (false)
+                    while (thread2)
                     {
                         // var block = sem.WaitAsync();
                         // await block.OverBoostAsync().ConfigureAwait(false);
@@ -373,27 +378,25 @@ namespace zero.sync
                         //     break;
 
                         sw2.Restart();
-                        if (await mut.AsyncMutex[0].WaitAsync().ConfigureAwait(false))
+                        if (await mut.AsyncMutex.WaitAsync().ConfigureAwait(false))
                         {
+                            var tt = sw2.ElapsedMilliseconds;
                             fps.Tick();
-                            var t = sw2.ElapsedMilliseconds;
 
-                            Action a = (t - targetSleep) switch
+                            Action a = (tt - targetSleep) switch
                             {
                                 > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
                                 < -5 => () => Console.ForegroundColor = ConsoleColor.Red,
                                 _ => () => Console.ForegroundColor = ConsoleColor.Green,
                             };
                             a();
-                            Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
-                            //if( ++c % 100000 == 0 )
-                            //    Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {t - targetSleep}ms, {fps.Fps(): 00.0}");
+                            Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            // if( Interlocked.Increment(ref c) % logSpam == 0 )
+                            //     Console.WriteLine($"T2:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             Console.ResetColor();
                         }
-
                         else
                         {
-
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine($"F2:{mut.AsyncMutex}({--c})");
                             Console.ResetColor();
@@ -417,7 +420,7 @@ namespace zero.sync
                     while (true)
                     {
                         await Task.Delay((int) targetSleep).ConfigureAwait(false);
-                        mut.AsyncMutex[0].Set();
+                        mut.AsyncMutex.Set();
                     }
                 }
                 catch (Exception e)

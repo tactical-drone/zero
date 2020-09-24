@@ -4,8 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Microsoft.AspNetCore.Mvc;
-using zero.core.misc;
 
 namespace zero.core.patterns.semaphore
 {
@@ -26,23 +24,39 @@ namespace zero.core.patterns.semaphore
             _falseSentinel = ValueTask.FromResult(false);
             _trueSentinel = ValueTask.FromResult(true);
             
-            _sentinelCore = new IIoMutex[BufferSize];
+            
+           //SetRootRef(ref this);s
+           _sentinelCore = new IIoMutex[BufferSize];
             _sentinelTask = new ValueTask<bool>[BufferSize];
             _sentinelRefCount = new int[BufferSize];
-            _sentinelResult = new bool[BufferSize];
+            _sentinelResult = new int[BufferSize];
             _sentinelStatus = new ValueTaskSourceStatus[BufferSize];
+            
+            
         }
 
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetRoot(ref IIoMutex[] root)
+        public void ByRef(ref IIoMutex root)
         {
             _sentinelRoot = root;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetRootRef(ref IoAsyncMutex root)
+        {
+            //SetRoot();
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public short Version()
         {
             return (short) _version;
+        }
+
+        public ref IIoMutex GetRef(ref IIoMutex mutex)
+        {
+            return ref mutex;
         }
 
         /// <summary>
@@ -108,6 +122,11 @@ namespace zero.core.patterns.semaphore
             Array.Clear(_sentinelResult,0,_sentinelResult.Length);
             Array.Clear(_sentinelStatus,0,_sentinelStatus.Length);
             Array.Clear(_sentinelRefCount,0,_sentinelRefCount.Length);
+
+            for (int i = 0; i < _sentinelResult.Length; i++)
+            {
+                _sentinelResult[i] = -1;
+            }
             
             var sw = Stopwatch.StartNew();
             
@@ -116,10 +135,12 @@ namespace zero.core.patterns.semaphore
             {
                 
                 //clone sentinel frame buffer
-                _sentinel = 1;
+                
                 for (int i = 0; i < BufferSize; i++)
                 {
+                    _sentinel++;
                     IIoMutex clone = this;
+                    //clone.SetRoot(ref this);
                     _sentinelCore[i] = clone;
                     _sentinelTask[i] = new ValueTask<bool>(clone, (short) i);    
                 }
@@ -147,17 +168,20 @@ namespace zero.core.patterns.semaphore
         /// Get the root
         /// </summary>
         /// <returns>The root sentinel</returns>
-        private ref IIoMutex GetSentinelRoot()
+        private IIoMutex GetSentinelRoot()
         {
-            return ref _sentinelRoot[0];
+            return _sentinelRoot;
         }
         
-        private IIoMutex[] _sentinelRoot;
+        private IIoMutex _sentinelRoot;
         private readonly IIoMutex[] _sentinelCore;
         private readonly ValueTask<bool>[] _sentinelTask;
         private readonly int[] _sentinelRefCount;
-        private readonly bool[] _sentinelResult;
-        private readonly ValueTaskSourceStatus[] _sentinelStatus; 
+        private readonly int[] _sentinelResult;
+        private readonly ValueTaskSourceStatus[] _sentinelStatus;
+
+        private Action<object> _continuation;
+        private object _state;
 
         // [MethodImpl(MethodImplOptions.AggressiveInlining)]
         // private void Bloom(short version, bool clear = false)
@@ -316,10 +340,11 @@ namespace zero.core.patterns.semaphore
             //sentinel
             if (_sentinel > 0)
             {
-                if (Interlocked.CompareExchange(ref _versionSet, _versionSet + 1, _versionSet) == _versionSet - 1)
+                if (Interlocked.CompareExchange(ref _versionSet, 1, 0) == 0)
                 {
                     _manualReset.Reset();
                     Interlocked.Increment(ref _version);
+                    _versionSet = 0;
                 }
                 else
                 {
@@ -328,7 +353,7 @@ namespace zero.core.patterns.semaphore
                 return;
             }
 
-            if (Interlocked.CompareExchange(ref _versionSet, _versionSet + 1, _versionSet) ==  _versionSet - 1)
+            if (Interlocked.CompareExchange(ref _versionSet, 1, 0) ==  0)
             {
                 //_frameId = (byte)(1 - _frameId);
                 var nextFrameId =(byte) ((_frameId + 1) % BufferSize);
@@ -336,10 +361,16 @@ namespace zero.core.patterns.semaphore
                 //reset
                 //Bloom(_frameId, true);
                 _sentinelRefCount[nextFrameId] = 0;
-                _sentinelResult[nextFrameId] = default;
+                _sentinelResult[nextFrameId] = -1;
                 _sentinelStatus[nextFrameId] = ValueTaskSourceStatus.Pending;
                 _sentinelCore[nextFrameId].Reset();
                 _frameId = nextFrameId;
+                _continuation = null;
+                _state = null;
+                _versionSet = 0;
+                _hooked = 0;
+                _continuation = null;
+                _state = null;
                 Interlocked.Increment(ref _version);
             }
             else
@@ -356,35 +387,54 @@ namespace zero.core.patterns.semaphore
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool GetResult(short token)
         {
-            ValidateToken(token = GetFrameToken(token));
-            
+            var reqFrame = token;
+            ValidateToken(token = GetFrameToken(reqFrame));
+
             //Console.WriteLine($"get(({_sentinel}))>, t = {token}, r = {_sentinelRefCount[_frameId]}, {_sentinelResult[_frameId]}");
-            
+
             //roots
             if (_sentinel <= 0)
                 throw new NotImplementedException($"We should not get here? s = {_sentinel}, token = {token}");
-            
+
             //sentinel validation?
             //TODO does this make sense?
-            if (token != (short)_version)
+            if (token != (short) _version)
             {
-                if (token < (short)_version && token > (short)_version - BufferSize)
+                if (token < (short) _version && token > (short) _version - BufferSize)
                 {
-                    Console.WriteLine($"We are racing...diff = {(short)_version - token}");
+                    Console.WriteLine($"We are racing...diff = {(short) _version - token}");
                     var cachedVersion = (_frameId + (BufferSize - 1)) % BufferSize;
-                    return _sentinelCore[cachedVersion].GetResult((short)(cachedVersion));    
+                    return _sentinelCore[cachedVersion].GetResult((short) (cachedVersion));
                 }
                 else
                 {
-                    throw new NotImplementedException($">2 frame deep race? token = {token}, version = {_version}, diff = {_version - token}");
+                    throw new NotImplementedException(
+                        $">2 frame deep race? token = {token}, version = {_version}, diff = {_version - token}");
+                }
+            }
+            
+            //teardown once
+            if ((_sentinelResult[reqFrame] = Interlocked.CompareExchange(ref _sentinelResult[reqFrame],
+                _manualReset.GetResult(token) ? 1 : 0, -1)) == -1)
+            {
+                //prep buffer
+                _sentinelResult[reqFrame] = _manualReset.GetResult(token) ? 1 : 0;
+                GetSentinelRoot().Reset();
+                
+                //signal one extra waiter
+                Action<object> c = null;
+                //do we have backlog?
+                if ((c = Interlocked.CompareExchange(ref _continuation, null, _continuation)) != null)
+                {
+                    var state = _state;
+                    _continuation = null;
+                    _state = null;
+                    c.Invoke(state);
+                    _hooked = 0;
                 }
             }
 
-            //prep buffer
-            GetSentinelRoot().Reset();
-            
-            //return the result
-            return _manualReset.GetResult(token);;
+            return _sentinelResult[reqFrame] == 1;
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -476,8 +526,25 @@ namespace zero.core.patterns.semaphore
                 //sentinal
                 if (_sentinel > 0)
                 {
-                    var b = _manualReset;
-                    _manualReset.OnCompleted(continuation, state,token, flags); 
+                    if (_manualReset.GetStatus(token) == ValueTaskSourceStatus.Succeeded)
+                    {
+                        //fast path
+                        continuation(state);
+                    }
+                    else if (Interlocked.CompareExchange(ref _hooked, 1, 0) == 0)
+                    {
+                        _manualReset.OnCompleted(continuation, state,token, flags);
+                    }
+                    else if(_continuation == null)
+                    {
+                        _continuation = continuation;
+                        _state = state;
+                        //Console.WriteLine($"OnComplete> We raced! s = {_sentinel}, f ={frameId}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"OnComplete> We DROPPED! s = {_sentinel}, f ={frameId}, h = {_hooked}, v = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
+                    }
                     return; 
                 }
                 //root
