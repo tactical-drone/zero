@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using zero.core.patterns.misc;
@@ -27,5 +28,6 @@ namespace zero.core.patterns.semaphore
 
         ref IIoMutex GetRef(ref IIoMutex mutex);
         short GetCurFrame();
+        bool SetWaiter(Action<object> continuation, object state);
     }
 }

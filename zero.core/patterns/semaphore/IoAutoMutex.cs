@@ -167,6 +167,11 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
+        public bool SetWaiter(Action<object> continuation, object state)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Not applicable
         /// </summary>

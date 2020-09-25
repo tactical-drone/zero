@@ -61,6 +61,17 @@ namespace zero.core.patterns.semaphore
             return _frameId;
         }
 
+        public bool SetWaiter(Action<object> continuation, object state)
+        {
+            if (Interlocked.CompareExchange(ref _continuation, continuation, null) == null)
+            {
+                _state = state;
+                return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Don't force async completions
         /// </summary>
@@ -625,6 +636,10 @@ namespace zero.core.patterns.semaphore
                             }
                         }
                     }
+                    // else if (_sentinelRoot.SetWaiter(continuation, state))
+                    // {
+                    //     Console.WriteLine($"OnComplete> We raced! s = {_sentinel}, f ={frameId}, m = {GetFrameToken(frameId)}, V = {_manualReset.Version}, S = {_manualReset.GetStatus(_manualReset.Version)}");
+                    // }
                     else if(Interlocked.CompareExchange(ref _continuation, continuation, null) == null)
                     {
                         _state = state;

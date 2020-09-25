@@ -217,10 +217,11 @@ namespace zero.sync
             public IIoMutex AsyncMutex;
             public void Configure(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true)
             {
-                AsyncMutex = new IoAsyncMutex(asyncTasks);
-                AsyncMutex.ByRef(ref AsyncMutex);
-
-                AsyncMutex.Configure(asyncTasks, signalled, allowInliningContinuations);
+                 AsyncMutex = new IoAsyncMutex(asyncTasks);
+                 AsyncMutex.ByRef(ref AsyncMutex);
+                
+                 AsyncMutex.Configure(asyncTasks, signalled, allowInliningContinuations);
+                //AsyncMutex = new IoNativeMutex(asyncTasks);
             }
 
             public void Set()
@@ -287,6 +288,11 @@ namespace zero.sync
                 throw new NotImplementedException();
             }
 
+            public bool SetWaiter(Action<object> continuation, object state)
+            {
+                throw new NotImplementedException();
+            }
+
             public bool GetResult(short token)
             {
                 throw new NotImplementedException();
@@ -316,12 +322,12 @@ namespace zero.sync
             var mutex = new MutexClass();
             mutex.Configure(asyncTasks);
             var targetSleep = (long)0;
-            var logSpam = 10000;
+            var logSpam = 100000;
             var thread2 = true;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
-            IoFpsCounter fps = new IoFpsCounter(250,30000);
+            IoFpsCounter fps = new IoFpsCounter(10 * 30000,30000);
             
             var t2= Task.Factory.StartNew(async o =>
             {
@@ -388,7 +394,7 @@ namespace zero.sync
                         if (await mut.AsyncMutex.WaitAsync().ConfigureAwait(false))
                         {
                             var tt = sw2.ElapsedMilliseconds;
-                            fps.Tick();
+                            //fps.Tick();
 
                             Action a = (tt - targetSleep) switch
                             {
