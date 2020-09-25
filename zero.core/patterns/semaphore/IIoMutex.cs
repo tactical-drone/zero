@@ -21,7 +21,7 @@ namespace zero.core.patterns.semaphore
         /// <summary>
         /// Resets for next use
         /// </summary>
-        void Reset();
+        void Zero();
 
         void ByRef(ref IIoMutex root);
         short Version();

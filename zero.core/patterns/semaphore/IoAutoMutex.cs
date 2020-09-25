@@ -176,7 +176,7 @@ namespace zero.core.patterns.semaphore
         /// Not applicable
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        public void Reset()
+        public void Zero()
         {
             throw new NotImplementedException();
         }

@@ -346,7 +346,7 @@ namespace zero.core.patterns.semaphore
         /// Resets for next use
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset()
+        public void Zero()
         {
             var frameId = _frameId;
             //Console.WriteLine($"RESET(({_sentinel})) {_frameId}> v = {_frameId}, r = {_sentinelRefCount[_frameId]}]{_sentinelResult[_frameId]}");
@@ -376,7 +376,7 @@ namespace zero.core.patterns.semaphore
                 _sentinelRefCount[nextFrameId] = 0;
                 _sentinelResult[nextFrameId] = -1;
                 _sentinelStatus[nextFrameId] = ValueTaskSourceStatus.Pending;
-                _sentinelCore[nextFrameId].Reset();
+                _sentinelCore[nextFrameId].Zero();
                 _hooked = 0;
                 _frameId = nextFrameId;
                 _continuation = null;
@@ -460,7 +460,7 @@ namespace zero.core.patterns.semaphore
                     //_hooked = 0;
                 }
                 
-                GetSentinelRoot().Reset();
+                GetSentinelRoot().Zero();
             }
             
             return _sentinelResult[reqFrame] == 1;

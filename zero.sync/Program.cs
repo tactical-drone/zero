@@ -16,6 +16,7 @@ using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
@@ -263,7 +264,7 @@ namespace zero.sync
                 throw new NotImplementedException();
             }
 
-            public void Reset()
+            public void Zero()
             {
                 throw new NotImplementedException();
             }
@@ -312,18 +313,19 @@ namespace zero.sync
         private static void Test()
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
-            IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(asyncTasks, 1);
+            //IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(asyncTasks, 1);
             
             // var mutex = new MutexClass
             // {
             //     AsyncMutex = new IoAsyncMutex( asyncTasks)
             // };
             
-            var mutex = new MutexClass();
-            mutex.Configure(asyncTasks);
-            var targetSleep = (long)0;
-            var logSpam = 100000;
-            var thread2 = true;
+             // var mutex = new MutexClass();
+             // mutex.Configure(asyncTasks);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", 1, 0);
+            var targetSleep = (long)1;
+            var logSpam = 10;
+            var thread2 = false;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
@@ -331,7 +333,7 @@ namespace zero.sync
             
             var t2= Task.Factory.StartNew(async o =>
             {
-                var mut = (MutexClass) o;
+                var mut = (IoZeroSemaphoreSlim) o;
                 try
                 {
                     while (true)
@@ -342,7 +344,7 @@ namespace zero.sync
                         //     break;
 
                         sw.Restart();
-                        if (await mut.AsyncMutex.WaitAsync().ConfigureAwait(false))
+                        if (await mut.WaitAsync().ConfigureAwait(false))
                         {
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
@@ -356,7 +358,7 @@ namespace zero.sync
                             a();
                             //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                                Console.WriteLine($"T1:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                                Console.WriteLine($"T1:{mut}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0} fps");
                             Console.ResetColor();
                         }
                         else
@@ -364,7 +366,7 @@ namespace zero.sync
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F1:{mut.AsyncMutex}({--c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            Console.WriteLine($"F1:{mut}({--c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0} fps");
                             Console.ResetColor();
                             await Task.Delay(500).ConfigureAwait(false);
                         }
@@ -380,7 +382,7 @@ namespace zero.sync
 
             var t3  = Task.Factory.StartNew(async o =>
             {
-                var mut = (MutexClass)o;
+                var mut = (IoZeroSemaphoreSlim)o;
                 try
                 {
                     while (thread2)
@@ -391,7 +393,7 @@ namespace zero.sync
                         //     break;
 
                         sw2.Restart();
-                        if (await mut.AsyncMutex.WaitAsync().ConfigureAwait(false))
+                        if (await mut.WaitAsync().ConfigureAwait(false))
                         {
                             var tt = sw2.ElapsedMilliseconds;
                             //fps.Tick();
@@ -405,7 +407,7 @@ namespace zero.sync
                             a();
                             //Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                                Console.WriteLine($"T2:{mut.AsyncMutex}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                                Console.WriteLine($"T2:{mut}({c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0} fps");
                             Console.ResetColor();
                         }
                         else
@@ -413,7 +415,7 @@ namespace zero.sync
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F2:{mut.AsyncMutex}({--c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            Console.WriteLine($"F2:{mut}({--c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0} fpss");
                             Console.ResetColor();
                             await Task.Delay(500).ConfigureAwait(false);
                         }
@@ -429,13 +431,13 @@ namespace zero.sync
 
             var t = Task.Factory.StartNew(async o=>
             {
-                var mut = (MutexClass) o;
+                var mut = (IoZeroSemaphoreSlim) o;
                 try
                 {
                     while (true)
                     {
                         await Task.Delay((int) targetSleep).ConfigureAwait(false);
-                        mut.AsyncMutex.Set();
+                        mut.Set();
                     }
                 }
                 catch (Exception e)

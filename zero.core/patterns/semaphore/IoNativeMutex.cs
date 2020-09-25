@@ -77,7 +77,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public void Reset()
+        public void Zero()
         {
             throw new NotImplementedException();
         }
