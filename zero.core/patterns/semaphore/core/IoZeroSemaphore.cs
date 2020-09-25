@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using Microsoft.VisualStudio.Threading;
 
 namespace zero.core.patterns.semaphore.core
 {
