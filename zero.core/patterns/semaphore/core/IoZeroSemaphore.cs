@@ -33,7 +33,7 @@ namespace zero.core.patterns.semaphore.core
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
-            _ddl = new SpinLock(false);
+            _ddl = new SpinLock(true);
             _enableAutoScale = enableAutoScale;
             _zeroQueue = new Action<object>[expectedNrOfWaiters];
             _zeroState = new object[expectedNrOfWaiters];
@@ -208,7 +208,7 @@ namespace zero.core.patterns.semaphore.core
 #endif
             
             //return status
-            return token == (short) _zeroVersion % short.MaxValue
+            return token == (short) (_zeroVersion % ushort.MaxValue)
                 ? ValueTaskSourceStatus.Pending
                 : ValueTaskSourceStatus.Succeeded;
         }
@@ -228,23 +228,20 @@ namespace zero.core.patterns.semaphore.core
             if(_asyncToken.IsCancellationRequested)
                 return;
             
-            var acquiredLock = false;
-            
-            //acquire lock
-            Thread.CurrentThread.Priority = ThreadPriority.Lowest;
-            while (!acquiredLock)
-                _ddl.Enter(ref acquiredLock);
-            Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
-            
             //fast path, late continuations win, zeroQueue is not a Q and order is not guaranteed
             // Care: _zeroVersion must change inside a lock
             if ((ushort) token < _zeroVersion % ushort.MaxValue)
             {
                 continuation(state);
-                _ddl.Exit(UseMemoryBarrier);
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
                 return;
             }
+            
+            var acquiredLock = false;
+            //acquire lock
+            Thread.CurrentThread.Priority = ThreadPriority.Lowest;
+            while (!acquiredLock)
+                _ddl.Enter(ref acquiredLock);
+            Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
             
             //check for space
             if (_zeroState[_zeroHead] == null) //TODO: does this assumption fail at concurrent waiters at ushort.MaxValue?
@@ -262,18 +259,16 @@ namespace zero.core.patterns.semaphore.core
             }
             else //EXPERIMENTAL: double concurrent capacity
             {
+                _ddl.Exit(UseMemoryBarrier);
+                Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                
                 if (_enableAutoScale)
                 {
-                    _ddl.Exit(UseMemoryBarrier);
-                    Thread.CurrentThread.Priority = ThreadPriority.Normal;
                     ZeroScale();
                     OnCompleted(continuation, state, token, flags);//TODO unwind?
                 }
                 else
                 {
-                    _ddl.Exit(UseMemoryBarrier);
-                    Thread.CurrentThread.Priority = ThreadPriority.Normal;
-                        
                     throw new ZeroValidationException(
                         $"{Description}: Unable to handle concurrent call, enable auto scale or increase expectedNrOfWaiters");
                 }
@@ -314,7 +309,6 @@ namespace zero.core.patterns.semaphore.core
                 _zeroSafetyVersion[j] = oldStateToken[i];
                 j++;
             }
-            //Array.Copy(oldHandlerQueue, _waiterQueue, oldHandlerQueue.Length);
 
             //recalibrate the queue
             _zeroTail = 0;
@@ -361,7 +355,6 @@ namespace zero.core.patterns.semaphore.core
             
             //release lock
             _ddl.Exit(UseMemoryBarrier);
-            acquiredLock = false;
             Thread.CurrentThread.Priority = ThreadPriority.Normal;
             #endregion
             
@@ -373,6 +366,7 @@ namespace zero.core.patterns.semaphore.core
                 //Deque continuation
                 #region atomic dequeue
                 //acquire lock
+                acquiredLock = false;
                 Thread.CurrentThread.Priority = ThreadPriority.Lowest;
                 while (!acquiredLock)
                     _ddl.Enter(ref acquiredLock);
@@ -382,7 +376,6 @@ namespace zero.core.patterns.semaphore.core
                 if (_zeroState![_zeroTail] == null) //TODO: Does this wrap around on high concurrency? Q
                 {
                     _ddl.Exit(UseMemoryBarrier);
-                    Thread.CurrentThread.Priority = ThreadPriority.Normal;
 #if DEBUG
                     //TODO do we throw? 
 #endif
@@ -391,7 +384,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 
                 //validate handler safety, skip on fail up until the head and reset back to lwmTail
-                if (_zeroSafetyVersion[_zeroTail] >= safety)
+                if (_zeroSafetyVersion[_zeroTail] > safety)
                 {
                     //capture the lowest water mark tail
                     if(lwmTail < 0)
@@ -417,28 +410,24 @@ namespace zero.core.patterns.semaphore.core
                 //Has this continuation been serviced?
                 if (state == null)
                 {
-                    //capture lwm tail if not yet captured
-                    if (lwmTail != -1)
-                        _zeroTail = lwmTail;
-                    
                     //release lock
-                    _ddl.Exit();
+                    _ddl.Exit(UseMemoryBarrier);
 
                     //skip already serviced continuations
                     continue;
                 }
                 
-                //set finalTail if set
-                if (lwmTail != -1)
-                    _zeroTail = lwmTail;
-
                 //release the lock
-                _ddl.Exit();
+                _ddl.Exit(UseMemoryBarrier);
                 #endregion
 
                 //release a thread
                 continuation(state);
             }
+            
+            //set low water mark tail if set
+            if (lwmTail != -1)
+                _zeroTail = lwmTail;
 
             Thread.CurrentThread.Priority = ThreadPriority.Normal;
         }
