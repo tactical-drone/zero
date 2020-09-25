@@ -16,26 +16,29 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="description">A description of this mutex</param>
         /// <param name="maxCapacity">The maximum number of continuations that can be signalled concurrently</param>
-        /// <param name="initialCount">The initial amount of continuations that will be in a signalled state</param>
-        /// <param name="expectedNrOfWaiters">The amount of waiters expected to wait on this mutex on parallel</param>
+        /// <param name="initialCount">The initial number of continuations that will be in a signalled state</param>
+        /// <param name="expectedNrOfWaiters">The number of expected waiters to wait on this semaphore concurrently</param>
         /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="expectedNrOfWaiters"/> more accurately to compensate</param>
         /// <param name="zeroVersion">Initial zero state</param>
+        /// <param name="enableFairQ">Enable fair queueing of sat the cost of performance</param>
+        /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(string description = "", int maxCapacity = 1, int initialCount = 0, int expectedNrOfWaiters = 1,
-            bool enableAutoScale = false, int zeroVersion = 0) : this()
+            bool enableAutoScale = false, int zeroVersion = 0, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
             _maxCapacity = maxCapacity;
             if(initialCount > maxCapacity)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxCapacity)} = {maxCapacity}");
-            
+
+            _useMemoryBarrier = enableFairQ;
             _initialCount = initialCount;
             _zeroVersion = zeroVersion;
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
-            _ddl = new SpinLock(true);
+            _ddl = new SpinLock(enableDeadlockDetection);
             _enableAutoScale = enableAutoScale;
-            _zeroQueue = new Action<object>[expectedNrOfWaiters];
+            _zeroQ = new Action<object>[expectedNrOfWaiters];
             _zeroState = new object[expectedNrOfWaiters];
             _zeroSafetyVersion = new short[expectedNrOfWaiters];
             _zeroHead = 0;
@@ -47,7 +50,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// use memory barrier settings
         /// </summary>
-        private const bool UseMemoryBarrier = true;
+        private bool _useMemoryBarrier;
 
         #endregion
 
@@ -92,7 +95,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A "queue" waiting continuations. The queue has weak order guarantees, but us mostly FIFO 
         /// </summary>
-        private Action<object>[] _zeroQueue;
+        private Action<object>[] _zeroQ;
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
@@ -144,10 +147,10 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public void Zero()
         {
-            for (var i = _zeroTail; i != _zeroHead; i = (i + 1) % _zeroQueue.Length)
+            for (var i = _zeroTail; i != _zeroHead; i = (i + 1) % _zeroQ.Length)
             {
                 if (_zeroState[i] != null)
-                    _zeroQueue[i](_zeroState);
+                    _zeroQ[i](_zeroState);
             }
 
             //TODO: is this ok?
@@ -201,7 +204,7 @@ namespace zero.core.patterns.semaphore.core
 #if DEBUG
             //ZeroValidate(token);
             //TODO: at what level of concurrency does this assumption break? ushort.MaxValue I suppose?
-            if (_zeroQueue.Length > ushort.MaxValue)
+            if (_zeroQ.Length > ushort.MaxValue)
             {
                 Console.Write("z");
             }
@@ -247,19 +250,19 @@ namespace zero.core.patterns.semaphore.core
             if (_zeroState[_zeroHead] == null) //TODO: does this assumption fail at concurrent waiters at ushort.MaxValue?
             {
                 //store the continuation
-                _zeroQueue[_zeroHead] = continuation;
+                _zeroQ[_zeroHead] = continuation;
                 _zeroState[_zeroHead] = state;
                 _zeroSafetyVersion[_zeroHead] = token;
 
                 //advance queue head
-                _zeroHead = (_zeroHead + 1) % _zeroQueue.Length;
+                _zeroHead = (_zeroHead + 1) % _zeroQ.Length;
                 
-                _ddl.Exit(UseMemoryBarrier);
+                _ddl.Exit(_useMemoryBarrier);
                 Thread.CurrentThread.Priority = ThreadPriority.Normal;
             }
             else //EXPERIMENTAL: double concurrent capacity
             {
-                _ddl.Exit(UseMemoryBarrier);
+                _ddl.Exit(_useMemoryBarrier);
                 Thread.CurrentThread.Priority = ThreadPriority.Normal;
                 
                 if (_enableAutoScale)
@@ -285,37 +288,49 @@ namespace zero.core.patterns.semaphore.core
 
             //Acquire lock and disable GC
             
+            Thread.CurrentThread.Priority = ThreadPriority.Lowest;
             while (!acquiredLock)
             {
-                GC.TryStartNoGCRegion(_zeroHead * 2 * 8 * 2, true);
+                GC.TryStartNoGCRegion((_zeroQ.Length) * 2 * 8 * 2, true);
                 _ddl.Enter(ref acquiredLock);
             }
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
 
             //double the q
-            var oldHandlerQueue = _zeroQueue;
-            var oldStateQueue = _zeroState;
-            var oldStateToken = _zeroSafetyVersion;
-            _zeroQueue = new Action<object>[_zeroQueue.Length * 2];
+            var prevZeroQ = _zeroQ;
+            var prevZeroState = _zeroState;
+            var prevZeroSafetyVersion = _zeroSafetyVersion;
+            _zeroQ = new Action<object>[_zeroQ.Length * 2];
             _zeroState = new object[_zeroState.Length * 2];
             _zeroSafetyVersion = new short[_zeroSafetyVersion.Length * 2];
 
-            //copy the Q
             var j = 0;
-            for (var i = _zeroTail; i != _zeroHead; i = (i + 1) % _zeroQueue.Length)
+            //special zero case
+            if (_zeroTail != _zeroHead || prevZeroState[_zeroTail] != null && prevZeroQ.Length == 1)
             {
-                _zeroQueue[j] = oldHandlerQueue[i];
-                _zeroState[j] = oldStateQueue[i];
-                _zeroSafetyVersion[j] = oldStateToken[i];
-                j++;
+                _zeroQ[0] = prevZeroQ[0];
+                _zeroState[0] = prevZeroState[0];
+                _zeroSafetyVersion[0] = prevZeroSafetyVersion[0];
+                j = 1;
             }
-
+            else
+            {
+                //copy the Q
+                for (var i = _zeroTail; i != _zeroHead || prevZeroState[i] != null; i = (i + 1) % prevZeroQ.Length)
+                {
+                    _zeroQ[j] = prevZeroQ[i];
+                    _zeroState[j] = prevZeroState[i];
+                    _zeroSafetyVersion[j] = prevZeroSafetyVersion[i];
+                    j++;
+                }    
+            }
+            
             //recalibrate the queue
             _zeroTail = 0;
             _zeroHead = j;
 
             //Release the lock
-            _ddl.Exit(UseMemoryBarrier);
+            _ddl.Exit(_useMemoryBarrier);
             
             //Enable GC
             GC.EndNoGCRegion();
@@ -333,7 +348,7 @@ namespace zero.core.patterns.semaphore.core
             if(count > _maxCapacity)
                 throw new ZeroValidationException($"{Description}: Invalid set {nameof(count)} = {count}, which is bigger than {nameof(_maxCapacity)} = {_maxCapacity}");
             //validate count
-            if(count > _maxCapacity + _zeroHead - _zeroTail)
+            if(count > _maxCapacity + _zeroHead - _zeroTail + 1)
                 throw new ZeroValidationException($"{Description}: Invalid set {nameof(count)} = {count}, continuations left = {_maxCapacity + _zeroHead - _zeroTail}");
             #endif
             
@@ -354,7 +369,7 @@ namespace zero.core.patterns.semaphore.core
             var safety = Interlocked.Increment(ref _zeroVersion) - 1;
             
             //release lock
-            _ddl.Exit(UseMemoryBarrier);
+            _ddl.Exit(_useMemoryBarrier);
             Thread.CurrentThread.Priority = ThreadPriority.Normal;
             #endregion
             
@@ -375,7 +390,7 @@ namespace zero.core.patterns.semaphore.core
                 //Check if there is a continuation
                 if (_zeroState![_zeroTail] == null) //TODO: Does this wrap around on high concurrency? Q
                 {
-                    _ddl.Exit(UseMemoryBarrier);
+                    _ddl.Exit(_useMemoryBarrier);
 #if DEBUG
                     //TODO do we throw? 
 #endif
@@ -384,41 +399,41 @@ namespace zero.core.patterns.semaphore.core
                 }
                 
                 //validate handler safety, skip on fail up until the head and reset back to lwmTail
-                if (_zeroSafetyVersion[_zeroTail] > safety)
+                if ((ushort)_zeroSafetyVersion[_zeroTail] > safety % ushort.MaxValue)
                 {
                     //capture the lowest water mark tail
                     if(lwmTail < 0)
                         lwmTail = _zeroTail;
                     
                     //Release lock
-                    _ddl.Exit(UseMemoryBarrier);
+                    _ddl.Exit(_useMemoryBarrier);
 
                     //skip continuations part of next version
                     continue;
                 }
                 
                 //grab a continuation
-                var continuation = _zeroQueue[_zeroTail];
+                var continuation = _zeroQ[_zeroTail];
                 var state = _zeroState[_zeroTail];
                 
                 //mark as handled (saves 4 bytes)
                 _zeroState[_zeroTail] = null;
                 
                 //advance tail position
-                _zeroTail = (_zeroTail + 1) % _zeroQueue.Length;
+                _zeroTail = (_zeroTail + 1) % _zeroQ.Length;
                 
                 //Has this continuation been serviced?
                 if (state == null)
                 {
                     //release lock
-                    _ddl.Exit(UseMemoryBarrier);
+                    _ddl.Exit(_useMemoryBarrier);
 
                     //skip already serviced continuations
                     continue;
                 }
                 
                 //release the lock
-                _ddl.Exit(UseMemoryBarrier);
+                _ddl.Exit(_useMemoryBarrier);
                 #endregion
 
                 //release a thread
