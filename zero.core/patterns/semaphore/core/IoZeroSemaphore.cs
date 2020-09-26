@@ -24,7 +24,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="enableFairQ">Enable fair queueing of sat the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(string description = "", int maxCapacity = 1, int initialCount = 0, int expectedNrOfWaiters = 1,
-            bool enableAutoScale = false, int zeroVersion = 0, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
+            bool enableAutoScale = false, uint zeroVersion = 0, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
             _maxCapacity = maxCapacity;
@@ -76,7 +76,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Primary safety property
         /// </summary>
-        private volatile int _zeroVersion;
+        private volatile uint _zeroVersion;
         
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted

@@ -13,7 +13,7 @@ namespace zero.core.patterns.semaphore
     public class IoZeroSemaphoreSlim:IIoZeroSemaphore
     {
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks, string description = "", int capacity = 1, int initialCount = 0, int expectedNrOfWaiters = 1,
-            bool enableAutoScale = false, int zeroVersion = 0)
+            bool enableAutoScale = false, uint zeroVersion = 0)
         {
             _semaphore = new IoZeroSemaphore(description, capacity, initialCount, expectedNrOfWaiters, enableAutoScale, zeroVersion);
             _semaphore.ZeroRef(ref _semaphore, asyncTasks.Token);

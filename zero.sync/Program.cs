@@ -326,7 +326,7 @@ namespace zero.sync
             //var mutex = new IoZeroNativeMutex(asyncTasks);
             
             var thread2 = true;
-            var targetSleep = (long)200;
+            var targetSleep = (long)168;
             var targetSleepMult = thread2 ? 2 : 1;
             var logSpam = 1;
             var sw = new Stopwatch();
