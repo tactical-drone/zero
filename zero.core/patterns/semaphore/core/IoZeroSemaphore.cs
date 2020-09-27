@@ -20,22 +20,28 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="expectedNrOfWaiters">The number of expected waiters to wait on this semaphore concurrently</param>
         /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="expectedNrOfWaiters"/> more accurately to compensate</param>
         /// <param name="zeroVersion">Initial zero state</param>
-        /// <param name="enableFairQ">Enable fair queueing of sat the cost of performance</param>
+        /// <param name="enableFairQ">Enable fair queueing at the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(string description = "", int maxCount = 1, int currentCount = 0, int expectedNrOfWaiters = 1,
             bool enableAutoScale = false, uint zeroVersion = 1, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
-            _maxCount = maxCount;
+            
+            //validation
+            if(maxCount < 1)
+                throw new ZeroValidationException($"{Description}: invalid {nameof(maxCount)} = {maxCount} specified, value must be larger than 0");
+            if(currentCount < 0)
+                throw new ZeroValidationException($"{Description}: invalid {nameof(currentCount)} = {currentCount} specified, value may not be negative");
             if(currentCount > maxCount)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(currentCount)} = {currentCount} specified, larger than {nameof(maxCount)} = {maxCount}");
+            //zero not allowed because modulo tracking the (short)token causes a duplication of state zero 
+            if(zeroVersion == 0 || zeroVersion % ZeroDomain == 0)
+                throw new ZeroValidationException($"{Description}: Validation failed: {nameof(zeroVersion)} must be > 0");
 
+            _maxCount = maxCount;
             _useMemoryBarrier = enableFairQ;
             _currentCount = currentCount;
-            //zero not allowed because modulo tracking the (short)token causes a duplication of state zero 
-            if(zeroVersion == 0)
-                throw new ZeroValidationException($"{Description}: Validation failed: {nameof(zeroVersion)} must be > 0");
-            _zeroVersion = Math.Max(1, zeroVersion); 
+            _zeroVersion = zeroVersion; 
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
@@ -47,6 +53,10 @@ namespace zero.core.patterns.semaphore.core
             _zeroHead = 0;
             _zeroTail = 0;
         }
+        
+        #region constants
+        private const int ZeroDomain = ushort.MaxValue + 1;
+        #endregion
 
         #region settings
 
@@ -223,17 +233,8 @@ namespace zero.core.patterns.semaphore.core
             if (_asyncToken.IsCancellationRequested)
                 return ValueTaskSourceStatus.Canceled;
             
-#if DEBUG
-            //ZeroValidate(token);
-            //TODO: at what level of concurrency does this assumption break? ushort.MaxValue I suppose?
-            if (_zeroQ.Length > ushort.MaxValue)
-            {
-                Console.Write("z");
-            }
-#endif
-            
             //return status
-            return token == (short) (_zeroVersion % ushort.MaxValue)
+            return token == (short) (_zeroVersion % ZeroDomain)
                 ? ValueTaskSourceStatus.Pending
                 : ValueTaskSourceStatus.Succeeded;
         }
@@ -255,7 +256,7 @@ namespace zero.core.patterns.semaphore.core
             
             //fast path, late continuations win, zeroQueue is not a Q and order is not guaranteed
             // Care: _zeroVersion must change inside a lock
-            if ((ushort) token < _zeroVersion % ushort.MaxValue)
+            if ((ushort) token < _zeroVersion % ZeroDomain)
             {
                 continuation(state);
                 return;
@@ -269,7 +270,7 @@ namespace zero.core.patterns.semaphore.core
             Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
             
             //check for space
-            if (_zeroState[_zeroHead] == null) //TODO: does this assumption fail at concurrent waiters at ushort.MaxValue?
+            if (_zeroState[_zeroHead] == null) //TODO: does this assumption fail at concurrent waiters at ZERODOMAIN?
             {
                 //store the continuation
                 _zeroQ[_zeroHead] = continuation;
@@ -401,7 +402,7 @@ namespace zero.core.patterns.semaphore.core
             //bump version 
             var bump = Interlocked.Increment(ref _zeroVersion);
             var safety = (uint) 0;
-            if (bump % ushort.MaxValue == 0) 
+            if (bump % ZeroDomain == 0) 
             {
                 safety = Interlocked.Increment(ref _zeroVersion) - 1;
             }
@@ -441,7 +442,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 
                 //validate handler safety, skip on fail up until the head and reset back to lwmTail
-                if ((ushort)_zeroSafetyVersion[_zeroTail] > safety % ushort.MaxValue && _zeroTail < _zeroHead)
+                if ((ushort)_zeroSafetyVersion[_zeroTail] > safety % ZeroDomain && _zeroTail < _zeroHead)
                 {
                     //capture the lowest water mark tail
                     if(lwmTail < 0)
@@ -508,7 +509,7 @@ namespace zero.core.patterns.semaphore.core
                 return ValueTask.FromResult(false);
 
             //state zero is not allowed 
-            var zeroLock = _zeroVersion % ushort.MaxValue;
+            var zeroLock = _zeroVersion % ZeroDomain;
             if (zeroLock == 0)
                 zeroLock = 1;
             
