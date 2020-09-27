@@ -36,7 +36,9 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxCount)} = {maxCount}");
             if(version == 0 || version % ZeroDomain == 0) //zero not allowed because modulo domain of (short)token causes a duplication of state zero
                 throw new ZeroValidationException($"{Description}: Validation failed: {nameof(version)} % {nameof(ZeroDomain)} = {version % ZeroDomain} may not equal 0");
-
+            if(expectedNrOfWaiters < 1)
+                throw new ZeroValidationException($"{Description}: invalid {nameof(expectedNrOfWaiters)} specified, value must be larger than 0");
+            
             _maxCount = maxCount;
             _useMemoryBarrier = enableFairQ;
             _initialCount = initialCount;
