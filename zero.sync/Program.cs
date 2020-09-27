@@ -319,7 +319,7 @@ namespace zero.sync
              // var mutex = new MutexClass();
              // mutex.Configure(asyncTasks);
              var capacity = 2000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 0, 2, false, 0, false, true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 0, 2, false, 1, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
             
             var thread2 = true;

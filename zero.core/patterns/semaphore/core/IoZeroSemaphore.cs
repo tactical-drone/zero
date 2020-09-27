@@ -23,7 +23,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="enableFairQ">Enable fair queueing of sat the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(string description = "", int maxCount = 1, int currentCount = 0, int expectedNrOfWaiters = 1,
-            bool enableAutoScale = false, uint zeroVersion = 0, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
+            bool enableAutoScale = false, uint zeroVersion = 1, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
             _maxCount = maxCount;
@@ -32,7 +32,10 @@ namespace zero.core.patterns.semaphore.core
 
             _useMemoryBarrier = enableFairQ;
             _currentCount = currentCount;
-            _zeroVersion = Math.Max(1, zeroVersion); //zero not allowed
+            //zero not allowed because modulo tracking the (short)token causes a duplication of state zero 
+            if(zeroVersion == 0)
+                throw new ZeroValidationException($"{Description}: Validation failed: {nameof(zeroVersion)} must be > 0");
+            _zeroVersion = Math.Max(1, zeroVersion); 
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
@@ -395,7 +398,6 @@ namespace zero.core.patterns.semaphore.core
             }
             else
             {
-                //zero is not allowed because of this
                 safety = bump - 1;
             }
             
