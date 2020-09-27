@@ -11,6 +11,7 @@ using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushes
 {
@@ -28,9 +29,9 @@ namespace zero.core.patterns.bushes
             ReadAheadBufferSize = readAheadBufferSize;
             
             //todo GENERALIZE
-            _pressure = new IoSemaphoreOne<IoAsyncMutex>(AsyncTokenProxy);
-            _backPressure = new IoSemaphoreOne<IoAsyncMutex>(AsyncTokenProxy, 1);
-            _prefetchPressure =new IoSemaphoreOne<IoAsyncMutex>(AsyncTokenProxy,1);
+            _pressure = new IoZeroSemaphore($"{GetType().Name}: {nameof(_pressure).Trim('_')}", expectedNrOfWaiters:readAheadBufferSize, enableDeadlockDetection:true);
+            _backPressure = new IoZeroSemaphore($"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters:readAheadBufferSize, enableDeadlockDetection:true);
+            _prefetchPressure = new IoZeroSemaphore($"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters:readAheadBufferSize, enableDeadlockDetection:true);
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -75,17 +76,17 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The sink is being throttled against source
         /// </summary>
-        private IIoSemaphore _pressure;
+        private IIoZeroSemaphore _pressure;
         
         /// <summary>
         /// The source is being throttled by the sink 
         /// </summary>
-        private IIoSemaphore _backPressure;
+        private IIoZeroSemaphore _backPressure;
         
         /// <summary>
         /// The source is bing throttled on prefetch config
         /// </summary>
-        private IIoSemaphore _prefetchPressure;
+        private IIoZeroSemaphore _prefetchPressure;
         
         /// <summary>
         /// Enable prefetch throttling (only allow a certain amount of prefetch

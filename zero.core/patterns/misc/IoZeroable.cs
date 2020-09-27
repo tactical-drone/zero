@@ -27,6 +27,7 @@ namespace zero.core.patterns.misc
         {
             _zeroSubs = new ConcurrentStack<IoZeroSub>();
             _zeroMutex = new TMutex();
+            _zeroMutex.Configure(asyncTokenProxy);
             _zeroed = 0;
             ZeroedFrom = default;
             TearDownTime = default;

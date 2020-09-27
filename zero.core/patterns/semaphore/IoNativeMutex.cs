@@ -16,11 +16,12 @@ namespace zero.core.patterns.semaphore
             Configure(asyncTasks, initialState, allowInliningContinuations);
         }
 
-        private readonly AsyncAutoResetEvent _mutex;
+        private AsyncAutoResetEvent _mutex;
         private CancellationToken _asyncToken;
         
         public void Configure(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true)
         {
+            _mutex = new AsyncAutoResetEvent(allowInliningContinuations);
             _asyncToken = asyncTasks.Token;
             if(signalled)
                 Set();

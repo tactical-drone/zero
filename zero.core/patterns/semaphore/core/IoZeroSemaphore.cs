@@ -41,7 +41,7 @@ namespace zero.core.patterns.semaphore.core
             
             _maxCount = maxCount;
             _useMemoryBarrier = enableFairQ;
-            _initialCount = initialCount;
+            _currentCount = initialCount;
             _version = version; 
             _zeroRef = null;
             _asyncToken = default;
@@ -91,12 +91,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The number semaphore releases held in reserve 
         /// </summary>
-        private int _initialCount;
+        private int _currentCount;
 
         /// <summary>
         /// 
         /// </summary>
-        public int CurrentCount => _initialCount;
+        public int CurrentCount => _currentCount;
 
         /// <summary>
         /// Primary safety property
@@ -183,10 +183,14 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public void Zero()
         {
-            for (var i = _tail; i != _head; i = (i + 1) % _continuationAction.Length)
+            for (var i = _tail; i != _head || _continuationState[i] != null; i = (i + 1) % _continuationAction.Length)
             {
                 if (_continuationState[i] != null)
-                    _continuationAction[i](_continuationState);
+                {
+                    _continuationAction[i](_continuationState[i]);
+                    _continuationState[i] = null;
+                }
+                    
             }
 
             //TODO: is this ok?
@@ -239,10 +243,6 @@ namespace zero.core.patterns.semaphore.core
         public void OnCompleted(Action<object> continuation, object state, short token,
             ValueTaskSourceOnCompletedFlags flags)
         {
-            //fail fast
-            if(_asyncToken.IsCancellationRequested)
-                return;
-            
             //fast path, late continuations win, zeroQueue is not a Q and order is not guaranteed
             // Care: _zeroVersion must change inside a lock
             if ((ushort) token < _version % ZeroDomain)
@@ -375,7 +375,7 @@ namespace zero.core.patterns.semaphore.core
             
             
             // validate releaseCount
-            if (_maxCount - _initialCount < releaseCount)
+            if (_maxCount - _currentCount < releaseCount)
             {
                 //release lock
                 _lock.Exit(_useMemoryBarrier);
@@ -385,7 +385,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroSemaphoreFullException(Description);
             }
             
-            var returnCount = _initialCount;
+            var returnCount = _currentCount;
 
             //bump version 
             var bump = Interlocked.Increment(ref _version);
@@ -430,7 +430,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 
                 //validate handler safety, skip on fail up until the head and reset back to lwmTail
-                if ((ushort)_continuationToken[_tail] > safety % ZeroDomain && _tail < _head)
+                if ((ushort)_continuationToken[_tail] > safety % ZeroDomain && _tail <= _head)
                 {
                     //capture the lowest water mark tail
                     if(lwmTail < 0)
@@ -473,7 +473,7 @@ namespace zero.core.patterns.semaphore.core
                 released++;
             }
 
-            Interlocked.Add(ref _initialCount, releaseCount - released);
+            Interlocked.Add(ref _currentCount, releaseCount - released);
             
             //set low water mark tail if set
             if (lwmTail != -1)
@@ -503,12 +503,12 @@ namespace zero.core.patterns.semaphore.core
             
             //race for fast path
             var released = 0;
-            var lockedCount = _initialCount;
+            var lockedCount = _currentCount;
             Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
-            while (lockedCount > 1 &&
-                   (released = Interlocked.CompareExchange(ref _initialCount, lockedCount - 1, lockedCount)) !=lockedCount)
+            while (lockedCount > 0 &&
+                   (released = Interlocked.CompareExchange(ref _currentCount, lockedCount - 1, lockedCount)) != lockedCount)
             {
-                lockedCount = _initialCount;
+                lockedCount = _currentCount;
             }
             Thread.CurrentThread.Priority = ThreadPriority.Normal;
             

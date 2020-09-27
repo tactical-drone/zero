@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using MathNet.Numerics;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
@@ -27,7 +28,7 @@ namespace zero.sync
 
         static void Main(string[] args)
         {
-            Test();
+            //Test();
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 3000;
 
@@ -319,13 +320,14 @@ namespace zero.sync
              // var mutex = new MutexClass();
              // mutex.Configure(asyncTasks);
              var capacity = 2000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 0, 2, false, 1, false, true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, 2, false, 1, true, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
-            
+
+            var enableThrottle = true;
             var thread2 = true;
-            var targetSleep = (long)0;
+            var targetSleep = (long) 1;
             var targetSleepMult = thread2 ? 2 : 1;
-            var logSpam = 5003;
+            var logSpam = 128;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
@@ -335,7 +337,7 @@ namespace zero.sync
             IoFpsCounter ifps = new IoFpsCounter(1000,10000);
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             TaskCreationOptions options = TaskCreationOptions.None;
-            SemaphoreSlim s;
+            
             
             
             var t1= Task.Factory.StartNew(async o =>
@@ -369,6 +371,7 @@ namespace zero.sync
                         }
                         else
                         {
+                            break;
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -417,6 +420,7 @@ namespace zero.sync
                         }
                         else
                         {
+                            break;
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -436,18 +440,27 @@ namespace zero.sync
 
             var t3 = Task.Factory.StartNew(async o=>
             {
-                
+
                 try
                 {
                     while (true)
                     {
-                        if(targetSleep > 0)
+                        if (targetSleep > 0)
                             await Task.Delay((int) targetSleep).ConfigureAwait(false);
                         var curCount = 0;
-                        Interlocked.Add(ref semCount, curCount = mutex.Release(2));
+
+                        try
+                        {
+                            Interlocked.Add(ref semCount, curCount = mutex.Release(2));
+                        }
+                        catch (TaskCanceledException )
+                        {
+                            break;
+                        }
+
                         Interlocked.Increment(ref semPollCount);
                         ifps.Tick();
-                        if (curCount > capacity / 2)
+                        if (enableThrottle && curCount > capacity / 2)
                         {
                             var f = fps.Fps() + 1;
                             if (double.IsNaN(f))
@@ -457,11 +470,11 @@ namespace zero.sync
                             }
 
                             var d = curCount / (f) * 1000.0;
-                            var val = (int)d;
+                            var val = (int) d;
                             try
                             {
                                 Console.WriteLine($"val = {val}, curCount = {curCount}");
-                                await Task.Delay(val).ConfigureAwait(false);
+                                await Task.Delay(Math.Min(100, val)).ConfigureAwait(false);
                             }
                             catch (Exception e)
                             {
@@ -501,7 +514,10 @@ namespace zero.sync
             
 
             Console.ReadLine();
+            Console.WriteLine("TEARDOWN");
             asyncTasks.Cancel();
+            Console.ReadLine();
+            Console.WriteLine("Done");
             Console.ReadLine();
         }
 

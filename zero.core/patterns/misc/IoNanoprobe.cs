@@ -11,10 +11,10 @@ namespace zero.core.patterns.misc
     {
         public IoNanoprobe()
         {
-            _nanoprobe = new IoZeroable<IoAsyncMutex>(AsyncTokenProxy);
+            _nanoprobe = new IoZeroable<IoNativeMutex>(AsyncTokenProxy);
         }
-        private IoZeroable<IoAsyncMutex> _nanoprobe;
-        public IoZeroable<IoAsyncMutex> Nanoprobe => _nanoprobe;
+        private IoZeroable<IoNativeMutex> _nanoprobe;
+        public IoZeroable<IoNativeMutex> Nanoprobe => _nanoprobe;
         public CancellationTokenSource AsyncTokenProxy { get; } = new CancellationTokenSource();
         public ulong NpId => _nanoprobe.NpId;
         
@@ -38,7 +38,6 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IoZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
         {
-            AsyncTokenProxy.Cancel();//TODO or here?
             return _nanoprobe.ZeroEvent(sub);
         }
 
