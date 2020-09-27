@@ -335,6 +335,8 @@ namespace zero.sync
             IoFpsCounter ifps = new IoFpsCounter(1000,10000);
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             TaskCreationOptions options = TaskCreationOptions.None;
+            SemaphoreSlim s;
+            
             
             var t1= Task.Factory.StartNew(async o =>
             {
