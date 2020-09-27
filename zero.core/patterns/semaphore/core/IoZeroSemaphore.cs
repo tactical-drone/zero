@@ -60,9 +60,13 @@ namespace zero.core.patterns.semaphore.core
         #region properties
 
         /// <summary>
-        /// A client description
+        /// A semaphore description
         /// </summary>
         private readonly string _description;
+        
+        /// <summary>
+        /// A semaphore description
+        /// </summary>
         public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: Z = {_zeroVersion}";
 
         /// <summary>
@@ -71,9 +75,14 @@ namespace zero.core.patterns.semaphore.core
         private int _maxCount;
         
         /// <summary>
-        /// The initial amount of continuations that will be in a signalled state 
+        /// The number semaphore releases held in reserve 
         /// </summary>
         private int _currentCount;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public int CurrentCount => _currentCount;
 
         /// <summary>
         /// Primary safety property

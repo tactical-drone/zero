@@ -325,7 +325,7 @@ namespace zero.sync
             var thread2 = true;
             var targetSleep = (long)0;
             var targetSleepMult = thread2 ? 2 : 1;
-            var logSpam = 5000;
+            var logSpam = 5003;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
