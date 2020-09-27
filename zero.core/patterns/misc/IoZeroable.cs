@@ -27,7 +27,7 @@ namespace zero.core.patterns.misc
         {
             _zeroSubs = new ConcurrentStack<IoZeroSub>();
             _zeroMutex = new TMutex();
-            _zeroMutex.Configure(asyncTokenProxy);
+            _zeroMutex.Configure(asyncTokenProxy, true);
             _zeroed = 0;
             ZeroedFrom = default;
             TearDownTime = default;
@@ -75,7 +75,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Sync root
         /// </summary>
-        private readonly TMutex _zeroMutex;
+        private TMutex _zeroMutex;
 
         /// <summary>
         /// Who zeroed this object

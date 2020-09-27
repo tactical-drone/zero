@@ -111,7 +111,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_forward_queue_length = 2; //TODO
+        [IoParameter] public int parm_forward_queue_length = 20; //TODO
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -268,7 +268,7 @@ namespace zero.cocoon.models
 
                             _this.State = IoJobMeta.JobState.Produced;
 
-                            //_this._logger.Trace($"RX=> {GetType().Name}[{_this.Id}] ({_this.Description}): read=`{_this.BytesRead}', ready=`{_this.BytesLeftToProcess}', datumcount=`{_this.DatumCount}', datumsize=`{_this.DatumSize}', fragment=`{_this.DatumFragmentLength}', buffer = `{_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}', buf = `{(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%'");
+                            _this._logger.Trace($"RX=> {GetType().Name}[{_this.Id}] ({_this.Description}): read=`{_this.BytesRead}', ready=`{_this.BytesLeftToProcess}', datumcount=`{_this.DatumCount}', datumsize=`{_this.DatumSize}', fragment=`{_this.DatumFragmentLength}', buffer = `{_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}', buf = `{(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%'");
                         }
                         else
                         {

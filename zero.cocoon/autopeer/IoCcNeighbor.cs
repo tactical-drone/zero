@@ -724,12 +724,15 @@ namespace zero.cocoon.autopeer
                         channelTasks = new Task[_protocolChannel.ConsumerCount];
                     }
 
-                    for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
+                    for (int i = 0; i < _protocolChannel.ProducerCount; i++)
                     {
-                        
                         if (!await _protocolChannel.ProduceAsync().ConfigureAwait(false))
                             continue;
+                    }
+                    
 
+                    for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
+                    {
                         channelTasks[i] = _protocolChannel.ConsumeAsync(async (msg, ioZero) =>
                         {
                             var _this = (IoCcNeighbor) ioZero;

@@ -303,7 +303,13 @@ namespace zero.core.patterns.semaphore.core
             Thread.CurrentThread.Priority = ThreadPriority.Lowest;
             while (!acquiredLock)
             {
-                GC.TryStartNoGCRegion((_continuationAction.Length) * 2 * 8 * 2, true);
+                try
+                {
+                    GC.TryStartNoGCRegion((_continuationAction.Length) * 2 * 8 * 2, false);
+                }
+                catch 
+                {
+                }
                 _lock.Enter(ref acquiredLock);
             }
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
@@ -345,7 +351,14 @@ namespace zero.core.patterns.semaphore.core
             _lock.Exit(_useMemoryBarrier);
             
             //Enable GC
-            GC.EndNoGCRegion();
+
+            try
+            {
+                GC.EndNoGCRegion();
+            }
+            catch 
+            {
+            }
             
             //restore thread priority
             Thread.CurrentThread.Priority = ThreadPriority.Normal;

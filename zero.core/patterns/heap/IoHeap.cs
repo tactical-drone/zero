@@ -36,7 +36,7 @@ namespace zero.core.patterns.heap
             _buffer = new ConcurrentBag<T>();
             CurrentHeapSize = 0;
             ReferenceCount = 0;
-            IoFpsCounter = new IoFpsCounter();
+            IoFpsCounter = new IoFpsCounter(500, 5000);
             Make = default;
         }
 

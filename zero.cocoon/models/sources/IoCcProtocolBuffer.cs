@@ -23,7 +23,7 @@ namespace zero.cocoon.models.sources
             _logger = LogManager.GetCurrentClassLogger();
             MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
             
-            _queuePressure = new IoAutoMutex(AsyncTokenProxy);
+            _queuePressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_queuePressure)}", 1000, 0, 4, true, 1, false, true);
             //_queuePressure = ZeroOnCascade(new IoAutoMutex()).target;
         }
 
@@ -45,7 +45,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Sync used to access the Q
         /// </summary>
-        private IoAutoMutex _queuePressure;
+        private IoZeroSemaphoreSlim _queuePressure;
 
         /// <summary>
         /// Keys this instance.
@@ -107,6 +107,7 @@ namespace zero.cocoon.models.sources
         public override async ValueTask ZeroManagedAsync()
         {
             MessageQueue.Clear();
+            _queuePressure.Zero();
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
@@ -121,7 +122,7 @@ namespace zero.cocoon.models.sources
             {
                 //await _queueBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
                 MessageQueue.Enqueue(item);
-                _queuePressure.Set();
+                _queuePressure.Release();
             }
             catch(Exception e)
             {

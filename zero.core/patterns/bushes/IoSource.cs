@@ -29,9 +29,9 @@ namespace zero.core.patterns.bushes
             ReadAheadBufferSize = readAheadBufferSize;
             
             //todo GENERALIZE
-            _pressure = new IoZeroSemaphore($"{GetType().Name}: {nameof(_pressure).Trim('_')}", expectedNrOfWaiters:readAheadBufferSize, enableDeadlockDetection:true);
-            _backPressure = new IoZeroSemaphore($"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters:readAheadBufferSize, enableDeadlockDetection:true);
-            _prefetchPressure = new IoZeroSemaphore($"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters:readAheadBufferSize, enableDeadlockDetection:true);
+            _pressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", expectedNrOfWaiters: readAheadBufferSize, enableAutoScale:true, capacity:1000 , enableDeadlockDetection:true);
+            _backPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: readAheadBufferSize, enableAutoScale: true, capacity: 1000, enableDeadlockDetection:true);
+            _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: readAheadBufferSize, enableAutoScale: true, capacity: 1000, enableDeadlockDetection:true);
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -183,6 +183,11 @@ namespace zero.core.patterns.bushes
             //{
             //    await ((IIoZeroable)objectStorageValue).ZeroAsync(this).ConfigureAwait(false);
             //}
+
+
+            _pressure.Zero();
+            _backPressure.Zero();
+            _prefetchPressure.Zero();
 
             ObjectStorage.Clear();
             IoChannels.Clear();
