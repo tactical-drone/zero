@@ -6,17 +6,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using MathNet.Numerics;
-using Microsoft.VisualBasic;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.core.misc;
 using zero.core.network.ip;
-using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
@@ -322,19 +318,25 @@ namespace zero.sync
             
              // var mutex = new MutexClass();
              // mutex.Configure(asyncTasks);
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", 1, 0, 1, true);
+             var capacity = 2000;
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 0, 2, false, 0, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
             
             var thread2 = true;
-            var targetSleep = (long)168;
+            var targetSleep = (long)0;
             var targetSleepMult = thread2 ? 2 : 1;
-            var logSpam = 1;
+            var logSpam = 5000;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
+            long semCount = 0;
+            long semPollCount = 0;
             IoFpsCounter fps = new IoFpsCounter(1000,10000);
+            IoFpsCounter ifps = new IoFpsCounter(1000,10000);
+            //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
+            TaskCreationOptions options = TaskCreationOptions.None;
             
-            var t2= Task.Factory.StartNew(async o =>
+            var t1= Task.Factory.StartNew(async o =>
             {
                 try
                 {
@@ -360,7 +362,7 @@ namespace zero.sync
                             a();
                             //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                                Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps");
+                                Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps, {ifps.Fps(): 00.0} fps, s = {semCount/(double)semPollCount:0.0}, ({semCount}, {semPollCount})");
                             Console.ResetColor();
                         }
                         else
@@ -368,7 +370,7 @@ namespace zero.sync
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F1:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps");
+                            Console.WriteLine($"F1:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps, {ifps.Fps(): 00.0} fps, s = {semCount/(double)semPollCount:0.0}, ({semCount}, {semPollCount})");
                             Console.ResetColor();
                             await Task.Delay(500).ConfigureAwait(false);
                         }
@@ -380,9 +382,9 @@ namespace zero.sync
                     Console.WriteLine($"[[1]]:{e}");
                     throw;
                 }
-            }, null);
+            }, null, options);
 
-            var t3  = Task.Factory.StartNew(async o =>
+            var t2  = Task.Factory.StartNew(async o =>
             {
                 try
                 {
@@ -408,7 +410,7 @@ namespace zero.sync
                             a();
                             //Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps");
+                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps, {ifps.Fps(): 00.0} fps, s = {semCount/(double)semPollCount:0.0}, ({semCount}, {semPollCount})");
                             Console.ResetColor();
                         }
                         else
@@ -416,7 +418,7 @@ namespace zero.sync
                             var tt = sw.ElapsedMilliseconds;
                             fps.Tick();
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F2:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fpss");
+                            Console.WriteLine($"F2:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, {fps.Fps(): 00.0} fps, {ifps.Fps(): 00.0} fps, s = {semCount/(double)semPollCount:0.0}, ({semCount}, {semPollCount})");
                             Console.ResetColor();
                             await Task.Delay(500).ConfigureAwait(false);
                         }
@@ -428,17 +430,43 @@ namespace zero.sync
                     Console.WriteLine($"[[2]]:{e}");
                     throw;
                 }
-            }, null);
+            }, null, options);
 
-            var t = Task.Factory.StartNew(async o=>
+            var t3 = Task.Factory.StartNew(async o=>
             {
                 
                 try
                 {
                     while (true)
                     {
-                        await Task.Delay((int) targetSleep).ConfigureAwait(false);
-                        mutex.Set();
+                        if(targetSleep > 0)
+                            await Task.Delay((int) targetSleep).ConfigureAwait(false);
+                        var curCount = 0;
+                        Interlocked.Add(ref semCount, curCount = mutex.Release(2));
+                        Interlocked.Increment(ref semPollCount);
+                        ifps.Tick();
+                        if (curCount > capacity / 2)
+                        {
+                            var f = fps.Fps() + 1;
+                            if (double.IsNaN(f))
+                            {
+                                continue;
+                                f = curCount;
+                            }
+
+                            var d = curCount / (f) * 1000.0;
+                            var val = (int)d;
+                            try
+                            {
+                                Console.WriteLine($"val = {val}, curCount = {curCount}");
+                                await Task.Delay(val).ConfigureAwait(false);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"{val}, curCount = {curCount},  div = {d}, fps = {fps.Fps()}");
+                                throw;
+                            }
+                        }
                     }
                 }
                 catch (Exception e)
@@ -446,7 +474,29 @@ namespace zero.sync
                     Console.WriteLine($"3:{e}");
                     throw;
                 }
-            }, null, asyncTasks.Token);
+            }, asyncTasks.Token, options);
+            
+            // var t4 = Task.Factory.StartNew(async o=>
+            // {
+            //     
+            //     try
+            //     {
+            //         while (true)
+            //         {
+            //             if(targetSleep > 0)
+            //                 await Task.Delay((int) targetSleep, asyncTasks.Token).ConfigureAwait(false);
+            //             Interlocked.Add(ref semCount, mutex.Set());
+            //             Interlocked.Increment(ref semPollCount);
+            //         }
+            //     }
+            //     catch (Exception e)
+            //     {
+            //         Console.WriteLine($"3:{e}");
+            //         throw;
+            //     }
+            // }, asyncTasks.Token, options);
+            
+            
 
             Console.ReadLine();
             asyncTasks.Cancel();

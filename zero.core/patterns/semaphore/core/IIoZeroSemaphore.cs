@@ -7,7 +7,7 @@ namespace zero.core.patterns.semaphore
     public interface IIoZeroSemaphore: IValueTaskSource<bool>
     {
         void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken);
-        void Set(int count = 1);
+        int Release(int releaseCount = 1);
         ValueTask<bool> WaitAsync();
         void Zero();
     }
