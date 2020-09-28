@@ -23,8 +23,9 @@ namespace zero.core.network.ip
         /// Constructor for incoming connections used by the listener
         /// </summary>
         /// <param name="socket">The new socket</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
-        protected IoNetClient(IoSocket socket,int readAheadBufferSize) : base(readAheadBufferSize)
+        /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        protected IoNetClient(IoSocket socket,int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
         {
             (IoSocket, _) = ZeroOnCascade((IoNetSocket)socket, true);
 
@@ -36,8 +37,9 @@ namespace zero.core.network.ip
         /// Constructor for connecting
         /// </summary>
         /// <param name="listeningAddress">The address associated with this network client</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
-        protected IoNetClient(IoNodeAddress listeningAddress, int readAheadBufferSize) : base(readAheadBufferSize)
+        /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        protected IoNetClient(IoNodeAddress listeningAddress, int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
         {
             ListeningAddress = listeningAddress;
             _logger = LogManager.GetCurrentClassLogger();

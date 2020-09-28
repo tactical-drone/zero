@@ -18,17 +18,18 @@ namespace zero.core.core
     /// <summary>
     /// A p2p node
     /// </summary>
-    public class IoNode<TJob> : IoNanoprobe        
+    public class IoNode<TJob> : IoNanoprobe
     where TJob:IIoJob    
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object , IoNeighbor<TJob>> mallocNeighbor, int tcpReadAhead)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object , IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel)
         {
             _address = address;
             MallocNeighbor = mallocNeighbor;
-            parm_tcp_readahead = tcpReadAhead;            
+            _preFetch = prefetch;
+            _concurrencyLevel = concurrencyLevel;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
         }
@@ -93,9 +94,13 @@ namespace zero.core.core
         /// <summary>
         /// TCP read ahead
         /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected int parm_tcp_readahead = 2;
+        private readonly int _preFetch;
+        
+        /// <summary>
+        /// TCP read ahead
+        /// </summary>
+        private int _concurrencyLevel;
+        
 
         /// <summary>
         /// 
@@ -115,7 +120,7 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            (_netServer, _) = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, parm_tcp_readahead), true);
+            (_netServer, _) = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel), true);
 
             await _netServer.ListenAsync(async ioNetClient =>
             {
@@ -222,7 +227,7 @@ namespace zero.core.core
                         _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
                     }
                 }
-            }, parm_tcp_readahead, bootstrapAsync).ConfigureAwait(false);
+            }, bootstrapAsync).ConfigureAwait(false);
         }
 
         /// <summary>

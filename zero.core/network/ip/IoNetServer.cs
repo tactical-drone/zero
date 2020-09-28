@@ -26,9 +26,13 @@ namespace zero.core.network.ip
         /// Constructor
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        protected IoNetServer(IoNodeAddress listeningAddress)
+        /// <param name="readAheadBufferSize">Nr of reads the producer can lead the consumer</param>
+        /// <param name="concurrencyLevel">Max Nr of expected concurrent consumers</param>
+        protected IoNetServer(IoNodeAddress listeningAddress, int readAheadBufferSize = 1, int concurrencyLevel = 1)
         {
             ListeningAddress = listeningAddress;
+            ReadAheadBufferSize = readAheadBufferSize;
+            ConcurrencyLevel = concurrencyLevel;
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -71,11 +75,13 @@ namespace zero.core.network.ip
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer
         /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        protected int parm_read_ahead = 1;
-
-
+        protected readonly int ReadAheadBufferSize;
+        
+        /// <summary>
+        /// The number of concurrent consumers
+        /// </summary>
+        protected readonly int ConcurrencyLevel;
+        
         /// <summary>
         /// Connection timeout
         /// </summary>
@@ -87,15 +93,15 @@ namespace zero.core.network.ip
         /// Listens for new connections
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAhead">TCP read ahead</param>
+        /// <param name="readAheadBufferSize">TCP read ahead</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
         /// <param name="bootstrapAsync">Bootstrap code</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task ListenAsync(Func<IoNetClient<TJob>,Task> connectionReceivedAction, int readAhead, Func<Task> bootstrapAsync = null)
+        public virtual Task ListenAsync(Func<IoNetClient<TJob>,Task> connectionReceivedAction, Func<Task> bootstrapAsync = null)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
-
-            parm_read_ahead = readAhead;
+            
             return Task.CompletedTask;
         }
 
@@ -206,15 +212,16 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address"></param>
         /// <param name="bufferReadAheadSize"></param>
+        /// <param name="concurrenctyLevel"></param>
         /// <returns></returns>
-        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int bufferReadAheadSize)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int bufferReadAheadSize, int concurrenctyLevel)
         {
             if (address.Protocol() == ProtocolType.Tcp)
-                return new IoTcpServer<TJob>(address, bufferReadAheadSize);
+                return new IoTcpServer<TJob>(address, bufferReadAheadSize, concurrenctyLevel);
 
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer<TJob>(address);
+                return new IoUdpServer<TJob>(address, bufferReadAheadSize, concurrenctyLevel);
 
             return null;
         }

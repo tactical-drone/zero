@@ -23,15 +23,15 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(int readAheadBufferSize = 2) //TODO
+        protected IoSource(int prefetchSize, int concurrencyLevel)
         {
-            //ReadAheadBufferSize = _backPressure = readAheadBufferSize - 1;
-            ReadAheadBufferSize = readAheadBufferSize;
+            PrefetchSize = prefetchSize;
+            ConcurrencyLevel = concurrencyLevel;
             
             //todo GENERALIZE
-            _pressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", expectedNrOfWaiters: readAheadBufferSize, enableAutoScale:true, capacity:1000 , enableDeadlockDetection:true);
-            _backPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: readAheadBufferSize, enableAutoScale: true, capacity: 1000, enableDeadlockDetection:true);
-            _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: readAheadBufferSize, enableAutoScale: true, capacity: 1000, enableDeadlockDetection:true);
+            _pressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", expectedNrOfWaiters: concurrencyLevel * 2, enableAutoScale:false, capacity:prefetchSize * concurrencyLevel * 2, enableDeadlockDetection:true);
+            _backPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: concurrencyLevel, enableAutoScale: false, capacity: prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
+            _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: concurrencyLevel, enableAutoScale: false, capacity: prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -119,7 +119,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The amount of productions that can be made while consumption is behind
         /// </summary>
-        public int ReadAheadBufferSize { get; protected set; }
+        public int PrefetchSize { get; protected set; }
+        
+        /// <summary>
+        /// The amount of productions that can be made while consumption is behind
+        /// </summary>
+        public int ConcurrencyLevel { get; protected set; }
 
         /// <summary>
         /// Used to identify work that was done recently
@@ -327,11 +332,13 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Wait for source pressure
         /// </summary>
+        /// <param name="consumed"></param>
+        /// <param name="releaseCount">Number of waiters to unblock</param>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void BackPressure()
+        public void BackPressure(int releaseCount = 1)
         {
-            _backPressure.Release();
+            _backPressure.Release(releaseCount);
         }
 
         /// <summary>

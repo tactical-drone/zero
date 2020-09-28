@@ -18,8 +18,10 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoUdpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
+        /// <param name="prefetch">Nr of reads that can lead consumption of them</param>
+        /// <param name="concurrencyLevel">The Nr of concurrent consumers</param>
         /// <inheritdoc />
-        public IoUdpServer(IoNodeAddress listeningAddress) : base(listeningAddress)
+        public IoUdpServer(IoNodeAddress listeningAddress, int prefetch, int concurrencyLevel) : base(listeningAddress, prefetch, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -39,9 +41,9 @@ namespace zero.core.network.ip
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAheadBufferSize, Func<Task> bootstrapAsync = null)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, Func<Task> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, readAheadBufferSize).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction).ConfigureAwait(false);
 
             (IoListenSocket,_) = ZeroOnCascade(new IoUdpSocket());
 
@@ -49,7 +51,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, parm_read_ahead)).Item1);
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).Item1);
                 }
                 catch (Exception e)
                 {
@@ -71,7 +73,7 @@ namespace zero.core.network.ip
         public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
         {
             //ZEROd later on inside net server once we know the connection succeeded
-            var ioUdpClient = new IoUdpClient<TJob>(address, parm_read_ahead);
+            var ioUdpClient = new IoUdpClient<TJob>(address, ReadAheadBufferSize, ConcurrencyLevel);
             return await base.ConnectAsync(address, ioUdpClient).ConfigureAwait(false);
         }
 

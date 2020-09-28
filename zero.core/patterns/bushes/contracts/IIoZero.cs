@@ -13,6 +13,17 @@ namespace zero.core.patterns.bushes.contracts
         IIoSource IoSource { get; }
         public object IoJobHeap { get; }
         bool IsArbitrating { get; }
+
+        /// <summary>
+        /// Number of concurrent producers
+        /// </summary>
+        int ProducerCount { get; }
+
+        /// <summary>
+        /// Number of concurrent consumers
+        /// </summary>
+        int ConsumerCount { get; }
+
         Task AssimilateAsync();  
     }
 }

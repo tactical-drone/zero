@@ -18,12 +18,12 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpServer{TJob}"/> class.
         /// </summary>
         /// <param name="listeningAddress">The listening address</param>
-        /// <param name="readAheadBuffer"></param>
+        /// <param name="readAheadBufferSizeBuffer"></param>
+        /// <param name="concurrencyLevel"></param>
         /// <inheritdoc />
-        public IoTcpServer(IoNodeAddress listeningAddress, int readAheadBuffer = 1) : base(listeningAddress)
+        public IoTcpServer(IoNodeAddress listeningAddress, int readAheadBufferSizeBuffer = 1,  int concurrencyLevel = 1) : base(listeningAddress, readAheadBufferSizeBuffer, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            parm_read_ahead = readAheadBuffer;
         }
 
         /// <summary>
@@ -35,12 +35,12 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAhead"></param>
+        /// <param name="readAheadBufferSize"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, int readAhead, Func<Task> bootstrapAsync = null)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, Func<Task> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, readAhead, bootstrapAsync).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).ConfigureAwait(false);
 
             IoListenSocket = ZeroOnCascade(new IoTcpSocket()).target;
 
@@ -48,7 +48,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>(newConnectionSocket, parm_read_ahead)).target);
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>(newConnectionSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
                 }
                 catch (Exception e)
                 {
@@ -71,7 +71,7 @@ namespace zero.core.network.ip
             if (!address.Validated)
                 return null;
             //ZEROd later on inside net server once we know the connection succeeded 
-            var ioTcpclient = new IoTcpClient<TJob>(address, parm_read_ahead);
+            var ioTcpclient = new IoTcpClient<TJob>(address, ReadAheadBufferSize, ConcurrencyLevel);
             return await base.ConnectAsync(address, ioTcpclient).ConfigureAwait(false);
         }
     }

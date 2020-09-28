@@ -45,7 +45,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (Source.ZeroEnsureAsync(s =>
                 {
-                    protocol = new IoCcProtocolBuffer(Source, parm_forward_queue_length, _arrayPool);
+                    protocol = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, parm_concurrency_level);
                     if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
                     {
                         return Task.FromResult(Source.ZeroOnCascade(protocol, true).success);
@@ -58,7 +58,8 @@ namespace zero.cocoon.models
                         nameof(IoCcNeighbor),
                         false,
                         protocol,
-                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/)
+                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
+                        1,1
                     );
 
                     //get reference to a central mempool
@@ -108,10 +109,16 @@ namespace zero.cocoon.models
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting 
 
+        
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_forward_queue_length = 20; //TODO
+        [IoParameter] public int parm_prefetch_size = 1; //TODO
+        
+        /// <summary>
+        /// The amount of items that can be ready for production before blocking
+        /// </summary>
+        [IoParameter] public int parm_concurrency_level = 1; //TODO
 
         /// <summary>
         /// Maximum number of datums this buffer can hold

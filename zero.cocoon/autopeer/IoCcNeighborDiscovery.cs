@@ -19,9 +19,10 @@ namespace zero.cocoon.autopeer
         /// <param name="ioCcNode">The node this service belongs to</param>
         /// <param name="address">The listening address of this service</param>
         /// <param name="mallocNeighbor">Allocates neighbors on connection</param>
-        /// <param name="tcpReadAhead">TCP job read ahead</param>
+        /// <param name="prefetch">TCP job read ahead</param>
+        /// <param name="concurrencyLevel">Nr of consumers that run concurrently</param>
         public IoCcNeighborDiscovery(IoCcNode ioCcNode, IoNodeAddress address,
-            Func<IoNode<IoCcPeerMessage>, IoNetClient<IoCcPeerMessage>, object, IoNeighbor<IoCcPeerMessage>> mallocNeighbor, int tcpReadAhead) : base(address, mallocNeighbor, tcpReadAhead)
+            Func<IoNode<IoCcPeerMessage>, IoNetClient<IoCcPeerMessage>, object, IoNeighbor<IoCcPeerMessage>> mallocNeighbor, int prefetch, int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             CcNode = ioCcNode;

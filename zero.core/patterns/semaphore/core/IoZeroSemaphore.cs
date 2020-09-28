@@ -82,7 +82,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: Z = {_version}";
+        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: Z = {_version}, qSize = {_continuationAction.Length}, h = {_head}, t = {_tail}, c = {_currentCount}, m = {_maxCount}";
 
         /// <summary>
         /// The semaphore capacity 
@@ -351,6 +351,7 @@ namespace zero.core.patterns.semaphore.core
             _continuationState = new object[_continuationState.Length * 2];
             _continuationToken = new short[_continuationToken.Length * 2];
 
+            Console.WriteLine($"{Description} ====>Scaling from {prevZeroQ.Length} to {_continuationAction.Length}");
             var j = 0;
             //special zero case
             if (_tail != _head || prevZeroState[_tail] != null && prevZeroQ.Length == 1)
@@ -410,7 +411,7 @@ namespace zero.core.patterns.semaphore.core
                 ZeroUnlock();
                 
                 //throw
-                throw new ZeroSemaphoreFullException(Description);
+                throw new ZeroSemaphoreFullException($"${Description}, {nameof(_currentCount)} = {_currentCount}, {nameof(_maxCount)} = {_maxCount}, {nameof(releaseCount)} = {releaseCount}");
             }
             
             var returnCount = _currentCount;
@@ -439,6 +440,7 @@ namespace zero.core.patterns.semaphore.core
                 //Lock
                 ZeroLock();
 
+                //skip future continuations
                 var check = (ushort) _continuationToken[_tail];
                 if (check <= bump && check > safety && _continuationState[_tail] != null)
                 {
@@ -461,9 +463,7 @@ namespace zero.core.patterns.semaphore.core
                 
                 //advance tail position
                 var nextTail = (_tail + 1) % _continuationAction.Length;
-                if (_continuationState[nextTail] != null)
-                    _tail = nextTail;
-                else _tail = _head;
+                _tail = _continuationState[nextTail] != null ? nextTail : _head;
 
                 //Has this continuation been serviced?
                 if (state == null)

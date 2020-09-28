@@ -32,8 +32,8 @@ namespace zero.cocoon
     public class IoCcNode : IoNode<IoCcGossipMessage>
     {
         public IoCcNode(IoCcIdentity ioCcIdentity, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
-            IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int tcpReadAhead)
-            : base(gossipAddress, (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, (IoCcNeighbor)extraData, ioNetClient), tcpReadAhead)
+            IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
+            : base(gossipAddress, (node, ioNetClient, extraData) => new IoCcPeer((IoCcNode)node, (IoCcNeighbor)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -47,7 +47,7 @@ namespace zero.cocoon
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.gossip, _gossipAddress);
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = ZeroOnCascade(new IoCcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), IoCcNeighbor.TcpReadAhead), true).target;
+            _autoPeering = ZeroOnCascade(new IoCcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new IoCcNeighbor((IoCcNeighborDiscovery)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
 
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -230,7 +230,7 @@ namespace zero.cocoon
         /// Timeout for handshake messages
         /// </summary>
         [IoParameter]
-        public int parm_handshake_timeout = 8000;
+        public int parm_handshake_timeout = 10000;
 
         /// <summary>
         /// The discovery service

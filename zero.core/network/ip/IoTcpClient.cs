@@ -23,8 +23,9 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="remote">The tcp client to be wrapped</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the source is allowed to lead the consumer</param>
-        public IoTcpClient(IoSocket remote, int readAheadBufferSize) : base((IoNetSocket) remote, readAheadBufferSize)
+        /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        public IoTcpClient(IoSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base((IoNetSocket) remote, prefetchSize,  concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -33,9 +34,10 @@ namespace zero.core.network.ip
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
         /// <param name="localAddress">The address associated with this network client</param>
-        /// <param name="readAheadBufferSize">The amount of socket reads the source is allowed to lead the consumer</param>
-        public IoTcpClient(IoNodeAddress localAddress, int readAheadBufferSize) : base(localAddress,
-            readAheadBufferSize)
+        /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        public IoTcpClient(IoNodeAddress localAddress, int prefetchSize,  int concurrencyLevel) : base(localAddress,
+            prefetchSize,  concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

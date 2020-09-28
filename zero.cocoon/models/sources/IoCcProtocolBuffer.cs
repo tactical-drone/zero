@@ -12,10 +12,10 @@ using zero.core.patterns.semaphore;
 
 namespace zero.cocoon.models.sources
 {
-    public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>, IIoSource
+    public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>
     {
-        public IoCcProtocolBuffer(IIoSource ioSource, int bufferSize,
-            ArrayPool<Tuple<IMessage, object, Packet>> arrayPool) : base(bufferSize)//TODO config
+        public IoCcProtocolBuffer(IIoSource ioSource,ArrayPool<Tuple<IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
+            : base(prefetchSize, concurrencyLevel)//TODO config
         {
             Upstream = ioSource;
             ArrayPoolProxy = arrayPool;

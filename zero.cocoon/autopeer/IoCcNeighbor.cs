@@ -27,7 +27,7 @@ namespace zero.cocoon.autopeer
 {
     public class IoCcNeighbor : IoNeighbor<IoCcPeerMessage>
     {
-        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 2,2)
+        public IoCcNeighbor(IoNode<IoCcPeerMessage> node, IoNetClient<IoCcPeerMessage> ioNetClient, object extraData = null, IoCcService services = null) : base(node, ioNetClient, userData => new IoCcPeerMessage("peer rx", $"{ioNetClient.AddressString}", ioNetClient), 1,ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -858,7 +858,7 @@ namespace zero.cocoon.autopeer
                 if (!RoutedRequest)
                 {
                     //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
-                    await SendPingAsync(IoNodeAddress.CreateFromEndpoint("udp://", (IPEndPoint) extraData)).ConfigureAwait(false);
+                    await SendPingAsync(IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData)).ConfigureAwait(false);
                     _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
                     return;
                 }

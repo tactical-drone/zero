@@ -44,7 +44,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Signal sink pressure
         /// </summary>
-        public void BackPressure();
+        public void BackPressure(int releaseCount);
 
         /// <summary>
         /// Wait for sink pressure
@@ -113,6 +113,16 @@ namespace zero.core.patterns.bushes.contracts
         /// Used to identify work that was done recently
         /// </summary>
         IIoDupChecker RecentlyProcessed { get; set; }
+
+        /// <summary>
+        /// The amount of productions that can be made while consumption is behind
+        /// </summary>
+        int PrefetchSize { get; }
+
+        /// <summary>
+        /// The amount of productions that can be made while consumption is behind
+        /// </summary>
+        int ConcurrencyLevel { get; }
 
         /// <summary>
         /// Executes the specified function in the context of the source

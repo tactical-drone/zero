@@ -282,7 +282,7 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Produces the inline instead of in a spin loop
+        /// Produce
         /// </summary>
         /// <param name="enablePrefetchOption">if set to <c>true</c> block on consumer congestion</param>
         /// <returns></returns>
@@ -387,7 +387,7 @@ namespace zero.core.patterns.bushes
                                         _previousJobFragment.Enqueue(nextJob);
                                     
                                     //signal back pressure
-                                    if (nextJob.Source.PrefetchEnabled)
+                                    if (nextJob.Source.PrefetchEnabled  && enablePrefetchOption)
                                         nextJob.Source.PrefetchPressure();                                
                                     
                                     //Enqueue the job for the consumer
@@ -458,7 +458,7 @@ namespace zero.core.patterns.bushes
                                     nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
 
                                     // Signal prefetch back pressure
-                                    if (nextJob.Source.PrefetchEnabled)
+                                    if (nextJob.Source.PrefetchEnabled  && enablePrefetchOption)
                                         nextJob.Source.PrefetchPressure();
                                     
                                     //signal back pressure
@@ -563,7 +563,7 @@ namespace zero.core.patterns.bushes
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         /// <summary>
-        /// Consumes the inline instead of from a spin loop
+        /// Consume 
         /// </summary>
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="zeroClosure"></param>
@@ -571,7 +571,7 @@ namespace zero.core.patterns.bushes
         /// <returns>True if consumption happened</returns>
         public async ValueTask<bool> ConsumeAsync(Func<IoLoad<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null)
         {
-            var consumed = false;
+            var consumed = 0;
             try
             {
                 //_logger.Fatal($"{nameof(ConsumeAsync)}: `{Description}' [ENTER]");
@@ -580,7 +580,7 @@ namespace zero.core.patterns.bushes
                     return false;
                 
                 //Waiting for a job to be produced. Did production fail?
-                if (_queue.IsEmpty) //TODO autoresetevent
+                //if (_queue.IsEmpty) //TODO autoresetevent
                 {
                     //wait for the producer pressure
                     var pressure = Source.WaitForPressureAsync();
@@ -609,12 +609,12 @@ namespace zero.core.patterns.bushes
                 }
 
                 IoLoad<TJob> curJob = null;
-                bool hadOneJob = false;
+                var hadOneJob = 0;
 
                 //A job was produced. Dequeue it and process
                 while (!Zeroed() && _queue.TryDequeue(out curJob)) //TODO autoresetevent
                 {
-                    hadOneJob = true;
+                    hadOneJob++;
                     //curJob.State = IoJobMeta.CurrentState.Dequeued;
                     curJob.State = IoJobMeta.JobState.Consuming;
                     try
@@ -623,7 +623,7 @@ namespace zero.core.patterns.bushes
                         if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed || curJob.State == IoJobMeta.JobState.ConInlined  &&
                             !Zeroed())
                         {
-                            consumed = true;
+                            consumed++;
 
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
@@ -683,8 +683,8 @@ namespace zero.core.patterns.bushes
                             //    Source.ConsumeAheadBarrier.Set();
 
                             //Signal the source that it can continue to get more work                        
-                            if(consumed)
-                                Source.BackPressure();
+                            //if(consumed)
+                                //Source.BackPressure();
                         }
                         catch
                         {
@@ -694,15 +694,18 @@ namespace zero.core.patterns.bushes
                 }
 
                 //did we do some work?
-                if (consumed)
+                if (consumed > 0)
+                {
+                    Source.BackPressure(consumed);
                     return true;
+                }
 
                 //were we zeroed?
                 if (Zeroed())
                     return false;
 
                 //did we get a job but source queue was empty when we got there?
-                if (hadOneJob)
+                if (hadOneJob > 0)
                 {
                     //if (Source.BlockOnConsumeAheadBarrier)
                     //    Source.ConsumeAheadBarrier.Set();
