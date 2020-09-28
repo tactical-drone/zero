@@ -59,7 +59,8 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The domain of the tokens issues 
         /// </summary>
-        private const int ZeroDomain = ushort.MaxValue + 1;
+        private const uint ZeroDomain = ushort.MaxValue + 1;
+        private const int MaxFastSpins = 10;
         #endregion
 
         #region settings
@@ -196,6 +197,38 @@ namespace zero.core.patterns.semaphore.core
             //TODO: is this ok?
             _asyncTokenReg.Unregister();
         }
+
+        /// <summary>
+        /// Lock
+        /// </summary>
+        private void ZeroLock(ThreadPriority enterPriority = ThreadPriority.AboveNormal)
+        {
+            var acquiredLock = false;
+            ulong spinCounter = 0;
+            
+            //acquire lock
+            while (!acquiredLock)
+            {
+                _lock.TryEnter( 1, ref acquiredLock);
+                if (spinCounter++ > MaxFastSpins && !acquiredLock)
+                {
+                    Thread.CurrentThread.Priority = ThreadPriority.Lowest;
+                    _lock.Enter(ref acquiredLock);
+                }
+            }
+
+            Thread.CurrentThread.Priority = enterPriority;
+        }
+
+        /// <summary>
+        /// Unlock
+        /// </summary>
+        private void ZeroUnlock(ThreadPriority exitPriority = ThreadPriority.Normal)
+        {
+            _lock.Exit(_useMemoryBarrier);
+            Thread.CurrentThread.Priority = exitPriority;
+        }
+        
         
         private SpinLock _lock;
         private readonly bool _enableAutoScale;
@@ -251,12 +284,8 @@ namespace zero.core.patterns.semaphore.core
                 return;
             }
             
-            var acquiredLock = false;
-            //acquire lock
-            Thread.CurrentThread.Priority = ThreadPriority.Lowest;
-            while (!acquiredLock)
-                _lock.Enter(ref acquiredLock);
-            Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
+            //lock
+            ZeroLock();
             
             //check for space
             if (_continuationState[_head] == null) //TODO: does this assumption fail at concurrent waiters at ZERODOMAIN?
@@ -269,13 +298,13 @@ namespace zero.core.patterns.semaphore.core
                 //advance queue head
                 _head = (_head + 1) % _continuationAction.Length;
                 
-                _lock.Exit(_useMemoryBarrier);
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                //release lock
+                ZeroUnlock();
             }
             else //EXPERIMENTAL: double concurrent capacity
             {
-                _lock.Exit(_useMemoryBarrier);
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                //release lock
+                ZeroUnlock();
                 
                 if (_enableAutoScale)
                 {
@@ -297,19 +326,19 @@ namespace zero.core.patterns.semaphore.core
         private void ZeroScale()
         {
             var acquiredLock = false;
-
             //Acquire lock and disable GC
             
-            Thread.CurrentThread.Priority = ThreadPriority.Lowest;
             while (!acquiredLock)
             {
                 try
                 {
-                    GC.TryStartNoGCRegion((_continuationAction.Length) * 2 * 8 * 2, false);
+                    GC.TryStartNoGCRegion(250 / 2 * 1024 * 1024, false);
                 }
-                catch 
+                catch
                 {
+                    // ignored
                 }
+
                 _lock.Enter(ref acquiredLock);
             }
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
@@ -334,7 +363,7 @@ namespace zero.core.patterns.semaphore.core
             else
             {
                 //copy the Q
-                for (var i = _tail; i != _head || prevZeroState[i] != null; i = (i + 1) % prevZeroQ.Length)
+                for (var i = _tail; i != _head || prevZeroState[i] != null && j < _continuationAction.Length; i = (i + 1) % prevZeroQ.Length)
                 {
                     _continuationAction[j] = prevZeroQ[i];
                     _continuationState[j] = prevZeroState[i];
@@ -347,11 +376,10 @@ namespace zero.core.patterns.semaphore.core
             _tail = 0;
             _head = j;
 
-            //Release the lock
-            _lock.Exit(_useMemoryBarrier);
+            //release the lock
+            ZeroUnlock();
             
             //Enable GC
-
             try
             {
                 GC.EndNoGCRegion();
@@ -359,40 +387,27 @@ namespace zero.core.patterns.semaphore.core
             catch 
             {
             }
-            
-            //restore thread priority
-            Thread.CurrentThread.Priority = ThreadPriority.Normal;
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1)
         {
             //preconditions
-            #if DEBUG
             if(releaseCount < 1)
                 throw new ZeroValidationException($"{Description}: Invalid set {nameof(releaseCount)} = {releaseCount}, which is bigger than {nameof(_maxCount)} = {_maxCount}");
-            #endif
 
             //fail fast on cancel
             if (_asyncToken.IsCancellationRequested)
                 throw new TaskCanceledException(Description);
             
-            var acquiredLock = false;
-            
-            #region atomic verion bump
-            //acquire lock
-            Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
-            while(!acquiredLock)
-                _lock.Enter(ref acquiredLock);
-            Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
-            
+            //Lock
+            ZeroLock();
             
             // validate releaseCount
             if (_maxCount - _currentCount < releaseCount)
             {
                 //release lock
-                _lock.Exit(_useMemoryBarrier);
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                ZeroUnlock();
                 
                 //throw
                 throw new ZeroSemaphoreFullException(Description);
@@ -403,54 +418,35 @@ namespace zero.core.patterns.semaphore.core
             //bump version 
             var bump = Interlocked.Increment(ref _version);
             uint safety;
-            if (bump % ZeroDomain == 0) 
+            
+            if (bump % ZeroDomain == 0) //state 0 is skipped 
             {
-                safety = Interlocked.Increment(ref _version) - 1;
-            }
-            else
-            {
-                safety = bump - 1;
+                bump = Interlocked.Increment(ref _version);
             }
             
+            safety = (bump - 1) % ZeroDomain;
+            bump %= ZeroDomain;
+
+
             //release lock
-            _lock.Exit(_useMemoryBarrier);
-            Thread.CurrentThread.Priority = ThreadPriority.Normal;
-            #endregion
-            
+            ZeroUnlock();
+
             var lwmTail = -1;
             var released = 0;
             //service count continuations
             for (var i = 0; i < releaseCount ; i++)
             {
-                //Deque continuation
-                #region atomic dequeue
-                //acquire lock
-                acquiredLock = false;
-                Thread.CurrentThread.Priority = ThreadPriority.Lowest;
-                while (!acquiredLock)
-                    _lock.Enter(ref acquiredLock);
-                Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
+                //Lock
+                ZeroLock();
 
-                //Check if there is a continuation
-                if (_continuationState[_tail] == null) //TODO: Does this wrap around on high concurrency? Q
-                {
-                    _lock.Exit(_useMemoryBarrier);
-#if DEBUG
-                    //TODO do we throw? 
-#endif
-                    //NO continuations
-                    break;
-                }
-                
-                //validate handler safety, skip on fail up until the head and reset back to lwmTail
-                if ((ushort)_continuationToken[_tail] > safety % ZeroDomain && _tail <= _head)
+                var check = (ushort) _continuationToken[_tail];
+                if (check <= bump && check > safety && _continuationState[_tail] != null)
                 {
                     //capture the lowest water mark tail
                     if(lwmTail < 0)
                         lwmTail = _tail;
                     
-                    //Release lock
-                    _lock.Exit(_useMemoryBarrier);
+                    ZeroUnlock();
 
                     //skip continuations part of next version
                     continue;
@@ -464,22 +460,24 @@ namespace zero.core.patterns.semaphore.core
                 _continuationState[_tail] = null;
                 
                 //advance tail position
-                _tail = (_tail + 1) % _continuationAction.Length;
-                
+                var nextTail = (_tail + 1) % _continuationAction.Length;
+                if (_continuationState[nextTail] != null)
+                    _tail = nextTail;
+                else _tail = _head;
+
                 //Has this continuation been serviced?
                 if (state == null)
                 {
                     //release lock
-                    _lock.Exit(_useMemoryBarrier);
+                    ZeroUnlock();
 
                     //skip already serviced continuations
                     continue;
                 }
                 
                 //release the lock
-                _lock.Exit(_useMemoryBarrier);
-                #endregion
-                
+                ZeroUnlock();
+
                 //release a thread
                 continuation(state);
 
@@ -488,12 +486,10 @@ namespace zero.core.patterns.semaphore.core
 
             Interlocked.Add(ref _currentCount, releaseCount - released);
             
-            //set low water mark tail if set
+            //set low waters mark tail if set
             if (lwmTail != -1)
                 _tail = lwmTail;
 
-            Thread.CurrentThread.Priority = ThreadPriority.Normal;
-            
             //return previous number of waiters 
             return returnCount;
         }
@@ -516,14 +512,18 @@ namespace zero.core.patterns.semaphore.core
             
             //race for fast path
             var released = 0;
+            ulong spinCount = 0;
             var lockedCount = _currentCount;
-            Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
             while (lockedCount > 0 &&
                    (released = Interlocked.CompareExchange(ref _currentCount, lockedCount - 1, lockedCount)) != lockedCount)
             {
+                if(spinCount > MaxFastSpins)
+                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                 lockedCount = _currentCount;
             }
-            Thread.CurrentThread.Priority = ThreadPriority.Normal;
+            
+            if(Thread.CurrentThread.Priority != ThreadPriority.Normal )
+                Thread.CurrentThread.Priority = ThreadPriority.Normal;
             
             //if we won release
             if (lockedCount > 0 && released == lockedCount)

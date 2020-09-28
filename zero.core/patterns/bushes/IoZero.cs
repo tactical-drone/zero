@@ -188,7 +188,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
         public int parm_stats_mod_count = 10000;
 #else
-        public int parm_stats_mod_count = 1000000;
+        public int parm_stats_mod_count = 100000;
 #endif
 
         /// <summary>

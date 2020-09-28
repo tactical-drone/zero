@@ -38,7 +38,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 200;
+            int total = 2;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<IoCcNode>>();
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
@@ -320,15 +320,16 @@ namespace zero.sync
              // var mutex = new MutexClass();
              // mutex.Configure(asyncTasks);
              var capacity = 2000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, 2, false, 1, true, true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, 1, true, 1, true, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
+            var releaseCount = 1;
             var enableThrottle = true;
             var thread2 = true;
             var targetSleep = (long) 1;
             var targetSleepMult = thread2 ? 2 : 1;
-            var logSpam = 128;
-            var sw = new Stopwatch();
+            var logSpam = 1;
+            var sw = new Stopwatch();    
             var sw2 = new Stopwatch();
             var c = 0;
             long semCount = 0;
@@ -451,7 +452,7 @@ namespace zero.sync
 
                         try
                         {
-                            Interlocked.Add(ref semCount, curCount = mutex.Release(2));
+                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
                         }
                         catch (TaskCanceledException )
                         {
