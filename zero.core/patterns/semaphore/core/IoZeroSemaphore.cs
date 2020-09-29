@@ -76,7 +76,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]: qSize = {_maxCount}, h = {_head}, t = {_tail}, c = {_currentCount}, m = {_maxCount}";
+        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_currentCount}, qSize = {_maxCount}, h = {Head}, t = {Tail}";
 
         /// <summary>
         /// The semaphore capacity 
@@ -84,12 +84,12 @@ namespace zero.core.patterns.semaphore.core
         private int _maxCount;
         
         /// <summary>
-        /// The number of continuations that can enter the semaphore without blocking 
+        /// The number of waiters that can enter the semaphore without blocking 
         /// </summary>
         private int _currentCount;
 
         /// <summary>
-        /// The number of continuations that can enter the semaphore without blocking 
+        /// The number of waiters that can enter the semaphore without blocking 
         /// </summary>
         public int CurrentCount => _currentCount;
 
@@ -121,7 +121,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private volatile int _head;
+        private int _head;
 
         /// <summary>
         /// The normalized head
@@ -131,7 +131,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private volatile int _tail;
+        private int _tail;
 
         /// <summary>
         /// The normalized tail
@@ -235,7 +235,7 @@ namespace zero.core.patterns.semaphore.core
         private readonly bool _enableAutoScale;
         
         /// <summary>
-        /// A true sentinel
+        /// A enter sentinel
         /// </summary>
         private static readonly ValueTask<bool> ZeroEnter = new ValueTask<bool>(true);
 
@@ -272,6 +272,7 @@ namespace zero.core.patterns.semaphore.core
         /// Determines if the semaphore can be entered without blocking
         /// </summary>
         /// <returns>true if fast path is available, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool Signalled()
         {
             //fail fast
@@ -439,8 +440,8 @@ namespace zero.core.patterns.semaphore.core
         public int Release(int releaseCount = 1)
         {
             //preconditions
-            if(releaseCount < 1)
-                throw new ZeroValidationException($"{Description}: Invalid set {nameof(releaseCount)} = {releaseCount}, which is bigger than {nameof(_maxCount)} = {_maxCount}");
+            if(releaseCount < 1 || releaseCount > _maxCount)
+                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount}, must be bigger than zero and smaller than {nameof(_maxCount)} = {_maxCount}");
 
             //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested)

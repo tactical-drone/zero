@@ -665,18 +665,22 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
+                            
                             if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 10000000 &&
                                 _lastStat.UtDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
                             {
-                                _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                _logger.Info(
-                                    "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-                                _logger.Info(
-                                    $"{Description} {JobHeap.IoFpsCounter.Fps():F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
-                                curJob.Source.PrintCounters();
-                                //_logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                lock (Environment.Version)
+                                {
+                                    _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                    _logger.Info(
+                                        "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                    _logger.Info(
+                                        $"{Description} {JobHeap.IoFpsCounter.Fps():F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                    curJob.Source.PrintCounters();
+                                    //_logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                }
                             }
-
+                                
                             curJob = await FreeAsync(curJob).ConfigureAwait(false);
 
                             //if (Source.BlockOnConsumeAheadBarrier)
