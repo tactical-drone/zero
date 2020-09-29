@@ -113,12 +113,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_prefetch_size = 1; //TODO
+        [IoParameter] public int parm_prefetch_size = 200;
         
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_concurrency_level = 1; //TODO
+        [IoParameter] public int parm_concurrency_level = 10;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold

@@ -7,7 +7,9 @@ using System.Threading.Tasks.Sources;
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// Zero Semaphore with experimental auto capacity scaling (disabled by default), set capacity manually instead.
+    /// Zero Semaphore with experimental auto capacity scaling (disabled by default), set max count manually instead.
+    ///
+    /// When scaling is enabled there is a slight performance hit
     /// </summary>
     public struct IoZeroSemaphore : IIoZeroSemaphore
     {
@@ -18,11 +20,10 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="maxCount">The maximum number of requests for the semaphore that can be granted concurrently.</param>
         /// <param name="initialCount">The initial number of requests for the semaphore that can be granted concurrently.</param>
         /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="maxCount"/> more accurately to compensate</param>
-        /// <param name="version">Initial zero state</param>
         /// <param name="enableFairQ">Enable fair queueing at the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(string description = "", int maxCount = 1, int initialCount = 0, 
-            bool enableAutoScale = false, uint version = 1, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
+            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
             
@@ -33,8 +34,6 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
             if(initialCount > maxCount)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxCount)} = {maxCount}");
-            if(version == 0 || version % ZeroDomain == 0) //zero not allowed because modulo domain of (short)token causes a duplication of state zero
-                throw new ZeroValidationException($"{Description}: Validation failed: {nameof(version)} % {nameof(ZeroDomain)} = {version % ZeroDomain} may not equal 0");
 
             _maxCount = maxCount;
             _useMemoryBarrier = enableFairQ;
@@ -42,21 +41,16 @@ namespace zero.core.patterns.semaphore.core
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
-            _lock = new SpinLock(enableDeadlockDetection);
             _enableAutoScale = enableAutoScale;
-            _continuationAction = new Action<object>[_maxCount];
-            _continuationState = new object[_maxCount];
+            
+            if(_enableAutoScale)
+                _lock = new SpinLock(enableDeadlockDetection);
+            
+            _signalAwaiter = new Action<object>[_maxCount];
+            _signalAwaiterState = new object[_maxCount];
             _head = 0;
             _tail = 0;
         }
-        
-        #region constants
-        /// <summary>
-        /// The domain of the tokens issues 
-        /// </summary>
-        private const uint ZeroDomain = ushort.MaxValue + 1;
-        private const int MaxFastSpins = 5;
-        #endregion
 
         #region settings
 
@@ -64,6 +58,11 @@ namespace zero.core.patterns.semaphore.core
         /// use memory barrier setting
         /// </summary>
         private readonly bool _useMemoryBarrier;
+
+        /// <summary>
+        /// Max number of times a spinlock can be tested before throttling 
+        /// </summary>
+        private const int MaxSpin = 5;
 
         #endregion
 
@@ -110,24 +109,34 @@ namespace zero.core.patterns.semaphore.core
         private CancellationTokenRegistration _asyncTokenReg;
         
         /// <summary>
-        /// A "queue" of waiting continuations. The queue has weak order guarantees, but us mostly FIFO 
+        /// A "queue" of waiting continuations. The queue has weak order guarantees, but is mostly FIFO 
         /// </summary>
-        private Action<object>[] _continuationAction;
-        
+        private Action<object>[] _signalAwaiter;
+
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
-        private object[] _continuationState;
+        private object[] _signalAwaiterState;
         
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
         private volatile int _head;
+
+        /// <summary>
+        /// The normalized head
+        /// </summary>
+        private int Head => _head % _maxCount; 
         
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
         private volatile int _tail;
+
+        /// <summary>
+        /// The normalized tail
+        /// </summary>
+        private int Tail => _tail % _maxCount;
 
         #endregion
 
@@ -161,7 +170,7 @@ namespace zero.core.patterns.semaphore.core
         public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken)
         {
             _zeroRef = @ref;
-            ZeroWait = new ValueTask<bool>(_zeroRef, 305);
+            _zeroWait = new ValueTask<bool>(_zeroRef, 305);
             _asyncToken = asyncToken;
             _asyncTokenReg = asyncToken.Register(s =>
             {
@@ -174,17 +183,15 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public void Zero()
         {
-            for (var i = _tail; i != _head || _continuationState[i] != null; i = (i + 1) % _continuationAction.Length)
+            for (var i = _tail; i != _head || _signalAwaiter[i] != null; i = (i + 1) % _maxCount)
             {
-                if (_continuationState[i] != null)
+                if (_signalAwaiterState[i] != null)
                 {
-                    _continuationAction[i](_continuationState[i]);
-                    _continuationState[i] = null;
+                    _signalAwaiter[i](_signalAwaiterState[i]);
+                    _signalAwaiter[i] = null;
                 }
-                    
             }
-
-            //TODO: is this ok?
+            
             _asyncTokenReg.Unregister();
         }
 
@@ -192,40 +199,33 @@ namespace zero.core.patterns.semaphore.core
         /// Lock
         /// </summary>s
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ZeroLock(ThreadPriority enterPriority = ThreadPriority.Highest)
+        private void ZeroLock()
         {
+            //Disable experimental features
+            if(_enableAutoScale)
+                return;
+            
             var acquiredLock = false;
-            ulong spinCounter = 0;
-            
-            // Thread.CurrentThread.Priority = ThreadPriority.Lowest;
-            // _lock.Enter(ref acquiredLock);
-            
-            //sacquire lock
-             while (!acquiredLock)
-             {
-                 _lock.TryEnter( 1, ref acquiredLock);
-                 if (spinCounter++ >= MaxFastSpins && !acquiredLock)
-                 {
-                     Thread.CurrentThread.Priority = ThreadPriority.Lowest;
-                     _lock.Enter(ref acquiredLock);
-                 }
-             }
 
-            Thread.CurrentThread.Priority = enterPriority;
+            //acquire lock
+            _lock.Enter(ref acquiredLock);
         }
 
         /// <summary>
         /// Unlock
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ZeroUnlock(ThreadPriority exitPriority = ThreadPriority.Normal)
+        private void ZeroUnlock()
         {
+            //Disable experimental features
+            if(_enableAutoScale)
+                return;
+            
             _lock.Exit(_useMemoryBarrier);
-            Thread.CurrentThread.Priority = exitPriority;
         }
         
         /// <summary>
-        /// Used for locking internally;
+        /// Used for locking internally; when <see cref="_enableAutoScale"/> is enabled
         /// </summary>
         private SpinLock _lock;
         
@@ -237,14 +237,13 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A true sentinel
         /// </summary>
-        private static readonly ValueTask<bool> ZeroTrue = new ValueTask<bool>(true);
+        private static readonly ValueTask<bool> ZeroEnter = new ValueTask<bool>(true);
 
         /// <summary>
         /// A wait sentinel
         /// </summary>
-        private ValueTask<bool> ZeroWait;
+        private ValueTask<bool> _zeroWait;
         
-
         #endregion
 
         /// <summary>
@@ -288,15 +287,18 @@ namespace zero.core.patterns.semaphore.core
             while (lockedCount > 0 &&
                    (released = Interlocked.CompareExchange(ref _currentCount, lockedCount - 1, lockedCount)) != lockedCount)
             {
-                if (spinCount > MaxFastSpins)
+                //Will this ever happen?
+                if (spinCount > MaxSpin)
                     Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                
                 lockedCount = _currentCount;
             }
             
+            //restore thread priority
             if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
                 Thread.CurrentThread.Priority = ThreadPriority.Normal;
 
-            //if we won release
+            //Did we win?
             return lockedCount > 0 && released == lockedCount;
         }
 
@@ -321,15 +323,17 @@ namespace zero.core.patterns.semaphore.core
             //lock
             ZeroLock();
             
-            //check for space
-            if (_continuationState[_head] == null)
+            //choose a head
+            var head = Head;
+            
+            //Did we get it?
+            if(Interlocked.CompareExchange(ref _signalAwaiter[head], continuation, null) == null)
             {
-                //store the continuation
-                _continuationAction[_head] = continuation;
-                _continuationState[_head] = state;
+                //set the state as well
+                _signalAwaiterState[head] = state;
 
-                //advance queue head
-                _head = (_head + 1) % _maxCount;
+                //advance queue
+                Interlocked.Increment(ref _head);
 
                 //release lock
                 ZeroUnlock();
@@ -343,7 +347,7 @@ namespace zero.core.patterns.semaphore.core
                 if (_enableAutoScale)
                 {
                     ZeroScale();
-                    OnCompleted(continuation, state, token, flags);//TODO unwind?
+                    OnCompleted(continuation, state, token, flags);
                 }
                 else
                 {
@@ -360,8 +364,8 @@ namespace zero.core.patterns.semaphore.core
         private void ZeroScale()
         {
             var acquiredLock = false;
-            //Acquire lock and disable GC
             
+            //Acquire lock and disable GC
             while (!acquiredLock)
             {
                 try
@@ -378,34 +382,35 @@ namespace zero.core.patterns.semaphore.core
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
 
             //double the q
-            var prevZeroQ = _continuationAction;
-            var prevZeroState = _continuationState;
+            var prevZeroQ = _signalAwaiter;
+            var prevZeroState = _signalAwaiterState;
             
+            //allocate memory
             _maxCount *= 2;
+            _signalAwaiter = new Action<object>[_maxCount];
+            _signalAwaiterState = new object[_maxCount];
             
-            _continuationAction = new Action<object>[_maxCount];
-            _continuationState = new object[_maxCount];
+            //copy Q
             
             var j = 0;
             //special zero case
             if (_tail != _head || prevZeroState[_tail] != null && prevZeroQ.Length == 1)
             {
-                _continuationAction[0] = prevZeroQ[0];
-                _continuationState[0] = prevZeroState[0];
+                _signalAwaiter[0] = prevZeroQ[0];
+                _signalAwaiterState[0] = prevZeroState[0];
                 j = 1;
             }
             else
             {
-                //copy the Q
                 for (var i = _tail; i != _head || prevZeroState[i] != null && j < _maxCount; i = (i + 1) % prevZeroQ.Length)
                 {
-                    _continuationAction[j] = prevZeroQ[i];
-                    _continuationState[j] = prevZeroState[i];
+                    _signalAwaiter[j] = prevZeroQ[i];
+                    _signalAwaiterState[j] = prevZeroState[i];
                     j++;
                 }    
             }
             
-            //recalibrate the queue
+            //reset queue pointers
             _tail = 0;
             _head = j;
 
@@ -423,6 +428,13 @@ namespace zero.core.patterns.semaphore.core
             }
         }
         
+        /// <summary>
+        /// Allow waiter(s) to enter the semaphore
+        /// </summary>
+        /// <param name="releaseCount">The number of waiters to enter</param>
+        /// <returns></returns>
+        /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
+        /// <exception cref="TaskCanceledException">Thrown if a cancel was requested</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1)
         {
@@ -430,7 +442,7 @@ namespace zero.core.patterns.semaphore.core
             if(releaseCount < 1)
                 throw new ZeroValidationException($"{Description}: Invalid set {nameof(releaseCount)} = {releaseCount}, which is bigger than {nameof(_maxCount)} = {_maxCount}");
 
-            //fail fast on cancel
+            //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested)
                 throw new TaskCanceledException(Description);
             
@@ -442,54 +454,64 @@ namespace zero.core.patterns.semaphore.core
 
             //release lock
             ZeroUnlock();
-
-            //var lwmTail = -1;
+            
             var released = 0;
-            //service count continuations
-            for (var i = 0; i < releaseCount ; i++)
+            var count = 0;
+            
+            //awaiter entries
+            while (released < releaseCount && count++ < _maxCount)
             {
                 //Lock
                 ZeroLock();
 
-                //Are there any waiters?
-                if (_continuationState[_tail] == null)
+                //choose a tail
+                var tail = Tail;
+                
+                //latch the chosen tail
+                var latchedWaiter = _signalAwaiter[tail];
+
+                //did we get a waiter to latch on?
+                if (latchedWaiter == null)
                 {
                     ZeroUnlock();
-                    break;
+                    
+                    //try again
+                    continue;
                 }
+                
+                //latch onto the waiter
+                Action<object> waiter;
+                if ((waiter = Interlocked.CompareExchange(ref _signalAwaiter[tail], null, latchedWaiter)) == latchedWaiter)
+                {
+                    //grab the state
+                    var state = _signalAwaiterState[tail];
+                    
+                    //advance the tail
+                    Interlocked.Increment(ref _tail);
 
-                //grab a continuation
-                var continuation = _continuationAction[_tail];
-                var state = _continuationState[_tail];
+                    //release the lock
+                    ZeroUnlock();
 
-                //mark as handled (saves 4 bytess)
-                _continuationState[_tail] = null;
+                    //release a waiter
+                    waiter(state);
 
-                //advance tail position
-                _tail = (_tail + 1) % _maxCount;
-
-                //release the lock
-                ZeroUnlock();
-
-                //release a thread
-                continuation(state);
-
-                //count the number of waiters released
-                released++;
+                    //count the number of waiters released
+                    released++;   
+                }
             }
             
             //validate releaseCount
             if (_maxCount - (_currentCount) < releaseCount - released)
             {
                 Interlocked.Exchange(ref _currentCount, _maxCount);
-                //throw
-                throw new SemaphoreFullException($"${Description}, {nameof(_currentCount)} = {_currentCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
+                
+                //throw when the semaphore runs out of capacity
+                throw new ZeroSemaphoreFullException($"${Description}, {nameof(_currentCount)} = {_currentCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
             }
-            else
-            {
-                Interlocked.Add(ref _currentCount, releaseCount - released);   
-            }
-            
+
+            //update current count
+            Interlocked.Add(ref _currentCount, releaseCount - released);
+
             //return previous number of waiters
             return returnCount;
         }
@@ -505,8 +527,8 @@ namespace zero.core.patterns.semaphore.core
             if (_asyncToken.IsCancellationRequested)
                 return ValueTask.FromResult(false);
 
-            //Fast path if signalled or block
-            return Signalled() ? ZeroTrue : new ValueTask<bool>(_zeroRef, 0);
+            //Enter on fast path if signalled or wait
+            return Signalled() ? ZeroEnter : _zeroWait;
         }
     }
 }

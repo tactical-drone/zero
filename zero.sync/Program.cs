@@ -321,16 +321,16 @@ namespace zero.sync
              // var mutex = new MutexClass();
              // mutex.Configure(asyncTasks);
              var capacity = 50000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, 2, false, 1, true, true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, false, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
             var releaseCount = 2;
             var enableThrottle = true;
-            var twoWaiters = false;
+            var twoWaiters = true;
             var twoReleasers = 2;
             var targetSleep = (long) 0;
             var targetSleepMult = twoWaiters ? 2 : 1;
-            var logSpam = 30000;
+            var logSpam = 3000;
             var sw = new Stopwatch();    
             var sw2 = new Stopwatch();
             var c = 0;
@@ -471,6 +471,10 @@ namespace zero.sync
                         {
                             break;
                         }
+                        catch (Exception e)
+                        {
+                            
+                        }
 
                         Interlocked.Increment(ref semPollCount);
                         ifps1.Tick();
@@ -502,17 +506,22 @@ namespace zero.sync
                         catch (SemaphoreFullException)
                         {
                             var f = wfps1.Fps() + wfps2.Fps() + 1;
-                            
+
                             var d = mutex.CurrentCount / (f) * 1000.0;
                             var val = (int) d;
-                            
+
                             Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.CurrentCount}");
-                            await Task.Delay(Math.Max(1,val), asyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
                         }
-                        catch (TaskCanceledException )
+                        catch (TaskCanceledException)
                         {
                             break;
                         }
+                        catch (Exception e)
+                        {
+                            
+                        }
+                        
 
                         Interlocked.Increment(ref semPollCount);
                         ifps2.Tick();

@@ -23,7 +23,7 @@ namespace zero.cocoon.models.sources
             _logger = LogManager.GetCurrentClassLogger();
             MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
             
-            _queuePressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_queuePressure)}", 1000, 0, 4, true, 1, false, true);
+            _queuePressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_queuePressure)}", prefetchSize * concurrencyLevel, 0, false,  false, true);
             //_queuePressure = ZeroOnCascade(new IoAutoMutex()).target;
         }
 
