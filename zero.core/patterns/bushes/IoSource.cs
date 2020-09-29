@@ -11,7 +11,6 @@ using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.bushes
 {
@@ -29,9 +28,9 @@ namespace zero.core.patterns.bushes
             ConcurrencyLevel = concurrencyLevel;
             
             //todo GENERALIZE
-            _pressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", expectedNrOfWaiters: concurrencyLevel * 2, enableAutoScale:false, capacity:prefetchSize * concurrencyLevel * 2, enableDeadlockDetection:true);
-            _backPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: concurrencyLevel, enableAutoScale: false, capacity: prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
-            _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, expectedNrOfWaiters: concurrencyLevel, enableAutoScale: false, capacity: prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
+            _pressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false, maxCount:prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
+            _backPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount:1, enableAutoScale: false, maxCount: prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
+            _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTokenProxy,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount:1, enableAutoScale: false, maxCount: prefetchSize * concurrencyLevel, enableDeadlockDetection:true);
 
             _logger = LogManager.GetCurrentClassLogger();
         }
