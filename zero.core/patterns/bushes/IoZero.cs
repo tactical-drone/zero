@@ -540,9 +540,9 @@ namespace zero.core.patterns.bushes
             if (SupportsSync && job.PreviousJob != null)
             {
 #if DEBUG
-                if (((IoLoad<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
+                if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
                 {
-                    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoLoad<TJob>)job.PreviousJob).State}");
+                    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
                 }
 #endif
                 await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob).ConfigureAwait(false);
