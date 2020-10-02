@@ -53,10 +53,10 @@ namespace zero.cocoon.autopeer
                 {
                     while (!Zeroed())
                     {
-                        await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000, AsyncTokenProxy.Token).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000, AsyncToken.Token).ConfigureAwait(false);
                         await EnsurePeerAsync().ConfigureAwait(false);
                     }
-                }, AsyncTokenProxy.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                }, AsyncToken.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             }
             else
             {
@@ -495,7 +495,9 @@ namespace zero.cocoon.autopeer
         public override async ValueTask ZeroManagedAsync()
         {
             _pingRequests.Clear();
+#if DEBUG
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
+#endif
             await DetachPeerAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
@@ -649,7 +651,7 @@ namespace zero.cocoon.autopeer
         /// <param name="processCallback">The process callback</param>
         /// <param name="zeroClosure"></param>
         /// <returns></returns>
-        private async Task ProcessMsgBatchAsync(IoLoad<IoCcProtocolMessage> msg,
+        private async Task ProcessMsgBatchAsync(IoSink<IoCcProtocolMessage> msg,
             IoChannel<IoCcProtocolMessage> msgArbiter,
             Func<Tuple<IMessage, object, Packet>, IoChannel<IoCcProtocolMessage>, IIoZero, Task> processCallback, IIoZero zeroClosure)
         {
@@ -702,7 +704,8 @@ namespace zero.cocoon.autopeer
 
             _logger.Debug($"Processing {Description}");
 
-            Task[] channelTasks = null;
+            ValueTask<bool>[] channelProduceTasks = null;
+            ValueTask<bool>[] channelTasks = null;
             try
             {
                 while (!Zeroed())
@@ -715,24 +718,30 @@ namespace zero.cocoon.autopeer
                             ArrayPoolProxy = ((IoCcProtocolBuffer) _protocolChannel.Source).ArrayPoolProxy;
                         else
                         {
-                            await Task.Delay(2000, AsyncTokenProxy.Token).ConfigureAwait(false);//TODO config
+                            await Task.Delay(2000, AsyncToken.Token).ConfigureAwait(false);//TODO config
                         }
                         continue;
                     }
                     else if( channelTasks == null )
                     {
-                        channelTasks = new Task[_protocolChannel.ConsumerCount];
+                        channelProduceTasks = new ValueTask<bool>[_protocolChannel.ProducerCount];
+                        channelTasks = new ValueTask<bool>[_protocolChannel.ConsumerCount];
                     }
 
                     for (int i = 0; i < _protocolChannel.ProducerCount; i++)
                     {
-                        if (!await _protocolChannel.ProduceAsync().ConfigureAwait(false))
-                            continue;
+                        if (AsyncToken.IsCancellationRequested || !_protocolChannel.Source.IsOperational)
+                            break;
+
+                        channelProduceTasks[i] = _protocolChannel.ProduceAsync();
                     }
                     
 
                     for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
                     {
+                        if( AsyncToken.IsCancellationRequested || !_protocolChannel.Source.IsOperational)
+                            break;
+
                         channelTasks[i] = _protocolChannel.ConsumeAsync(async (msg, ioZero) =>
                         {
                             var _this = (IoCcNeighbor) ioZero;
@@ -795,13 +804,25 @@ namespace zero.cocoon.autopeer
                                 if (msg != null && msg.State != IoJobMeta.JobState.Consumed)
                                     msg.State = IoJobMeta.JobState.ConsumeErr;
                             }
-                        }, this).AsTask();
+                        }, this);
 
-                        if (!_protocolChannel.Source.IsOperational)
-                            break;
                     }
 
-                    await Task.WhenAll(channelTasks).ConfigureAwait(false);
+                    for (var i = 0; i < channelProduceTasks.Length; i++)
+                    {
+                        await channelProduceTasks[i].OverBoostAsync().ConfigureAwait(false);
+
+                        if (!channelProduceTasks[i].Result)
+                            return;
+                    }
+
+                    for (var i = 0; i < channelTasks.Length; i++)
+                    {
+                        await channelTasks[i].OverBoostAsync().ConfigureAwait(false);
+
+                        if (!channelTasks[i].Result)
+                            return;
+                    }
                 }
             }
             catch (TaskCanceledException e){_logger.Trace(e,Description );}
@@ -1154,7 +1175,7 @@ namespace zero.cocoon.autopeer
 
                 //create neighbor
                 IoCcNeighbor newNeighbor = null;
-                if( await Node.ZeroEnsureAsync(async s =>
+                if( await Node.ZeroEnsureAsync(async (_,__) =>
                 {
                     newNeighbor = (IoCcNeighbor) Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>) Source, Tuple.Create(id, services, newRemoteEp));
 
@@ -1165,7 +1186,7 @@ namespace zero.cocoon.autopeer
 
                     Node.ZeroOnCascade(newNeighbor); //TODO: Maybe remove? Use the one that floods through source?
 
-                    return await newNeighbor.ZeroEnsureAsync(s =>
+                    return await newNeighbor.ZeroEnsureAsync((___,____) =>
                     {
                         var sub = newNeighbor.ZeroEvent(source =>
                         {
@@ -1436,7 +1457,7 @@ namespace zero.cocoon.autopeer
                     var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, (IoNetClient<IoCcPeerMessage>)Source, Tuple.Create(idCheck, remoteServices, (IPEndPoint)extraData));
 
                     //Add new neighbor
-                    if(await Node.ZeroEnsureAsync(async s =>
+                    if(await Node.ZeroEnsureAsync(async (s,d) =>
                     {
                         //transfer?
                         if (!newNeighbor.RemoteAddress.IpEndPoint.Address.Equals(((IPEndPoint) extraData).Address) ||
@@ -1446,7 +1467,7 @@ namespace zero.cocoon.autopeer
                         // Handle zero
                         Node.ZeroOnCascade(newNeighbor);
 
-                        return await newNeighbor.ZeroEnsureAsync(s =>
+                        return await newNeighbor.ZeroEnsureAsync((s,d) =>
                         {
                             var id = newNeighbor.Id;
                             var sub = newNeighbor.ZeroEvent(source =>

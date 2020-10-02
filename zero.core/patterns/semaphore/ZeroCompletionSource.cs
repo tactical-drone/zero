@@ -2,6 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore
@@ -20,7 +21,7 @@ namespace zero.core.patterns.semaphore
             _nanoprobe = new IoNanoprobe();
         }
 
-        private readonly IIoNanoprobe _nanoprobe;
+        private readonly IoNanoprobe _nanoprobe;
 
         public IIoZeroable ZeroedFrom => _nanoprobe.ZeroedFrom;
 
@@ -38,7 +39,7 @@ namespace zero.core.patterns.semaphore
         /// <returns></returns>
         public ValueTask ZeroAsync(IIoZeroable from)
         {
-            TrySetCanceled(_nanoprobe.AsyncTokenProxy.Token);
+            TrySetCanceled(_nanoprobe.AsyncToken.Token);
             return _nanoprobe.ZeroAsync(from);
         }
 
@@ -57,6 +58,11 @@ namespace zero.core.patterns.semaphore
             _nanoprobe.Unsubscribe(sub);
         }
 
+        public ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false)
+        {
+            return _nanoprobe.ZeroEnsureAsync(ownershipAction, disposing, force);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoZeroable
         {
@@ -66,11 +72,6 @@ namespace zero.core.patterns.semaphore
         public bool Zeroed()
         {
             return _nanoprobe.Zeroed();
-        }
-
-        public ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, Task<bool>> ownershipAction, bool force = false)
-        {
-            return _nanoprobe.ZeroEnsureAsync(ownershipAction, force);
         }
 
         public void ZeroUnmanaged()
@@ -83,13 +84,18 @@ namespace zero.core.patterns.semaphore
             return _nanoprobe.ZeroManagedAsync();
         }
 
+        public void ZeroRef(ref IIoZeroable nanoprobe)
+        {
+            throw new NotImplementedException();
+        }
+
         private static TaskCreationOptions AdjustFlags(TaskCreationOptions options, bool allowInliningContinuations)
         {
             return allowInliningContinuations
                 ? (options & ~TaskCreationOptions.RunContinuationsAsynchronously)
                 : (options | TaskCreationOptions.RunContinuationsAsynchronously);
         }
-        public CancellationTokenSource AsyncTokenProxy => _nanoprobe.AsyncTokenProxy;
+        public CancellationTokenSource AsyncToken => _nanoprobe.AsyncToken;
         
         public bool Equals(IIoZeroable other)
         {

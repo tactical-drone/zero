@@ -15,7 +15,7 @@ namespace zero.core.patterns.heap
     /// </summary>
     /// <typeparam name="T">The type of item managed</typeparam>
     public class IoHeap<T>
-        where T:class,IIoNanoprobe
+        where T:class
     {
         /// <summary>
         /// ctor

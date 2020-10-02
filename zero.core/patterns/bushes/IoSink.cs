@@ -4,10 +4,10 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.core.patterns.bushes
 {
     /// <summary>
-    /// <see cref="IoJob{TJob}"/> is consumed.
+    /// Sink where <see cref="IoJob{TJob}"/> is consumed.
     /// </summary>
     /// <typeparam name="TJob">The type of the job</typeparam>
-    public abstract class IoLoad<TJob> : IoJob<TJob>
+    public abstract class IoSink<TJob> : IoJob<TJob>
         where TJob : IIoJob
         
     {
@@ -17,7 +17,7 @@ namespace zero.core.patterns.bushes
         /// <param name="loadDescription"></param>
         /// <param name="jobDescription"></param>
         /// <param name="source"></param>
-        protected IoLoad(string loadDescription, string jobDescription, IoSource<TJob> source) : base(jobDescription, source)
+        protected IoSink(string loadDescription, string jobDescription, IoSource<TJob> source) : base(jobDescription, source)
         {
             _loadDescription = loadDescription;
         }
@@ -45,7 +45,7 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// ZeroAsync
+        /// Zero handle
         /// </summary>
         public IIoZero IoZero { get; set; }
 

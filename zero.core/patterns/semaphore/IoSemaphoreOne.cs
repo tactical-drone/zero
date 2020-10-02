@@ -8,7 +8,7 @@ namespace zero.core.patterns.semaphore
 {
     public class IoSemaphoreOne<TMutex> : IoNanoprobe, IIoSemaphore where TMutex : IIoMutex, new()
     {
-        public IoSemaphoreOne(CancellationTokenSource asyncTasks, int initialCount = 0, bool allowInliningAwaiters = true)
+        public IoSemaphoreOne(CancellationTokenSource asyncTasks, int initialCount = 0, bool allowInliningAwaiters = true) : base()
         {
 #if DEBUG
             if (initialCount > 1 || initialCount < 0)

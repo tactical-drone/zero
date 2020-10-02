@@ -12,7 +12,7 @@ namespace zero.tangle.models
     /// Stores meta data used when consuming jobs of this kind
     /// </summary>    
     /// <seealso cref="IIoSource" />
-    public class IoTangleTransaction<TKey> : IoLoad<IoTangleTransaction<TKey>> 
+    public class IoTangleTransaction<TKey> : IoSink<IoTangleTransaction<TKey>> 
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTangleTransaction{TKey}"/> class.

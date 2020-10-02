@@ -12,13 +12,17 @@ namespace zero.core.patterns.semaphore
     /// </summary>
     public class IoZeroNativeMutex:IIoMutex
     {
-        public IoZeroNativeMutex(CancellationTokenSource asyncTasks, string description = "", int capacity = 1, int initialCount = 0, int expectedNrOfWaiters = 1,
-            bool enableAutoScale = false, int zeroVersion = 0)
+        public IoZeroNativeMutex()
         {
-            _mutex = new IoNativeMutex(asyncTasks);
+            
         }
 
-        private readonly IIoMutex _mutex;
+        public IoZeroNativeMutex(CancellationTokenSource asyncTasks, bool signalled = false)
+        {
+            Configure(asyncTasks, signalled);
+        }
+
+        private IIoMutex _mutex;
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool GetResult(short token)
@@ -40,6 +44,7 @@ namespace zero.core.patterns.semaphore
 
         public void Configure(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true)
         {
+            _mutex = new IoNativeMutex();
             _mutex.Configure(asyncTasks, signalled, allowInliningContinuations);
         }
 

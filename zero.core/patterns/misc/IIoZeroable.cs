@@ -27,11 +27,6 @@ namespace zero.core.patterns.misc
         string Description { get; }
 
         /// <summary>
-        /// Async tasks token
-        /// </summary>
-        CancellationTokenSource AsyncTokenProxy{ get; }
-
-        /// <summary>
         /// Indicate zero status
         /// </summary>
         /// <returns>True if zeroed out, false otherwise</returns>
@@ -56,16 +51,17 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
         void Unsubscribe(IoZeroSub sub);
-        
+
         /// <summary>
         /// Ensures that this action is synchronized 
         /// </summary>
         /// <param name="ownershipAction">The ownership transfer</param>
+        /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, Task<bool>> ownershipAction, bool force = false);
+        ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false);
         
         void ZeroUnmanaged();
-        public ValueTask ZeroManagedAsync();
+        ValueTask ZeroManagedAsync();
     }
 }

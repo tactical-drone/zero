@@ -76,7 +76,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_currentCount}, qSize = {_maxCount}, h = {Head}, t = {Tail}";
+        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_currentCount}, qSize = {_maxCount}, h = {_head}, t = {_tail}";
 
         /// <summary>
         /// The semaphore capacity 
@@ -172,10 +172,10 @@ namespace zero.core.patterns.semaphore.core
             _zeroRef = @ref;
             _zeroWait = new ValueTask<bool>(_zeroRef, 305);
             _asyncToken = asyncToken;
-            _asyncTokenReg = asyncToken.Register(s =>
-            {
-                ((IIoZeroSemaphore) s).Zero();
-            }, _zeroRef);
+            //_asyncTokenReg = asyncToken.Register(s =>
+            //{
+            //    ((IIoZeroSemaphore) s).Zero();
+            //}, _zeroRef);
         }
 
         /// <summary>
@@ -183,16 +183,28 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public void Zero()
         {
-            for (var i = _tail; i != _head || _signalAwaiter[i] != null; i = (i + 1) % _maxCount)
+            //_asyncTokenReg.Unregister();
+
+            for (var i = 0; i < _maxCount; i++)
             {
-                if (_signalAwaiterState[i] != null)
+                var waiter = Interlocked.CompareExchange(ref _signalAwaiterState[i], null, null);
+
+                if (waiter != null)
                 {
-                    _signalAwaiter[i](_signalAwaiterState[i]);
-                    _signalAwaiter[i] = null;
+                    try
+                    {
+                        _signalAwaiter[i](_signalAwaiterState[i]);
+                        _signalAwaiterState[i] = null;
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
                 }
             }
-            
-            _asyncTokenReg.Unregister();
+
+            Array.Clear(_signalAwaiter, 0, _maxCount);
+            Array.Clear(_signalAwaiterState, 0, _maxCount);
         }
 
         /// <summary>

@@ -40,15 +40,15 @@ namespace zero.cocoon.models
 
             if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
-                IoCcProtocolBuffer protocol = null;
+                IoCcProtocolBuffer channelSource = null;
 
                 //Transfer ownership
-                if (Source.ZeroEnsureAsync(s =>
+                if (Source.ZeroEnsureAsync((s,d) =>
                 {
-                    protocol = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, parm_concurrency_level);
-                    if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), protocol))
+                    channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, parm_concurrency_level);
+                    if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
-                        return Task.FromResult(Source.ZeroOnCascade(protocol, true).success);
+                        return Task.FromResult(Source.ZeroOnCascade(channelSource).success);
                     }
 
                     return Task.FromResult(false);
@@ -56,10 +56,10 @@ namespace zero.cocoon.models
                 {
                     ProtocolChannel = Source.EnsureChannel(
                         nameof(IoCcNeighbor),
-                        false,
-                        protocol,
-                        userData => new IoCcProtocolMessage(protocol, -1 /*We block to control congestion*/),
-                        1,1
+                        true,
+                        channelSource,
+                        userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
+                        1, 1
                     );
 
                     //get reference to a central mempool
@@ -69,7 +69,7 @@ namespace zero.cocoon.models
                 {
 #pragma warning disable VSTHRD110 // Observe result of async calls
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                    protocol.ZeroAsync(this);
+                    channelSource.ZeroAsync(this);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 #pragma warning restore VSTHRD110 // Observe result of async calls
                 }
@@ -113,12 +113,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_prefetch_size = 200;
+        [IoParameter] public int parm_prefetch_size = 10;
         
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_concurrency_level = 10;
+        [IoParameter] public int parm_concurrency_level = 20;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -146,7 +146,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 4;//TODO
+        public int parm_max_msg_batch_size = 48;//TODO
 
         /// <summary>
         /// 

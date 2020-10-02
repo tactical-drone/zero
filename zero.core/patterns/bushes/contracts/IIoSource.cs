@@ -149,7 +149,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
         IoChannel<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
-            Func<object, IoLoad<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
+            Func<object, IoSink<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
             where TFJob : IIoJob;
     }
 }

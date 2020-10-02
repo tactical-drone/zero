@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.semaphore
@@ -10,7 +11,7 @@ namespace zero.core.patterns.semaphore
     /// <summary>
     /// Wraps a <see cref="IoZeroSemaphore"/> for use
     /// </summary>
-    public class IoZeroSemaphoreSlim:IIoZeroSemaphore
+    public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
     {
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks, string description = "", int maxCount = 1, int initialCount = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false)
@@ -19,8 +20,20 @@ namespace zero.core.patterns.semaphore
             _semaphore.ZeroRef(ref _semaphore, asyncTasks.Token);
         }
 
-        private readonly IIoZeroSemaphore _semaphore;
-        
+        private IIoZeroSemaphore _semaphore;
+
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+            _semaphore = null;
+        }
+
+        public override ValueTask ZeroManagedAsync()
+        {
+            _semaphore.Zero();
+            return base.ZeroManagedAsync();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool GetResult(short token)
         {

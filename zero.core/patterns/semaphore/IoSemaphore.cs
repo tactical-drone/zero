@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore
@@ -30,70 +27,9 @@ namespace zero.core.patterns.semaphore
 #if DEBUG
             enableRangeCheck = true;
 #endif
-            _nanoprobe = new IoZeroable<IoAsyncMutex>();
             Configure(asyncTasks, initialCount, maxCapacity, enableRangeCheck, allowInliningAwaiters, options);
         }
-
-        public IIoZeroable ZeroedFrom => _nanoprobe.ZeroedFrom;
-
-        public ValueTask ZeroAsync(IIoZeroable @from)
-        {
-            return _nanoprobe.ZeroAsync(@from);
-        }
-
-        public ulong NpId => _nanoprobe.NpId;
-
-        public string Description => _nanoprobe.Description;
-
-        public bool Zeroed()
-        {
-            return _nanoprobe.Zeroed();
-        }
-
-        public (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoZeroable
-        {
-            return _nanoprobe.ZeroOnCascade(target, twoWay);
-        }
-
-        public IoZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
-        {
-            return _nanoprobe.ZeroEvent(sub);
-        }
-
-        public void Unsubscribe(IoZeroSub sub)
-        {
-            _nanoprobe.Unsubscribe(sub);
-        }
-
-        public ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, Task<bool>> ownershipAction, bool force = false)
-        {
-            return _nanoprobe.ZeroEnsureAsync(ownershipAction, force);
-        }
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public void ZeroUnmanaged()
-        {
-            _nanoprobe.ZeroUnmanaged();
-            //_signalAwaiters = null;
-        }
-
-        /// <summary>
-        /// zero managed
-        /// </summary>
-        /// <returns></returns>
-        public async ValueTask ZeroManagedAsync()
-        {
-            //Unblock all blockerss
-            // foreach (var zeroCompletionSource in _signalAwaiters)
-            //     await zeroCompletionSource.ZeroAsync(this).ConfigureAwait(false);
-            //
-            // _signalAwaiters.Clear();
-
-            await _nanoprobe.ZeroManagedAsync().ConfigureAwait(false);
-        }
-
+        
         /// <summary>
         /// A queue of folks awaiting signals.
         /// </summary>
@@ -182,7 +118,6 @@ namespace zero.core.patterns.semaphore
         private static readonly ValueTask<bool> FalseSentinel = new ValueTask<bool>(false);
         private static readonly ValueTask<bool> TrueSentinel = new ValueTask<bool>(true);
         
-        private readonly IoZeroable<IoAsyncMutex> _nanoprobe;
         private volatile short _token;
         private volatile ValueTaskSourceStatus _status;
         private CancellationToken _asyncToken;
@@ -194,8 +129,8 @@ namespace zero.core.patterns.semaphore
         public ValueTask<bool> WaitAsync()
         {
             //fail fast
-            if (Zeroed())
-                return FalseSentinel;
+            // if (Zeroed())
+            //     return FalseSentinel;
 
             //fast path
             if (Interlocked.Decrement(ref _count) > -1)
@@ -214,11 +149,11 @@ namespace zero.core.patterns.semaphore
 // #endif
 
             //fail fast
-            if (Zeroed())
+            //if (Zeroed())
             {
                 return FalseSentinel;
             }
-            else
+            //else
             {
                 //_signalAwaiters.Enqueue(waiter);
             }
@@ -235,8 +170,8 @@ namespace zero.core.patterns.semaphore
 
         private void ValidateToken(in short token)
         {
-            if(_token!=token)
-                throw new InvalidOperationException($"invalid token = {token} != {_token}, {Description}");
+            // if(_token!=token)
+            //     throw new InvalidOperationException($"invalid token = {token} != {_token}, {Description}");
         }
 
         public ValueTaskSourceStatus GetStatus(short token)
@@ -252,9 +187,10 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(IIoZeroable other)
         {
-            return NpId == other.NpId;
+            //return NpId == other.NpId;
+            return true;
         }
 
-        public CancellationTokenSource AsyncTokenProxy => _nanoprobe.AsyncTokenProxy;
+        //public CancellationTokenSource AsyncToken => _nanoprobe.AsyncToken;
     }
 }

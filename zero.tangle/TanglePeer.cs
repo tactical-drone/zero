@@ -153,7 +153,7 @@ namespace zero.tangle
         /// <param name="processCallback">The process callback</param>
         /// <returns></returns>
         private async Task ProcessTransactionsAsync(IIoDataSource<RowSet> dataSource,
-            IoLoad<IoTangleTransaction<TKey>> transactions,
+            IoSink<IoTangleTransaction<TKey>> transactions,
             IoChannel<IoTangleTransaction<TKey>> transactionArbiter, 
             Func<IIoTransactionModel<TKey>, IoChannel<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> processCallback)
         {
@@ -191,7 +191,7 @@ namespace zero.tangle
         /// <param name="consumer">The consumer used to signal events</param>
         /// <param name="transactionArbiter">The arbiter</param>
         /// <returns></returns>
-        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoLoad<IoTangleTransaction<TKey>> consumer, IoChannel<IoTangleTransaction<TKey>> transactionArbiter)
+        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoSink<IoTangleTransaction<TKey>> consumer, IoChannel<IoTangleTransaction<TKey>> transactionArbiter)
         {
             var stopwatch = Stopwatch.StartNew();
             //_logger.Trace($"{consumer.TraceDescription} Loading transaction [ENTER]");

@@ -65,9 +65,9 @@ namespace zero.cocoon.autopeer
         public override async ValueTask ZeroManagedAsync()
         {
             //foreach (var neighborsValue in Neighbors.Values)
-            //    neighborsValue.ZeroAsync(this);
+            //    await neighborsValue.ZeroAsync(this);
 
-            //await LocalNeighbor.ZeroAsync(this);
+            await LocalNeighbor.ZeroAsync(this);
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }

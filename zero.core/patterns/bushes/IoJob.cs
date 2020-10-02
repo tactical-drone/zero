@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
@@ -32,8 +33,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected IoJob(string description, IoSource<TJob> source)
         {
-            source.ZeroOnCascade(Nanoprobe);
+            //source.ZeroOnCascade(Nanoprobe);
             Source = source;
+            Source.ZeroOnCascade(this);
             _jobDescription = description;
         }
 
@@ -61,7 +63,7 @@ namespace zero.core.patterns.bushes
             get
             {
                 if(_description == null) 
-                    return _description = $"{Source.Description} | {_jobDescription}";
+                    return _description = $"{Source?.Description} | {_jobDescription}";
                 return _description;
             }
         }

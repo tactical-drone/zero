@@ -124,7 +124,7 @@ namespace zero.core.network.ip
                 _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Zeroed())
                 {
-                    await Task.Delay(5000, AsyncTokenProxy.Token).ConfigureAwait(false);
+                    await Task.Delay(5000, AsyncToken.Token).ConfigureAwait(false);
                     if (!Socket?.IsBound ?? false)
                     {
                         _logger.Warn($"Found zombie udp socket state");

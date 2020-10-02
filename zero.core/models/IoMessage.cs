@@ -14,7 +14,7 @@ namespace zero.core.models
     /// <summary>
     /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
-    public abstract class IoMessage<TJob> : IoLoad<TJob>        
+    public abstract class IoMessage<TJob> : IoSink<TJob>        
         where TJob : IIoJob 
         
     {

@@ -139,7 +139,7 @@ namespace zero.core.network.ip
                     if (ioNetClient.IsOperational)
                     {
                         //Ensure ownership
-                        if (!await ZeroEnsureAsync(s => Task.FromResult(s.ZeroOnCascade(ioNetClient.Nanoprobe).success)).ConfigureAwait(false))
+                        if (!await ZeroEnsureAsync((s,d) => Task.FromResult(s.ZeroOnCascade(ioNetClient).success)).ConfigureAwait(false))
                         {
                             _logger.Debug($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                             //REJECT

@@ -146,7 +146,7 @@ namespace zero.core.core
                     return;
                 }
 
-                if (await ZeroEnsureAsync( async s =>
+                if (await ZeroEnsureAsync( async (s,d) =>
                 {
                     try
                     {
@@ -173,7 +173,7 @@ namespace zero.core.core
                         ZeroOnCascade(newNeighbor); //TODO: double check, why was this not seen?
 
                         //Add new neighbor
-                        return await newNeighbor.ZeroEnsureAsync(s =>
+                        return await newNeighbor.ZeroEnsureAsync((s,d) =>
                         {
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             string id = newNeighbor.Id;
@@ -342,7 +342,7 @@ namespace zero.core.core
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            Nanoprobe.ZeroUnmanaged();
+            base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
             Neighbors = null;

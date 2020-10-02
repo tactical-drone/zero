@@ -23,7 +23,7 @@ namespace zero.core.core
         /// <param name="mallocJob">The callback that allocates new message buffer space</param>
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
-        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoLoad<TJob>> mallocJob, int producers = 1, int consumers = 1)
+        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoSink<TJob>> mallocJob, int producers = 1, int consumers = 1)
             : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, false, producers, consumers)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -61,9 +61,9 @@ namespace zero.core.core
         /// <summary>
         /// 
         /// </summary>
-        public override async ValueTask ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            return base.ZeroManagedAsync();
         }
     }
 }

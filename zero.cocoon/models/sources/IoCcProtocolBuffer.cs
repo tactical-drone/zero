@@ -8,6 +8,7 @@ using NLog;
 using Proto;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 
 namespace zero.cocoon.models.sources
@@ -23,8 +24,7 @@ namespace zero.cocoon.models.sources
             _logger = LogManager.GetCurrentClassLogger();
             MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
             
-            _queuePressure = new IoZeroSemaphoreSlim(AsyncTokenProxy, $"{GetType().Name}: {nameof(_queuePressure)}", prefetchSize * concurrencyLevel, 0, false,  false, true);
-            //_queuePressure = ZeroOnCascade(new IoAutoMutex()).target;
+            (_queuePressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", prefetchSize * concurrencyLevel, 0, false,  false, true));
         }
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace zero.cocoon.models.sources
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _queuePressure = default;
+            _queuePressure = null;
             MessageQueue = null;
             ArrayPoolProxy = null;
 #endif
@@ -145,7 +145,10 @@ namespace zero.cocoon.models.sources
                 Tuple<IMessage, object, Packet>[] batch = null;
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
-                    await _queuePressure.WaitAsync().ConfigureAwait(false);
+                    var checkQ = _queuePressure.WaitAsync();
+                    await checkQ.OverBoostAsync().ConfigureAwait(false);
+                    if (!checkQ.Result)
+                        break;
                 }
                 return batch;
             }

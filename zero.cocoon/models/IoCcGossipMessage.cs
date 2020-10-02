@@ -196,7 +196,7 @@ namespace zero.cocoon.models
                     catch (Exception e)
                     {
                         _logger.Debug(e,$"Error producing {_this.Description}");
-                        await Task.Delay(250, _this.AsyncTokenProxy.Token).ConfigureAwait(false); //TODO
+                        await Task.Delay(250, _this.AsyncToken.Token).ConfigureAwait(false); //TODO
 
                         _this.State = IoJobMeta.JobState.ProduceErr;
 
@@ -282,7 +282,7 @@ namespace zero.cocoon.models
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        //await Task.Delay(3, AsyncTokenProxy.Token).ConfigureAwait(false);
+                        //await Task.Delay(3, AsyncToken.Token).ConfigureAwait(false);
 
                         var sentTask = ((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(ByteSegment, BufferOffset, DatumSize);
                         

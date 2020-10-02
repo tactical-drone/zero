@@ -18,7 +18,6 @@ namespace zero.core.patterns.bushes.contracts
             Produced,
             ProStarting,
             Queued,
-            Dequeued,
             Consuming,
             Consumed,
             ConInlined,

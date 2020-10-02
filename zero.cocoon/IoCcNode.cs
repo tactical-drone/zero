@@ -97,7 +97,7 @@ namespace zero.cocoon
                 var random = new Random((int)DateTime.Now.Ticks);
                 while (true)
                 {
-                    await Task.Delay(random.Next(30000) + 15000, AsyncTokenProxy.Token).ConfigureAwait(false);
+                    await Task.Delay(random.Next(30000) + 15000, AsyncToken.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
@@ -684,7 +684,7 @@ namespace zero.cocoon
         /// </summary>
         public async Task BootAsync()
         {
-            Interlocked.Exchange(ref Testing, 1);
+            //Interlocked.Exchange(ref Testing, 1);
             
             foreach (var ioNeighbor in Neighbors.Values)
             {

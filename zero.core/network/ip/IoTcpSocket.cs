@@ -248,7 +248,7 @@ namespace zero.core.network.ip
             {
                 if (timeout == 0)
                 {
-                    return Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTokenProxy.Token);
+                    return Socket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncToken.Token);
                 }
 
                 Socket.SendTimeout = timeout;
@@ -286,7 +286,7 @@ namespace zero.core.network.ip
             {
                 if (timeout == 0)
                 {
-                    return Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,AsyncTokenProxy.Token);
+                    return Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,AsyncToken.Token);
                 }
 
                 Socket.ReceiveTimeout = timeout;

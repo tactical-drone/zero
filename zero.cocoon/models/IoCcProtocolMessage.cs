@@ -10,7 +10,7 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
-    public class IoCcProtocolMessage : IoLoad<IoCcProtocolMessage>
+    public class IoCcProtocolMessage : IoSink<IoCcProtocolMessage>
     {
         public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = -1)
             : base("channel", $"{nameof(IoCcProtocolMessage)}", originatingSource)

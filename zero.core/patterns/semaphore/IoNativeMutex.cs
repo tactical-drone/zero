@@ -9,13 +9,6 @@ namespace zero.core.patterns.semaphore
 {
     public struct IoNativeMutex: IIoMutex
     {
-        public IoNativeMutex(CancellationTokenSource asyncTasks, bool initialState = false,  bool allowInliningContinuations = true)
-        {
-            _asyncToken = asyncTasks.Token;
-            _mutex = new AsyncAutoResetEvent(allowInliningContinuations);
-            Configure(asyncTasks, initialState, allowInliningContinuations);
-        }
-
         private AsyncAutoResetEvent _mutex;
         private CancellationToken _asyncToken;
         
@@ -80,7 +73,7 @@ namespace zero.core.patterns.semaphore
 
         public void Zero()
         {
-            throw new NotImplementedException();
+            _mutex = null;
         }
 
         public void ByRef(ref IIoMutex root)

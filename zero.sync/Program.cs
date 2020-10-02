@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using MathNet.Numerics;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
@@ -14,7 +13,6 @@ using zero.cocoon.identity;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.semaphore;
-using zero.core.patterns.semaphore.core;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
@@ -39,7 +37,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 200;
+            int total = 2000;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<IoCcNode>>();
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
@@ -57,16 +55,16 @@ namespace zero.sync
 
             var task = Task.Run(async () =>
             {
-                Console.WriteLine($"Starting autopeering...  {tasks.Count}");
+                Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 0;
                 foreach (var task in tasks)
                 {
                     task.Start();
                     c++;
-                    if (c % 20 == 0)
+                    if (c % 40 == 0)
                     {
                         Console.WriteLine($"Provisioned {c}/{total}...");
-                        await Task.Delay(2000).ConfigureAwait(false);
+                        await Task.Delay(4000).ConfigureAwait(false);
                     }
                 }
 
@@ -220,7 +218,6 @@ namespace zero.sync
                  AsyncMutex.ByRef(ref AsyncMutex);
                 
                  AsyncMutex.Configure(asyncTasks, signalled, allowInliningContinuations);
-                //AsyncMutex = new IoNativeMutex(asyncTasks);
             }
 
             public void Set()
@@ -562,7 +559,7 @@ namespace zero.sync
                     s.Release();
                 });
 
-                if (zeroed > 0 && zeroed % 5 == 0)
+                //if (zeroed > 0 && zeroed % 5 == 0)
                 {
                     Console.WriteLine(
                         $"Estimated {TimeSpan.FromSeconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
@@ -617,7 +614,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                1, 1, 1,1);
+                2, 1, 2,1);
 
             _nodes.Add(cocoon);
 
