@@ -162,9 +162,6 @@ namespace zero.cocoon.models
                                 return false;
                             }
 
-                            //UDP signals source ip
-                            _this.ProducerUserData = ((IoSocket)ioSocket).ExtraData();
-
                             //Set how many datums we have available to process
                             _this.DatumCount = _this.BytesLeftToProcess / _this.DatumSize;
                             _this.DatumFragmentLength = _this.BytesLeftToProcess % _this.DatumSize;

@@ -30,7 +30,9 @@ namespace zero.core.network.ip
             (IoSocket, _) = ZeroOnCascade((IoNetSocket)socket, true);
 
             _logger = LogManager.GetCurrentClassLogger();
-            ListeningAddress = socket.ListeningAddress; 
+            ListeningAddress = IoSocket.ListeningAddress;
+            _description = $"`net client({ListeningAddress.ToString()})'";
+            _key = ListeningAddress.EndpointIpPort;
         }
 
         /// <summary>
@@ -187,7 +189,7 @@ namespace zero.core.network.ip
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
         {
-            //Is the TCP connection up?
+            //Is the connection up?
             if (!IsOperational)
             {
                 return false;
@@ -265,6 +267,18 @@ namespace zero.core.network.ip
                     return false;
                 }
             }            
-        }        
+        }
+
+        /// <summary>
+        /// Blacklist a source port
+        /// </summary>
+        /// <param name="remoteAddressPort"></param>
+        public virtual void Blacklist(int remoteAddressPort) {}
+
+        /// <summary>
+        /// Whitelist a source port
+        /// </summary>
+        /// <param name="remoteAddressPort"></param>
+        public virtual void WhiteList(int remoteAddressPort) {}
     }
 }

@@ -26,7 +26,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public volatile Tuple<IMessage,object, Proto.Packet>[] Batch;
+        public volatile Tuple<IIoZero, IMessage,object, Proto.Packet>[] Batch;
 
         public override void ZeroUnmanaged()
         {

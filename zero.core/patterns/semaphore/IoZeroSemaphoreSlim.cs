@@ -30,7 +30,7 @@ namespace zero.core.patterns.semaphore
 
         public override ValueTask ZeroManagedAsync()
         {
-            _semaphore.Zero();
+            _semaphore?.Zero();
             return base.ZeroManagedAsync();
         }
 

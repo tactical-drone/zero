@@ -3,8 +3,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using NLog;
 using zero.core.patterns.misc;
+using TaskExtensions = System.Threading.Tasks.TaskExtensions;
 
 namespace zero.core.network.ip
 {
@@ -20,7 +22,6 @@ namespace zero.core.network.ip
         public IoUdpSocket() : base(SocketType.Dgram, ProtocolType.Udp)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 99);
         }
 
         /// <inheritdoc />
@@ -29,9 +30,16 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socket">The underlying socket</param>
         /// <param name="listeningAddress">The address listened on</param>
-        public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress) : base(socket, listeningAddress)
+        /// <param name="fromAddress">From address</param>
+        public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress, IoNodeAddress fromAddress = null) :  base(socket, listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            _fromAddress = fromAddress;
+
+            if (_fromAddress != null)
+            {
+                RemoteNodeAddress = _fromAddress;
+            }
         }
 
         /// <summary>
@@ -42,7 +50,6 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _udpRemoteEndpointInfo = null;
             RemoteNodeAddress = null;
 #endif
 
@@ -64,11 +71,16 @@ namespace zero.core.network.ip
         /// <summary>
         /// Used to retrieve the sender information of a UDP packet and prevent mallocs for each call to receive
         /// </summary>
-        private EndPoint _udpRemoteEndpointInfo;
+        //private EndPoint _udpRemoteEndpointInfo;
 
         //public override IoNodeAddress RemoteAddress { get; protected set; }
 
-        public override string Key => RemoteAddress?.IpPort ?? LocalIpAndPort;
+        /// <summary>
+        /// from address
+        /// </summary>
+        public override IoNodeAddress FfAddress => _fromAddress;
+
+        //public override string Key => RemoteAddress?.IpPort ?? LocalIpAndPort;
 
         //public override string Key
         //{
@@ -93,9 +105,10 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address">The address to listen on</param>
         /// <param name="callback">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
-        /// <param name="bootstrapAsync"></param>
-        /// <returns></returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> callback, Func<Task> bootstrapAsync = null)
+        /// <param name="bootstrapAsync">Bootstrap callback invoked when a listener has started</param>
+        /// <returns>True if successful, false otherwise</returns>
+        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> callback,
+            Func<Task> bootstrapAsync = null)
         {
             
             Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
@@ -114,9 +127,6 @@ namespace zero.core.network.ip
             {
                 //Call the new connection established handler
                 await callback(this).ConfigureAwait(false);
-
-                // Prepare UDP connection orientated things                
-                _udpRemoteEndpointInfo = new IPEndPoint(IPAddress.Any, 88);
 
                 if (bootstrapAsync != null)
                     await bootstrapAsync().ConfigureAwait(false);
@@ -158,7 +168,7 @@ namespace zero.core.network.ip
         /// <param name="endPoint">A destination, used for UDP connections</param>
         /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public override async ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
+        public override async ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint, int timeout = 0)
         {
             //fail fast
             if (!(Socket.IsBound) || Zeroed())
@@ -194,19 +204,37 @@ namespace zero.core.network.ip
         }
 
 
+        /// <summary>
+        /// dummy endpoint
+        /// </summary>
         private EndPoint _dummyEndPoint = new IPEndPoint(IPAddress.Any, 0);
+
+        /// <summary>
+        /// Only receive from this address
+        /// </summary>
+        private readonly IoNodeAddress _fromAddress;
+
+
+        // private SocketAsyncEventArgs _args = new SocketAsyncEventArgs();
+        // private TaskCompletionSource<int> _tcs;
+
+        EndPoint _remoteEpAny = new IPEndPoint(IPAddress.Any, 99);
+
         /// <summary>
         /// Read from the socket
         /// </summary>
         /// <param name="buffer">Read into a buffer</param>
         /// <param name="offset">Write start pos</param>
         /// <param name="length">Bytes to read</param>
+        /// <param name="remoteEp"></param>
+        /// <param name="blacklist"></param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns></returns>
-        public override async ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0)
+        public override async ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
             try
             {
+
                 //fail fast
                 if (!(Socket.IsBound) || Zeroed())
                     return 0;
@@ -214,35 +242,77 @@ namespace zero.core.network.ip
                 var read = 0;
                 if (timeout == 0)
                 {
-                    var readResult = Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _udpRemoteEndpointInfo);
-                    
-                    //slow path
-                    if (!readResult.IsCompletedSuccessfully)
-                        await readResult.ConfigureAwait(false);
-                    
-                    _udpRemoteEndpointInfo = readResult.Result.RemoteEndPoint;
-                    read = readResult.Result.ReceivedBytes;
+                    if (_fromAddress == null)
+                    {
+                        var _c = 0;
+                        Task<SocketReceiveFromResult> receiveTask;
+                        
+                        do
+                        {
 
-                    //Set the remote address
-                    if (RemoteNodeAddress == null)
-                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                            if (_c++ > 0)
+                            {
+                                
+                            }
+
+                            //receiveTask = Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, ref remoteEp);
+                            receiveTask = Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _remoteEpAny);
+
+                            //slow path
+                            if (!receiveTask.IsCompletedSuccessfully)
+                                await receiveTask.ConfigureAwait(false);
+
+                            read = receiveTask.Result.ReceivedBytes;
+                            remoteEp.Address = ((IPEndPoint) receiveTask.Result.RemoteEndPoint).Address;
+                            remoteEp.Port = ((IPEndPoint)receiveTask.Result.RemoteEndPoint).Port;
+
+                            ////Set the remote address
+                            //if (RemoteNodeAddress == null)
+                            //    RemoteNodeAddress =
+                            //        IoNodeAddress.CreateFromEndpoint("udp", receiveTask.Result.RemoteEndPoint);
+                            //else
+                            //    RemoteAddress.Update((IPEndPoint) receiveTask.Result.RemoteEndPoint);
+                        } while (blacklist != null && blacklist[((IPEndPoint)receiveTask.Result.RemoteEndPoint).Port] == 1);
+
+                    }
                     else
-                        RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+                    {
+                        var args = new SocketAsyncEventArgs();
+                        TaskCompletionSource<int> tcs = new TaskCompletionSource<int>();
+                        
+                        args.SetBuffer(buffer.Array, offset, length);
+                        args.RemoteEndPoint = _fromAddress.IpEndPoint;
+                        args.UserToken = tcs;
+
+                        args.Completed += (sender, eventArgs) =>
+                        {
+                            ((TaskCompletionSource<int>)eventArgs.UserToken)!.SetResult(eventArgs.BytesTransferred);
+                        };
+                        
+                        if (Socket.ReceiveFromAsync(args))
+                        {
+                            return await new ValueTask<int>(tcs.Task);
+                        }
+
+                        return args.BytesTransferred;
+
+                    }
                 }
                 else if (timeout > 0)
                 {
                     Socket.ReceiveTimeout = timeout;
-                    read = Socket.ReceiveFrom(buffer.Array!, offset, length, SocketFlags.None, ref _udpRemoteEndpointInfo );
+                    EndPoint remoteEpAny = null;
+                    read = Socket.ReceiveFrom(buffer.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
 
                     //Set the remote address
                     if (RemoteNodeAddress == null)
                     {
-                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", _udpRemoteEndpointInfo);
+                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEpAny);
                         //_udpRemoteEndpointInfo = Socket.RemoteEndPoint;
                         //RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", Socket.RemoteEndPoint);
                     }
                     else
-                        RemoteAddress.Update((IPEndPoint)_udpRemoteEndpointInfo);
+                        RemoteAddress.Update((IPEndPoint)remoteEpAny);
                     //RemoteAddress.Update((IPEndPoint)Socket.RemoteEndPoint);
                 }
                 return read;
@@ -271,12 +341,12 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return ListeningAddress?.IpEndPoint != null || _udpRemoteEndpointInfo != null || RemoteAddress != null;
+            return ListeningAddress?.IpEndPoint != null || RemoteAddress != null;
         }
 
-        public override object ExtraData()
-        {
-            return RemoteAddress?.IpEndPoint;
-        }
+        //public override object ExtraData()
+        //{
+        //    return RemoteAddress?.IpEndPoint;
+        //}
     }
 }

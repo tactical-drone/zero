@@ -15,16 +15,16 @@ namespace zero.cocoon.models.sources
 {
     public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>
     {
-        public IoCcProtocolBuffer(IIoSource ioSource,ArrayPool<Tuple<IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
+        public IoCcProtocolBuffer(IIoSource ioSource,ArrayPool<Tuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
             : base(prefetchSize, concurrencyLevel)//TODO config
         {
             Upstream = ioSource;
             ArrayPoolProxy = arrayPool;
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();
-            MessageQueue = new ConcurrentQueue<Tuple<IMessage, object, Packet>[]>();
+            MessageQueue = new ConcurrentQueue<Tuple<IIoZero, IMessage, object, Packet>[]>();
             
-            (_queuePressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", prefetchSize * concurrencyLevel, 0, false,  false, true));
+            (_queuePressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true));
         }
 
         /// <summary>
@@ -35,12 +35,12 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Shared heap
         /// </summary>
-        public ArrayPool<Tuple<IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
+        public ArrayPool<Tuple<IIoZero, IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
 
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected ConcurrentQueue<Tuple<IMessage, object, Packet>[]> MessageQueue;
+        protected ConcurrentQueue<Tuple<IIoZero, IMessage, object, Packet>[]> MessageQueue;
 
         /// <summary>
         /// Sync used to access the Q
@@ -116,7 +116,7 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public Task<bool> EnqueueAsync(Tuple<IMessage, object, Packet>[] item)
+        public Task<bool> EnqueueAsync(Tuple<IIoZero, IMessage, object, Packet>[] item)
         {
             try
             {
@@ -126,7 +126,7 @@ namespace zero.cocoon.models.sources
             }
             catch(Exception e)
             {
-                _logger.Trace(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
+                _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
                 return Task.FromResult(false);
             }
 
@@ -138,11 +138,11 @@ namespace zero.cocoon.models.sources
         /// Dequeue item
         /// </summary>
         /// <returns></returns>
-        public async Task<Tuple<IMessage, object, Packet>[]> DequeueAsync()
+        public async Task<Tuple<IIoZero, IMessage, object, Packet>[]> DequeueAsync()
         {
             try
             {
-                Tuple<IMessage, object, Packet>[] batch = null;
+                Tuple<IIoZero, IMessage, object, Packet>[] batch = null;
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
                     var checkQ = _queuePressure.WaitAsync();

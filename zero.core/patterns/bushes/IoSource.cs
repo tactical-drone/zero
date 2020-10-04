@@ -29,8 +29,8 @@ namespace zero.core.patterns.bushes
             
             //todo GENERALIZE
             (_pressure, _) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
-            (_backPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: prefetchSize, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
-            (_prefetchPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: prefetchSize, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:true));
+            (_backPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: 1, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
+            (_prefetchPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: 1, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:true));
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -43,7 +43,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A dictionary of downstream channels
         /// </summary>
-        protected ConcurrentDictionary<string, IIoChannel> IoChannels = new ConcurrentDictionary<string, IIoChannel>();
+        protected internal ConcurrentDictionary<string, IIoChannel> IoChannels = new ConcurrentDictionary<string, IIoChannel>();
 
         /// <summary>
         /// Keys this instance.
@@ -235,7 +235,7 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel = new IoChannel<TFJob>($"`channel({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
 
-                    ZeroEnsureAsync((s,d) =>
+                    ZeroAtomicAsync((s,d) =>
                     {
                         if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
                         return Task.FromResult(ZeroOnCascade(newChannel, cascade).success);
@@ -262,6 +262,19 @@ namespace zero.core.patterns.bushes
             catch { }
 
             return null;
+        }
+
+        /// <summary>
+        /// Sets a channel
+        /// </summary>
+        /// <typeparam name="TFJob"></typeparam>
+        /// <param name="id">The channel Id</param>
+        /// <param name="channel">The channel</param>
+        /// <returns>True if successful</returns>
+        public bool SetChannel<TFJob>(string id, IoChannel<TFJob> channel)
+            where TFJob : IoSink<TFJob>, IIoJob
+        {
+            return IoChannels.TryAdd(id, channel);
         }
 
         /// <summary>

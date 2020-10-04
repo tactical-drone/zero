@@ -59,7 +59,7 @@ namespace zero.core.patterns.misc
         /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        ValueTask<bool> ZeroEnsureAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false);
+        ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false);
         
         void ZeroUnmanaged();
         ValueTask ZeroManagedAsync();

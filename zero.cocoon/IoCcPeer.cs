@@ -127,6 +127,7 @@ namespace zero.cocoon
             await DetachNeighborAsync().ConfigureAwait(false);
             await Source.ZeroAsync(this).ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
+            _logger.Info($"Closing {Description}");
         }
 
         /// <summary>
@@ -161,9 +162,19 @@ namespace zero.cocoon
         /// </summary>
         public async Task DetachNeighborAsync()
         {
-            if(Neighbor != null)
-                await Neighbor.DetachPeerAsync().ConfigureAwait(false);
-            Neighbor = null;
+            IoCcNeighbor neighbor = null;
+
+            lock (this)
+            {
+                if (Neighbor != null)
+                {
+                    neighbor = Neighbor;
+                    Neighbor = null;
+                }
+            }
+
+            if(neighbor != null)
+                await neighbor.DetachPeerAsync().ConfigureAwait(false);
         }
 
         /// <summary>

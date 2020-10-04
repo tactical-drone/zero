@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -28,7 +27,7 @@ namespace zero.cocoon.models
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
+            _protocolMsgBatch = ArrayPool<Tuple<IIoZero, IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
 
             DatumSize = 508;
 
@@ -43,7 +42,7 @@ namespace zero.cocoon.models
                 IoCcProtocolBuffer channelSource = null;
 
                 //Transfer ownership
-                if (Source.ZeroEnsureAsync((s,d) =>
+                if (Source.ZeroAtomicAsync((s,d) =>
                 {
                     channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, parm_concurrency_level);
                     if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
@@ -113,12 +112,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_prefetch_size = 10;
+        [IoParameter] public int parm_prefetch_size = 0;
         
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_concurrency_level = 20;
+        [IoParameter] public int parm_concurrency_level = 64;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -206,6 +205,7 @@ namespace zero.cocoon.models
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
+        private readonly IPEndPoint _remoteEp = new IPEndPoint(IPAddress.Any, 0);
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
             IIoZero zeroClosure)
         {
@@ -228,17 +228,15 @@ namespace zero.cocoon.models
                         if (_this.Source.IsOperational)
                         {
                             int rx = 0;
-                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize);
 
-                            //slow path
-                            if (!readTask.IsCompletedSuccessfully)
-                                rx = await readTask.ConfigureAwait(false);
-                            else//fast path
-                                rx = readTask.Result;
+                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _remoteEp, ((IoUdpClient<IoCcPeerMessage>)_this.Source).BlackList);
+                            await readTask.OverBoostAsync().ConfigureAwait(false);
+
+                            rx = readTask.Result;
                             
                             //Success
                             //UDP signals source ip
-                            _this.ProducerExtraData = ((IoSocket) ioSocket).ExtraData();
+                            _this.ProducerExtraData = _remoteEp;
 
                             //Drop zero reads
                             if (rx == 0)
@@ -275,7 +273,7 @@ namespace zero.cocoon.models
 
                             _this.State = IoJobMeta.JobState.Produced;
 
-                            _this._logger.Trace($"RX=> {GetType().Name}[{_this.Id}] ({_this.Description}): read=`{_this.BytesRead}', ready=`{_this.BytesLeftToProcess}', datumcount=`{_this.DatumCount}', datumsize=`{_this.DatumSize}', fragment=`{_this.DatumFragmentLength}', buffer = `{_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}', buf = `{(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%'");
+                            _this._logger.Trace($"RX=> {GetType().Name}[{_this.Id}] ({_this.Description}): from = {((IoSocket)ioSocket).FfAddress}, read=`{_this.BytesRead}', ready=`{_this.BytesLeftToProcess}', datumcount=`{_this.DatumCount}', datumsize=`{_this.DatumSize}', fragment=`{_this.DatumFragmentLength}', buffer = `{_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}', buf = `{(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%'");
                         }
                         else
                         {
@@ -464,8 +462,8 @@ namespace zero.cocoon.models
 
                     //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
-                    packet.Type = packet.Data[0];
-                    _logger.Trace($"/{((IPEndPoint)ProducerExtraData).Port}<<{messageType ?? "Unknown"}[{(verified ? "signed" : "un-signed")}], id = {Id}, o = {_currBatch}, r = {BytesRead}, s = `{(IPEndPoint) ProducerExtraData}', d = {Source.Description}");
+                    //packet.Type = packet.Data[0];
+                    _logger.Trace($"/{((IPEndPoint)ProducerExtraData).Port} /> {((IoUdpClient<IoCcPeerMessage>)Source).Socket.LocalIpAndPort}<<{packet.Data.Memory.PayloadSig()}:{messageType ?? "Unknown"}[{(verified ? "signed" : "un-signed")}], id = {Id}, o = {_currBatch}, r = {BytesRead}, s = `{(IPEndPoint) ProducerExtraData}', d = {Source.Description}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
@@ -559,22 +557,21 @@ namespace zero.cocoon.models
                 if (request != null)
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
+                    IIoZero zero = null;
+                    if (((IoNetClient<IoCcPeerMessage>)Source).Socket.FfAddress != null)
+                        zero = IoZero;
 
-                    if (_currBatch < parm_max_msg_batch_size)
-                    {
-                        _protocolMsgBatch[_currBatch] = Tuple.Create((IMessage)request, ProducerExtraData, packet);
-                        Interlocked.Increment(ref _currBatch);
-                    }
-                    else
-                    {
+                    if (_currBatch >= parm_max_msg_batch_size)
                         await ForwardToNeighborAsync().ConfigureAwait(false);
-                        _protocolMsgBatch[_currBatch] = Tuple.Create((IMessage) request, ProducerExtraData, packet);
-                        Interlocked.Increment(ref _currBatch);
-                    }
+
+                    var remoteEp = (IPEndPoint) ProducerExtraData;
+                    _protocolMsgBatch[_currBatch] = Tuple.Create(zero, (IMessage)request, (object)IPEndPoint.Parse(remoteEp.ToString()), packet);
+                    Interlocked.Increment(ref _currBatch);
                 }
             }
-            catch (NullReferenceException)
+            catch (NullReferenceException e)
             {
+                _logger.Trace(e, Description);
             }
             catch (Exception e)
             {
@@ -593,7 +590,6 @@ namespace zero.cocoon.models
                 if (_currBatch < parm_max_msg_batch_size)
                 {
                     _protocolMsgBatch[_currBatch] = null;
-                    Interlocked.Increment(ref _currBatch);
                 }
                 
                 //cog the source
@@ -610,7 +606,7 @@ namespace zero.cocoon.models
                     //Retrieve batch buffer
                     try
                     {
-                        _this._protocolMsgBatch = ArrayPool<Tuple<IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
+                        _this._protocolMsgBatch = ArrayPool<Tuple<IIoZero, IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
                     }
                     catch (Exception e)
                     {
@@ -657,12 +653,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private volatile Tuple<IMessage, object, Packet>[] _protocolMsgBatch;
+        private volatile Tuple<IIoZero, IMessage, object, Packet>[] _protocolMsgBatch;
 
         /// <summary>
         /// message heap
         /// </summary>
-        private ArrayPool<Tuple<IMessage, object, Packet>> _arrayPool =
-            ArrayPool<Tuple<IMessage, object, Packet>>.Create();
+        private ArrayPool<Tuple<IIoZero, IMessage, object, Packet>> _arrayPool =
+            ArrayPool<Tuple<IIoZero, IMessage, object, Packet>>.Create();
     }
 }

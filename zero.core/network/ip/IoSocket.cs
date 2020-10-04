@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -36,12 +37,13 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socket">The listening socket</param>
         /// <param name="listeningAddress">The address listened on</param>
-        /// <param name="cancellationToken">Signals all blockers to cancel</param>
         protected IoSocket(Socket socket, IoNodeAddress listeningAddress)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Socket = socket;
             ListeningAddress = listeningAddress;
+            if(socket.RemoteEndPoint != null)
+                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(socket.ProtocolType.ToString().ToLower() ,socket.RemoteEndPoint);
         }
 
         /// <summary>
@@ -57,7 +59,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Keys this socket
         /// </summary>
-        public virtual string Key => RemoteAddress?.Key;
+        public virtual string Key => Kind == Connection.Listener? ListeningAddress.Key : RemoteAddress.Key;
 
         
         /// <summary>
@@ -99,6 +101,11 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
+        /// From address
+        /// </summary>
+        public virtual IoNodeAddress FfAddress { get; } = null;  
+
+        /// <summary>
         /// Socket 
         /// </summary>
         public enum Connection
@@ -132,7 +139,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Public access to remote port (used for logging)
         /// </summary>
-        public int RemotePort => Socket?.RemotePort() ?? ListeningAddress.IpEndPoint?.Port ?? ListeningAddress.Port;
+        public int RemotePort => Socket?.RemotePort() ?? RemoteAddress.Port;
 
         /// <summary>
         /// Returns the remote address as a string ip:port
@@ -322,8 +329,11 @@ namespace zero.core.network.ip
         /// <param name="buffer">The buffer to read into</param>
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
+        /// <param name="remoteEp"></param>
+        /// <param name="blacklist"></param>
+        /// <param name="timeout">Sync read with timout</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0);
+        public abstract ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, IPEndPoint remoteEp = null, byte[] blacklist = null, int timeout = 0);
 
         /// <summary>
         /// Connection status
@@ -336,7 +346,7 @@ namespace zero.core.network.ip
         /// Extra data made available to specific uses
         /// </summary>
         /// <returns>Some data</returns>
-        public abstract object ExtraData();
+        //public abstract object ExtraData();
 
     }
 }

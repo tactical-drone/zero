@@ -33,7 +33,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            RemoteNodeAddress = null;
+            
 #endif
         }
 
@@ -68,7 +68,8 @@ namespace zero.core.network.ip
         /// <param name="connectionHandler">A handler that is called once a new connection was formed</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler, Func<Task> bootstrapAsync = null)
+        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler,
+            Func<Task> bootstrapAsync = null)
         {
             if (!await base.ListenAsync(address, connectionHandler, bootstrapAsync).ConfigureAwait(false))
                 return false;
@@ -278,15 +279,18 @@ namespace zero.core.network.ip
         /// <param name="buffer">The buffer to read into</param>
         /// <param name="offset">The offset into the buffer</param>
         /// <param name="length">The maximum bytes to read into the buffer</param>
+        /// <param name="remoteEp"></param>
+        /// <param name="blacklist"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, int timeout = 0) //TODO can we go back to array buffers?
+        public override ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, IPEndPoint remoteEp = null,
+            byte[] blacklist = null, int timeout = 0) //TODO can we go back to array buffers?
         {
             try
             {
                 if (timeout == 0)
                 {
-                    return Socket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None,AsyncToken.Token);
+                    return Socket.ReceiveAsync(buffer.Slice(offset, length),  SocketFlags.None,AsyncToken.Token);
                 }
 
                 Socket.ReceiveTimeout = timeout;
@@ -300,9 +304,9 @@ namespace zero.core.network.ip
             {
 #if DEBUG
                 _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}");
-                _logger.Debug(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
-                //await ZeroAsync(this).ConfigureAwait(false);
 #endif
+                _logger.Debug(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
+                ZeroAsync(this).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -323,10 +327,10 @@ namespace zero.core.network.ip
             return (Socket?.IsBound ?? false) || (Socket?.Connected ?? false);
         }
 
-        public override object ExtraData()
-        {
-            return null;
-        }
+        //public override object ExtraData()
+        //{
+        //    return null;
+        //}
 
         /// <summary>
         /// Configures the socket

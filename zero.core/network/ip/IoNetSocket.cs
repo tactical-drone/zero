@@ -37,9 +37,9 @@ namespace zero.core.network.ip
                 if (_description == null && (ListeningAddress != null || LocalEndPoint != null))
                 {
                     if (Kind == Connection.Listener)
-                        return _description = $"`{ListeningAddress}'";
+                        return _description = $"`listener: {ListeningAddress}'";
                     else
-                        return _description = $"`<{ListeningAddress}><{LocalIpAndPort}>'";
+                        return _description = $"`socket: {Key}'";
                 }
                 
                 return _description;

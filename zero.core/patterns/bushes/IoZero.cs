@@ -297,12 +297,18 @@ namespace zero.core.patterns.bushes
                     IoSink<TJob> nextJob = null;
                     try
                     {
-                        //Allocate a job from the heap
-                        if (!Zeroed() && (nextJob = await JobHeap.TakeAsync(parms: (load,closure) =>
+                        var nextJobTask = JobHeap.TakeAsync(parms: (load, closure) =>
                         {
                             load.IoZero = (IIoZero) closure;
                             return new ValueTask<IoSink<TJob>>(load);
-                        }, this).ConfigureAwait(false)) != null) //TODO 
+                        }, this);
+
+                        await nextJobTask.OverBoostAsync().ConfigureAwait(false);
+                        
+                        nextJob = nextJobTask.Result;
+                        
+                        //Allocate a job from the heap
+                        if (!Zeroed() && nextJob != null) //TODO 
                         {
 
                             nextJob.State = IoJobMeta.JobState.Producing;
@@ -599,8 +605,7 @@ namespace zero.core.patterns.bushes
                         }
 
                         //wait...
-                        //_logger.Trace(
-                        //$"{GetType().Name}: Consumer `{Description}' [[ProducerPressure]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Trace($"{GetType().Name}: Consumer `{Description}' [[ProducerPressure]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                         await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncToken.Token).ConfigureAwait(false);
 
                         //Try again
