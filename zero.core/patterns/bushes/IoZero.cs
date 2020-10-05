@@ -188,7 +188,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
         public int parm_stats_mod_count = 10000;
 #else
-        public int parm_stats_mod_count = 100000;
+        public int parm_stats_mod_count = 10000;
 #endif
 
         /// <summary>
@@ -267,7 +267,7 @@ namespace zero.core.patterns.bushes
             _queue.ToList().ForEach(q => q.ZeroAsync(this).ConfigureAwait(false));
             _queue.Clear();
 
-            if (IsArbitrating || !Source.IsOperational)
+            //if (IsArbitrating || !Source.IsOperational)
             {
                 await Source.ZeroAsync(this).ConfigureAwait(false);
             }

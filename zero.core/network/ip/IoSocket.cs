@@ -1,14 +1,9 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.misc;
 using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
@@ -55,6 +50,11 @@ namespace zero.core.network.ip
         /// The underlying .net socket that is abstracted
         /// </summary>
         protected Socket Socket;
+
+        /// <summary>
+        /// The owner of the socket in case of a shared (udp) socket
+        /// </summary>
+        protected bool Shared;
 
         /// <summary>
         /// Keys this socket
@@ -280,8 +280,12 @@ namespace zero.core.network.ip
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            Socket.Dispose();
-
+            if (!Shared && NativeSocket.ProtocolType == ProtocolType.Udp)
+            {
+                _logger.Fatal($"{Description}, <=========================== z = {ZeroedFrom?.Description}");
+                Socket.Dispose();
+            }
+            
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
@@ -298,7 +302,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if(Socket.IsBound && Socket.Connected)
+                if(!Shared && Socket.IsBound && Socket.Connected)
                     Socket?.Shutdown(SocketShutdown.Both);
 
             }
@@ -307,7 +311,10 @@ namespace zero.core.network.ip
             {
                 _logger.Error(e,$"Socket shutdown returned with errors: {Description}");
             }
-            Socket?.Close();
+
+            if (!Shared)
+                Socket?.Close();
+
             await base.ZeroManagedAsync().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");
         }

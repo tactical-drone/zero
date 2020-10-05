@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -84,6 +85,16 @@ namespace zero.cocoon.identity
         public bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
         {
             return Ed25519.Verify(signature, sigOffset, pubKey, 0, msg, offset, len);
+        }
+
+        public override bool Equals(object? obj)
+        {
+            var id = obj as IoCcIdentity;
+
+            if (id == null)
+                throw new ArgumentNullException(nameof(obj));
+
+            return id == this || id.PublicKey.SequenceEqual(PublicKey);
         }
     }
 }

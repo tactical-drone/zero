@@ -117,7 +117,7 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < MaxClients * 0.75 && secondsSinceEnsured.UtDelta() > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
+                        if (Neighbors.Count < MaxClients * 0.9 && secondsSinceEnsured.UtDelta() > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
@@ -131,6 +131,10 @@ namespace zero.cocoon
                                 {
                                     await ((IoCcNeighbor)autoPeeringNeighbor).SendPeerRequestAsync().ConfigureAwait(false);
                                 }
+                                else
+                                {
+                                    ((IoCcNeighbor) autoPeeringNeighbor).State = IoCcNeighbor.NeighborState.Standby;
+                                }
                             }
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
@@ -138,7 +142,8 @@ namespace zero.cocoon
                                 if (Zeroed())
                                     break;
 
-                                await ((IoCcNeighbor)autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
+                                if( ((IoCcNeighbor)autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Standby)
+                                    await ((IoCcNeighbor)autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
                             }
                         }
                     }
@@ -710,10 +715,14 @@ namespace zero.cocoon
             {
                 foreach (var ioNodeAddress in BootstrapAddress)
                 {
-                    _logger.Debug($"{Description} Boostrapping from {ioNodeAddress}");
-                    if (!await DiscoveryService.LocalNeighbor.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
+                    if (!ioNodeAddress.Equals(_peerAddress))
                     {
-                        _logger.Fatal($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                        _logger.Debug($"{Description} Boostrapping from {ioNodeAddress}");
+                        if (!await DiscoveryService.LocalNeighbor.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
+                        {
+                            if(!DiscoveryService.LocalNeighbor.Zeroed())
+                                _logger.Trace($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                        }
                     }
                 }
             }

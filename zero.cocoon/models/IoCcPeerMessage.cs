@@ -44,7 +44,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (Source.ZeroAtomicAsync((s,d) =>
                 {
-                    channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, parm_concurrency_level);
+                    channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, 16);
                     if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
                         return Task.FromResult(Source.ZeroOnCascade(channelSource).success);
@@ -58,7 +58,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
-                        1, 1
+                        16, 16
                     );
 
                     //get reference to a central mempool
@@ -117,7 +117,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The amount of items that can be ready for production before blocking
         /// </summary>
-        [IoParameter] public int parm_concurrency_level = 64;
+        [IoParameter] public int parm_concurrency_level = 2;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -387,7 +387,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// CC Node
         /// </summary>
-        protected IoCcNode CcNode => ((IoCcNeighbor) IoZero).CcNode;
+        protected IoCcNode CcNode => ((IoCcNeighbor) IoZero)?.CcNode;
 
         /// <summary>
         /// Cc Identity

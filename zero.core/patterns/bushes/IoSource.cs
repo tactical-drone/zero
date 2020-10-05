@@ -22,15 +22,15 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(int prefetchSize, int concurrencyLevel)
+        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1)
         {
             PrefetchSize = prefetchSize;
             ConcurrencyLevel = concurrencyLevel;
             
             //todo GENERALIZE
             (_pressure, _) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
-            (_backPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: 1, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
-            (_prefetchPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: 1, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:true));
+            (_backPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
+            (_prefetchPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:true));
 
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -183,12 +183,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            //foreach (var objectStorageValue in ObjectStorage.Values)
-            //{
-            //    await ((IIoZeroable)objectStorageValue).ZeroAsync(this).ConfigureAwait(false);
-            //}
-
-
             _pressure.Zero();
             _backPressure.Zero();
             _prefetchPressure.Zero();

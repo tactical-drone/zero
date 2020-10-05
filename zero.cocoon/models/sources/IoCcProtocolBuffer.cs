@@ -25,6 +25,7 @@ namespace zero.cocoon.models.sources
             MessageQueue = new ConcurrentQueue<Tuple<IIoZero, IMessage, object, Packet>[]>();
             
             (_queuePressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true));
+            (_queueBackPressure, _) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, true));
         }
 
         /// <summary>
@@ -46,6 +47,11 @@ namespace zero.cocoon.models.sources
         /// Sync used to access the Q
         /// </summary>
         private IoZeroSemaphoreSlim _queuePressure;
+
+        /// <summary>
+        /// Sync used to access the Q
+        /// </summary>
+        private IoZeroSemaphoreSlim _queueBackPressure;
 
         /// <summary>
         /// Keys this instance.
@@ -96,6 +102,7 @@ namespace zero.cocoon.models.sources
 
 #if SAFE_RELEASE
             _queuePressure = null;
+            _queueBackPressure = null;
             MessageQueue = null;
             ArrayPoolProxy = null;
 #endif
@@ -108,6 +115,7 @@ namespace zero.cocoon.models.sources
         {
             MessageQueue.Clear();
             _queuePressure.Zero();
+            _queueBackPressure.Zero();
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
@@ -116,21 +124,32 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public Task<bool> EnqueueAsync(Tuple<IIoZero, IMessage, object, Packet>[] item)
+        public async Task<bool> EnqueueAsync(Tuple<IIoZero, IMessage, object, Packet>[] item)
         {
+            var backed = false;
             try
             {
-                //await _queueBackPressure.WaitAsync(AsyncTasks.Token).ConfigureAwait(false);
+                var backPressure = _queueBackPressure.WaitAsync();
+                backed = true;
+                await backPressure.OverBoostAsync().ConfigureAwait(false);
+
+                if (!backPressure.Result)
+                    return false;
+
                 MessageQueue.Enqueue(item);
+
                 _queuePressure.Release();
             }
             catch(Exception e)
             {
+                if(backed)
+                    _queueBackPressure.Release();
+
                 _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
-                return Task.FromResult(false);
+                return false;
             }
 
-            return Task.FromResult(true);
+            return true;
         }
 
 
@@ -147,6 +166,9 @@ namespace zero.cocoon.models.sources
                 {
                     var checkQ = _queuePressure.WaitAsync();
                     await checkQ.OverBoostAsync().ConfigureAwait(false);
+
+                    _queueBackPressure.Release();
+
                     if (!checkQ.Result)
                         break;
                 }

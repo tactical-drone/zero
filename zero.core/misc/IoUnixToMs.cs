@@ -45,7 +45,13 @@ namespace zero.core.misc
         {
             return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp;
         }
-        
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ElapsedMs(this long timestamp)
+        {
+            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
+        }
+
         /// <summary>
         /// Delta ticks
         /// </summary>

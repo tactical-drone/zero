@@ -206,7 +206,6 @@ namespace zero.core.network.ip
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
-
         /// <summary>
         /// Figures out the correct server to use from the url, <see cref="IoTcpServer"/> or <see cref="IoUdpServer"/>
         /// </summary>

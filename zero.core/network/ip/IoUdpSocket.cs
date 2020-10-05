@@ -39,6 +39,7 @@ namespace zero.core.network.ip
             if (_fromAddress != null)
             {
                 RemoteNodeAddress = _fromAddress;
+                Shared = true;
             }
         }
 
@@ -170,18 +171,21 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public override async ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint, int timeout = 0)
         {
-            //fail fast
-            if (!(Socket.IsBound) || Zeroed())
-                return 0;
-            
-            if (endPoint == null)
-            {
-                _logger.Fatal("No endpoint supplied!");
-                return 0;
-            }
-
             try
             {
+                //fail fast
+                if (Zeroed() || Socket == null || !(Socket.IsBound) )
+                {
+                    _logger.Error($"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom.Description} bound = {Socket?.IsBound}");
+                    return 0;
+                }
+
+                if (endPoint == null)
+                {
+                    _logger.Fatal("No endpoint supplied!");
+                    return 0;
+                }
+
                 var sendTask = Socket.SendToAsync(buffer, SocketFlags.None, endPoint);
                 
                 //slow path
@@ -190,14 +194,17 @@ namespace zero.core.network.ip
 
                 return sendTask.Result;
             }
-            catch (NullReferenceException e){_logger.Trace(e, Description);}
-            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
-            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
-            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            //catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            //catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            //catch (TaskCanceledException e) { _logger.Trace(e, Description); }
+            //catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
-                _logger.Trace(e, $"Sending to udp://{endPoint} failed");
-                await ZeroAsync(this).ConfigureAwait(false);
+                if (!Zeroed())
+                {
+                    _logger.Fatal(e, $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
+                    await ZeroAsync(this).ConfigureAwait(false);
+                }
             }
 
             return 0;
@@ -234,7 +241,6 @@ namespace zero.core.network.ip
         {
             try
             {
-
                 //fail fast
                 if (!(Socket.IsBound) || Zeroed())
                     return 0;
@@ -263,17 +269,11 @@ namespace zero.core.network.ip
                                 await receiveTask.ConfigureAwait(false);
 
                             read = receiveTask.Result.ReceivedBytes;
+
                             remoteEp.Address = ((IPEndPoint) receiveTask.Result.RemoteEndPoint).Address;
                             remoteEp.Port = ((IPEndPoint)receiveTask.Result.RemoteEndPoint).Port;
 
-                            ////Set the remote address
-                            //if (RemoteNodeAddress == null)
-                            //    RemoteNodeAddress =
-                            //        IoNodeAddress.CreateFromEndpoint("udp", receiveTask.Result.RemoteEndPoint);
-                            //else
-                            //    RemoteAddress.Update((IPEndPoint) receiveTask.Result.RemoteEndPoint);
                         } while (blacklist != null && blacklist[((IPEndPoint)receiveTask.Result.RemoteEndPoint).Port] == 1);
-
                     }
                     else
                     {
@@ -284,8 +284,11 @@ namespace zero.core.network.ip
                         args.RemoteEndPoint = _fromAddress.IpEndPoint;
                         args.UserToken = tcs;
 
+                        
                         args.Completed += (sender, eventArgs) =>
                         {
+                            remoteEp.Address = ((IPEndPoint)eventArgs.RemoteEndPoint)!.Address;
+                            remoteEp.Port = ((IPEndPoint)eventArgs.RemoteEndPoint)!.Port;
                             ((TaskCompletionSource<int>)eventArgs.UserToken)!.SetResult(eventArgs.BytesTransferred);
                         };
                         
@@ -304,6 +307,9 @@ namespace zero.core.network.ip
                     EndPoint remoteEpAny = null;
                     read = Socket.ReceiveFrom(buffer.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
 
+                    remoteEp.Address = ((IPEndPoint)remoteEpAny).Address;
+                    remoteEp.Port = ((IPEndPoint)remoteEpAny).Port;
+
                     //Set the remote address
                     if (RemoteNodeAddress == null)
                     {
@@ -317,20 +323,23 @@ namespace zero.core.network.ip
                 }
                 return read;
             }
-            catch (NullReferenceException e) {_logger.Trace(e,Description);}
-            catch (TaskCanceledException e)  {_logger.Trace(e,Description);}
-            catch (OperationCanceledException e) {_logger.Trace(e,Description);}
-            catch (ObjectDisposedException e) {_logger.Trace(e,Description);}
-            catch (SocketException e)
-            {
-                _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
-            }
+            //catch (NullReferenceException e) {_logger.Trace(e,Description);}
+            //catch (TaskCanceledException e)  {_logger.Trace(e,Description);}
+            //catch (OperationCanceledException e) {_logger.Trace(e,Description);}
+            //catch (ObjectDisposedException e) {_logger.Trace(e,Description);}
+            //catch (SocketException e)
+            //{
+            //    _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+            //}
             catch (Exception e)
             {
-                _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+                if (!Zeroed())
+                {
+                    _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+                    await ZeroAsync(this).ConfigureAwait(false);
+                }
             }
 
-            await ZeroAsync(this).ConfigureAwait(false);
             return 0;
         }
 

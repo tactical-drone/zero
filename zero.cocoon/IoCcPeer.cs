@@ -71,7 +71,7 @@ namespace zero.cocoon
             {
                 if (_description != null)
                     return _description;
-                return _description = $"`peer({Neighbor?.Direction}) {Id}'";
+                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source.IsOperational?"Connected":"Zombie")}) {Id}'";
             }
         }
 
@@ -124,10 +124,11 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            if((Neighbor?.ConnectedAtLeastOnce??false) && Source.IsOperational)
+                _logger.Info($"Closing {Description}, from {ZeroedFrom?.Description}");
+
             await DetachNeighborAsync().ConfigureAwait(false);
-            await Source.ZeroAsync(this).ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
-            _logger.Info($"Closing {Description}");
         }
 
         /// <summary>
