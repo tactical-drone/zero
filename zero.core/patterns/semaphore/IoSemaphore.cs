@@ -99,7 +99,7 @@ namespace zero.core.patterns.semaphore
             var dequeued = 0;
             // while (dequeued < count && _count < _maxCapacity && _signalAwaiters.TryDequeue(out var completionSource))
             // {
-            //     //await _csHeap.ReturnAsync(completionSource).ConfigureAwait(false);
+            //     //await _csHeap.Return(completionSource).ConfigureAwait(false);
             //     dequeued++;
             //     completionSource.SetResult(!AsyncTasks.IsCancellationRequested);
             //     Interlocked.Increment(ref _count);
@@ -136,7 +136,7 @@ namespace zero.core.patterns.semaphore
             if (Interlocked.Decrement(ref _count) > -1)
                 return TrueSentinel;
 
-//             var takeTask = _csHeap.TakeAsync(this);
+//             var takeTask = _csHeap.Take(this);
 //             
 //             await takeTask.OverBoostAsync().ConfigureAwait(false);
 //             
@@ -158,7 +158,7 @@ namespace zero.core.patterns.semaphore
                 //_signalAwaiters.Enqueue(waiter);
             }
 
-            //return await new ValueTask<bool>(waiter.Task);
+            //return await new ZeroBoost<bool>(waiter.Task);
             return new ValueTask<bool>(this, _token);
         }
         

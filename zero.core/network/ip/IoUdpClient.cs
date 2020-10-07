@@ -25,7 +25,10 @@ namespace zero.core.network.ip
         /// <param name="fromAddress">From address</param>
         public IoUdpClient(IoSocket remote, int prefetchSize, int concurrencyLevel, IoNodeAddress fromAddress = null) : base((IoNetSocket)remote, prefetchSize,  concurrencyLevel)
         {
-            IoSocket = new IoUdpSocket(remote.NativeSocket, remote.ListeningAddress, fromAddress);
+            IoSocket = ZeroOnCascade(new IoUdpSocket(remote.NativeSocket, remote.ListeningAddress, fromAddress), true).target;
+
+            if(fromAddress == null)
+                _blacklist = new byte[ushort.MaxValue];
         }
 
         /// <summary>
@@ -38,7 +41,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel">Concurrency level</param>
         public IoUdpClient(IoNodeAddress localAddress, int prefetchSize,  int concurrencyLevel) : base(localAddress, prefetchSize,  concurrencyLevel)
         {
-            _blacklist = new byte[ushort.MaxValue];
+            //_blacklist = new byte[ushort.MaxValue];
         }
 
         readonly byte[] _blacklist;
@@ -62,7 +65,7 @@ namespace zero.core.network.ip
 
         public override void Blacklist(int remoteAddressPort)
         {
-            _blacklist[remoteAddressPort] = 1;
+            _blacklist[remoteAddressPort] = 0;
         }
 
         public override void WhiteList(int remoteAddressPort)

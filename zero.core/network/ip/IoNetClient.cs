@@ -1,19 +1,37 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.core;
+using zero.core.models;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Wraps a <see cref="TcpClient"/> into a <see cref="IoSource{TJob}"/> that can be used by <see cref="IoZero{TJob}"/>
+    /// Used by clients to hold the <see cref="IoSocket"/> of a connection. Used by <see cref="IoNetServer{TJob}.ConnectAsync"/> and <see cref="IoNetServer{TJob}.ListenAsync"/>
+    /// to wrap a connection.
+    ///
+    /// Currently two flavors exist: <see cref="IoTcpClient{TJob}"/> & <see cref="IoUdpClient{TJob}"/>
+    ///
+    /// Generally:
+    /// 
+    /// Wraps a <see cref="IoSocket"/> into a <see cref="IoSource{TJob}"/> so that it can be used by
+    /// <see cref="IoZero{TJob}"/> to produce <see cref="IoJob{TJob}"/>s that are eventually terminated in
+    /// <see cref="IoSink{TJob}"/>s.
+    ///
+    /// The idea:
+    ///
+    /// Production that waits on consumer back pressure:
+    /// <see cref="IIoZero.AssimilateAsync"/> -> <see cref="IoZero{TJob}.ProduceAsync"/> -> <see cref="IIoSource.ProduceAsync"/> -> <see cref="IIoJob.ProduceAsync"/>
+    ///
+    /// Consumption that waits on producer pressure:
+    /// <see cref="IIoZero.AssimilateAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync"/> -> <see cref="IoSink{TJob}.ConsumeAsync"/>
+    ///
+    /// A Networked Node producer/consumer implementation's base blueprint:
+    /// <see cref="IoNode{TJob}.ConnectAsync"/> -> <see cref="IoNeighbor{TJob}.ConsumeAsync"/> -> <see cref="IoMessage{TJob}.ConsumeAsync"/>
+    /// 
     /// </summary>
     public abstract class IoNetClient<TJob> : IoSource<TJob>
     where TJob : IIoJob
@@ -27,7 +45,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel">Concurrency level</param>
         protected IoNetClient(IoSocket socket,int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
         {
-            (IoSocket, _) = ZeroOnCascade((IoNetSocket)socket, true);
+            IoSocket = ZeroOnCascade((IoNetSocket)socket, true).target;
 
             _logger = LogManager.GetCurrentClassLogger();
             ListeningAddress = IoSocket.ListeningAddress;

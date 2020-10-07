@@ -23,7 +23,7 @@ namespace zero.sync
     {
 
         private static ConcurrentBag<IoCcNode> _nodes = new ConcurrentBag<IoCcNode>();
-        private static volatile bool running;
+        private static volatile bool _running;
 
         static void Main(string[] args)
         {
@@ -37,7 +37,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 2000;
+            int total = 1000;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<IoCcNode>>();
             tasks.Add(CoCoonAsync(IoCcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}" }.ToList(), 0));
@@ -47,7 +47,7 @@ namespace zero.sync
             for (var i = 2; i < total; i++)
             {
                 //tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
-                tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15630 + portOffset + i - 2}", $"udp://127.0.0.1:{15630 + portOffset + total - i + 2}", $"udp://127.0.0.1:{15630 + portOffset + Math.Abs(total/2 - i + 2)%total}", $"udp://127.0.0.1:{15630 + portOffset + (total / 2 + i - 2) % total}" }.ToList(), i));
+                tasks.Add(CoCoonAsync(IoCcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15630 + portOffset + i - 2}", $"udp://127.0.0.1:{15630 + portOffset + total - i + 2}", $"udp://127.0.0.1:{15630 + portOffset + Math.Abs(total/2 - i + 2)%total}", $"udp://127.0.0.1:{15630 + portOffset + (total / 2 + i - 2) % total}", $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 2)}" }.ToList(), i));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
@@ -60,10 +60,16 @@ namespace zero.sync
                 {
                     task.Start();
                     c++;
-                    if (c % 40 == 0)
+                    if (c % 100 == 0)
                     {
                         Console.WriteLine($"Provisioned {c}/{total}...");
-                        await Task.Delay(3000).ConfigureAwait(false);
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+
+                        await Task.Delay(15000).ConfigureAwait(false);
                     }
                 }
 
@@ -94,7 +100,7 @@ namespace zero.sync
                 args.Cancel = true;
             };
 
-            running = true;
+            _running = true;
             var outBound = 0;
             var inBound = 0;
             var available = 0;
@@ -109,7 +115,7 @@ namespace zero.sync
                 long opeers = 0;
                 long peers = 0;
                 long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                while (running)
+                while (_running)
                 {
                     ooutBound = 0;
                     oinBound = 0;
@@ -123,7 +129,7 @@ namespace zero.sync
                         opeers += ioCcNode.Neighbors.Count;
                         ooutBound += ioCcNode.OutboundCount;
                         oinBound += ioCcNode.InboundCount;
-                        oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).RoutedRequest);
+                        oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).ConnectedLess);
                         if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
                             uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
                             {
@@ -172,7 +178,7 @@ namespace zero.sync
 
             Console.ReadLine();
 
-            running = false;
+            _running = false;
             //_nodes.ToList().ForEach(n => Task.Run(() => n.ZeroAsync(null)));
             //_nodes.Clear();
 
@@ -542,7 +548,7 @@ namespace zero.sync
 
         private static void Zero(int total)
         {
-            running = false;
+            _running = false;
             Console.WriteLine("#");
             SemaphoreSlim s = new SemaphoreSlim(10);
             int zeroed = 0;
@@ -613,7 +619,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 2,2);
+                0, 0, 1,1);
 
             _nodes.Add(cocoon);
 

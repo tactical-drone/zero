@@ -15,7 +15,7 @@ namespace zero.core.network.ip
 {
     /// <inheritdoc />
     /// <summary>
-    /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to make it host a server
+    /// A wrap for <see cref="T:zero.core.network.ip.IoSocket" /> to host a server for <see cref="IoNetClient{TJob}"/>s to connect to.
     /// </summary>
     public abstract class IoNetServer<TJob> : IoNanoprobe
     where TJob : IIoJob
@@ -118,6 +118,8 @@ namespace zero.core.network.ip
 
             if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
             {
+                return null;
+
                 //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
                 //if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 {
@@ -139,7 +141,8 @@ namespace zero.core.network.ip
                     if (ioNetClient.IsOperational)
                     {
                         //Ensure ownership
-                        if (!await ZeroAtomicAsync((s,d) => Task.FromResult(s.ZeroOnCascade(ioNetClient).success)).ConfigureAwait(false))
+                        var client = ioNetClient;
+                        if (!await ZeroAtomicAsync((s,d) => Task.FromResult(s.ZeroOnCascade(client).success)).ConfigureAwait(false))
                         {
                             _logger.Debug($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                             //REJECT
@@ -172,11 +175,11 @@ namespace zero.core.network.ip
                         _logger.Error($"{nameof(ConnectAsync)}: [FAILED], dest = {ioNetClient.ListeningAddress}");
 
                     ioNetClient = null;
+                }
 
-                    if (!_connectionAttempts.TryRemove(address.Key, out _))
-                    {
-                        _logger.Fatal($"Unable find existing connection {address.Key},");
-                    }
+                if (!_connectionAttempts.TryRemove(address.Key, out _))
+                {
+                    _logger.Fatal($"Unable find existing connection {address.Key},");
                 }
             }
 
@@ -211,16 +214,16 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="address"></param>
         /// <param name="bufferReadAheadSize"></param>
-        /// <param name="concurrenctyLevel"></param>
+        /// <param name="concurrencyLevel"></param>
         /// <returns></returns>
-        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int bufferReadAheadSize, int concurrenctyLevel)
+        public static IoNetServer<TJob> GetKindFromUrl(IoNodeAddress address, int bufferReadAheadSize, int concurrencyLevel)
         {
             if (address.Protocol() == ProtocolType.Tcp)
-                return new IoTcpServer<TJob>(address, bufferReadAheadSize, concurrenctyLevel);
+                return new IoTcpServer<TJob>(address, bufferReadAheadSize, concurrencyLevel);
 
 
             if (address.Protocol() == ProtocolType.Udp)
-                return new IoUdpServer<TJob>(address, bufferReadAheadSize, concurrenctyLevel);
+                return new IoUdpServer<TJob>(address, bufferReadAheadSize, concurrencyLevel);
 
             return null;
         }

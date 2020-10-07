@@ -364,7 +364,7 @@ namespace zero.core.patterns.misc
         ///  <param name="disposing">If disposing</param>
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>
-        /// public async ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable<TMutex>, Task<bool>>  ownershipAction, bool force = false)
+        /// public async ZeroBoost<bool> ZeroAtomicAsync(Func<IIoZeroable<TMutex>, Task<bool>>  ownershipAction, bool force = false)
         public async ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false)
         {
             try

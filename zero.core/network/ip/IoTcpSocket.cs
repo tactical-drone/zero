@@ -85,7 +85,7 @@ namespace zero.core.network.ip
             }
 
             //Configure the socket
-            ConfigureTcpSocket(Socket);
+            Configure();
 
             //Execute bootstrap
             if(bootstrapAsync!=null)
@@ -164,7 +164,7 @@ namespace zero.core.network.ip
             Socket.Blocking = false;
 
             //Configure the socket
-            ConfigureTcpSocket(Socket);
+            Configure();
 
             _sw.Restart();
             try
@@ -332,54 +332,5 @@ namespace zero.core.network.ip
         //    return null;
         //}
 
-        /// <summary>
-        /// Configures the socket
-        /// </summary>
-        /// <param name="tcpSocket"></param>
-        void ConfigureTcpSocket(Socket tcpSocket)
-        {
-            if (tcpSocket.IsBound || tcpSocket.Connected)
-            {
-                return;
-            }
-
-            // Don't allow another socket to bind to this port.
-            tcpSocket.ExclusiveAddressUse = true;
-
-            // The socket will linger for 10 seconds after
-            // Socket.Close is called.
-            tcpSocket.LingerState = new LingerOption(true, 10);
-
-            // Disable the Nagle Algorithm for this tcp socket.
-            tcpSocket.NoDelay = false;
-
-            // Set the receive buffer size to 32k
-            tcpSocket.ReceiveBufferSize = 8192 * 4;
-
-            // Set the timeout for synchronous receive methods to
-            // 1 second (1000 milliseconds.)
-            tcpSocket.ReceiveTimeout = 10000;
-
-            // Set the send buffer size to 8k.
-            tcpSocket.SendBufferSize = 8192 * 2;
-
-            // Set the timeout for synchronous send methods
-            // to 1 second (1000 milliseconds.)
-            tcpSocket.SendTimeout = 1000;
-
-            // Set the Time To Live (TTL) to 42 router hops.
-            tcpSocket.Ttl = 42;
-
-            _logger.Trace($"Tcp Socket configured: {Description}:" +
-                $"  ExclusiveAddressUse {tcpSocket.ExclusiveAddressUse}" +
-                $"  LingerState {tcpSocket.LingerState.Enabled}, {tcpSocket.LingerState.LingerTime}" +
-                $"  NoDelay {tcpSocket.NoDelay}" +
-                $"  ReceiveBufferSize {tcpSocket.ReceiveBufferSize}" +
-                $"  ReceiveTimeout {tcpSocket.ReceiveTimeout}" +
-                $"  SendBufferSize {tcpSocket.SendBufferSize}" +
-                $"  SendTimeout {tcpSocket.SendTimeout}" +
-                $"  Ttl {tcpSocket.Ttl}" +
-                $"  IsBound {tcpSocket.IsBound}");
-        }
     }
 }

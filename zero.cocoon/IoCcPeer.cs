@@ -20,7 +20,7 @@ namespace zero.cocoon
         /// <param name="ioNetClient">The peer transport carrier</param>
         public IoCcPeer(IoNode<IoCcGossipMessage> node, IoCcNeighbor neighbor,
             IoNetClient<IoCcGossipMessage> ioNetClient) 
-            : base(node, ioNetClient, userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.AddressString}", ioNetClient), 1,ioNetClient.ConcurrencyLevel)
+            : base(node, ioNetClient, userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.AddressString}", ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;

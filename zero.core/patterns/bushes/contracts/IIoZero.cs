@@ -11,7 +11,7 @@ namespace zero.core.patterns.bushes.contracts
     public interface IIoZero: IIoNanoprobe
     {
         IIoSource IoSource { get; }
-        public object IoJobHeap { get; }
+        //public object IoJobHeap { get; }
         bool IsArbitrating { get; }
 
         /// <summary>

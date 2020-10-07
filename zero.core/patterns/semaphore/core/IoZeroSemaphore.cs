@@ -172,10 +172,11 @@ namespace zero.core.patterns.semaphore.core
             _zeroRef = @ref;
             _zeroWait = new ValueTask<bool>(_zeroRef, 305);
             _asyncToken = asyncToken;
-            //_asyncTokenReg = asyncToken.Register(s =>
-            //{
-            //    ((IIoZeroSemaphore) s).Zero();
-            //}, _zeroRef);
+
+            _asyncTokenReg = asyncToken.Register(s =>
+            {
+                ((IIoZeroSemaphore)s).Zero();
+            }, _zeroRef);
         }
 
         /// <summary>
@@ -183,7 +184,10 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public void Zero()
         {
-            //_asyncTokenReg.Unregister();
+            if (!_asyncTokenReg.Unregister())
+            {
+
+            }
 
             for (var i = 0; i < _maxCount; i++)
             {

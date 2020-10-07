@@ -62,6 +62,24 @@ namespace zero.core.patterns.misc
             if (!task.IsCompletedSuccessfully)
                 await task.ConfigureAwait(false);
         }
-        
+
+        /// <summary>
+        /// Over boosts a ValueTask
+        /// </summary>
+        /// <param name="task">The value task to boost</param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static async ValueTask<T> ZeroBoost<T>(this ValueTask<T> task, [CallerMemberName] string memberName = "", bool oomCheck = false)
+        {
+            if (!task.IsCompletedSuccessfully)
+                await task.ConfigureAwait(false);
+
+            if (oomCheck && task.Result == null)
+                throw new OutOfMemoryException(memberName);
+
+            return task.Result;
+        }
+
     }    
 }

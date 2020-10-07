@@ -65,7 +65,6 @@ namespace zero.core.misc
                 else
                 {
                     Thread.Sleep(0);
-                    //LogManager.GetCurrentClassLogger().Fatal($"[{_description}:{_challenge.Count}] ============================================>>");
                     return Challenge(key, body);
                 }
             }
@@ -99,6 +98,19 @@ namespace zero.core.misc
         public bool Peek(string key)
         {
             return _challenge.ContainsKey(key);
+        }
+
+        /// <summary>
+        /// Dump challenges into target matcher
+        /// </summary>
+        /// <param name="target"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Dump(IoZeroMatcher<T> target)
+        {
+            foreach (var temporalValue in _challenge)
+            {
+                target._challenge.TryAdd(temporalValue.Key, temporalValue.Value);
+            }
         }
 
         /// <summary>

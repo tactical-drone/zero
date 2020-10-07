@@ -70,7 +70,6 @@ namespace zero.core.patterns.bushes
         {
             _description = description;
             
-            //JobHeap = ZeroOnCascade(new IoHeapIo<IoLoad<TJob>>(parm_max_q_size) { Make = mallocMessage }, true);
             JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
             Source = source;
@@ -125,11 +124,6 @@ namespace zero.core.patterns.bushes
         public IoHeapIo<IoSink<TJob>> JobHeap { get; protected set; }
 
         /// <summary>
-        /// Upstream reference to <see cref="JobHeap"/>
-        /// </summary>
-        public object IoJobHeap => JobHeap;
-
-        /// <summary>
         /// Description backing field
         /// </summary>
         private string _description;
@@ -171,7 +165,7 @@ namespace zero.core.patterns.bushes
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_max_q_size = 100;
+        public long parm_max_q_size = 10000; //TODO
 
         /// <summary>
         /// Time to wait for insert before complaining about it
@@ -263,14 +257,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            JobHeap.ZeroManaged();
 
             _queue.ToList().ForEach(q => q.ZeroAsync(this).ConfigureAwait(false));
             _queue.Clear();
-
-            //if (IsArbitrating || !Source.IsOperational)
-            {
-                await Source.ZeroAsync(this).ConfigureAwait(false);
-            }
 
             _previousJobFragment.ToList().ForEach(job => job.ZeroAsync(this).ConfigureAwait(false));
 
@@ -297,15 +287,12 @@ namespace zero.core.patterns.bushes
                     IoSink<TJob> nextJob = null;
                     try
                     {
-                        var nextJobTask = JobHeap.TakeAsync(parms: (load, closure) =>
+                        nextJob = await JobHeap.TakeAsync(parms: (load, closure) =>
                         {
                             load.IoZero = (IIoZero) closure;
                             return new ValueTask<IoSink<TJob>>(load);
-                        }, this);
+                        }, this).ZeroBoost().ConfigureAwait(false);
 
-                        await nextJobTask.OverBoostAsync().ConfigureAwait(false);
-                        
-                        nextJob = nextJobTask.Result;
                         
                         //Allocate a job from the heap
                         if (!Zeroed() && nextJob != null) //TODO 
@@ -425,7 +412,7 @@ namespace zero.core.patterns.bushes
                                     {
                                         //Free job
                                         nextJob.State = IoJobMeta.JobState.Reject;
-                                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                        nextJob = Free(nextJob, true);
                                         return false;
                                     }
                                     
@@ -447,7 +434,7 @@ namespace zero.core.patterns.bushes
 
                                         //Free job
                                         nextJob.State = IoJobMeta.JobState.Reject;
-                                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                        nextJob = Free(nextJob, true);
                                         IsArbitrating = false;
 
                                         //TEARDOWN
@@ -461,7 +448,7 @@ namespace zero.core.patterns.bushes
 
                                     //Free job
                                     nextJob.State = IoJobMeta.JobState.Reject;
-                                    nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                    nextJob = Free(nextJob, true);
 
                                     // Signal prefetch back pressure
                                     if (nextJob.Source.PrefetchEnabled  && enablePrefetchOption)
@@ -474,23 +461,32 @@ namespace zero.core.patterns.bushes
                         }
                         else
                         {
-                            //Are we in teardown?
-                            if (Zeroed()) return false;
+                            if (nextJob != null)
+                            {
+                                nextJob.State = IoJobMeta.JobState.ProdCancel;
+                                nextJob = Free(nextJob, true);
+                            }
                             
-                            _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!");
+                            //Are we in teardown?
+                            if (Zeroed())
+                            {
+                                return false;
+                            }
+
+                            _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.CurrentHeapSize}/{JobHeap.MaxSize}");
                             await Task.Delay(parm_error_timeout, AsyncToken.Token).ConfigureAwait(false);
                             return false;
                         }
                     }
-                    catch (NullReferenceException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
-                    catch (ObjectDisposedException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
-                    catch (TimeoutException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
-                    catch (TaskCanceledException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
-                    catch (OperationCanceledException) { nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false); }
+                    catch (NullReferenceException) { nextJob = Free(nextJob, true); }
+                    catch (ObjectDisposedException) { nextJob = Free(nextJob, true); }
+                    catch (TimeoutException) { nextJob = Free(nextJob, true); }
+                    catch (TaskCanceledException) { nextJob = Free(nextJob, true); }
+                    catch (OperationCanceledException) { nextJob = Free(nextJob, true); }
                     catch (Exception e)
                     {
                         _logger.Error(e, $"{GetType().Name}: Producing `{Description}' returned with errors:");
-                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                        nextJob = Free(nextJob, true);
                         return false;
                     }
                     finally
@@ -499,7 +495,7 @@ namespace zero.core.patterns.bushes
                         if (nextJob != null)
                         {
                             if(!(Zeroed() || nextJob.Zeroed()))
-                                _logger.Error($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed...");
+                                _logger.Error($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                             //TODO Double check this hack
                             if (nextJob.State != IoJobMeta.JobState.Finished)
@@ -508,7 +504,7 @@ namespace zero.core.patterns.bushes
                                 nextJob.State = IoJobMeta.JobState.Reject;
                             }
                             
-                            nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                            nextJob = Free(nextJob, true);
                         }
                     }
                 }
@@ -532,36 +528,45 @@ namespace zero.core.patterns.bushes
             }
             finally
             {
+
                 //_logger.Fatal($"{nameof(ProduceAsync)}: `{Description}' [EXIT]");
             }
 
             return false;
         }
 
-        private async Task<IoSink<TJob>> FreeAsync(IoSink<TJob> job, bool parent = false)
+        private IoSink<TJob> Free(IoSink<TJob> job, bool parent = false)
         {
-            if (job == null)
-                return null;
-
-            if (SupportsSync && job.PreviousJob != null)
+            try
             {
-#if DEBUG
-                if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
-                {
-                    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
-                }
-#endif
-                await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob).ConfigureAwait(false);
-                job.PreviousJob = null;
-                return null;
-            }
-            //else if (!parent && job.CurrentState.Previous.CurrentState == IoJobMeta.CurrentState.Accept)
-            //{
-            //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
-            //}
+                if (job == null)
+                    return null;
 
-            if(parent || !SupportsSync)
-                await JobHeap.ReturnAsync(job).ConfigureAwait(false);
+                if (SupportsSync && job.PreviousJob != null)
+                {
+#if DEBUG
+                    if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
+                    {
+                        _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
+                    }
+#endif
+                    JobHeap.Return((IoSink<TJob>)job.PreviousJob);
+                    job.PreviousJob = null;
+                    return null;
+                }
+                //else if (!parent && job.CurrentState.Previous.CurrentState == IoJobMeta.CurrentState.Accept)
+                //{
+                //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
+                //}
+
+                if(parent || !SupportsSync)
+                    JobHeap.Return(job);
+
+            }
+            catch (NullReferenceException e)
+            {
+                _logger.Trace(e,Description);
+            }
 
             return null;
         }
@@ -620,7 +625,8 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Consume the job
-                        if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed || curJob.State == IoJobMeta.JobState.ConInlined  &&
+                        if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
+                            curJob.State == IoJobMeta.JobState.ConInlined &&
                             !Zeroed())
                         {
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
@@ -629,7 +635,7 @@ namespace zero.core.patterns.bushes
                                 await inlineCallback(curJob, zeroClosure).ConfigureAwait(false);
                                 curJob.State = IoJobMeta.JobState.Consumed;
                             }
-                            
+
                             Source.BackPressure();
                         }
                         else if (!Zeroed() && !curJob.Zeroed() && !Source.Zeroed())
@@ -638,6 +644,10 @@ namespace zero.core.patterns.bushes
                                 $"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' was unsuccessful, state = {curJob.State}");
                             curJob.State = IoJobMeta.JobState.Error;
                         }
+                    }
+                    catch (TaskCanceledException e)
+                    {
+                        _logger.Trace(e, Description);
                     }
                     catch (NullReferenceException e)
                     {
@@ -678,7 +688,7 @@ namespace zero.core.patterns.bushes
                                 }
                             }
                                 
-                            curJob = await FreeAsync(curJob).ConfigureAwait(false);
+                            curJob = Free(curJob);
                         }
                         catch
                         {

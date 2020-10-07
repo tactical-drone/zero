@@ -33,7 +33,7 @@ namespace zero.core.patterns.heap
             try
             {
                 //Allocate memory
-                if ((next = await base.TakeAsync(userData).ConfigureAwait(false)) == null)
+                if ((next = Take(userData)) == null)
                     return null;
 
                 //Construct
@@ -49,7 +49,7 @@ namespace zero.core.patterns.heap
                     _logger.Trace($"Flushing `{GetType()}'");
 
                     //Return another item from the heap
-                    if ((next = (T)await base.TakeAsync(userData).ConfigureAwait(false)) == null)
+                    if ((next = (T)base.Take(userData)) == null)
                     {
                         _logger.Error($"`{GetType()}', unable to allocate memory");
                         return null;
@@ -68,7 +68,7 @@ namespace zero.core.patterns.heap
                 if (next != null)
                 {
                     _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                    await ReturnAsync((T)next).ConfigureAwait(false);
+                    Return((T)next);
                     return null;
                 }                    
                 else

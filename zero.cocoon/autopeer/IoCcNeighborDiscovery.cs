@@ -62,14 +62,9 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// zero unmanaged
         /// </summary>
-        public override async ValueTask ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
-            //foreach (var neighborsValue in Neighbors.Values)
-            //    await neighborsValue.ZeroAsync(this);
-
-            await LocalNeighbor.ZeroAsync(this);
-
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            return base.ZeroManagedAsync();
         }
 
         protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcPeerMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)

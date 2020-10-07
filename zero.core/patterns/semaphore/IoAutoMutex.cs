@@ -59,7 +59,7 @@ namespace zero.core.patterns.semaphore
             // if (_signalAwaiters.TryDequeue(out var toRelease))
             // {
             //     toRelease.TrySetResult(!AsyncTasks.IsCancellationRequested);
-            //     //await _csHeap.ReturnAsync(toRelease).ConfigureAwait(false);
+            //     //await _csHeap.Return(toRelease).ConfigureAwait(false);
             //     //await toRelease.ZeroAsync(this);
             // }
             // else
@@ -93,7 +93,7 @@ namespace zero.core.patterns.semaphore
             }
             else
             {
-                // var takeTask = _csHeap.TakeAsync(this);
+                // var takeTask = _csHeap.Take(this);
                 // await takeTask.OverBoostAsync().ConfigureAwait(false);
                 // waiter = takeTask.Result;
                 //waiter = ZeroOnCascade(new ZeroCompletionSource<bool>(true));
@@ -119,7 +119,7 @@ namespace zero.core.patterns.semaphore
                 return new ValueTask<bool>(this, _token);
             }
             
-            //return new ValueTask<bool>(waiter.Task);
+            //return new ZeroBoost<bool>(waiter.Task);
         }
 
         public int GetWaited()

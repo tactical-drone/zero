@@ -114,7 +114,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public ValueTask ZeroManagedAsync()
+        public void ZeroManaged()
         {
 
             try
@@ -127,8 +127,7 @@ namespace zero.core.patterns.heap
             }
             catch { }
 
-            //await base.ZeroManagedAsync().ConfigureAwait(false);
-            return ValueTask.CompletedTask;
+            //await base.ZeroManaged().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -136,11 +135,11 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        public ValueTask<T> TakeAsync(object userData = null)
+        public T Take(object userData = null)
         {
             try
             {
-//If the heap is empty
+                //If the heap is empty
                 if (!_buffer.TryTake(out var item))
                 {
                     //And we can allocate more heap space
@@ -149,17 +148,17 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref CurrentHeapSize);
                         Interlocked.Increment(ref ReferenceCount);
-                        return ValueTask.FromResult(Make(userData));
+                        return Make(userData);
                     }
                     else //we have run out of capacity
                     {
-                        return FromNullTask;
+                        return null;
                     }
                 }
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref ReferenceCount);
-                    return ValueTask.FromResult(item);
+                    return item;
                 }
             }
             catch (NullReferenceException) { }
@@ -168,7 +167,7 @@ namespace zero.core.patterns.heap
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
             }
 
-            return FromNullTask;
+            return null;
         }
 
         private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) default);
@@ -177,7 +176,7 @@ namespace zero.core.patterns.heap
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public ValueTask ReturnAsync(T item)
+        public void Return(T item)
         {
 #if DEBUG
             // if (item == null)
@@ -193,7 +192,6 @@ namespace zero.core.patterns.heap
             {
                 //await item.ZeroAsync(this).ConfigureAwait(false);
             }
-            return ValueTask.CompletedTask;
         }
 
         /// <summary>

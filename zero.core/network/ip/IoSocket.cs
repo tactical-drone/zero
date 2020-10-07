@@ -103,7 +103,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// From address
         /// </summary>
-        public virtual IoNodeAddress FfAddress { get; } = null;  
+        public virtual IoNodeAddress FfAddress { get; } = null;
 
         /// <summary>
         /// Socket 
@@ -282,7 +282,6 @@ namespace zero.core.network.ip
         {
             if (!Shared && NativeSocket.ProtocolType == ProtocolType.Udp)
             {
-                _logger.Fatal($"{Description}, <=========================== z = {ZeroedFrom?.Description}");
                 Socket.Dispose();
             }
             

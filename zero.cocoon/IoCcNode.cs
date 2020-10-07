@@ -122,7 +122,7 @@ namespace zero.cocoon
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).ConnectedLess && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
                             {
                                 if (Zeroed())
                                     break;
@@ -137,13 +137,21 @@ namespace zero.cocoon
                                 }
                             }
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).RoutedRequest && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
+                            var count = 0;
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Assimilated && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
                             {
                                 if (Zeroed())
                                     break;
 
                                 if( ((IoCcNeighbor)autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Standby)
                                     await ((IoCcNeighbor)autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
+
+                                count++;
+                            }
+
+                            if (count == 0)
+                            {
+                                await BootStrapAsync().ConfigureAwait(false);
                             }
                         }
                     }
@@ -621,7 +629,7 @@ namespace zero.cocoon
             if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
             {
                 var ccNeighbor = ((IoCcNeighbor) neighbor);
-                if (ccNeighbor.IsAutopeering && !ccNeighbor.IsPeerAttached)
+                if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
                     return peer.AttachNeighbor((IoCcNeighbor) neighbor, direction);
@@ -629,7 +637,7 @@ namespace zero.cocoon
                 else
                 {
                     _logger.Debug(
-                        $"{direction} handshake [REJECT] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.IsAutopeering}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
+                        $"{direction} handshake [REJECT] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
                     return false;
                 }
             }
@@ -650,7 +658,7 @@ namespace zero.cocoon
             //Validate
             if (
                     !Zeroed() && 
-                    neighbor.IsAutopeering &&
+                    neighbor.Assimilated &&
                     !neighbor.IsPeerConnected &&
                     OutboundCount < parm_max_outbound &&
                     //TODO add distance calc &&

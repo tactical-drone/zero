@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.market;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
@@ -90,6 +91,13 @@ namespace zero.core.core
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_max_neighbor_pc_threads = 3;
+
+        /// <summary>
+        /// Threads per neighbor
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_zombie_connect_time_threshold = 5;
 
         /// <summary>
         /// TCP read ahead
@@ -262,17 +270,23 @@ namespace zero.core.core
                 //We capture a local variable here as newNeighbor.Id disappears on zero
                 var id = newNeighbor.Id;
 
-                if (Neighbors.TryGetValue(newNeighbor.Id, out var staleNeighbor))
-                {
-                    if (Neighbors.TryRemove(staleNeighbor.Id, out _))
-                    {
-                        await staleNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                    }
+                //if (Neighbors.TryGetValue(newNeighbor.Id, out var staleNeighbor))
+                //{
+                //    if (staleNeighbor.Uptime.Elapsed() > parm_zombie_connect_time_threshold)
+                //    {
+                //        if (Neighbors.TryRemove(staleNeighbor.Id, out _))
+                //        {
+                //            await staleNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                //            _logger.Warn($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
+                //        }
+                //        else
+                //        {
+                //            return null;
+                //        }
+                //    }
+                //}
 
-                    _logger.Warn($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
-                }
-
-                Task<bool> OwnershipAction(IIoZeroable zeroable, bool b) => Task.FromResult(Neighbors.TryAdd(newNeighbor.Id, newNeighbor));
+                Task<bool> OwnershipAction(IIoZeroable z, bool b) => Task.FromResult(Neighbors.TryAdd(newNeighbor.Id, newNeighbor));
 
                 if (await ZeroAtomicAsync(OwnershipAction))
                 {
@@ -312,45 +326,45 @@ namespace zero.core.core
                     await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
                 }
 
-                if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
-                {
-                    //Is this a race condition? Between subbing and being zeroed out?
-                    newNeighbor.ZeroEvent(s =>
-                    {
-                        try
-                        {
-                            IoNeighbor<TJob> closedNeighbor = null;
-                            _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
-                                ? $"Neighbor metadata expected for key `{id}'"
-                                : $"Dropped {closedNeighbor.Description} from {Description}");
-                        }
-                        catch (NullReferenceException)
-                        {
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Debug(e, $"Failed to remove {newNeighbor.Description} from {Description}");
-                        }
+                //if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
+                //{
+                //    //Is this a race condition? Between subbing and being zeroed out?
+                //    newNeighbor.ZeroEvent(s =>
+                //    {
+                //        try
+                //        {
+                //            IoNeighbor<TJob> closedNeighbor = null;
+                //            _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
+                //                ? $"Neighbor metadata expected for key `{id}'"
+                //                : $"Dropped {closedNeighbor.Description} from {Description}");
+                //        }
+                //        catch (NullReferenceException)
+                //        {
+                //        }
+                //        catch (Exception e)
+                //        {
+                //            _logger.Debug(e, $"Failed to remove {newNeighbor.Description} from {Description}");
+                //        }
 
-                        return Task.CompletedTask;
-                    });
+                //        return Task.CompletedTask;
+                //    });
 
-                    //TODO
-                    newNeighbor.parm_producer_start_retry_time = 60000;
-                    newNeighbor.parm_consumer_wait_for_producer_timeout = 60000;
+                //    //TODO
+                //    newNeighbor.parm_producer_start_retry_time = 60000;
+                //    newNeighbor.parm_consumer_wait_for_producer_timeout = 60000;
 
 
-                    _logger.Debug($"Added {newNeighbor.Id}");
+                //    _logger.Debug($"Added {newNeighbor.Id}");
 
-                    //ConnectedEvent?.Invoke(this, newNeighbor);
+                //    //ConnectedEvent?.Invoke(this, newNeighbor);
 
-                    return newNeighbor;
-                }
-                else //strange case
-                {
-                    _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                }
+                //    return newNeighbor;
+                //}
+                //else //strange case
+                //{
+                //    _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
+                //    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                //}
             }
 
             return null;

@@ -44,7 +44,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (Source.ZeroAtomicAsync((s,d) =>
                 {
-                    channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, 16);
+                    channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, 32);
                     if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
                         return Task.FromResult(Source.ZeroOnCascade(channelSource).success);
@@ -58,7 +58,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
-                        16, 16
+                        1, 1
                     );
 
                     //get reference to a central mempool
@@ -409,6 +409,10 @@ namespace zero.cocoon.models
                 var verified = false;
                 for (var i = 0; i <= DatumCount && BytesLeftToProcess > 0; i++)
                 {
+                    if (DatumCount > 1)
+                    {
+                        _logger.Fatal($"{Description} ----> Datumcount = {DatumCount}");
+                    }
                     Packet packet = null;
                     var read = stream.Position;
 
@@ -419,7 +423,19 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e, Description);
+                        read = stream.Position - read;
+                        var tmpBufferOffset = BufferOffset;
+                        Interlocked.Add(ref BufferOffset, (int)read);
+
+                        if(!Zeroed() && !Source.Zeroed())
+                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset -2 , 32).ToArray().HashSig()}, {Description}");
+
+                        if (read > 0)
+                        {
+                            continue;
+                        }
+                        else
+                            break;
                     }
 
                     //did we get anything?
@@ -558,8 +574,8 @@ namespace zero.cocoon.models
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
                     IIoZero zero = null;
-                    if (((IoNetClient<IoCcPeerMessage>)Source).Socket.FfAddress != null)
-                        zero = IoZero;
+                    //if (((IoNetClient<IoCcPeerMessage>)Source).Socket.FfAddress != null)
+                    //    zero = IoZero;
 
                     if (_currBatch >= parm_max_msg_batch_size)
                         await ForwardToNeighborAsync().ConfigureAwait(false);

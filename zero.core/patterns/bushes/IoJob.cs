@@ -125,15 +125,15 @@ namespace zero.core.patterns.bushes
                 {
                     var r = c;
                     c = c.Repeat;
-                    //await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
-                    _stateHeap.ReturnAsync(r).ConfigureAwait(false);
+                    //await _stateHeap.Return(r).ConfigureAwait(false);
+                    _stateHeap.Return(r);
                 }
             }
 
 
             if (_stateMeta != null)
             {
-                _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
+                _stateHeap.Return(_stateMeta);
                 _stateMeta = null;
             }
 
@@ -186,7 +186,7 @@ namespace zero.core.patterns.bushes
         public override async ValueTask ZeroManagedAsync()
         {
 #if DEBUG
-            await _stateHeap.ReturnAsync(_stateMeta).ConfigureAwait(false);
+            _stateHeap.Return(_stateMeta);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
             // await _stateHeap.ZeroAsync(this).ConfigureAwait(false); //TODO
 #endif
