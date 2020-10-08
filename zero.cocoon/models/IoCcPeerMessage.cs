@@ -51,7 +51,7 @@ namespace zero.cocoon.models
                     }
 
                     return Task.FromResult(false);
-                }).ConfigureAwait(false).GetAwaiter().GetResult())
+                }).ZeroBoostAsync().ConfigureAwait(false).GetAwaiter().GetResult())
                 {
                     ProtocolChannel = MessageService.EnsureChannel(
                         nameof(IoCcNeighbor),
@@ -61,7 +61,7 @@ namespace zero.cocoon.models
                         Source.ConcurrencyLevel, Source.ConcurrencyLevel
                     );
 
-                    //get reference to a central mempool
+                    //get reference to a central mem pool
                     _arrayPool = ((IoCcProtocolBuffer) ProtocolChannel.Source).ArrayPoolProxy;
                 }
                 else

@@ -227,7 +227,7 @@ namespace zero.core.patterns.bushes
                     {
                         if (!IoChannels.TryAdd(id, newChannel)) return Task.FromResult(false);
                         return Task.FromResult(ZeroOnCascade(newChannel, cascade).success);
-                    }).ConfigureAwait(false).GetAwaiter().GetResult();
+                    }).ZeroBoostAsync().ConfigureAwait(false).GetAwaiter().GetResult();
                 }
             }
 

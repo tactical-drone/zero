@@ -71,7 +71,7 @@ namespace zero.cocoon
             {
                 //if (_description != null)
                 //    return _description;
-                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source.IsOperational?"Connected":"Zombie")}) {Key}'";
+                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
             }
         }
 
@@ -85,19 +85,10 @@ namespace zero.cocoon
         /// </summary>
         public IoCcNeighbor Neighbor { get; private set; }
 
-        private string _id;
         /// <summary>
         /// CcId
         /// </summary>
-        public override string Key
-        {
-            get
-            {
-                if (_id != null)
-                    return _id;
-                return _id = Neighbor?.Key ?? "null";
-            }
-        }
+        public override string Key => Neighbor?.Key ?? "null";
 
         /// <summary>
         /// Used for testing
@@ -109,6 +100,9 @@ namespace zero.cocoon
         /// </summary>
         protected IoNetClient<IoCcGossipMessage> IoNetClient;
 
+        /// <summary>
+        /// 
+        /// </summary>
         private long _isTesting = 0;
 
         /// <summary>
@@ -120,7 +114,6 @@ namespace zero.cocoon
 #if SAFE_RELEASE
             IoNetClient = null;
             Neighbor = null;
-            
 #endif
         }
 
@@ -130,7 +123,7 @@ namespace zero.cocoon
         public override async ValueTask ZeroManagedAsync()
         {
             if((Neighbor?.ConnectedAtLeastOnce??false) && Source.IsOperational)
-                _logger.Info($"Closing {Description}, from {ZeroedFrom?.Description}");
+                _logger.Info($"- {Description}, from {ZeroedFrom?.Description}");
 
             await DetachNeighborAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
@@ -188,28 +181,35 @@ namespace zero.cocoon
         /// </summary>
         public async Task StartTestModeAsync()
         {
-            if (Interlocked.Read(ref ((IoCcNode) Node).Testing) == 0)
-                return;
-
-            if (Interlocked.Read(ref _isTesting) > 0)
-                return;
-
-            if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
-                return;
-            
-            if (Neighbor?.Direction == IoCcNeighbor.Kind.OutBound)
+            try
             {
-                long v = 0;
-                var vb = new byte[8];
-                Write(vb.AsSpan(), ref v);
+                if (Interlocked.Read(ref ((IoCcNode) Node).Testing) == 0)
+                    return;
 
-                if (!Zeroed())
+                if (Interlocked.Read(ref _isTesting) > 0)
+                    return;
+
+                if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
+                    return;
+            
+                if (Neighbor?.Direction == IoCcNeighbor.Kind.OutBound)
                 {
-                    if (await((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                    long v = 0;
+                    var vb = new byte[8];
+                    Write(vb.AsSpan(), ref v);
+
+                    if (!Zeroed())
                     {
-                        Interlocked.Increment(ref AccountingBit);
+                        if (await((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                        {
+                            Interlocked.Increment(ref AccountingBit);
+                        }
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e,Description);
             }
         }
     }

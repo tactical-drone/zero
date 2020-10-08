@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
 {
@@ -33,6 +35,9 @@ namespace zero.core.patterns.misc
             Uptime = default;
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncToken = new CancellationTokenSource();
+
+            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 9);
+            _nanoMutex.ZeroRef(ref _nanoMutex, AsyncToken.Token);
         }
 
         /// <summary>
@@ -73,7 +78,8 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Sync root
         /// </summary>
-        private object _zeroMutex = 305;
+        //private object _nanoMutex = 305;
+        private IIoZeroSemaphore _nanoMutex;
 
         /// <summary>
         /// Who zeroed this object
@@ -336,7 +342,7 @@ namespace zero.core.patterns.misc
                 _logger = null;
 
                 return true;
-            }, disposing, true).ConfigureAwait(false);
+            }, disposing, true).ZeroBoostAsync().ConfigureAwait(false);
         }
 
         
@@ -375,9 +381,10 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    if (!force && _zeroMutex != null)
+                    if (!force && _nanoMutex != null)
                     {
-                        lock (_zeroMutex)
+                        //lock (_nanoMutex)
+                        if(await _nanoMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
                         {
                             try
                             {
@@ -386,8 +393,13 @@ namespace zero.core.patterns.misc
                             }
                             catch (Exception e)
                             {
-                                _logger.Error(e,$"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+                                _logger.Error(e,
+                                    $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
                                 return false;
+                            }
+                            finally
+                            {
+                                _nanoMutex.Release();
                             }
                         }
                     }
@@ -396,23 +408,21 @@ namespace zero.core.patterns.misc
                         return (_zeroed == 0 || force) && 
                                await ownershipAction(this, disposing).ConfigureAwait(false);
                     }
-                    
                 }
                 catch
                 {
-                    return false;
+                    // ignored
                 }
             }
             catch (NullReferenceException e)
             {
                 _logger.Trace(e);
-                return false;
             }
             catch (Exception e)
             {
                 _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
-                return false;
             }
+            return false;
         }
 
         public bool Equals(IIoZeroable other)

@@ -213,13 +213,13 @@ namespace zero.core.core
                                 return Task.CompletedTask;
                             });
                             return Task.FromResult(true);
-                        }).ConfigureAwait(false);
+                        }).ZeroBoostAsync().ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
                     catch (TaskCanceledException) { return false; }
                     catch (OperationCanceledException) { return false; }
                     catch (ObjectDisposedException) { return false; }
-                }).ConfigureAwait(false))
+                }).ZeroBoostAsync().ConfigureAwait(false))
                 {
                     //New peer connection event
                     //ConnectedEvent?.Invoke(this, newNeighbor);

@@ -60,7 +60,7 @@ namespace zero.sync
                 {
                     task.Start();
                     c++;
-                    if (c % 100 == 0)
+                    if (c % 150 == 0)
                     {
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -129,7 +129,7 @@ namespace zero.sync
                         opeers += ioCcNode.Neighbors.Count;
                         ooutBound += ioCcNode.OutboundCount;
                         oinBound += ioCcNode.InboundCount;
-                        oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).ConnectedLess);
+                        oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).Proxy);
                         if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
                             uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
                             {
@@ -619,7 +619,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 2,1);
+                0, 0, 4,1);
 
             _nodes.Add(cocoon);
 
