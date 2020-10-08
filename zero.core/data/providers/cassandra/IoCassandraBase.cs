@@ -110,7 +110,7 @@ namespace zero.core.data.providers.cassandra
                         
             _cluster = Cluster.Builder().AddContactPoint(_clusterAddress.IpEndPoint).Build();            
 
-            _logger.Debug("Connecting to Cassandra...");
+            _logger.Trace("Connecting to Cassandra...");
 
             try
             {

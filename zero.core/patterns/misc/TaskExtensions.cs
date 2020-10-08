@@ -70,7 +70,7 @@ namespace zero.core.patterns.misc
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static async ValueTask<T> ZeroBoost<T>(this ValueTask<T> task, [CallerMemberName] string memberName = "", bool oomCheck = false)
+        public static async ValueTask<T> ZeroBoostAsync<T>(this ValueTask<T> task, [CallerMemberName] string memberName = "", bool oomCheck = false)
         {
             if (!task.IsCompletedSuccessfully)
                 await task.ConfigureAwait(false);

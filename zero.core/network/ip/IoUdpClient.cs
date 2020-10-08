@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Net;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using zero.core.patterns.bushes;
@@ -15,36 +17,32 @@ namespace zero.core.network.ip
         
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoUdpClient{TJob}"/> class.
-        /// 
-        /// Used by listener
-        /// </summary>
-        /// <param name="remote">The udp client to be wrapped</param>
-        /// <param name="prefetchSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        /// <param name="concurrencyLevel">Concurrency level</param>
-        /// <param name="fromAddress">From address</param>
-        public IoUdpClient(IoSocket remote, int prefetchSize, int concurrencyLevel, IoNodeAddress fromAddress = null) : base((IoNetSocket)remote, prefetchSize,  concurrencyLevel)
-        {
-            IoSocket = ZeroOnCascade(new IoUdpSocket(remote.NativeSocket, remote.ListeningAddress, fromAddress), true).target;
+        ///// Used by listeners
+        ///// </summary>
+        ///// <param name="proxy">The proxy to steel a <see cref="System.Net.Sockets.Socket"/> from</param>
+        ///// <param name="endPoint"></param>
+        //public IoUdpClient(IoNetClient<TJob> proxy, IPEndPoint endPoint) : base(new IoUdpSocket(proxy.IoNetSocket.NativeSocket, endPoint), proxy.PrefetchSize, proxy.ConcurrencyLevel)
+        //{
+            
+        //}
 
-            if(fromAddress == null)
-                _blacklist = new byte[ushort.MaxValue];
+        public IoUdpClient(int readAheadBufferSize, int concurrencyLevel) : base(readAheadBufferSize, concurrencyLevel)
+        {
+
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="IoUdpClient{TJob}"/> class.
-        /// 
-        /// Needed to connect
-        /// </summary>
-        /// <param name="localAddress">The address associated with this network client</param>
-        /// <param name="prefetchSize">The amount of socket reads the producer is allowed to lead the consumer</param>
-        /// <param name="concurrencyLevel">Concurrency level</param>
-        public IoUdpClient(IoNodeAddress localAddress, int prefetchSize,  int concurrencyLevel) : base(localAddress, prefetchSize,  concurrencyLevel)
+        public IoUdpClient(IoSocket ioSocket, int readAheadBufferSize, int concurrencyLevel) : base(new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305)), readAheadBufferSize, concurrencyLevel)
         {
-            //_blacklist = new byte[ushort.MaxValue];
+            
         }
+
 
         readonly byte[] _blacklist;
+
+        public IoUdpClient(IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp), clone.PrefetchSize, clone.ConcurrencyLevel)
+        {
+
+        }
 
         /// <summary>
         /// current blacklist
@@ -57,10 +55,10 @@ namespace zero.core.network.ip
         /// <returns>
         /// True if succeeded, false otherwise
         /// </returns>
-        public override async Task<bool> ConnectAsync()
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            (IoSocket,_) = ZeroOnCascade(new IoUdpSocket(), true);
-            return await base.ConnectAsync().ConfigureAwait(false);
+            IoNetSocket = ZeroOnCascade(new IoUdpSocket(), true).target;
+            return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
         }
 
         public override void Blacklist(int remoteAddressPort)

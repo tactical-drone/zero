@@ -10,9 +10,9 @@ namespace zero.core.network.ip
     public static class IoSocketExtensions
     {
         /// <summary>
-        /// Returns the local address from a socket
+        /// Returns the local address from a dotNetSocket
         /// </summary>
-        /// <param name="socket">The socket.</param>
+        /// <param name="socket">The dotNetSocket.</param>
         /// <returns>The local address</returns>
         public static IPAddress LocalAddress(this Socket socket)
         {
@@ -30,9 +30,9 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Returns the local port from a socket
+        /// Returns the local port from a dotNetSocket
         /// </summary>
-        /// <param name="socket">The socket.</param>
+        /// <param name="socket">The dotNetSocket.</param>
         /// <returns></returns>
         public static int LocalPort(this Socket socket)
         {
@@ -49,9 +49,9 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Returns the remote address from a socket
+        /// Returns the remote address from a dotNetSocket
         /// </summary>
-        /// <param name="socket">The socket.</param>
+        /// <param name="socket">The dotNetSocket.</param>
         /// <returns>The remote address</returns>
         public static IPAddress RemoteAddress(this Socket socket)
         {
@@ -59,13 +59,13 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Returns the remote port from a socket
+        /// Returns the remote port from a dotNetSocket
         /// </summary>
-        /// <param name="socket">The socket.</param>
+        /// <param name="socket">The dotNetSocket.</param>
         /// <returns>The remote port</returns>
         public static int RemotePort(this Socket socket)
         {
-            //if (socket.ProtocolType == ProtocolType.Tcp)
+            //if (dotNetSocket.ProtocolType == ProtocolType.Tcp)
             //return 0;
             return ((IPEndPoint)socket.RemoteEndPoint)?.Port ?? 0;
         }
@@ -74,13 +74,13 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns remote endpoint as <see cref="IoNodeAddress"/>
         /// </summary>
-        /// <param name="socket">The socket</param>
+        /// <param name="socket">The dotNetSocket</param>
         /// <returns>The <see cref="IoNodeAddress"/></returns>
         public static IoNodeAddress RemoteNodeAddress(this Socket socket)
         {
             if (socket.IsBound && socket.Connected)
             {
-                return IoNodeAddress.CreateFromEndpoint($"{(socket.SocketType==SocketType.Dgram?"udp":"tcp")}", socket.RemoteEndPoint);
+                return IoNodeAddress.CreateFromEndpoint($"{(socket.SocketType==SocketType.Dgram?"udp":"tcp")}", (IPEndPoint) socket.RemoteEndPoint);
             }
 
             return null;

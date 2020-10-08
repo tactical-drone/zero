@@ -25,19 +25,17 @@ namespace zero.core.network.ip
         /// <param name="remote">The tcp client to be wrapped</param>
         /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        public IoTcpClient(IoSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base((IoNetSocket) remote, prefetchSize,  concurrencyLevel)
+        public IoTcpClient(IoNetSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base(remote, prefetchSize,  concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
+        /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class. Used in combination with <see cref="ConnectAsync"/>
         /// </summary>
-        /// <param name="localAddress">The address associated with this network client</param>
         /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        public IoTcpClient(IoNodeAddress localAddress, int prefetchSize,  int concurrencyLevel) : base(localAddress,
-            prefetchSize,  concurrencyLevel)
+        public IoTcpClient(int prefetchSize,  int concurrencyLevel) : base(prefetchSize,  concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -48,10 +46,10 @@ namespace zero.core.network.ip
         /// <returns>
         /// True if succeeded, false otherwise
         /// </returns>
-        public override async Task<bool> ConnectAsync()
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            (IoSocket,_) = ZeroOnCascade(new IoTcpSocket(), true);
-            return await base.ConnectAsync().ConfigureAwait(false);
+            IoNetSocket = ZeroOnCascade(new IoTcpSocket(), true).target;
+            return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -62,8 +60,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            IoSocket = null;
-            ListeningAddress = null;
+            IoNetSocket = null;
             IoChannels = null;
 #endif
 

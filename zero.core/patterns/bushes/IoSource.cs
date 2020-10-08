@@ -52,16 +52,10 @@ namespace zero.core.patterns.bushes
         public abstract string Key { get; }
 
         /// <summary>
-        /// Description used as a key
-        /// </summary>
-        public abstract string SourceUri { get; }
-
-        /// <summary>
         /// Sets an upstream source
         /// </summary>
         public IIoSource Upstream { get; protected set; }
         
-
         /// <summary>
         /// Counters for <see cref="IoJobMeta.JobState"/>
         /// </summary>
@@ -221,7 +215,7 @@ namespace zero.core.patterns.bushes
             {
                 if (channelSource == null || jobMalloc == null)
                 {
-                    _logger.Debug($"Waiting for channel {id} in {Description} to initialize...");
+                    _logger.Trace($"Waiting for channel {id} in {Description} to initialize...");
                     return null;
                 }
 

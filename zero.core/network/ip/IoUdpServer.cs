@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
@@ -36,45 +37,52 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAheadBufferSize"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, Func<Task> bootstrapAsync = null)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction,
+            Func<Task> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).ConfigureAwait(false);
 
-            (IoListenSocket,_) = ZeroOnCascade(new IoUdpSocket());
-
-            await IoListenSocket.ListenAsync(ListeningAddress, async ioSocket =>
+            while (!Zeroed())
             {
-                try
-                {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).Item1);
-                }
-                catch (Exception e)
-                {
-                    _logger.Error(e, $"Connection received handler returned with errors:");
+                //Creates a listening socket
+                IoListenSocket = ZeroOnCascade(new IoUdpSocket()).target;
 
-                    await ioSocket.ZeroAsync(this).ConfigureAwait(false);
+                await IoListenSocket.ListenAsync(ListeningAddress, async ioSocket =>
+                {
+                    try
+                    { //creates a new udp client
+                        connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, $"Accept udp connection failed: {Description}");
 
-                }
-            }, bootstrapAsync).ConfigureAwait(false);
+                        await ioSocket.ZeroAsync(this).ConfigureAwait(false);
+                    }
+                }, bootstrapAsync).ConfigureAwait(false);
+
+                _logger.Warn($"Listener stopped, restarting: {Description}");
+
+                await IoListenSocket.ZeroAsync(this).ConfigureAwait(false);
+            }
         }
 
         /// <inheritdoc />
         /// <summary>
-        /// Connects the asynchronous.
+        /// Opens a client.
         /// </summary>
-        /// <param name="address">The address.</param>
+        /// <param name="remoteAddress">The address.</param>
         /// <param name="_">The .</param>
         /// <returns>The udp client object managing this socket connection</returns>
-        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
+        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _)
         {
             //ZEROd later on inside net server once we know the connection succeeded
-            var ioUdpClient = new IoUdpClient<TJob>(address, ReadAheadBufferSize, ConcurrencyLevel);
-            return await base.ConnectAsync(address, ioUdpClient).ConfigureAwait(false);
+            var ioUdpClient = new IoUdpClient<TJob>(ReadAheadBufferSize, ConcurrencyLevel);
+            return await base.ConnectAsync(remoteAddress, ioUdpClient).ConfigureAwait(false);
         }
 
     }

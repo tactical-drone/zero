@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
@@ -16,29 +17,33 @@ namespace zero.core.network.ip
     {
         /// <inheritdoc />
         /// <summary>
-        /// Constructor
+        /// Constructor, used to create local clients
         /// </summary>
         /// <param name="socketType">The socket type</param>
         /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
         protected IoSocket(SocketType socketType, ProtocolType protocolType)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            Socket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
+            NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
         }
 
         /// <inheritdoc />
         /// <summary>
-        /// A copy constructor used by listeners
+        /// Used by listeners
         /// </summary>
-        /// <param name="socket">The listening socket</param>
-        /// <param name="listeningAddress">The address listened on</param>
-        protected IoSocket(Socket socket, IoNodeAddress listeningAddress)
+        /// <param name="nativeSocket">The socket</param>
+        /// <param name="remoteEndPoint">The remote endpoint of this connection in the case of a UDP. TCP unused.</param>
+        protected IoSocket(Socket nativeSocket, IPEndPoint remoteEndPoint = null)
         {
+            NativeSocket = nativeSocket ?? throw new ArgumentNullException($"{nameof(nativeSocket)}");
+            LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)NativeSocket.LocalEndPoint);
+            RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
+
+            Key = RemoteNodeAddress.Key;
+
+            Kind = Connection.Ingress;
+
             _logger = LogManager.GetCurrentClassLogger();
-            Socket = socket;
-            ListeningAddress = listeningAddress;
-            if(socket.RemoteEndPoint != null)
-                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(socket.ProtocolType.ToString().ToLower() ,socket.RemoteEndPoint);
         }
 
         /// <summary>
@@ -46,64 +51,36 @@ namespace zero.core.network.ip
         /// </summary>
         private readonly Logger _logger;
 
+        //Socket description 
+        public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress.ToString())}, bound = {NativeSocket.IsBound}, connected = {IsConnected()})";
+
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        protected Socket Socket;
-
-        /// <summary>
-        /// The owner of the socket in case of a shared (udp) socket
-        /// </summary>
-        protected bool Shared;
+        public Socket NativeSocket { get; }
 
         /// <summary>
         /// Keys this socket
         /// </summary>
-        public virtual string Key => Kind == Connection.Listener? ListeningAddress.Key : RemoteAddress.Key;
+        public string Key { get; protected set; }
 
-        
         /// <summary>
-        /// When connecting: <see cref="RemoteAddress" == <see cref="ListeningAddress"/>/>
-        /// When listening: <see cref="LocalEndPoint"/>
+        /// The local address
         /// </summary>
-        public IoNodeAddress ListeningAddress { get; protected set; }
+        public IoNodeAddress LocalNodeAddress { get; protected set; }
+
+        //Local Address string
+        public string LocalAddress => LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();
 
         /// <summary>
-        /// When connecting the server IP
-        /// When listening the client IP
         ///
-        /// One name to represent the other side's IP. 
         /// </summary>
-        protected IoNodeAddress RemoteNodeAddress;
+        public IoNodeAddress RemoteNodeAddress { get; protected set; }
 
         /// <summary>
-        /// The original node address this socket is supposed to work with
+        /// remote address string
         /// </summary>
-        public IoNodeAddress RemoteAddress
-        {
-            get
-            {
-                if (RemoteNodeAddress != null)
-                    return RemoteNodeAddress;
-
-                try
-                {
-                    if(Socket != null && Socket.Connected && Socket.RemoteEndPoint != null)
-                        return RemoteNodeAddress = Socket.RemoteNodeAddress();
-                }
-                catch { }
-
-                if (Egress)
-                    return ListeningAddress;
-
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// From address
-        /// </summary>
-        public virtual IoNodeAddress FfAddress { get; } = null;
+        public string RemoteAddress => Kind <= Connection.Listener || RemoteNodeAddress == null ? "(zero)" : RemoteNodeAddress.ToString();
 
         /// <summary>
         /// Socket 
@@ -111,15 +88,15 @@ namespace zero.core.network.ip
         public enum Connection
         {
             Undefined,
+            Listener,
             Ingress,
             Egress,
-            Listener,
         }
 
         /// <summary>
         /// The socket initiative
         /// </summary>
-        public Connection Kind { get; protected set; } = Connection.Undefined;
+        public Connection Kind { get; private set; } = Connection.Undefined;
 
         /// <summary>
         /// Ingress connection
@@ -132,145 +109,74 @@ namespace zero.core.network.ip
         public bool Egress => Kind == Connection.Egress;
 
         /// <summary>
-        /// Public access to remote address (used for logging)
-        /// </summary>
-        public string RemoteAddressFallback => Socket?.RemoteAddress()?.ToString() ?? ListeningAddress.IpEndPoint?.Address?.ToString() ?? ListeningAddress.Url;
-
-        /// <summary>
-        /// Public access to remote port (used for logging)
-        /// </summary>
-        public int RemotePort => Socket?.RemotePort() ?? RemoteAddress.Port;
-
-        /// <summary>
-        /// Returns the remote address as a string ip:port
-        /// </summary>
-        public string RemoteIpAndPort => $"{RemoteAddressFallback}:{RemotePort}";
-
-        /// <summary>
-        /// Public access to local address (used for logging)
-        /// </summary>
-        public IPAddress LocalAddress => Socket.LocalAddress();
-
-        /// <summary>
-        /// Public access to local port (used for logging)
-        /// </summary>
-        public int LocalPort => Socket.LocalPort();
-
-        /// <summary>
-        /// The local endpoint
-        /// </summary>
-        public IPEndPoint LocalEndPoint
-        {
-            get
-            {
-                try
-                {
-                    return (IPEndPoint) Socket?.LocalEndPoint;
-                }
-                catch (ObjectDisposedException)
-                {
-                    return null;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Returns the local address as a string ip:port
-        /// </summary>
-        public string LocalIpAndPort => $"{LocalAddress}:{LocalPort}";
-
-        /// <summary>
-        /// Public access to the underlying socket 
-        /// </summary>
-        public Socket NativeSocket => Socket;
-
-        /// <summary>
         /// Returns true if this is a TCP socket
         /// </summary>
-        public bool IsTcpSocket => Socket.ProtocolType == ProtocolType.Tcp;
-
+        public bool IsTcpSocket => NativeSocket.ProtocolType == ProtocolType.Tcp;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_socket_listen_backlog = 20;
-
-        /// <summary>
-        /// Parses the url string and returns either a TCP or UDP <see cref="IoSocket"/>
-        /// </summary>
-        /// <param name="url">The url</param>
-        /// <returns></returns>
-        public static IoSocket GetKindFromUrl(string url)
-        {
-            if (url.Contains("tcp://"))
-                return new IoTcpSocket();
-            else if (url.Contains("udp://"))
-                return new IoUdpSocket();
-            else
-            {
-                throw new UriFormatException($"URI string `{url}' must be in the format tcp://ip:port or udp://ip");
-            }
-        }
+        protected int parm_socket_listen_backlog = 16;
 
         /// <summary>
         /// Listen for TCP or UDP data depending on the URL scheme used. udp://address:port or tcp://address:port
         /// </summary>
-        /// <param name="address">Address to listen on</param>
-        /// <param name="connectionHandler">The callback that handles a new connection</param>
+        /// <param name="listeningAddress">Address to listen on</param>
+        /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> connectionHandler, Func<Task> bootstrapAsync = null)
+        public virtual Task ListenAsync(IoNodeAddress listeningAddress,
+            Func<IoSocket, Task> acceptConnectionHandler,
+            Func<Task> bootstrapAsync = null)
         {
             //If there was a coding mistake throw
-            if (Socket.IsBound)
-                throw new InvalidOperationException($"Starting listener failed, socket `{address}' is already bound!");
+            if (NativeSocket.IsBound)
+                throw new InvalidOperationException($"Starting listener failed, socket `{listeningAddress}' is already bound!");
 
             if (Kind != Connection.Undefined)
-                throw new InvalidOperationException($"This socket was already used to connect to `{ListeningAddress}'. Make a new one!");
+                throw new InvalidOperationException($"This socket was already used to connect to `{listeningAddress}'. Make a new one!");
 
-            Kind = Connection.Listener;
-            ListeningAddress = address;
-
-            if (ListeningAddress.Validated)
+            try
             {
-                try
-                {
-                    Socket.Bind(ListeningAddress.IpEndPoint);
-                    _logger.Debug($"Bound port `{ListeningAddress}' ({Description})");
-                }
-                catch (Exception e)
-                {
-                    _logger.Error(e, $"({Description}) Unable to bind socket at `{ListeningAddress}':");
-                    return Task.FromResult(false);
-                }
+                NativeSocket.Bind(listeningAddress.IpEndPoint);
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(), (IPEndPoint) NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.Create($"{listeningAddress.ProtocolDesc}255.255.255.255:255");
 
-                return Task.FromResult(true);
+                Key = LocalNodeAddress.Key;
+
+                Kind = Connection.Listener;
+
+                _logger.Trace($"Bound port {LocalNodeAddress}: {Description}");
             }
-            else
+            catch (Exception e)
             {
-                _logger.Fatal($"Unable to create listener at: {ListeningAddress?.Url ?? LocalAddress.ToString() ?? "N/A"}. Socket is invalid! ({ListeningAddress.ValidationErrorString})");
-                return Task.FromResult(false);
+                _logger.Error(e, $"Unable to bind socket at {listeningAddress}: {Description}");
+                return Task.FromException(e);
             }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// Connect to a remote endpoint
         /// </summary>
-        /// <param name="address">The address to connect to</param>
+        /// <param name="remoteAddress">The address to connect to</param>
         /// <returns>True on success, false otherwise</returns>
 #pragma warning disable 1998
-        public virtual async Task<bool> ConnectAsync(IoNodeAddress address)
+        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
 #pragma warning restore 1998
         {
-            
-            if (Socket.IsBound)
+            if (NativeSocket == null)
+                throw new ArgumentNullException(nameof(NativeSocket));
+
+            if (NativeSocket.IsBound)
                 throw new InvalidOperationException("Cannot connect, socket is already bound!");
 
             if (Kind != Connection.Undefined)
-                throw new InvalidOperationException($"This socket was already used to listen at `{ListeningAddress}'. Make a new one!");
+                throw new InvalidOperationException($"This socket was already used to listen at `{LocalNodeAddress}'. Make a new one!");
+
+            Key = remoteAddress.Key;
 
             Kind = Connection.Egress;
-
-            ListeningAddress = address;
 
             return true;
         }
@@ -280,17 +186,12 @@ namespace zero.core.network.ip
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            if (!Shared && NativeSocket.ProtocolType == ProtocolType.Udp)
-            {
-                Socket.Dispose();
-            }
-            
+            NativeSocket.Dispose();
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            ListeningAddress = null;
+            LocalNodeAddress = null;
             RemoteNodeAddress = null;
-            Socket = null;
 #endif
         }
 
@@ -301,18 +202,17 @@ namespace zero.core.network.ip
         {
             try
             {
-                if(!Shared && Socket.IsBound && Socket.Connected)
-                    Socket?.Shutdown(SocketShutdown.Both);
+                if (NativeSocket.IsBound && NativeSocket.Connected)
+                    NativeSocket?.Shutdown(SocketShutdown.Both);
 
             }
-            catch(SocketException e){_logger.Trace(e,Description);}
+            catch (SocketException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
-                _logger.Error(e,$"Socket shutdown returned with errors: {Description}");
+                _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
             }
 
-            if (!Shared)
-                Socket?.Close();
+            NativeSocket?.Close();
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");
@@ -346,13 +246,5 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
         public abstract bool IsConnected();
-
-
-        /// <summary>
-        /// Extra data made available to specific uses
-        /// </summary>
-        /// <returns>Some data</returns>
-        //public abstract object ExtraData();
-
     }
 }

@@ -24,6 +24,7 @@ namespace zero.core.patterns.bushes.contracts
         /// </summary>
         int ConsumerCount { get; }
 
-        Task AssimilateAsync();  
+        Task AssimilateAsync();
+        ValueTask<bool> ConsumeAsync();
     }
 }

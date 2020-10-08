@@ -6,18 +6,19 @@ using zero.core.core;
 using zero.core.models;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
     /// <summary>
-    /// Used by clients to hold the <see cref="IoSocket"/> of a connection. Used by <see cref="IoNetServer{TJob}.ConnectAsync"/> and <see cref="IoNetServer{TJob}.ListenAsync"/>
+    /// Used by clients to hold the <see cref="IoNetSocket"/> of a connection. Used by <see cref="IoNetServer{TJob}.ConnectAsync"/> and <see cref="IoNetServer{TJob}.ListenAsync"/>
     /// to wrap a connection.
     ///
     /// Currently two flavors exist: <see cref="IoTcpClient{TJob}"/> & <see cref="IoUdpClient{TJob}"/>
     ///
     /// Generally:
     /// 
-    /// Wraps a <see cref="IoSocket"/> into a <see cref="IoSource{TJob}"/> so that it can be used by
+    /// Wraps a <see cref="IoNetSocket"/> into a <see cref="IoSource{TJob}"/> so that it can be used by
     /// <see cref="IoZero{TJob}"/> to produce <see cref="IoJob{TJob}"/>s that are eventually terminated in
     /// <see cref="IoSink{TJob}"/>s.
     ///
@@ -40,28 +41,22 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructor for incoming connections used by the listener
         /// </summary>
-        /// <param name="socket">The new socket</param>
+        /// <param name="netSocket">The new socket that comes from the listener</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        protected IoNetClient(IoSocket socket,int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
+        protected IoNetClient(IoNetSocket netSocket, int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
         {
-            IoSocket = ZeroOnCascade((IoNetSocket)socket, true).target;
-
+            IoNetSocket = ZeroOnCascade(netSocket, true).target;
             _logger = LogManager.GetCurrentClassLogger();
-            ListeningAddress = IoSocket.ListeningAddress;
-            _description = $"`net client({ListeningAddress.ToString()})'";
-            _key = ListeningAddress.EndpointIpPort;
         }
 
         /// <summary>
         /// Constructor for connecting
         /// </summary>
-        /// <param name="listeningAddress">The address associated with this network client</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        protected IoNetClient(IoNodeAddress listeningAddress, int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
+        protected IoNetClient(int prefetchSize, int concurrencyLevel) : base(prefetchSize, concurrencyLevel)
         {
-            ListeningAddress = listeningAddress;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -71,74 +66,24 @@ namespace zero.core.network.ip
         private readonly Logger _logger;
 
         /// <summary>
-        /// The remote address associated with this client
-        /// </summary>
-        public IoNodeAddress ListeningAddress;
-
-        /// <summary>
-        /// The client remote address
-        /// </summary>
-        public IoNodeAddress RemoteAddress => IoSocket.RemoteAddress;
-
-        /// <summary>
         /// Keys this instance.
         /// </summary>
         /// <returns>
         /// The unique key of this instance
         /// </returns>
-        public override string Key
-        {
-            get
-            {
-                if (_key != null)
-                    return _key;
+        public override string Key => IoNetSocket.Key;
 
-                _key = IoSocket?.Key;
-                return _key;
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        private string _key;
-
-        /// <summary>
-        /// Backing description
-        /// </summary>
-        private string _description;
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description
-        {
-            get 
-            { 
-                if(_description == null)
-                    return _description = $"`net client({IoSocket?.RemoteAddress?.ToString() ?? ListeningAddress.ToString()})'";
-                return _description;
-            }
-        }
-
-        /// <summary>
-        /// A description of this client source. Currently the remote address
-        /// </summary>
-        public override string SourceUri => $"{IoSocket.RemoteAddress}";
+        public override string Description => IoNetSocket.Description;
+        
 
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
         /// </summary>
-        protected IoNetSocket IoSocket;
+        public IoNetSocket IoNetSocket { get; protected set; }
 
-        /// <summary>
-        /// Access to the underlying socket abstraction
-        /// </summary>
-        public IoNetSocket Socket => IoSocket;
-
-        /// <summary>
-        /// Returns the host address URL in the format tcp://IP:port
-        /// </summary>
-        public string AddressString => $"{ListeningAddress?.Url}";
 
         /// <summary>
         /// Transmit timeout in ms
@@ -163,7 +108,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            IoSocket = null;
+            IoNetSocket = null;
 #endif
         }
 
@@ -179,18 +124,16 @@ namespace zero.core.network.ip
         /// Connects to a remote listener
         /// </summary>
         /// <returns>True if succeeded, false otherwise</returns>
-        public virtual async Task<bool> ConnectAsync()
+        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {            
-            var connectAsyncTask = IoSocket.ConnectAsync(ListeningAddress);            
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress).ZeroBoostAsync().ConfigureAwait(false); 
 
-            _logger.Debug($"Connecting to `{ListeningAddress}', {Description}");
-
-            if (await connectAsyncTask)
-                return true;
+            if(connected)
+                _logger.Trace($"Connecting to `{remoteAddress}', {Description}");
             else
-                _logger.Error($"Connecting to `{ListeningAddress}', {Description} [FAILED]");
+                _logger.Error($"Failed connecting to `{remoteAddress}', {Description} [FAILED]");
 
-            return false;
+            return connected;
         }
 
         /// <summary>
@@ -201,8 +144,6 @@ namespace zero.core.network.ip
         /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns>True on success, false otherwise</returns>
-
-        //public async Task<Task> Execute(Func<IoSocket, Task<Task>> callback)
         public override async ValueTask<bool> ProduceAsync(
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
@@ -215,7 +156,7 @@ namespace zero.core.network.ip
 
             try
             {
-                return await callback(IoSocket, barrier, zeroClosure, jobClosure).ConfigureAwait(false);
+                return await callback((IIoSourceBase) IoNetSocket, barrier, zeroClosure, jobClosure).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -253,20 +194,20 @@ namespace zero.core.network.ip
                     if (Zeroed())
                         return false;
 
-                    if (IoSocket == null)
+                    if (IoNetSocket == null)
                         return false;
 
-                    if (IoSocket?.NativeSocket != null && IoSocket.IsTcpSocket)
+                    if (IoNetSocket.IsTcpSocket)
                     {
                         //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
                         //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
                         //var selectWrite = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectWrite)? "OK" : "FAILED";
 
                         //TODO more checks?
-                        if (!IoSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
+                        if (!IoNetSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
                         {
                             //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                            _logger.Warn($"DC `{ListeningAddress}' from {IoSocket.LocalIpAndPort}");
+                            _logger.Warn($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
 
                             //Do cleanup
                             return false;
@@ -276,7 +217,7 @@ namespace zero.core.network.ip
                     }
                     else
                     {
-                        return IoSocket?.IsConnected() ?? false;
+                        return IoNetSocket?.IsConnected() ?? false;
                     }
                 }
                 catch (Exception e)

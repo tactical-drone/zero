@@ -44,7 +44,7 @@ namespace zero.core.core
         /// The Id of this neighbor
         /// </summary>
         /// <returns></returns>
-        public virtual string Id => Source.Key;
+        public virtual string Key => Source.Key;
 
         /// <summary>
         /// zero unmanaged

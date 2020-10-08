@@ -19,6 +19,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
         /// <param name="lookup">Whether to perform a dns lookup on <see cref="Ip"/></param>
+        /// <param name="performValidation">Should validation be performed</param>
         public IoNodeAddress(string url, bool lookup = false)
         {
             _performDns = lookup;
@@ -33,10 +34,8 @@ namespace zero.core.network.ip
         [DataMember]
         public string Url { get; set; }
 
-        public string UrlNoPort => $"{Url.Split(":")[0]}{Url.Split(":")[1]}";
-
         [DataMember]
-        public string Key => $"{ProtocolDesc}{Ip}:{Port}";
+        public string Key => IpEndPoint.ToString();
 
         [DataMember]
         public IPAddress ResolvedIpAddress { get; protected set; }
@@ -59,7 +58,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Whether to perform a DNS lookup
         /// </summary>
-        private bool _performDns = false;
+        private readonly bool _performDns;
 
         /// <summary>
         /// The Ip
@@ -98,7 +97,7 @@ namespace zero.core.network.ip
         /// Returns the address as ip:port
         /// </summary>
         [IgnoreDataMember]
-        public string IpPort => $"{Ip}:{Port}";
+        public string IpPort;
 
         [IgnoreDataMember]
         public string EndpointIpPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";
@@ -109,21 +108,11 @@ namespace zero.core.network.ip
         /// <param name="url">The url</param>
         private void Init(string url)
         {
-            try
-            {
-                Validated = false;
+            Url = url;
+            Parse();
 
-                if (string.IsNullOrEmpty(url))
-                    return;
-
-                Url = url;
-
-                Validate();
-            }
-            catch (Exception e)
-            {
-                ValidationErrorString = $"Unable to parse {url}, must be in the form tcp://IP:port or udp://IP:port. ({e.Message})";
-            }
+            if(_performDns)
+                Resolve();
         }
         
         /// <summary>
@@ -134,9 +123,7 @@ namespace zero.core.network.ip
         /// <returns></returns>
         public static IoNodeAddress Create(string url)
         {
-            var address = new IoNodeAddress(url);
-            address.Validate(); //TODO move this closer to where it is needed
-            return address;
+            return new IoNodeAddress(url);
         }
 
         /// <summary>
@@ -199,7 +186,8 @@ namespace zero.core.network.ip
                 ProtocolDesc = "udp://";
                 return ProtocolType.Udp;
             }
-                
+
+            ProtocolDesc = "zero://";
             return ProtocolType.Unknown;
         }
 
@@ -207,22 +195,22 @@ namespace zero.core.network.ip
         /// Validates syntax and DNS
         /// </summary>
         /// <returns>True on validated</returns>
-        public bool Validate()
+        public bool Parse()
         {
             try
             {
                 Validated = false;
 
+                //"tcp://0.0.0.0:1"
                 if (!string.IsNullOrEmpty(Url))
                 {
-                    var uriAndIpAndPort = Url.Split(":");
-                    var uriAndIp = uriAndIpAndPort[0] + ":" + uriAndIpAndPort[1];
+                    var protoIdx = Url.IndexOf(':') + 3;
+                    var portIdx = Url.LastIndexOf(':') + 1;
 
-                    ProtocolDesc = $"{uriAndIpAndPort[0]}://";
-
-                    Port = int.Parse(uriAndIpAndPort[2]);
-                    Ip = StripIpFromUrlString(uriAndIp);
-
+                    ProtocolDesc = Url.Substring(0, protoIdx + 3);
+                    Port = int.Parse(Url.Substring(portIdx, Url.Length - portIdx));
+                    Ip = Url.Substring(protoIdx, Url.Length - protoIdx - Url.Length + portIdx - 1);
+                    IpPort = $"{Ip}:{Port}";
                     Validated = true;
                 }
                 Resolve();
@@ -233,7 +221,7 @@ namespace zero.core.network.ip
                 return false;
             }
 
-            return Validated || !DnsResolutionChanged;
+            return Validated;
         }
 
         /// <summary>
@@ -286,27 +274,12 @@ namespace zero.core.network.ip
             }
         }
 
-        public static IoNodeAddress CreateFromRemoteSocket(Socket socket)
+        public static IoNodeAddress CreateFromEndpoint(string protocol, IPEndPoint endpoint)
         {
-            if (socket.ProtocolType == ProtocolType.Tcp)
-            {
-                return new IoNodeAddress($"tcp://{socket.RemoteAddress()}:{socket.RemotePort()}");
-            }
-            else
-            {
-                throw new NotSupportedException("Only TCP supports IoNodeAddress from remote sockets!");
-            }            
-        }
+            if (endpoint == null)
+                throw new ArgumentNullException(nameof(endpoint));
 
-        public static IoNodeAddress CreateFromEndpoint(string protocol, EndPoint udpRemoteEndpointInfo)
-        {
-            if (udpRemoteEndpointInfo == null)
-            {
-                return IoNodeAddress.Create("udp://0.0.0.0:0");
-            }
-            var retval = new IoNodeAddress($"{protocol}://{((IPEndPoint)udpRemoteEndpointInfo).Address}:{((IPEndPoint)udpRemoteEndpointInfo).Port}");
-            retval.IpEndPoint = (IPEndPoint) udpRemoteEndpointInfo;
-            return retval;
+            return new IoNodeAddress($"{protocol}://{endpoint.Address}:{endpoint.Port}") {IpEndPoint = endpoint};
         }
 
         public override bool Equals(object obj)

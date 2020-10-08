@@ -291,7 +291,7 @@ namespace zero.core.patterns.bushes
                         {
                             load.IoZero = (IIoZero) closure;
                             return new ValueTask<IoSink<TJob>>(load);
-                        }, this).ZeroBoost().ConfigureAwait(false);
+                        }, this).ZeroBoostAsync().ConfigureAwait(false);
 
                         
                         //Allocate a job from the heap
@@ -573,12 +573,16 @@ namespace zero.core.patterns.bushes
 
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+        public ValueTask<bool> ConsumeAsync()
+        {
+            return ConsumeAsync(null, null);
+        }
+
         /// <summary>
         /// Consume 
         /// </summary>
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="zeroClosure"></param>
-        /// <param name="blockOnProduction">if set to <c>true</c> block when production is not ready</param>
         /// <returns>True if consumption happened</returns>
         public async ValueTask<bool> ConsumeAsync(Func<IoSink<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null)
         {
@@ -718,7 +722,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public virtual async Task AssimilateAsync()
         {
-            _logger.Debug($"{GetType().Name}: Assimulating {Description}");
+            _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             Task<Task> consumerTask = null;
 

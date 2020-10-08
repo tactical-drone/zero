@@ -119,7 +119,7 @@ namespace zero.core.patterns.semaphore
                 return new ValueTask<bool>(this, _token);
             }
             
-            //return new ZeroBoost<bool>(waiter.Task);
+            //return new ZeroBoostAsync<bool>(waiter.Task);
         }
 
         public int GetWaited()

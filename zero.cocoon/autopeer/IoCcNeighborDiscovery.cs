@@ -48,14 +48,14 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public IoCcService Services => CcNode.Services;
 
-        public IoCcNeighbor LocalNeighbor { get; protected set; }
+        public IoCcNeighbor Router { get; protected set; }
 
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             CcNode = null;
-            LocalNeighbor = null;
+            Router = null;
 #endif
         }
 
@@ -71,7 +71,7 @@ namespace zero.cocoon.autopeer
         {
             await base.SpawnListenerAsync(async neighbor =>
             {
-                LocalNeighbor ??= (IoCcNeighbor) neighbor;
+                Router ??= (IoCcNeighbor) neighbor;
                 return acceptConnection == null || await acceptConnection(neighbor).ConfigureAwait(false);
             }, bootstrapAsync).ConfigureAwait(false);
         }

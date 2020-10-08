@@ -21,16 +21,6 @@ namespace zero.core.patterns.bushes.contracts
         string Key { get; }
 
         /// <summary>
-        /// Source URI
-        /// </summary>
-        string SourceUri { get; }
-
-        /// <summary>
-        /// Sets an upstream source if we using <see cref="IIoChannel"/>
-        /// </summary>
-        public IIoSource Upstream { get; }
-
-        /// <summary>
         /// Signal source pressure
         /// </summary>
         public void Pressure();

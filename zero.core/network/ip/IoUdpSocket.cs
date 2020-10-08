@@ -1,23 +1,21 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
-using Microsoft.AspNetCore.SignalR;
 using NLog;
+using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
-using TaskExtensions = System.Threading.Tasks.TaskExtensions;
 
 namespace zero.core.network.ip
 {
     /// <summary>
     /// The UDP flavor of <see cref="IoSocket"/>
     /// </summary>
-    sealed class IoUdpSocket : IoNetSocket
+    public sealed class IoUdpSocket : IoNetSocket
     {
         /// <inheritdoc />
         /// <summary>
@@ -28,23 +26,14 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        /// <inheritdoc />
         /// <summary>
-        /// A copy constructor
+        /// Used by pseudo listeners
         /// </summary>
-        /// <param name="socket">The underlying socket</param>
-        /// <param name="listeningAddress">The address listened on</param>
-        /// <param name="fromAddress">From address</param>
-        public IoUdpSocket(Socket socket, IoNodeAddress listeningAddress, IoNodeAddress fromAddress = null) : base(socket, listeningAddress)
+        /// <param name="nativeSocket"></param>
+        /// <param name="remoteEndPoint"></param>
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint): base(nativeSocket, remoteEndPoint)
         {
-            _logger = LogManager.GetCurrentClassLogger();
-            _fromAddress = fromAddress;
-
-            if (_fromAddress != null)
-            {
-                RemoteNodeAddress = _fromAddress;
-                Shared = true;
-            }
+            
         }
 
         /// <summary>
@@ -57,7 +46,6 @@ namespace zero.core.network.ip
 #if SAFE_RELEASE
             RemoteNodeAddress = null;
 #endif
-
         }
 
         /// <summary>
@@ -74,84 +62,56 @@ namespace zero.core.network.ip
         /// </summary>
         private readonly Logger _logger;
 
-        /// <summary>
-        /// Used to retrieve the sender information of a UDP packet and prevent mallocs for each call to receive
-        /// </summary>
-        //private EndPoint _udpRemoteEndpointInfo;
-
-        //public override IoNodeAddress RemoteAddress { get; protected set; }
-
-        /// <summary>
-        /// from address
-        /// </summary>
-        public override IoNodeAddress FfAddress => _fromAddress;
-
-        //public override string Key => RemoteAddress?.IpPort ?? LocalIpAndPort;
-
-        //public override string Key
-        //{
-        //    get
-        //    {
-        //        if (RemoteAddress == null)
-        //        {
-        //            Console.WriteLine("still null");
-        //            return LocalIpAndPort;
-        //        }
-
-
-        //        return RemoteAddress.IpPort;
-        //    }
-        //}
-
         public const int SIO_UDP_CONNRESET = -1744830452;
 
         /// <inheritdoc />
         /// <summary>
         /// Listen for UDP traffic
         /// </summary>
-        /// <param name="address">The address to listen on</param>
-        /// <param name="callback">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
+        /// <param name="listeningAddress">The address to listen on</param>
+        /// <param name="acceptConnectionHandler">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
         /// <param name="bootstrapAsync">Bootstrap callback invoked when a listener has started</param>
         /// <returns>True if successful, false otherwise</returns>
-        public override async Task<bool> ListenAsync(IoNodeAddress address, Func<IoSocket, Task> callback,
+        public override async Task ListenAsync(IoNodeAddress listeningAddress,
+            Func<IoSocket, Task> acceptConnectionHandler,
             Func<Task> bootstrapAsync = null)
         {
+            //base
+            await base.ListenAsync(listeningAddress, acceptConnectionHandler, bootstrapAsync).ConfigureAwait(false);
+                
 
-            Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+            //set some socket options
+            NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
 
             //TODO sec
-            Socket.IOControl(
+            NativeSocket.IOControl(
                 (IOControlCode)SIO_UDP_CONNRESET,
                 new byte[] { 0, 0, 0, 0 },
                 null
             );
 
+            //configure the socket
             Configure();
 
-            if (!await base.ListenAsync(address, callback, bootstrapAsync).ConfigureAwait(false))
-                return false;
+            //Init connection tracking
+            //_connTrack = new ConcurrentDictionary<string, IIoZero>();
 
             try
             {
-                //Call the new connection established handler
-                await callback(this).ConfigureAwait(false);
+                _logger.Trace($"Waiting for a new connection to {LocalNodeAddress}...");
 
+                //Call the new connection established handler
+                await acceptConnectionHandler(this).ConfigureAwait(false);
+
+                //Bootstrap on listener start
                 if (bootstrapAsync != null)
                     await bootstrapAsync().ConfigureAwait(false);
 
-                _logger.Debug($"Started listener at {ListeningAddress}");
                 while (!Zeroed())
                 {
                     await Task.Delay(5000, AsyncToken.Token).ConfigureAwait(false);
-                    if (!Socket?.IsBound ?? false)
-                    {
-                        _logger.Warn($"Found zombie udp socket state");
-
-                        await ZeroAsync(this).ConfigureAwait(false);
-
-                    }
                 }
-                _logger.Debug($"Stopped listening at {ListeningAddress}");
+                _logger.Trace($"Stopped listening at {LocalNodeAddress}");
             }
             catch (NullReferenceException) { }
             catch (TaskCanceledException) { }
@@ -159,12 +119,91 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException) { }
             catch (Exception e)
             {
-                _logger.Error(e, $"There was an error handling new connection from `udp://{RemoteAddressFallback}' to `udp://{LocalIpAndPort}'");
+                _logger.Error(e, $"Error while listening: {Description}");
+            }
+        }
+
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        {
+            if (!await base.ConnectAsync(remoteAddress).ZeroBoostAsync().ConfigureAwait(false))
+                return false;
+
+            Configure();
+
+            try
+            {
+                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint).ConfigureAwait(false);
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)NativeSocket.RemoteEndPoint);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, Description);
                 return false;
             }
 
             return true;
         }
+
+        ///// <summary>
+        ///// UDP connection tracker
+        ///// </summary>
+        //private ConcurrentDictionary<string, IIoZero> _connTrack;
+
+        //private async ValueTask<bool> RouteAsync(byte[] listenerBuffer, IPEndPoint endPoint, Func<IoSocket, Task<IIoZero>> newConnectionHandler)
+        //{
+        //    var read = await ReadAsync(listenerBuffer, 0, listenerBuffer.Length, endPoint).ZeroBoostAsync(oomCheck: false).ConfigureAwait(false);
+
+        //    //fail fast
+        //    if (read == 0)
+        //        return false;
+
+        //    //New connection?
+        //    if (!_connTrack.TryGetValue(endPoint.ToString(), out var connection))
+        //    {
+        //        //Atomic add new route
+        //        if (await ZeroAtomicAsync(async (z, b) => _connTrack.TryAdd(endPoint.ToString(),
+        //            connection = await newConnectionHandler(new IoUdpSocket()).ConfigureAwait(false))).ConfigureAwait(false))
+        //        {
+        //            //atomic ensure teardown
+        //            return await connection.ZeroAtomicAsync((z, b) =>
+        //            {
+        //                var sub = connection.ZeroEvent(s =>
+        //                {
+        //                    //Untrack connection
+        //                    if (_connTrack.TryRemove(connection.IoSource.Key, out var removed))
+        //                    {
+        //                        _logger.Trace($"Delete route: {removed!.Description}");
+        //                    }
+        //                    else
+        //                    {
+        //                        _logger.Trace($"Delete route, not found: {connection.IoSource.Key}");
+        //                    }
+
+        //                    return Task.CompletedTask;
+        //                });
+
+        //                return Task.FromResult(sub != null);
+        //            }).ConfigureAwait(false);
+        //        }
+        //        else if(connection != null)//race
+        //        {
+        //            await connection.ZeroAsync(this).ConfigureAwait(false);
+        //        }
+        //        //raced out
+        //        return false;
+        //    }
+
+        //    await connection.IoSource.ProduceAsync(async (b, func, arg3, arg4) =>
+        //    {
+        //        var source = (IoNetSocket) b;
+
+        //        return true;
+        //    }).ConfigureAwait(false);
+        //    //route
+
+        //    return await connection!.ConsumeAsync();
+        //}
 
         /// <inheritdoc />
         /// <summary>
@@ -181,10 +220,10 @@ namespace zero.core.network.ip
             try
             {
                 //fail fast
-                if (Zeroed() || Socket == null || !(Socket.IsBound))
+                if (Zeroed() || NativeSocket == null || !(NativeSocket.IsBound))
                 {
-                    if(!Zeroed())
-                        _logger.Error($"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom.Description} bound = {Socket?.IsBound}");
+                    if (!Zeroed())
+                        _logger.Error($"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom.Description} bound = {NativeSocket?.IsBound}");
                     return 0;
                 }
 
@@ -196,7 +235,7 @@ namespace zero.core.network.ip
 
                 Task<int> sendTask;
                 //lock(Socket)
-                    sendTask = Socket.SendToAsync(buffer, SocketFlags.None, endPoint);
+                sendTask = NativeSocket.SendToAsync(buffer, SocketFlags.None, endPoint);
 
                 //slow path
                 if (!sendTask.IsCompletedSuccessfully)
@@ -212,30 +251,16 @@ namespace zero.core.network.ip
             {
                 if (!Zeroed())
                 {
-                    if(!(e is ObjectDisposedException))
+                    if (!(e is ObjectDisposedException))
                         _logger.Fatal(e, $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
-                    if (FfAddress == null)
-                        await ZeroAsync(this).ConfigureAwait(false);
+
+                    await ZeroAsync(this).ConfigureAwait(false);
                 }
             }
 
             return 0;
         }
 
-
-        /// <summary>
-        /// dummy endpoint
-        /// </summary>
-        private EndPoint _dummyEndPoint = new IPEndPoint(IPAddress.Any, 0);
-
-        /// <summary>
-        /// Only receive from this address
-        /// </summary>
-        private readonly IoNodeAddress _fromAddress;
-
-
-        // private SocketAsyncEventArgs _args = new SocketAsyncEventArgs();
-        // private TaskCompletionSource<int> _tcs;
 
         private readonly EndPoint _remoteEpAny = new IPEndPoint(IPAddress.Any, 99);
 
@@ -260,7 +285,7 @@ namespace zero.core.network.ip
             try
             {
                 //fail fast
-                if (!(Socket.IsBound) || Zeroed())
+                if (!(NativeSocket.IsBound) || Zeroed())
                     return 0;
 
                 var read = 0;
@@ -272,7 +297,7 @@ namespace zero.core.network.ip
                         Task<SocketReceiveFromResult> receiveTask;
 
                         //receiveTask = Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, ref remoteEp);
-                        receiveTask = Socket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _remoteEpAny);
+                        receiveTask = NativeSocket.ReceiveFromAsync(buffer.Slice(offset, length), SocketFlags.None, _remoteEpAny);
 
                         //slow path
                         if (!receiveTask.IsCompletedSuccessfully)
@@ -324,19 +349,17 @@ namespace zero.core.network.ip
                                 throw new OutOfMemoryException(nameof(_argsIoHeap));
 
                             args.SetBuffer(buffer.Array, offset, length);
-                            args.RemoteEndPoint = _fromAddress?.IpEndPoint ?? _remoteEpAny;
+                            args.RemoteEndPoint = RemoteNodeAddress.IpEndPoint;
                             args.UserToken = ValueTuple.Create(tcs, remoteEp, _argsIoHeap);
 
                             args.Completed += Signal;
 
-                            bool result;
-
                             //lock (Socket)
-                                result = Socket.ReceiveFromAsync(args);
+                            var result = NativeSocket.ReceiveFromAsync(args);
 
                             if (result)
                             {
-                                var wait = await tcs.WaitAsync().ZeroBoost(oomCheck: false).ConfigureAwait(false);
+                                var wait = await tcs.WaitAsync().ZeroBoostAsync(oomCheck: false).ConfigureAwait(false);
                             }
                             else
                             {
@@ -365,57 +388,55 @@ namespace zero.core.network.ip
                 }
                 else if (timeout > 0)
                 {
-                    Socket.ReceiveTimeout = timeout;
+                    NativeSocket.ReceiveTimeout = timeout;
                     EndPoint remoteEpAny = null;
-                    read = Socket.ReceiveFrom(buffer.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
+                    read = NativeSocket.ReceiveFrom(buffer.Array!, offset, length, SocketFlags.None, ref remoteEpAny);
 
                     remoteEp.Address = ((IPEndPoint)remoteEpAny).Address;
                     remoteEp.Port = ((IPEndPoint)remoteEpAny).Port;
-
-                    //Set the remote address
-                    if (RemoteNodeAddress == null)
-                    {
-                        RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEpAny);
-                        //_udpRemoteEndpointInfo = Socket.RemoteEndPoint;
-                        //RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", Socket.RemoteEndPoint);
-                    }
-                    else
-                        RemoteAddress.Update((IPEndPoint)remoteEpAny);
-                    //RemoteAddress.Update((IPEndPoint)Socket.RemoteEndPoint);
                 }
                 return read;
             }
-            catch (NullReferenceException e) {_logger.Trace(e,Description);}
+            catch (NullReferenceException e) { _logger.Trace(e, Description); }
             //catch (TaskCanceledException e)  {_logger.Trace(e,Description);}
             //catch (OperationCanceledException e) {_logger.Trace(e,Description);}
             //catch (ObjectDisposedException e) {_logger.Trace(e,Description);}
             //catch (SocketException e)
             //{
-            //    _logger.Debug(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+            //    _logger.Trace(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
             //}
             catch (Exception e)
             {
                 if (!Zeroed())
                 {
-                    if(!(e is ObjectDisposedException))
-                        _logger.Error(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
+                    if (!(e is ObjectDisposedException))
+                        _logger.Error(e, $"Unable to read from socket: {Description}");
 
-                    if (FfAddress == null)
-                        await ZeroAsync(this).ConfigureAwait(false);
+                    await ZeroAsync(this).ConfigureAwait(false);
                 }
             }
 
             return 0;
         }
 
+        private readonly byte[] _sentinelBuffer = new byte[0];
         /// <inheritdoc />
         /// <summary>
         /// Connection status
         /// </summary>
-        /// <returns>True if the connection is up, false otherwise</returns>
+        /// <returns>True if the connection is up, false otherwise</returns> 
         public override bool IsConnected()
         {
-            return ListeningAddress?.IpEndPoint != null || RemoteAddress != null;
+            try
+            {
+                return NativeSocket != null && NativeSocket.IsBound &&
+                       NativeSocket.LocalEndPoint !=
+                       null; //&& NativeSocket.SendTo(_sentinelBuffer, SocketFlags.None, _remoteEpAny) == 0;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -423,30 +444,30 @@ namespace zero.core.network.ip
         /// </summary>
         protected override void Configure()
         {
-            if (Socket.IsBound || Socket.Connected)
+            if (NativeSocket.IsBound || NativeSocket.Connected)
             {
                 return;
             }
 
             // Don't allow another socket to bind to this port.
-            //Socket.ExclusiveAddressUse = true;
+            NativeSocket.ExclusiveAddressUse = true;
 
             // Set the receive buffer size to 32k
-            Socket.ReceiveBufferSize = 8192 * 4;
+            NativeSocket.ReceiveBufferSize = 8192 * 4;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
-            Socket.ReceiveTimeout = 10000;
+            NativeSocket.ReceiveTimeout = 10000;
 
             // Set the send buffer size to 8k.
-            Socket.SendBufferSize = 8192 * 2;
+            NativeSocket.SendBufferSize = 8192 * 2;
 
             // Set the timeout for synchronous send methods
             // to 1 second (1000 milliseconds.)
-            Socket.SendTimeout = 1000;
+            NativeSocket.SendTimeout = 1000;
 
             // Set the Time To Live (TTL) to 42 router hops.
-            Socket.Ttl = 42;
+            NativeSocket.Ttl = 42;
         }
     }
 }

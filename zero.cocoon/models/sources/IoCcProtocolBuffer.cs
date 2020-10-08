@@ -18,14 +18,15 @@ namespace zero.cocoon.models.sources
         public IoCcProtocolBuffer(IIoSource ioSource,ArrayPool<Tuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
             : base(prefetchSize, concurrencyLevel)//TODO config
         {
+            _logger = LogManager.GetCurrentClassLogger();
+
             Upstream = ioSource;
             ArrayPoolProxy = arrayPool;
-            //Saves forwarding upstream, to leech some values from it            
-            _logger = LogManager.GetCurrentClassLogger();
+
             MessageQueue = new ConcurrentQueue<Tuple<IIoZero, IMessage, object, Packet>[]>();
             
-            (_queuePressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true));
-            (_queueBackPressure, _) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, true));
+            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true)).target;
+            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, true)).target;
         }
 
         /// <summary>
@@ -56,34 +57,30 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => $"{SourceUri}";
+        public override string Key => $"{nameof(IoCcProtocolBuffer)}({Upstream.Key})";
 
         /// <summary>
         /// Description of upstream channel
         /// </summary>
-        public override string Description
-        {
-            get
-            {
-                try
-                {
-                    if(!Zeroed())
-                        return $"{MessageQueue.Select(m => m.Length > 0 ? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
-                }
-                catch (Exception e)
-                {
-                    _logger.Trace(e,"Failed to get description:");
-                }
+        //public override string Description
+        //{
+        //    get
+        //    {
+        //        try
+        //        {
+        //            if(!Zeroed())
+        //                return $"{MessageQueue.Select(m => m.Length > 0 ? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            _logger.Trace(e,"Failed to get description:");
+        //        }
 
-                return null;
-            }
-        } 
-        //public override string Description => Key;
+        //        return null;
+        //    }
+        //} 
 
-        /// <summary>
-        /// The original source URI
-        /// </summary>
-        public override string SourceUri => $"chan://{GetType().Name}";
+        public override string Description => Key;
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.
@@ -129,7 +126,7 @@ namespace zero.cocoon.models.sources
             var backed = false;
             try
             {
-                var backPressure = await _queueBackPressure.WaitAsync().ZeroBoost().ConfigureAwait(false);
+                var backPressure = await _queueBackPressure.WaitAsync().ZeroBoostAsync().ConfigureAwait(false);
                 backed = true;
                 
                 if (!backPressure)
@@ -163,7 +160,7 @@ namespace zero.cocoon.models.sources
                 Tuple<IIoZero, IMessage, object, Packet>[] batch = null;
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
-                    var checkQ = await _queuePressure.WaitAsync().ZeroBoost(oomCheck:false).ConfigureAwait(false);
+                    var checkQ = await _queuePressure.WaitAsync().ZeroBoostAsync(oomCheck:false).ConfigureAwait(false);
 
                     if(Zeroed())
                         break;

@@ -43,11 +43,12 @@ namespace zero.core.misc
         }
 
         public static SHA256 Sha256 = new SHA256CryptoServiceProvider();
+
+#if DEBUG
         public static string PayloadSig(this byte[] payload)
         {
-            return $"P({Convert.ToBase64String(Sha256.ComputeHash(payload)).Substring(0,5)})";
+            return $"P({Convert.ToBase64String(Sha256.ComputeHash(payload)).Substring(0, 5)})";
         }
-#if DEBUG
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
             return memory.AsArray().PayloadSig();
@@ -63,6 +64,11 @@ namespace zero.core.misc
             return memory.AsArray().HashSig();
         }
 #else
+        public static string PayloadSig(this byte[] payload)
+        {
+            return "";
+        }
+
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
             return "";

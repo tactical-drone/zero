@@ -158,7 +158,7 @@ namespace zero.core.patterns.semaphore
                 //_signalAwaiters.Enqueue(waiter);
             }
 
-            //return await new ZeroBoost<bool>(waiter.Task);
+            //return await new ZeroBoostAsync<bool>(waiter.Task);
             return new ValueTask<bool>(this, _token);
         }
         

@@ -14,18 +14,18 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="loadDescription"></param>
-        /// <param name="jobDescription"></param>
+        /// <param name="sinkDesc"></param>
+        /// <param name="jobDesc"></param>
         /// <param name="source"></param>
-        protected IoSink(string loadDescription, string jobDescription, IoSource<TJob> source) : base(jobDescription, source)
+        protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source) : base(jobDesc, source)
         {
-            _loadDescription = loadDescription;
+            _sinkDesc = sinkDesc;
         }
 
         /// <summary>
         /// A description of the load
         /// </summary>
-        private readonly string _loadDescription;
+        private readonly string _sinkDesc;
 
         private string _description;
 
@@ -39,7 +39,7 @@ namespace zero.core.patterns.bushes
             get
             {
                 if(_description == null)
-                    return _description = $"{base.Description} | {_loadDescription}";
+                    return _description = $"{_sinkDesc}";
                 return _description;
             }
         }

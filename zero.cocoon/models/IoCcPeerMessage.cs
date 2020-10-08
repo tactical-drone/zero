@@ -22,8 +22,8 @@ namespace zero.cocoon.models
 {
     public class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
     {
-        public IoCcPeerMessage(string loadDescription, string jobDescription, IoSource<IoCcPeerMessage> source) : base(
-            loadDescription, jobDescription, source)
+        public IoCcPeerMessage(string sinkDesc, string jobDesc, IoSource<IoCcPeerMessage> source) 
+            : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -37,23 +37,23 @@ namespace zero.cocoon.models
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             ByteSegment = ByteBuffer;
 
-            if (!Source.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
+            if (!MessageService.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
             {
                 IoCcProtocolBuffer channelSource = null;
 
                 //Transfer ownership
-                if (Source.ZeroAtomicAsync((s,d) =>
+                if (MessageService.ZeroAtomicAsync((s,d) =>
                 {
-                    channelSource = new IoCcProtocolBuffer(Source, _arrayPool, parm_prefetch_size, 32);
-                    if (Source.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
+                    channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, parm_prefetch_size, parm_concurrency_level);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
-                        return Task.FromResult(Source.ZeroOnCascade(channelSource).success);
+                        return Task.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
 
                     return Task.FromResult(false);
                 }).ConfigureAwait(false).GetAwaiter().GetResult())
                 {
-                    ProtocolChannel = Source.EnsureChannel(
+                    ProtocolChannel = MessageService.EnsureChannel(
                         nameof(IoCcNeighbor),
                         true,
                         channelSource,
@@ -77,7 +77,7 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolChannel = Source.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+                ProtocolChannel = MessageService.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
             }
         }
 
@@ -95,6 +95,11 @@ namespace zero.cocoon.models
         /// The transaction broadcaster
         /// </summary>
         public IoChannel<IoCcProtocolMessage> ProtocolChannel;
+
+        /// <summary>
+        /// Base source
+        /// </summary>
+        protected IoUdpClient<IoCcPeerMessage> MessageService => (IoUdpClient<IoCcPeerMessage>) Source;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -211,7 +216,7 @@ namespace zero.cocoon.models
         {
             try
             {
-                await Source.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
+                await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var _this = (IoCcPeerMessage)ioJob;
                     //----------------------------------------------------------------------------
@@ -225,11 +230,11 @@ namespace zero.cocoon.models
                     try
                     {
                         //Async read the message from the message stream
-                        if (_this.Source.IsOperational)
+                        if (_this.MessageService.IsOperational)
                         {
                             int rx = 0;
 
-                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _remoteEp, ((IoUdpClient<IoCcPeerMessage>)_this.Source).BlackList);
+                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _remoteEp, _this.MessageService.BlackList);
                             await readTask.OverBoostAsync().ConfigureAwait(false);
 
                             rx = readTask.Result;
@@ -273,14 +278,14 @@ namespace zero.cocoon.models
 
                             _this.State = IoJobMeta.JobState.Produced;
 
-                            _this._logger.Trace($"RX=> {GetType().Name}[{_this.Id}] ({_this.Description}): from = {((IoSocket)ioSocket).FfAddress}, read=`{_this.BytesRead}', ready=`{_this.BytesLeftToProcess}', datumcount=`{_this.DatumCount}', datumsize=`{_this.DatumSize}', fragment=`{_this.DatumFragmentLength}', buffer = `{_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}', buf = `{(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%'");
+                            _this._logger.Trace($"{_this.Description} => {GetType().Name}[{_this.Id}]: r = {_this.BytesRead}, r = {_this.BytesLeftToProcess}, dc = {_this.DatumCount}, ds = {_this.DatumSize}, f = {_this.DatumFragmentLength}, b = {_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}, b = {(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%");
                         }
                         else
                         {
                             _this._logger.Warn(
-                                $"Source {_this.Source.Description} produce failed!");
+                                $"Source {_this.MessageService.Description} produce failed!");
                             _this.State = IoJobMeta.JobState.Cancelled;
-                            await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
+                            await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
                         }
 
                         if (_this.Zeroed())
@@ -314,7 +319,7 @@ namespace zero.cocoon.models
                     catch (Exception e)
                     {
                         _this.State = IoJobMeta.JobState.ProduceErr;
-                        await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
+                        await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
                         _this._logger.Error(e, $"ReadAsync {_this.Description}:");
                         return false;
                     }
@@ -375,7 +380,7 @@ namespace zero.cocoon.models
             {
                 _logger.Warn(e, $"{TraceDescription} We desynced!:");
 
-                Source.Synced = false;
+                MessageService.Synced = false;
                 DatumCount = 0;
                 BytesRead = 0;
                 State = IoJobMeta.JobState.ConInvalid;
@@ -427,7 +432,7 @@ namespace zero.cocoon.models
                         var tmpBufferOffset = BufferOffset;
                         Interlocked.Add(ref BufferOffset, (int)read);
 
-                        if(!Zeroed() && !Source.Zeroed())
+                        if(!Zeroed() && !MessageService.Zeroed())
                             _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset -2 , 32).ToArray().HashSig()}, {Description}");
 
                         if (read > 0)
@@ -476,10 +481,8 @@ namespace zero.cocoon.models
                         
                     }
 
-                    //var messageType = Enum.GetName(typeof(MessageTypes), packet.Data[0]);
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
-                    //packet.Type = packet.Data[0];
-                    _logger.Trace($"/{((IPEndPoint)ProducerExtraData).Port} /> {((IoUdpClient<IoCcPeerMessage>)Source).Socket.LocalIpAndPort}<<{packet.Data.Memory.PayloadSig()}:{messageType ?? "Unknown"}[{(verified ? "signed" : "un-signed")}], id = {Id}, o = {_currBatch}, r = {BytesRead}, s = `{(IPEndPoint) ProducerExtraData}', d = {Source.Description}");
+                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {ProducerExtraData} /> {MessageService.IoNetSocket.LocalNodeAddress}<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, id = {Id}, o = {_currBatch}, r = {BytesRead}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)

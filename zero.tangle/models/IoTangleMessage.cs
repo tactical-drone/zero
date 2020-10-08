@@ -34,7 +34,7 @@ namespace zero.tangle.models
         /// <param name="jobDescription">A description of the job needed to do the work</param>
         /// <param name="jobDescriptionn">A description of the work that needs to be done</param>
         /// <param name="source">The upstream source where messages are coming from</param>
-        public IoTangleMessage(string jobDescription, string loadDescription, IoSource<IoTangleMessage<TKey>> source):base(loadDescription, loadDescription, source)
+        public IoTangleMessage(string jobDescription, string sinkDesc, IoSource<IoTangleMessage<TKey>> source):base(sinkDesc, sinkDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -196,7 +196,7 @@ namespace zero.tangle.models
                         }
                             
                         var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
-                        interopTx.Uri = Source.SourceUri;
+                        interopTx.Uri = Source.Key; //TODO breaking
 
                         //check for pow
                         if (interopTx.Pow < TanglePeer<TKey>.MWM && interopTx.Pow > -TanglePeer<TKey>.MWM)

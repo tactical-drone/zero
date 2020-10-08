@@ -26,11 +26,11 @@ namespace zero.cocoon.models
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="jobDescription">Describe the source</param>
-        /// <param name="loadDescription">Describe the sink</param>
+        /// <param name="jobDesc">Describe the source</param>
+        /// <param name="sinkDesc">Describe the sink</param>
         /// <param name="originatingSource">The source of the work</param>
         /// <param name="zeroOnCascade">If false, don't allocate resources they will leak</param>
-        public IoCcGossipMessage(string jobDescription, string loadDescription, IoSource<IoCcGossipMessage> originatingSource, bool zeroOnCascade = true) : base(loadDescription, jobDescription, originatingSource)
+        public IoCcGossipMessage(string jobDesc, string sinkDesc, IoSource<IoCcGossipMessage> originatingSource, bool zeroOnCascade = true) : base(sinkDesc, jobDesc, originatingSource)
         {
             if (zeroOnCascade)
             {
@@ -114,12 +114,12 @@ namespace zero.cocoon.models
 
             var msgRaw = responsePacket.ToByteArray();
             
-            var sentTask =  ((IoTcpClient<IoCcGossipMessage>)Source).Socket.SendAsync(msgRaw, 0, msgRaw.Length);
+            var sentTask =  ((IoTcpClient<IoCcGossipMessage>)Source).IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length);
 
             if (!sentTask.IsCompletedSuccessfully)
                 await sentTask.ConfigureAwait(false);
             
-            _logger.Debug($"{nameof(IoCcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<IoCcGossipMessage>)Source).Socket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
+            _logger.Debug($"{nameof(IoCcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<IoCcGossipMessage>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
             return sentTask.Result;
         }
 
@@ -281,7 +281,7 @@ namespace zero.cocoon.models
                         //if (Id % 10 == 0)
                         //await Task.Delay(3, AsyncToken.Token).ConfigureAwait(false);
 
-                        var sentTask = ((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(ByteSegment, BufferOffset, DatumSize);
+                        var sentTask = ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize);
                         
                         //slow path
                         if (!sentTask.IsCompletedSuccessfully)
@@ -305,7 +305,7 @@ namespace zero.cocoon.models
                             req = 1;
 
                             MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
-                            if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
+                            if (await ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket
                                 .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((IoCcPeer)IoZero).AccountingBit, 2);
@@ -317,7 +317,7 @@ namespace zero.cocoon.models
 
                             req = 0;
                             MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
-                            if (await ((IoNetClient<IoCcGossipMessage>) Source).Socket
+                            if (await ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket
                                 .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((IoCcPeer)IoZero).AccountingBit, 1);

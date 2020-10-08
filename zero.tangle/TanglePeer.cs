@@ -30,7 +30,7 @@ namespace zero.tangle
         /// <param name="node">The node this peer is connected to</param>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
         public TanglePeer(TangleNode<IoTangleMessage<TKey>, TKey> node, IoNetClient<IoTangleMessage<TKey>> ioNetClient) :
-            base(node,ioNetClient, (userData) => new IoTangleMessage<TKey>($"rx", $"{ioNetClient.AddressString}", ioNetClient))
+            base(node,ioNetClient, (userData) => new IoTangleMessage<TKey>($"rx", $"{ioNetClient.Key}", ioNetClient))
         {
             _logger = LogManager.GetCurrentClassLogger();            
             //JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 2);                        
@@ -91,7 +91,7 @@ namespace zero.tangle
             {
                 if (transactionArbiter == null)
                 {
-                    _logger.Debug("Waiting for transaction stream to spin up...");
+                    _logger.Trace("Waiting for transaction stream to spin up...");
                     transactionArbiter = Source.EnsureChannel<IoTangleTransaction<TKey>>(nameof(TanglePeer<IoTangleTransaction<TKey>>));
                     await Task.Delay(2000);//TODO config
                     continue;

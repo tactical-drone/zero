@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using NLog;
 using zero.core.conf;
+using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
@@ -65,7 +66,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The <see cref="TcpListener"/> instance that is wrapped
         /// </summary>
-        protected IoSocket IoListenSocket;
+        protected IoNetSocket IoListenSocket;
 
         /// <summary>
         /// A set of currently connecting net clients
@@ -93,11 +94,10 @@ namespace zero.core.network.ip
         /// Listens for new connections
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAheadBufferSize">TCP read ahead</param>
-        /// <param name="concurrencyLevel">Concurrency level</param>
         /// <param name="bootstrapAsync">Bootstrap code</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task ListenAsync(Func<IoNetClient<TJob>,Task> connectionReceivedAction, Func<Task> bootstrapAsync = null)
+        public virtual Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction,
+            Func<Task> bootstrapAsync = null)
         {
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
@@ -108,33 +108,33 @@ namespace zero.core.network.ip
         /// <summary>
         /// Connect to a host async
         /// </summary>
-        /// <param name="address">A stub</param>
+        /// <param name="remoteAddress">A stub</param>
         /// <param name="ioNetClient">The client to connect to</param>
         /// <returns>The client object managing this socket connection</returns>
-        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> ioNetClient = null)
+        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> ioNetClient = null)
         {
             if (ioNetClient == null)
                 return null;
 
-            if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
+            if (!_connectionAttempts.TryAdd(remoteAddress.Key, ioNetClient))
             {
                 return null;
 
                 //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
                 //if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 {
-                    _logger.Warn($"Cancelling existing connection attempt to `{address}'");
+                    _logger.Warn($"Cancelling existing connection attempt to `{remoteAddress}'");
 
-                    await _connectionAttempts[address.Key].ZeroAsync(this).ConfigureAwait(false);
-                    _connectionAttempts.TryRemove(address.Key, out _);
-                    return await ConnectAsync(address, ioNetClient).ConfigureAwait(false);
+                    await _connectionAttempts[remoteAddress.Key].ZeroAsync(this).ConfigureAwait(false);
+                    _connectionAttempts.TryRemove(remoteAddress.Key, out _);
+                    return await ConnectAsync(remoteAddress, ioNetClient).ConfigureAwait(false);
                 }
             }
 
             var connected = false;
             try
             {
-                connected = await ioNetClient.ConnectAsync().ConfigureAwait(false);
+                connected = await ioNetClient.ConnectAsync(remoteAddress).ConfigureAwait(false);
                 if (connected)
                 {
                     //Check things
@@ -144,16 +144,16 @@ namespace zero.core.network.ip
                         var client = ioNetClient;
                         if (!await ZeroAtomicAsync((s,d) => Task.FromResult(s.ZeroOnCascade(client).success)).ConfigureAwait(false))
                         {
-                            _logger.Debug($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
+                            _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                             //REJECT
                             connected = false;
                         }
 
-                        _logger.Debug($"{nameof(ConnectAsync)}: [SUCCESS], dest = {ioNetClient.ListeningAddress}");
+                        _logger.Trace($"{nameof(ConnectAsync)}: [SUCCESS], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
                     }
                     else // On connection failure after successful connect?
                     {
-                        _logger.Debug($"{nameof(ConnectAsync)}: [STALE], {ioNetClient.ListeningAddress}");
+                        _logger.Trace($"{nameof(ConnectAsync)}: [STALE], {ioNetClient.IoNetSocket.RemoteNodeAddress}");
                         //REJECT
                         connected = false;
                     }
@@ -172,14 +172,14 @@ namespace zero.core.network.ip
                     await ioNetClient.ZeroAsync(this).ConfigureAwait(false);
 
                     if (!Zeroed())
-                        _logger.Error($"{nameof(ConnectAsync)}: [FAILED], dest = {ioNetClient.ListeningAddress}");
+                        _logger.Error($"{nameof(ConnectAsync)}: [FAILED], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
 
                     ioNetClient = null;
                 }
 
-                if (!_connectionAttempts.TryRemove(address.Key, out _))
+                if (!_connectionAttempts.TryRemove(remoteAddress.Key, out _))
                 {
-                    _logger.Fatal($"Unable find existing connection {address.Key},");
+                    _logger.Fatal($"Unable find existing connection {remoteAddress.Key},");
                 }
             }
 

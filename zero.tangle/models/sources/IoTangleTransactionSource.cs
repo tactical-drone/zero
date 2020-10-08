@@ -41,17 +41,13 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => SourceUri;
+        public override string Key => Upstream.Key;
 
         /// <summary>
         /// Description of this upstream
         /// </summary>
         public override string Description => $"{_destDescription}";
 
-        /// <summary>
-        /// The original source URI
-        /// </summary>
-        public override string SourceUri => "";
 
         /// <summary>
         /// Gets a value indicating whether this instance is operational.

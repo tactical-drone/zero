@@ -20,7 +20,7 @@ namespace zero.cocoon
         /// <param name="ioNetClient">The peer transport carrier</param>
         public IoCcPeer(IoNode<IoCcGossipMessage> node, IoCcNeighbor neighbor,
             IoNetClient<IoCcGossipMessage> ioNetClient) 
-            : base(node, ioNetClient, userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.AddressString}", ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
+            : base(node, ioNetClient, userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}", ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
@@ -71,9 +71,14 @@ namespace zero.cocoon
             {
                 if (_description != null)
                     return _description;
-                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source.IsOperational?"Connected":"Zombie")}) {Id}'";
+                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source.IsOperational?"Connected":"Zombie")}) {Key}'";
             }
         }
+
+        /// <summary>
+        /// The source
+        /// </summary>
+        public new IoNetClient<IoCcGossipMessage> IoSource => (IoNetClient<IoCcGossipMessage>) Source;
 
         /// <summary>
         /// The attached neighbor
@@ -84,13 +89,13 @@ namespace zero.cocoon
         /// <summary>
         /// CcId
         /// </summary>
-        public override string Id
+        public override string Key
         {
             get
             {
                 if (_id != null)
                     return _id;
-                return _id = Neighbor?.Id ?? "null";
+                return _id = Neighbor?.Key ?? "null";
             }
         }
 
@@ -146,7 +151,7 @@ namespace zero.cocoon
 
             if (attached)
             {
-                _logger.Debug($"{nameof(AttachNeighbor)}: {direction} attach to neighbor {neighbor.Description}");
+                _logger.Trace($"{nameof(AttachNeighbor)}: {direction} attach to neighbor {neighbor.Description}");
 
                 StartTestModeAsync();
             }
@@ -200,7 +205,7 @@ namespace zero.cocoon
 
                 if (!Zeroed())
                 {
-                    if (await((IoNetClient<IoCcGossipMessage>) Source).Socket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                    if (await((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
                     {
                         Interlocked.Increment(ref AccountingBit);
                     }

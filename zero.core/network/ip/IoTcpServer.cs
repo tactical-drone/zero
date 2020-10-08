@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
@@ -35,10 +36,10 @@ namespace zero.core.network.ip
         /// Start the listener
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
-        /// <param name="readAheadBufferSize"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction, Func<Task> bootstrapAsync = null)
+        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction,
+            Func<Task> bootstrapAsync = null)
         {
             await base.ListenAsync(connectionReceivedAction, bootstrapAsync).ConfigureAwait(false);
 
@@ -48,7 +49,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>(newConnectionSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>((IoNetSocket) newConnectionSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
                 }
                 catch (Exception e)
                 {
@@ -63,16 +64,16 @@ namespace zero.core.network.ip
         /// <summary>
         /// Connects the asynchronous.
         /// </summary>
-        /// <param name="address">The address.</param>
+        /// <param name="remoteAddress">The address.</param>
         /// <param name="_">The .</param>
-        /// <returns>The tcp client object managing this socket connection</returns>
-        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress address, IoNetClient<TJob> _)
+        /// <returns>The tcp client object managing this dotNetSocket connection</returns>
+        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _)
         {
-            if (!address.Validated)
+            if (!remoteAddress.Validated)
                 return null;
+
             //ZEROd later on inside net server once we know the connection succeeded 
-            var ioTcpclient = new IoTcpClient<TJob>(address, ReadAheadBufferSize, ConcurrencyLevel);
-            return await base.ConnectAsync(address, ioTcpclient).ConfigureAwait(false);
+            return await base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>(ReadAheadBufferSize, ConcurrencyLevel)).ConfigureAwait(false);
         }
     }
 }

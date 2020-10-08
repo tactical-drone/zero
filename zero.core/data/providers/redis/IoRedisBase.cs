@@ -70,9 +70,9 @@ namespace zero.core.data.providers.redis
                 return false;
 
             _hosts = hosts;
-            var hostsStringDesc = new string((hosts.ToList().Select(u => u.IpPort + ",").SelectMany(u => u).ToArray())).Trim(',');
+            var hostsStringDesc = new string((hosts.ToList().Select(u => u.Ip + ",").SelectMany(u => u).ToArray())).Trim(',');
 
-            _logger.Debug($"Connecting to redis at `{hostsStringDesc}'");
+            _logger.Trace($"Connecting to redis at `{hostsStringDesc}'");
 
             try
             {

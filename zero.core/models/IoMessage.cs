@@ -21,7 +21,7 @@ namespace zero.core.models
         /// <summary>
         /// Initializes the buffer size to fill
         /// </summary>
-        protected IoMessage(string loadDescription, string jobDescription, IoSource<TJob> source) : base(loadDescription, jobDescription, source)
+        protected IoMessage(string sinkDesc, string jobDesc, IoSource<TJob> source) : base(sinkDesc, jobDesc, source)
         {
             //Set this instance to flush when settings change, new ones will be created with the correct settings
             //SettingChangedEvent += (sender, pair) =>

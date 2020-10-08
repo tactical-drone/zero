@@ -31,12 +31,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoJob(string description, IoSource<TJob> source)
+        protected IoJob(string desc, IoSource<TJob> source)
         {
             //source.ZeroOnCascade(Nanoprobe);
             Source = source;
             Source.ZeroOnCascade(this);
-            _jobDescription = description;
+            _jobDesc = desc;
         }
 
         /// <summary>
@@ -63,7 +63,7 @@ namespace zero.core.patterns.bushes
             get
             {
                 if(_description == null) 
-                    return _description = $"{Source?.Description} | {_jobDescription}";
+                    return _description = $"{Source?.Description} | {_jobDesc}";
                 return _description;
             }
         }
@@ -258,7 +258,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A description of this job
         /// </summary>
-        private readonly string _jobDescription;
+        private readonly string _jobDesc;
 
 
         /// <summary>
