@@ -27,7 +27,7 @@ namespace zero.cocoon.models
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _protocolMsgBatch = ArrayPool<Tuple<IIoZero, IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
+            _protocolMsgBatch = ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>>.Shared.Rent(parm_max_msg_batch_size);
 
             DatumSize = 508;
 
@@ -584,7 +584,7 @@ namespace zero.cocoon.models
                         await ForwardToNeighborAsync().ConfigureAwait(false);
 
                     var remoteEp = (IPEndPoint) ProducerExtraData;
-                    _protocolMsgBatch[_currBatch] = Tuple.Create(zero, (IMessage)request, (object)IPEndPoint.Parse(remoteEp.ToString()), packet);
+                    _protocolMsgBatch[_currBatch] = ValueTuple.Create(zero, (IMessage)request, (object)IPEndPoint.Parse(remoteEp.ToString()), packet);
                     Interlocked.Increment(ref _currBatch);
                 }
             }
@@ -608,7 +608,7 @@ namespace zero.cocoon.models
 
                 if (_currBatch < parm_max_msg_batch_size)
                 {
-                    _protocolMsgBatch[_currBatch] = null;
+                    _protocolMsgBatch[_currBatch] = default;
                 }
                 
                 //cog the source
@@ -625,7 +625,7 @@ namespace zero.cocoon.models
                     //Retrieve batch buffer
                     try
                     {
-                        _this._protocolMsgBatch = ArrayPool<Tuple<IIoZero, IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
+                        _this._protocolMsgBatch = ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>>.Shared.Rent(_this.parm_max_msg_batch_size);
                     }
                     catch (Exception e)
                     {
@@ -672,12 +672,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private volatile Tuple<IIoZero, IMessage, object, Packet>[] _protocolMsgBatch;
+        private volatile ValueTuple<IIoZero, IMessage, object, Packet>[] _protocolMsgBatch;
 
         /// <summary>
         /// message heap
         /// </summary>
-        private ArrayPool<Tuple<IIoZero, IMessage, object, Packet>> _arrayPool =
-            ArrayPool<Tuple<IIoZero, IMessage, object, Packet>>.Create();
+        private ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> _arrayPool =
+            ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>>.Create();
     }
 }

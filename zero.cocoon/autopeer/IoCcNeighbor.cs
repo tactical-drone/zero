@@ -378,7 +378,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// heap
         /// </summary>
-        public ArrayPool<Tuple<IIoZero, IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
+        public ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
 
         /// <summary>
         /// Create an CcId string
@@ -681,7 +681,7 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessMsgBatchAsync(IoSink<IoCcProtocolMessage> msg,
             IoChannel<IoCcProtocolMessage> msgArbiter,
-            Func<Tuple<IIoZero, IMessage, object, Packet>, IoChannel<IoCcProtocolMessage>, IIoZero, Task> processCallback, IIoZero zeroClosure)
+            Func<ValueTuple<IIoZero, IMessage, object, Packet>, IoChannel<IoCcProtocolMessage>, IIoZero, Task> processCallback, IIoZero zeroClosure)
         {
             if (msg == null)
                 return;
@@ -694,7 +694,7 @@ namespace zero.cocoon.autopeer
 
                 foreach (var message in protocolMsgs)
                 {
-                    if (message == null)
+                    if (message == default)
                         break;
 
                     try
@@ -720,7 +720,7 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                ((IoCcProtocolMessage) msg).Batch[0] = null;
+                ((IoCcProtocolMessage) msg).Batch[0] = default;
                 ArrayPoolProxy?.Return(((IoCcProtocolMessage)msg).Batch);
             }
         }

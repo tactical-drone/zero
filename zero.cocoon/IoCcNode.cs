@@ -339,6 +339,7 @@ namespace zero.cocoon
 
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
+            
             //start node listener
             await base.SpawnListenerAsync(async peer =>
             {
