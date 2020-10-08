@@ -41,7 +41,7 @@ namespace zero.cocoon
             _peerAddress = peerAddress;
             _fpcAddress = fpcAddress;
             BootstrapAddress = bootstrap;
-            ExtAddress = extAddress;
+            ExtAddress = extAddress; //this must be the external or NAT address.
             CcId = ioCcIdentity;
 
             Services.IoCcRecord.Endpoints.TryAdd(IoCcService.Keys.peering, _peerAddress);
@@ -639,8 +639,7 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    _logger.Debug(
-                        $"{direction} handshake [REJECT] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
+                    _logger.Trace($"{direction} handshake [REJECT] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
                     return false;
                 }
             }
@@ -689,7 +688,7 @@ namespace zero.cocoon
             }
             else
             {
-                _logger.Debug($"{nameof(ConnectToPeerAsync)}: Connect skipped: {neighbor.Description}");
+                _logger.Trace($"{nameof(ConnectToPeerAsync)}: Connect skipped: {neighbor.Description}");
                 return false;
             }
         }

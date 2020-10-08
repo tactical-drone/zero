@@ -168,11 +168,12 @@ namespace zero.core.core
                                 //Only drop incoming if the existing one is working
                                 if (existingNeighbor.Source.IsOperational)
                                 {
-                                    _logger.Trace($" [DROPPED] {newNeighbor.Description}, {existingNeighbor.Description} already connected!");
+                                    _logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                     return false;
                                 }
                                 else//else drop existing
                                 {
+                                    _logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
                                     await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
                                 }
                             }
@@ -321,7 +322,7 @@ namespace zero.core.core
                 }
                 else
                 {
-                    _logger.Fatal($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection...");
+                    _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
                     await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
                 }
 

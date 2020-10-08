@@ -39,7 +39,7 @@ namespace zero.core.network.ip
             LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)NativeSocket.LocalEndPoint);
             RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)(NativeSocket.RemoteEndPoint ?? remoteEndPoint));
 
-            Key = RemoteNodeAddress.Key;
+            Key = NativeSocket.RemoteEndPoint != null ? RemoteNodeAddress.Key : LocalNodeAddress.Key;
 
             Kind = Connection.Ingress;
 
@@ -62,7 +62,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Keys this socket
         /// </summary>
-        public string Key { get; protected set; }
+        public string Key { get; private set; }
 
         /// <summary>
         /// The local address
@@ -139,7 +139,7 @@ namespace zero.core.network.ip
             {
                 NativeSocket.Bind(listeningAddress.IpEndPoint);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(), (IPEndPoint) NativeSocket.LocalEndPoint);
-                RemoteNodeAddress = IoNodeAddress.Create($"{listeningAddress.ProtocolDesc}255.255.255.255:255");
+                RemoteNodeAddress = IoNodeAddress.Create($"{listeningAddress.ProtocolDesc}0.0.0.0:709");
 
                 Key = LocalNodeAddress.Key;
 

@@ -643,7 +643,7 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                _logger.Debug($"{nameof(CcNode.ConnectToPeerAsync)}: [FAILED], {Description}, {MetaDesc}");
+                _logger.Trace($"{nameof(CcNode.ConnectToPeerAsync)}: [LOST], {Description}, {MetaDesc}");
             }
 
             State = NeighborState.Disconnected;
@@ -921,7 +921,7 @@ namespace zero.cocoon.autopeer
             }
             else if (Direction == Kind.OutBound) //If it is outbound say no
             {
-                _logger.Trace($"<\\- {nameof(PeeringRequest)}: Peering request {Kind.Inbound} Rejected: {Description} is already {Kind.OutBound}, {MetaDesc}");
+                _logger.Trace($"<\\- {nameof(PeeringRequest)}: Peering request {Kind.Inbound} Rejected: {Identity.IdString()} is already {Kind.OutBound}");
                 peeringResponse.Status = false;
             }
             else if (wasInbound)
@@ -952,7 +952,7 @@ namespace zero.cocoon.autopeer
             var request = _peerRequest.Response(extraData.ToString());
             if (!Assimilated || request == null)
             {
-                if (!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                if (!Zeroed() && !MessageService.Zeroed())
                     _logger.Debug($"<\\- {nameof(PeeringResponse)}{response.ToByteArray().PayloadSig()}: Unexpected {extraData}, {RemoteAddress}, req = {response.ReqHash.Memory.HashSig()}, _peerRequest = {_peerRequest.Count}");
                 return;
             }
@@ -960,7 +960,7 @@ namespace zero.cocoon.autopeer
             var hash = IoCcIdentity.Sha256.ComputeHash(request.Memory.AsArray());
             if (!response.ReqHash.SequenceEqual(hash))
             {
-                if (!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                if (!Zeroed() && !MessageService.Zeroed())
                     _logger.Debug($"<\\- {nameof(PeeringResponse)}{response.ToByteArray().PayloadSig()}: Invalid hash: req = {response.ReqHash.Memory.HashSig()} != {hash.HashSig()}, {Description}");
                 return;
             }
@@ -974,12 +974,12 @@ namespace zero.cocoon.autopeer
             {
                 if (!await ConnectAsync().ConfigureAwait(false))
                 {
-                    _logger.Debug($"<\\- {nameof(PeeringResponse)}: [FAILED] Connect to {Description}, {MetaDesc}");
+                    _logger.Trace($"<\\- {nameof(PeeringResponse)}: [LOST] Connect to {Description}, {MetaDesc}");
                 }
             }//Were we inbound?
             else if (Direction == Kind.Inbound)
             {
-                _logger.Debug($"<\\- {nameof(PeeringResponse)}: {nameof(Kind.OutBound)} request dropped, {nameof(Kind.Inbound)} received");
+                _logger.Trace($"<\\- {nameof(PeeringResponse)}: {nameof(Kind.OutBound)} request dropped, {nameof(Kind.Inbound)} received");
                 //TODO can we do better?
             }
             else if (alreadyOutbound)//We were already outbound
@@ -1112,7 +1112,7 @@ namespace zero.cocoon.autopeer
                 var sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint).ZeroBoostAsync().ConfigureAwait(false);
 #if DEBUG
                 //await sent.OverBoostAsync().ConfigureAwait(false);
-                _logger.Trace($"=/> {Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}, {Description}");
+                _logger.Trace($"=/> {Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
 #endif
                 return sent;
 
@@ -1142,14 +1142,14 @@ namespace zero.cocoon.autopeer
 
             if (discoveryRequest == null || !Assimilated || response.Peers.Count > parm_max_discovery_peers)
             {
-                if (!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                if (!Zeroed() && !MessageService.Zeroed())
                     _logger.Debug($"{(ConnectedLess?"V>":"X>")}{nameof(DiscoveryResponse)}{response.ToByteArray().PayloadSig()}: Reject, req hash = {response.ReqHash.Memory.HashSig()}, {response.Peers.Count} > {parm_max_discovery_peers}? from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest.Count}, matched = {discoveryRequest}");
                 return;
             }
 
             if (!response.ReqHash.SequenceEqual(IoCcIdentity.Sha256.ComputeHash(discoveryRequest.Memory.AsArray())))
             {
-                if (!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                if (!Zeroed() && !MessageService.Zeroed())
                     _logger.Debug($"<\\- {nameof(DiscoveryResponse)}{response.ToByteArray().PayloadSig()}: Reject invalid hash {response.ReqHash.Memory.HashSig()} != {discoveryRequest.Memory.PayloadSig()}, request = {_discoveryRequest.Count}, matched = {discoveryRequest} {Description}");
                 return;
             }
@@ -1178,7 +1178,7 @@ namespace zero.cocoon.autopeer
 
                 //Never add ourselves (by NAT)
                 if (responsePeer.Services.Map.ContainsKey(IoCcService.Keys.peering.ToString()) &&
-                    responsePeer.Ip == ExtGossipAddress.Ip &&
+                    responsePeer.Ip == CcNode.ExtAddress.Ip &&
                     CcNode.ExtAddress.Port == responsePeer.Services.Map[IoCcService.Keys.peering.ToString()].Port)
                     continue;
 
@@ -1271,7 +1271,7 @@ namespace zero.cocoon.autopeer
                 });
             }).ConfigureAwait(false))
             {
-                _logger.Info($"Assimilating: {newNeighbor.Description}");
+                _logger.Debug($"Assimilating: {newNeighbor.Description}");
                 return await newNeighbor.SendPingAsync().ConfigureAwait(false);
             }
             else
@@ -1417,7 +1417,7 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    if(!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                    if(!Zeroed() && !MessageService.Zeroed())
                         _logger.Debug($"<\\- {nameof(Ping)}: [FAILED] Sent ACK SYN/KEEPALIVE, to = {Description}");
                 }
             }
@@ -1624,7 +1624,7 @@ namespace zero.cocoon.autopeer
                     else
                     {
                         _pingRequest.Response(RemoteAddress.IpPort);
-                        if(!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                        if(!Zeroed() && !MessageService.Zeroed())
                             _logger.Debug($"-/> {nameof(Ping)}: [FAILED], {Description}");
                         return false;
                     }
@@ -1699,7 +1699,7 @@ namespace zero.cocoon.autopeer
                 else
                 {
                     _discoveryRequest.Response(RemoteAddress.IpPort);
-                    if(!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                    if(!Zeroed() && !MessageService.Zeroed())
                         _logger.Debug($"-/> {nameof(SendDiscoveryRequestAsync)}: [FAILED], {Description} ");
                 }
             }
@@ -1760,7 +1760,7 @@ namespace zero.cocoon.autopeer
                 else
                 {
                     _peerRequest.Response(RemoteAddress.IpPort);
-                    if(!Zeroed() && !MessageService.Zeroed() && ConnectedAtLeastOnce)
+                    if(!Zeroed() && !MessageService.Zeroed())
                         _logger.Debug($"-/> {nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
                 }
                     

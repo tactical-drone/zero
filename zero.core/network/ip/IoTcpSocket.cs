@@ -297,7 +297,15 @@ namespace zero.core.network.ip
         /// <returns>True if the connection is up, false otherwise</returns>
         public override bool IsConnected()
         {
-            return NativeSocket != null && NativeSocket.IsBound && NativeSocket.Connected && NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
+            try
+            {
+                return NativeSocket != null && NativeSocket.IsBound && NativeSocket.Connected && NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e, Description);
+                return false;
+            }
         }
 
     }

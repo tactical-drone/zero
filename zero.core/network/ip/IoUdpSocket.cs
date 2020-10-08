@@ -429,12 +429,11 @@ namespace zero.core.network.ip
         {
             try
             {
-                return NativeSocket != null && NativeSocket.IsBound &&
-                       NativeSocket.LocalEndPoint !=
-                       null; //&& NativeSocket.SendTo(_sentinelBuffer, SocketFlags.None, _remoteEpAny) == 0;
+                return NativeSocket != null && NativeSocket.IsBound && NativeSocket.LocalEndPoint != null;
             }
-            catch
+            catch (Exception e)
             {
+                _logger.Trace(e, Description);
                 return false;
             }
         }
