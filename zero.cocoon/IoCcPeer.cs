@@ -69,8 +69,8 @@ namespace zero.cocoon
         {
             get
             {
-                if (_description != null)
-                    return _description;
+                //if (_description != null)
+                //    return _description;
                 return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source.IsOperational?"Connected":"Zombie")}) {Key}'";
             }
         }
@@ -197,7 +197,7 @@ namespace zero.cocoon
             if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
                 return;
             
-            if (Neighbor.Direction == IoCcNeighbor.Kind.OutBound)
+            if (Neighbor?.Direction == IoCcNeighbor.Kind.OutBound)
             {
                 long v = 0;
                 var vb = new byte[8];

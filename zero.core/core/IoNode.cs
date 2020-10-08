@@ -286,9 +286,26 @@ namespace zero.core.core
                 //    }
                 //}
 
-                Task<bool> OwnershipAction(IIoZeroable z, bool b) => Task.FromResult(Neighbors.TryAdd(newNeighbor.Key, newNeighbor));
+                async Task<bool> OwnershipAction(IIoZeroable z, bool b)
+                {
+                    //New neighbor?
+                    if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                    {
+                        return true;
+                    }
 
-                if (await ZeroAtomicAsync(OwnershipAction))
+                    //Existing and not broken neighbor?
+                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.IsArbitrating && existingNeighbor.Source.IsOperational)
+                    {
+                        return false;
+                    }
+
+                    //Existing broken neighbor...
+                    if (existingNeighbor != null) await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                    return true;
+                }
+
+                if (await ZeroAtomicAsync(OwnershipAction).ZeroBoostAsync().ConfigureAwait(false))
                 {
                     //Is this a race condition? Between subbing and being zeroed out?
                     newNeighbor.ZeroEvent(s =>

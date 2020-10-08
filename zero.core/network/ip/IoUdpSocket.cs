@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
+using StackExchange.Redis;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
@@ -33,7 +34,8 @@ namespace zero.core.network.ip
         /// <param name="remoteEndPoint"></param>
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint): base(nativeSocket, remoteEndPoint)
         {
-            
+            _logger = LogManager.GetCurrentClassLogger();
+            Proxy = true;
         }
 
         /// <summary>

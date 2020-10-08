@@ -165,14 +165,14 @@ namespace zero.core.patterns.bushes
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_max_q_size = 10000; //TODO
+        public long parm_max_q_size = 100; //TODO
 
         /// <summary>
         /// Time to wait for insert before complaining about it
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_ingress_timout = 500;
+        public int parm_ingress_timout = 5000;
 
         /// <summary>
         /// Debug output rate
@@ -180,9 +180,9 @@ namespace zero.core.patterns.bushes
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_stats_mod_count = 500;
+        public int parm_stats_mod_count = 5000;
 #else
-        public int parm_stats_mod_count = 500;
+        public int parm_stats_mod_count = 5000;
 #endif
 
         /// <summary>

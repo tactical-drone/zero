@@ -52,12 +52,17 @@ namespace zero.core.network.ip
         private readonly Logger _logger;
 
         //Socket description 
-        public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress.ToString())}, bound = {NativeSocket.IsBound}, connected = {IsConnected()})";
+        public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress.ToString())}, bound = {NativeSocket.IsBound}";
 
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
         public Socket NativeSocket { get; }
+
+        /// <summary>
+        /// If this socket is a (udp) proxy
+        /// </summary>
+        public bool Proxy { get; protected set; }
 
         /// <summary>
         /// Keys this socket
@@ -186,7 +191,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            NativeSocket.Dispose();
+            if(!Proxy)
+                NativeSocket.Dispose();
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
@@ -202,7 +208,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (NativeSocket.IsBound && NativeSocket.Connected)
+                if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
                     NativeSocket?.Shutdown(SocketShutdown.Both);
 
             }
@@ -212,7 +218,8 @@ namespace zero.core.network.ip
                 _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
             }
 
-            NativeSocket?.Close();
+            if(!Proxy)
+                NativeSocket?.Close();
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");

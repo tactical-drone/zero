@@ -126,11 +126,12 @@ namespace zero.cocoon.autopeer
         {
             get
             {
-                if (_description != null)
-                    return _description;
+                //if (_description != null)
+                //    return _description;
                 try
                 {
-                    return _description = $"`neighbor({(ConnectedLess ? "R" : "L")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{TotalPats}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
+                    //return _description = $"`neighbor({(ConnectedLess ? "R" : "L")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{TotalPats}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
+                    return $"`neighbor({(ConnectedLess ? "R" : "L")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{TotalPats}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
                 }
                 catch (NullReferenceException) { }
                 catch (Exception e)
@@ -554,12 +555,15 @@ namespace zero.cocoon.autopeer
                 var reconnect = this.Direction == Kind.OutBound;
                 var address = RemoteAddress;
 
-                _logger.Debug($"{nameof(EnsurePeerAsync)}: Watchdog failure! s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}, {Description}, {MetaDesc}");
+                if(TotalPats > 1)
+                    _logger.Debug($"{nameof(EnsurePeerAsync)}: Watchdog failure! s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}, {Description}, {MetaDesc}");
+                else
+                    _logger.Trace($"{nameof(EnsurePeerAsync)}: Watchdog failure! s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}, {Description}, {MetaDesc}");
 
                 await ZeroAsync(this).ConfigureAwait(false);
 
                 if (reconnect)
-                    await SendPingAsync(address).ConfigureAwait(false);
+                    await Router.SendPingAsync(address).ConfigureAwait(false);
 
                 return;
             }
@@ -778,7 +782,7 @@ namespace zero.cocoon.autopeer
                                             
                                         }
 
-                                        ccNeighbor ??= ((IoCcNeighborDiscovery) DiscoveryService).Router;
+                                        ccNeighbor ??= DiscoveryService.Router;
 
                                         switch (message.GetType().Name)
                                         {
@@ -1064,12 +1068,13 @@ namespace zero.cocoon.autopeer
                     _logger.Debug($"{nameof(EnsureZombieAsync)}: Poke {Description}, {MetaDesc}");
                 }
             }
-            else if (Direction == Kind.Undefined) //Drop assimilated neighbors
+            else if (Direction == Kind.Undefined && State < NeighborState.Peering) //Drop assimilated neighbors
             {
                 if (ConnectionAttempts >= parm_zombie_max_connection_attempts * 2)
                 {
                     //Give up
                     State = NeighborState.Zombie;
+                    _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Anomaly {Description}");
                     await ZeroAsync(this).ConfigureAwait(false);
                 }
             }
@@ -1215,7 +1220,9 @@ namespace zero.cocoon.autopeer
             }
             else if (count == 0 && Direction == Kind.Undefined && _totalPats > parm_zombie_max_connection_attempts * 2 )// && ConnectionAttempts > parm_zombie_max_connection_attempts)
             {
-                State = NeighborState.Zombie;
+                
+                State = NeighborState.Zombie; 
+                _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Secretive {Description}");
                 //Drop assimilated neighbors
                 await ZeroAsync(this).ConfigureAwait(false);
             }
@@ -1454,7 +1461,7 @@ namespace zero.cocoon.autopeer
                 if (!Zeroed() && !MessageService.Zeroed())
                     _logger.Debug(!ConnectedLess
                     ? $"{(ConnectedLess?"V>":"X>")}{nameof(Pong)}({GetHashCode()}){pong.ToByteArray().PayloadSig()}: Un-MATCHED! rh = {pong.ReqHash.Memory.HashSig()} != {hash.HashSig()}, {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData))}"
-                    : $"{(ConnectedLess?"V>":"X>")}{nameof(Pong)}({GetHashCode()}){pong.ToByteArray().PayloadSig()}: Un-MATCHED!:rh = {pong.ReqHash.Memory.HashSig()} != {hash.HashSig()}, {Description}");
+                    : $"{(ConnectedLess?"V>":"X>")}{nameof(Pong)}({GetHashCode()}){pong.ToByteArray().PayloadSig()}: Un-MATCHED! rh = {pong.ReqHash.Memory.HashSig()} != {hash.HashSig()}, {Description}");
 
                 return;
             }    
