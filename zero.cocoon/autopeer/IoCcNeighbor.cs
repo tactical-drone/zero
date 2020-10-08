@@ -204,7 +204,17 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Indicates whether we have successfully established a connection before
         /// </summary>
-        protected volatile int ConnectionAttempts;
+        protected volatile uint ConnectionAttempts;
+
+        /// <summary>
+        /// Number of peer requests
+        /// </summary>
+        protected volatile uint PeerRequests;
+
+        /// <summary>
+        /// Node broadcast priority. 
+        /// </summary>
+        protected uint Priority => (uint)Enum.GetNames(typeof(Kind)).Length - (uint)Direction + PeerRequests;
 
         //uptime
         private long _uptime;
@@ -448,6 +458,13 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_zombie_max_connection_attempts = 3;
+
+        /// <summary>
+        /// Maximum number of services supported
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_target_neighbor_discovery_capacity = 4;
 
         /// <summary>
         /// Handle to neighbor zero sub
@@ -911,6 +928,8 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
+            PeerRequests++;
+
             PeeringResponse peeringResponse = peeringResponse = new PeeringResponse
             {
                 ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
@@ -1218,7 +1237,7 @@ namespace zero.cocoon.autopeer
             {
                 _logger.Trace($"{nameof(DiscoveryResponse)}: Scanned {count}/{response.Peers.Count} discoveries from {Description} ...");
             }
-            else if (count == 0 && Direction == Kind.Undefined && _totalPats > parm_zombie_max_connection_attempts * 2 )// && ConnectionAttempts > parm_zombie_max_connection_attempts)
+            else if (count == 0 && Direction == Kind.Undefined && _totalPats > parm_zombie_max_connection_attempts * 2  && CcNode.TotalConnections > CcNode.MaxClients - parm_target_neighbor_discovery_capacity)// && ConnectionAttempts > parm_zombie_max_connection_attempts)
             {
                 
                 State = NeighborState.Zombie; 
@@ -1312,7 +1331,7 @@ namespace zero.cocoon.autopeer
 
             var count = 0;
             var certified = DiscoveryService.Neighbors.Values.Where(n => ((IoCcNeighbor) n).Verified && n != this && !((IoCcNeighbor)n).IsLocal)
-                .OrderBy(n => (int) ((IoCcNeighbor) n).Direction).ToList();
+                .OrderByDescending(n => (int) ((IoCcNeighbor) n).Priority).ToList();
             foreach (var ioNeighbor in certified)
             {
                 if(count == parm_max_discovery_peers)

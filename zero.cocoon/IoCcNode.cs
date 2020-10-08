@@ -117,7 +117,7 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < MaxClients * 0.9 && secondsSinceEnsured.UtDelta() > parm_discovery_force_time_multiplier * Neighbors.Count + 1)
+                        if (Neighbors.Count < MaxClients * 0.9 && secondsSinceEnsured.UtDelta() > parm_discovery_force_time_multiplier)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
@@ -251,6 +251,12 @@ namespace zero.cocoon
         /// </summary>
         public IoCcNeighborDiscovery DiscoveryService => (IoCcNeighborDiscovery)_autoPeering;
 
+
+        /// <summary>
+        /// Total number of connections
+        /// </summary>
+        public int TotalConnections => InboundCount + OutboundCount;
+
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
@@ -306,7 +312,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_discovery_force_time_multiplier = 2;
+        public double parm_discovery_force_time_multiplier = 200;
 
         /// <summary>
         /// Maximum clients allowed
