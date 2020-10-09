@@ -139,7 +139,7 @@ namespace zero.sync
                                     return ((IoCcNeighbor)n).AttachTimestamp.Elapsed();
                                 }
                                 return 0;
-                            }).Average());
+                            }).Sum());
                     }
 
 

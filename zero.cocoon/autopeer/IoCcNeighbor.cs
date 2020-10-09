@@ -1606,25 +1606,24 @@ namespace zero.cocoon.autopeer
                 }
 
                 //skip if we are already full
-                if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
+                if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors - parm_min_spare_bays)
                 {
-                    if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors - parm_min_spare_bays)
-                    {
-                        var dc = (IoCcNeighbor)DiscoveryService.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Direction == Kind.Undefined &&
-                                ((IoCcNeighbor)n).Assimilated &&
-                                ((IoCcNeighbor)n).State > NeighborState.Unverified &&
-                                ((IoCcNeighbor)n)._totalPats > parm_zombie_max_connection_attempts)
-                            .OrderBy(n => ((IoCcNeighbor)n).Priority).FirstOrDefault();
+                    var dc = (IoCcNeighbor)DiscoveryService.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Direction == Kind.Undefined &&
+                            ((IoCcNeighbor)n).Assimilated &&
+                            ((IoCcNeighbor)n).State > NeighborState.Unverified &&
+                            ((IoCcNeighbor)n)._totalPats > parm_zombie_max_connection_attempts)
+                        .OrderBy(n => ((IoCcNeighbor)n).Priority).FirstOrDefault();
 
-                        //Drop assimilated neighbors
-                        if (dc != null)
-                        {
-                            dc.State = NeighborState.Zombie;
-                            _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Secretive {dc.Description}");
-                            await dc.ZeroAsync(this).ConfigureAwait(false);
-                        }
+                    //Drop assimilated neighbors
+                    if (dc != null)
+                    {
+                        dc.State = NeighborState.Zombie;
+                        _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Secretive {dc.Description}");
+                        await dc.ZeroAsync(this).ConfigureAwait(false);
                     }
-                    return true;
+                    
+                    if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
+                        return true;
                 }
 
                 var discoveryRequest = new DiscoveryRequest
