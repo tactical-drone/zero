@@ -217,11 +217,11 @@ namespace zero.cocoon.autopeer
         protected uint Priority => (uint)Enum.GetNames(typeof(Kind)).Length - (uint)Direction + PeerRequests;
 
         //uptime
-        private long _uptime;
-        public long PeerUptime
+        private  long _attachTimestamp;
+        public long AttachTimestamp
         {
-            get => Interlocked.Read(ref _uptime);
-            private set => Interlocked.Exchange(ref _uptime, value);
+            get => Interlocked.Read(ref _attachTimestamp);
+            private set => Interlocked.Exchange(ref _attachTimestamp, value);
         }
 
         /// <summary>
@@ -1136,7 +1136,7 @@ namespace zero.cocoon.autopeer
             foreach (var responsePeer in response.Peers)
             {
                 //max neighbor check
-                if (DiscoveryService.Neighbors.Count >= CcNode.MaxClients * 2)
+                if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
                     break;
 
                 //Any services attached?
@@ -1187,14 +1187,6 @@ namespace zero.cocoon.autopeer
             if (DiscoveryService.Neighbors.Count < CcNode.MaxClients && count > 0)
             {
                 _logger.Trace($"{nameof(DiscoveryResponse)}: Scanned {count}/{response.Peers.Count} discoveries from {Description} ...");
-            }
-            else if (count == 0 && Direction == Kind.Undefined && _totalPats > parm_zombie_max_connection_attempts * 2  && CcNode.TotalConnections > CcNode.MaxClients - parm_min_spare_bays)// && PeeringAttempts > parm_zombie_max_connection_attempts)
-            {
-                
-                State = NeighborState.Zombie; 
-                _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Secretive {Description}");
-                //Drop assimilated neighbors
-                await ZeroAsync(this).ConfigureAwait(false);
             }
         }
 
@@ -1433,7 +1425,7 @@ namespace zero.cocoon.autopeer
                 //if (Proxy && TotalPats > 0)
                 {
                     if (Collected)
-                        _logger.Trace($"<\\- {nameof(Pong)}{pong.ToByteArray().PayloadSig()}: No-MATCH!, rh = {pong.ReqHash.Memory.HashSig()}, tp = {TotalPats},  ssp = {SecondsSincePat}, d = {(PeerUptime > 0 ? (PeerUptime - LastPat).ToString() : "N/A")}, v = {Verified}: {Description}");
+                        _logger.Trace($"<\\- {nameof(Pong)}{pong.ToByteArray().PayloadSig()}: No-MATCH!, rh = {pong.ReqHash.Memory.HashSig()}, tp = {TotalPats},  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}: {Description}");
                     return;
                 }
             }
@@ -1474,74 +1466,17 @@ namespace zero.cocoon.autopeer
 
                 IoNeighbor<IoCcPeerMessage> oldNeighbor = null;
                 //Do we have capacity for one more new neighbor?
-                if (DiscoveryService.Neighbors.Count <= CcNode.MaxClients * 2 && !DiscoveryService.Neighbors.TryGetValue(keyStr, out oldNeighbor))
+                if (DiscoveryService.Neighbors.Count < CcNode.MaxNeighbors && !DiscoveryService.Neighbors.TryGetValue(keyStr, out oldNeighbor))
                 {
-                    var remoteServices = new IoCcService();
-                    foreach (var key in pong.Services.Map.Keys.ToList())
-                        remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
+                    //Check for races
+                    if (DiscoveryService.Neighbors.Count <= CcNode.MaxNeighbors)
+                    {
+                        var remoteServices = new IoCcService();
+                        foreach (var key in pong.Services.Map.Keys.ToList())
+                            remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
 
-                    await AssimilateNeighborAsync(fromAddr.IpEndPoint, idCheck, remoteServices).ConfigureAwait(false);
-
-//                    var udpSource = ((IoNetClient<IoCcPeerMessage>) Source);
-
-//                    var source = new IoUdpClient<IoCcPeerMessage>(udpSource.Socket, Source.PrefetchSize, Source.ConcurrencyLevel, fromAddr);
-//                    source.SetChannel(nameof(IoCcNeighbor), udpSource.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor)));
-
-//                    var newNeighbor = (IoCcNeighbor)Node.MallocNeighbor(Node, source, Tuple.Create(idCheck, remoteServices, fromAddr.IpEndPoint));
-//                    newNeighbor.ExtGossipAddress = IoNodeAddress.Create($"tcp://{pong.DstAddr}:{CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip].Port}");
-//                    newNeighbor.State = NeighborState.Unverified;
-//                    newNeighbor.Verified = false;
-
-//                    //Atomic add new neighbor
-//                    if (await Node.ZeroAtomicAsync(async (s,d) =>
-//                    {
-//                        //transfer?
-//                        if (!newNeighbor.RemoteAddress.IpEndPoint.Address.Equals(((IPEndPoint) extraData).Address) ||
-//                            newNeighbor.RemoteAddress.IpEndPoint.Port != ((IPEndPoint) extraData).Port ||
-//                            !Node.Neighbors.TryAdd(keyStr, newNeighbor))
-//                            return false;
-
-//                        // Handle zero
-//                        Node.ZeroOnCascade(newNeighbor);
-
-//                        // set neighbor teardown
-//                        return await newNeighbor.ZeroAtomicAsync((s,d) =>
-//                        {
-//                            var id = newNeighbor.Id;
-//                            var sub = newNeighbor.ZeroEvent(source =>
-//                            {
-//                                try
-//                                {
-//                                    if (Node.Neighbors.TryRemove(id, out var n))
-//                                    {
-//                                        _logger.Trace($"Removed {n.Description} from {Description}");
-//                                    }
-//                                } catch { }
-
-//                                udpSource.WhiteList(newNeighbor.RemoteAddress.Port);
-
-//                                return Task.CompletedTask;
-//                            });
-
-//                            return Task.FromResult(true);
-//                        });
-
-//                    }).ConfigureAwait(false))
-//                    {
-//#if PRE_ROUTING
-//                        Node.Assimilate(newNeighbor);
-
-//                        //udpSource.Blacklist(newNeighbor.RemoteAddress.Port);
-//#endif
-
-//                        //SEND ACK
-//                        await newNeighbor.SendPingAsync().ConfigureAwait(false);
-//                    }
-//                    else
-//                    {
-//                        _logger.Warn($"<\\- {nameof(Pong)}: Unable to transfer neighbor {keyStr} ownership, dropped");
-//                        await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-//                    }
+                        await AssimilateNeighborAsync(fromAddr.IpEndPoint, idCheck, remoteServices).ConfigureAwait(false);
+                    }
                 }
                 else if(oldNeighbor != null)
                 {
@@ -1659,14 +1594,37 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="dest">The destination address</param>
         /// <returns>Task</returns>
-        public async Task<bool> SendDiscoveryRequestAsync()
+        public async ValueTask<bool> SendDiscoveryRequestAsync()
         {
             try
             {
-                if (!Assimilated || State < NeighborState.Verified)
+                
+                if (!Assimilated || State < NeighborState.Verified )
                 {
                     _logger.Debug($"{nameof(SendDiscoveryRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilated}");
                     return false;
+                }
+
+                //skip if we are already full
+                if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
+                {
+                    if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors - parm_min_spare_bays)
+                    {
+                        var dc = (IoCcNeighbor)DiscoveryService.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Direction == Kind.Undefined &&
+                                ((IoCcNeighbor)n).Assimilated &&
+                                ((IoCcNeighbor)n).State > NeighborState.Unverified &&
+                                ((IoCcNeighbor)n)._totalPats > parm_zombie_max_connection_attempts)
+                            .OrderBy(n => ((IoCcNeighbor)n).Priority).FirstOrDefault();
+
+                        //Drop assimilated neighbors
+                        if (dc != null)
+                        {
+                            dc.State = NeighborState.Zombie;
+                            _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Secretive {dc.Description}");
+                            await dc.ZeroAsync(this).ConfigureAwait(false);
+                        }
+                    }
+                    return true;
                 }
 
                 var discoveryRequest = new DiscoveryRequest
@@ -1840,7 +1798,7 @@ namespace zero.cocoon.autopeer
 
             State = NeighborState.Connected;
             ConnectedAtLeastOnce = true;
-            PeerUptime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             _neighborZeroSub = ZeroEvent(async sender =>
             {
@@ -1881,7 +1839,7 @@ namespace zero.cocoon.autopeer
 
             Interlocked.Exchange(ref _direction, 0);
             ExtGossipAddress = null;
-            PeerUptime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             TotalPats = 0;
             PeeringAttempts = 0;
             State = NeighborState.Disconnected;

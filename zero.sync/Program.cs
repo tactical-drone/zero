@@ -133,10 +133,10 @@ namespace zero.sync
                         if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
                             uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
                             {
-                                if (((IoCcNeighbor)n).PeerUptime > 0)
+                                if (((IoCcNeighbor)n).AttachTimestamp > 0)
                                 {
                                     uptimeCount++;
-                                    return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ((IoCcNeighbor)n).PeerUptime;
+                                    return ((IoCcNeighbor)n).AttachTimestamp.Elapsed();
                                 }
                                 return 0;
                             }).Average());
@@ -619,7 +619,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 4,1);
+                0, 0, 2,1);
 
             _nodes.Add(cocoon);
 

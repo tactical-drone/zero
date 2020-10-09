@@ -314,10 +314,22 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
         public double parm_discovery_force_time_multiplier = 200;
 
+
+        /// <summary>
+        /// Client to neighbor ratio
+        /// </summary>
+        [IoParameter] public int parm_client_to_neighbor_ratio = 2;
+
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
         public int MaxClients => parm_max_outbound + parm_max_inbound;
+
+
+        /// <summary>
+        /// Maximum number of allowed neighbors
+        /// </summary>
+        public int MaxNeighbors => MaxClients * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id

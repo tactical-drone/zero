@@ -65,7 +65,8 @@ namespace zero.core.network.ip
                     }
                 }, bootstrapAsync).ConfigureAwait(false);
 
-                _logger.Warn($"Listener stopped, restarting: {Description}");
+                if(!Zeroed())
+                    _logger.Warn($"Listener stopped, restarting: {Description}");
 
                 await IoListenSocket.ZeroAsync(this).ConfigureAwait(false);
             }
