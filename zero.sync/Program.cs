@@ -126,7 +126,7 @@ namespace zero.sync
                     uptimeCount = 1;
                     foreach (var ioCcNode in _nodes)
                     {
-                        opeers += ioCcNode.Neighbors.Count;
+                        opeers += ioCcNode.Neighbors.Values.Count(n => ((IoCcPeer)n).Neighbor.IsPeerConnected);
                         ooutBound += ioCcNode.OutboundCount;
                         oinBound += ioCcNode.InboundCount;
                         oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).Proxy);
@@ -156,7 +156,7 @@ namespace zero.sync
                         ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                         Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{available} , peers = {peers}/{_nodes.Count * maxNeighbors}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
+                        Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
                         Console.ResetColor();
                     }
 
@@ -564,7 +564,7 @@ namespace zero.sync
                     s.Release();
                 });
 
-                //if (zeroed > 0 && zeroed % 5 == 0)
+                if (zeroed > 0 && zeroed % 100 == 0)
                 {
                     Console.WriteLine(
                         $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");

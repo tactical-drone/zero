@@ -252,12 +252,12 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int InboundCount => Neighbors.Count(kv => (((IoCcPeer)kv.Value).Neighbor?.Inbound ?? false) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
+        public int InboundCount => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Inbound) /*&& ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected*/);
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int OutboundCount => Neighbors.Count(kv => (((IoCcPeer)kv.Value).Neighbor?.Outbound ?? false) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
+        public int OutboundCount => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Outbound) /*&& ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected*/);
 
 
         /// <summary>
@@ -462,6 +462,11 @@ namespace zero.cocoon
 
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
+                            if (!await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
+                                    (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                .ConfigureAwait(false))
+                                return false;
+
                             var packetData = packet.Data.Memory.AsArray();
 
                             //verify the signature
@@ -531,9 +536,11 @@ namespace zero.cocoon
                                 }
                             }
                             //Race
-                            return await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
-                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
-                                .ConfigureAwait(false);
+                            //return await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
+                            //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                            //    .ConfigureAwait(false);
+                            return true;
+
                         }
                     }
                     else if (peer.IoSource.IoNetSocket.Egress) //Outbound
@@ -593,7 +600,11 @@ namespace zero.cocoon
 
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            
+                            if (!await ConnectForTheWinAsync(IoCcNeighbor.Kind.OutBound, peer, packet,
+                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                .ConfigureAwait(false))
+                                return false;
+
                             var packetData = packet.Data.Memory.AsArray();
 
                             //verify signature
@@ -612,13 +623,6 @@ namespace zero.cocoon
                             {
                                 return false;
                             }
-
-                            //
-                            if (!await ConnectForTheWinAsync(IoCcNeighbor.Kind.OutBound, peer, packet,
-                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
-                                .ConfigureAwait(false))
-                                return false;
-
 
                             //validate handshake response
                             var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
@@ -654,7 +658,7 @@ namespace zero.cocoon
                 }
 
                 return false;
-            }).ZeroBoostAsync().ConfigureAwait(false);
+            }, force:true).ZeroBoostAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -673,18 +677,18 @@ namespace zero.cocoon
             //Race for connection...
             var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
 
-            var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
+            var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => ((IoCcNeighbor)n).Assimilated && n.Key.Contains(id));
             if (neighbor != null)
             {
                 var ccNeighbor = ((IoCcNeighbor) neighbor);
-                if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
+                if (!ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
                     return await peer.AttachNeighborAsync((IoCcNeighbor) neighbor, direction).ZeroBoostAsync().ConfigureAwait(false);
                 }
                 else
                 {
-                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
+                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {TimeSpan.FromSeconds(ccNeighbor.Uptime.Elapsed())}");
                     return false;
                 }
             }
@@ -714,6 +718,7 @@ namespace zero.cocoon
                 var peer = await ConnectAsync(neighbor.Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip], neighbor).ConfigureAwait(false);
                 if (Zeroed() || peer == null)
                 {
+                    if (peer != null) await peer.ZeroAsync(this).ConfigureAwait(false);
                     _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {neighbor.Description}, {neighbor.MetaDesc}");
                     return false;
                 }

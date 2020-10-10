@@ -101,7 +101,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
 #if DEBUG
 
-        private IoStateTransition<NeighborState> _currState = new IoStateTransition<NeighborState>()
+        private volatile IoStateTransition<NeighborState> _currState = new IoStateTransition<NeighborState>()
         {
             FinalState = NeighborState.FinalState
         };
@@ -523,6 +523,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await SendPeerDropAsync().ConfigureAwait(false);
             State = NeighborState.ZeroState;
 
             if (ConnectedAtLeastOnce && Direction != Kind.Undefined)
@@ -884,7 +885,7 @@ namespace zero.cocoon.autopeer
         private async Task ProcessAsync(PeeringDrop request, object extraData, Packet packet)
         {
             var diff = 0;
-            if (!Proxy || (diff = Math.Abs((int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - request.Timestamp))) > parm_max_time_error * 2)
+            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
             {
                 _logger.Trace($"{(Proxy ? "V>" : "X>")}{nameof(PeeringDrop)}: Ignoring {diff}s old/invalid request, error = ({diff})");
                 return;
@@ -894,7 +895,7 @@ namespace zero.cocoon.autopeer
             if (!Verified || _peer == null)
                 return;
 
-            _logger.Debug($"{(Proxy ? "V>" : "X>")}{nameof(PeeringDrop)}: {Direction} Peer= {_peer?.Key ?? "null"}");
+            _logger.Trace($"{nameof(PeeringDrop)}: {Direction} Peer = {_peer.Key}: {Description}, {MetaDesc}");
 
             try
             {
@@ -911,19 +912,20 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
-            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
+            //Reroute 
+            if (!Assimilated)
             {
-                if (!Proxy)
-                {
-                    //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
-                    if (await SendPingAsync(IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData)).ConfigureAwait(false)) ;
-                    _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
-                    return;
-                }
-                else
-                {
-                    _logger.Trace($"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.ElapsedDelta()}");
-                }
+                //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
+                if (await SendPingAsync(IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData)).ConfigureAwait(false)) ;
+                _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
+                return;
+            }
+
+            //Drop old requests
+            if(request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
+            {
+                _logger.Trace(
+                    $"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.ElapsedDelta()}");
                 return;
             }
 
@@ -936,8 +938,8 @@ namespace zero.cocoon.autopeer
             };
 
             if (!(peeringResponse.Status &&
-                (Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.Inbound)) == (int)Kind.Inbound) ||
-                Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.Undefined)) == (int)Kind.Undefined))
+                (Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.Undefined)) == (int)Kind.Undefined) ||
+                Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.Inbound)) == (int)Kind.Inbound))
             {
                 peeringResponse.Status = false;
             }//Were we inbound?
@@ -953,46 +955,6 @@ namespace zero.cocoon.autopeer
             }
             else
                 _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
-
-
-            //Do we have capacity?
-            //if (peeringResponse.Status)
-            //{
-            //    //are we already outbound?
-            //    if (Direction == Kind.OutBound)
-            //    {
-            //        //are we healthy?
-            //        if (State >= NeighborState.Peering) 
-            //        {
-            //            _logger.Trace($"<\\- {nameof(PeeringRequest)}: Peering request {Kind.Inbound} Rejected: {Identity.IdString()} is already {Kind.OutBound}");
-            //            peeringResponse.Status = false;
-            //        }
-            //        else //accept
-            //        {
-            //            _direction = 0;
-            //        }
-            //    }
-
-            //    //accept
-            //    if (Direction == Kind.Inbound)
-            //    {
-            //        _direction = 0;
-            //    }
-            //}
-
-            //if (await SendMessageAsync(data: peeringResponse.ToByteString(), type: IoCcPeerMessage.MessageTypes.PeeringResponse).ZeroBoostAsync().ConfigureAwait(false) > 0)
-            //{
-
-            //    if (peeringResponse.Status)
-            //    {
-            //        State = NeighborState.Peering;
-            //        await SendDiscoveryRequestAsync().ConfigureAwait(false);
-            //    }
-
-            //    _logger.Trace($"-/> {nameof(PeeringResponse)}: Sent {(peeringResponse.Status ? "ACCEPT" : "REJECT")}, {Description}");
-            //}
-            //else
-            //    _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
         }
 
         /// <summary>
@@ -1032,8 +994,9 @@ namespace zero.cocoon.autopeer
 
             //Race for 
             if ((response.Status &&
-                  (Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.OutBound)) == (int)Kind.OutBound) ||
-                  Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.Undefined)) == (int)Kind.Undefined))
+                  (Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.Undefined)) == (int)Kind.Undefined) ||
+                    Interlocked.CompareExchange(ref _direction, 0, (int)(Kind.OutBound)) == (int)Kind.OutBound)
+                  )
             {
                 if (!await ConnectAsync().ConfigureAwait(false))
                 {
@@ -1271,7 +1234,7 @@ namespace zero.cocoon.autopeer
         {
             if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
             {
-                if (!Zeroed())
+                if (Collected)
                     _logger.Trace($"<\\- {nameof(DiscoveryRequest)}: [ABORTED], age = {request.Timestamp.ElapsedDelta()}, {Description}, {MetaDesc}");
                 return;
             }
@@ -1336,10 +1299,6 @@ namespace zero.cocoon.autopeer
             var gossipAddress = ((IoCcNeighborDiscovery)DiscoveryService).Services.IoCcRecord.Endpoints[IoCcService.Keys.gossip];
             var peeringAddress = ((IoCcNeighborDiscovery)DiscoveryService).Services.IoCcRecord.Endpoints[IoCcService.Keys.peering];
             var fpcAddress = ((IoCcNeighborDiscovery)DiscoveryService).Services.IoCcRecord.Endpoints[IoCcService.Keys.fpc];
-
-
-
-
 
             var pong = new Pong
             {
@@ -1517,7 +1476,7 @@ namespace zero.cocoon.autopeer
             try
             {
                 //Check for teardown
-                if (Zeroed())
+                if (!Collected)
                     return false;
 
                 dest ??= RemoteAddress;
@@ -1592,7 +1551,6 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Sends a discovery request
         /// </summary>
-        /// <param name="dest">The destination address</param>
         /// <returns>Task</returns>
         public async ValueTask<bool> SendDiscoveryRequestAsync()
         {
@@ -1710,7 +1668,11 @@ namespace zero.cocoon.autopeer
 
                 var reqBuf = peerRequest.ToByteString();
                 if (!_peerRequest.Challenge(RemoteAddress.IpPort, reqBuf))
+                {
+                    State = NeighborState.Standby;
                     return false;
+                }
+
 
                 var sent = await SendMessageAsync(reqBuf, RemoteAddress, IoCcPeerMessage.MessageTypes.PeeringRequest).ZeroBoostAsync().ConfigureAwait(false);
                 if (sent > 0)
@@ -1721,6 +1683,7 @@ namespace zero.cocoon.autopeer
                 else
                 {
                     _peerRequest.Response(RemoteAddress.IpPort);
+                    State = NeighborState.Standby;
                     if (Collected)
                         _logger.Debug($"-/> {nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
                 }
@@ -1735,6 +1698,7 @@ namespace zero.cocoon.autopeer
                 _logger.Debug(e, $"{nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
             }
 
+            State = NeighborState.Standby;
             return false;
         }
 
@@ -1748,7 +1712,7 @@ namespace zero.cocoon.autopeer
             {
                 if (!Assimilated)
                 {
-                    _logger.Warn($"{nameof(SendPeerDropAsync)}: [ABORTED], {Description}, {MetaDesc}");
+                    _logger.Trace($"{nameof(SendPeerDropAsync)}: [ABORTED], {Description}, {MetaDesc}");
                     return;
                 }
 
@@ -1786,8 +1750,8 @@ namespace zero.cocoon.autopeer
             await ZeroAtomicAsync((z, b) =>
             {
                 //Race for direction
-                if (Interlocked.CompareExchange(ref _direction, (int) direction, (int) Kind.Undefined) !=
-                    (int) Kind.Undefined)
+                if (Interlocked.CompareExchange(ref _direction, (int)direction, (int)Kind.Undefined) !=
+                    (int)Kind.Undefined)
                 {
                     _logger.Warn(
                         $"oz: race for {direction} lost {ioCcPeer.Description}, current = {Direction}, {_peer?.Description}");
@@ -1821,16 +1785,17 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async ValueTask DetachPeerAsync(IoCcPeer dc, bool force = false)
         {
-            
-            var peer = _peer;
+
+            IoCcPeer peer = null;
             if (!await ZeroAtomicAsync((z, b) =>
             {
-
-                if (peer == null && !force)
+                if (_peer == null && !force)
                     return Task.FromResult(false);
 
-                if (peer != dc)
+                if (_peer != dc)
                     return Task.FromResult(false);
+
+                peer = _peer;
 
                 _peer = null;
                 return Task.FromResult(true);
@@ -1838,6 +1803,9 @@ namespace zero.cocoon.autopeer
             {
                 return;
             }
+
+            //send drop request
+            await SendPeerDropAsync().ConfigureAwait(false);
 
             _logger.Trace($"{(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction} peer detaching: s = {State}, a = {Assimilated}, p = {IsPeerConnected}, {peer?.Description ?? Description}");
 

@@ -381,7 +381,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    if (!force && _nanoMutex != null)
+                    if (!force)
                     {
                         //lock (_nanoMutex)
                         if(await _nanoMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
