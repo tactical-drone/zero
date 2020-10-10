@@ -528,7 +528,7 @@ namespace zero.cocoon.autopeer
             if (ConnectedAtLeastOnce && Direction != Kind.Undefined)
                 _logger.Info($"- {(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description} from {ZeroedFrom?.Description}");
 
-            await DetachPeerAsync(true).ConfigureAwait(false);
+            await DetachPeerAsync(_peer, true).ConfigureAwait(false);
 
             _pingRequest.Dump(Router._pingRequest);
             await _pingRequest.ZeroAsync(this).ConfigureAwait(false);
@@ -911,7 +911,7 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async Task ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
-            if (!Assimilated || request.Timestamp.UtDelta() > parm_max_time_error * 2)
+            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
             {
                 if (!Proxy)
                 {
@@ -922,7 +922,7 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    _logger.Trace($"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.UtDelta()}");
+                    _logger.Trace($"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.ElapsedDelta()}");
                 }
                 return;
             }
@@ -1269,10 +1269,10 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            if (!Assimilated || request.Timestamp.UtDelta() > parm_max_time_error * 2)
+            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
             {
                 if (!Zeroed())
-                    _logger.Trace($"<\\- {nameof(DiscoveryRequest)}: [ABORTED], age = {request.Timestamp.UtDelta()}, {Description}, {MetaDesc}");
+                    _logger.Trace($"<\\- {nameof(DiscoveryRequest)}: [ABORTED], age = {request.Timestamp.ElapsedDelta()}, {Description}, {MetaDesc}");
                 return;
             }
 
@@ -1781,21 +1781,24 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="ioCcPeer">The peer</param>
         /// <param name="direction"></param>
-        public bool AttachPeer(IoCcPeer ioCcPeer, Kind direction)
+        public async ValueTask<bool> AttachPeerAsync(IoCcPeer ioCcPeer, Kind direction)
         {
-            lock (this)
+            await ZeroAtomicAsync((z, b) =>
             {
                 //Race for direction
-                if (Interlocked.CompareExchange(ref _direction, (int)direction, (int)Kind.Undefined) != (int)Kind.Undefined)
+                if (Interlocked.CompareExchange(ref _direction, (int) direction, (int) Kind.Undefined) !=
+                    (int) Kind.Undefined)
                 {
-                    _logger.Warn($"oz: race for {direction} lost {ioCcPeer.Description}, current = {Direction}, {_peer?.Description}");
-                    return false;
+                    _logger.Warn(
+                        $"oz: race for {direction} lost {ioCcPeer.Description}, current = {Direction}, {_peer?.Description}");
+                    return Task.FromResult(false);
                 }
 
                 _peer = ioCcPeer ?? throw new ArgumentNullException($"{nameof(ioCcPeer)}");
-            }
+                return Task.FromResult(true);
+            });
 
-            _logger.Trace($"{nameof(AttachPeer)}: [WON] {_peer.Description}");
+            _logger.Trace($"{nameof(AttachPeerAsync)}: [WON] {_peer.Description}");
 
             State = NeighborState.Connected;
             ConnectedAtLeastOnce = true;
@@ -1816,14 +1819,24 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Detaches a peer from this neighbor
         /// </summary>
-        public async Task DetachPeerAsync(bool force = false)
+        public async ValueTask DetachPeerAsync(IoCcPeer dc, bool force = false)
         {
+            
             var peer = _peer;
-            lock (this)
+            if (!await ZeroAtomicAsync((z, b) =>
             {
+
                 if (peer == null && !force)
-                    return;
+                    return Task.FromResult(false);
+
+                if (peer != dc)
+                    return Task.FromResult(false);
+
                 _peer = null;
+                return Task.FromResult(true);
+            }).ZeroBoostAsync().ConfigureAwait(false))
+            {
+                return;
             }
 
             _logger.Trace($"{(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction} peer detaching: s = {State}, a = {Assimilated}, p = {IsPeerConnected}, {peer?.Description ?? Description}");

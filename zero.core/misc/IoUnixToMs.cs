@@ -32,7 +32,7 @@ namespace zero.core.misc
         /// <param name="timestamp"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long UtDelta(this long timestamp)
+        public static long ElapsedDelta(this long timestamp)
         {
             var delta = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp ;
             if (delta < 0)

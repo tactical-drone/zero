@@ -6,6 +6,7 @@ using zero.cocoon.autopeer;
 using zero.cocoon.models;
 using zero.core.core;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
@@ -27,7 +28,7 @@ namespace zero.cocoon
 
             Neighbor = neighbor;
             //if(Neighbor != null)
-            //    AttachNeighbor(Neighbor);
+            //    AttachNeighborAsync(Neighbor);
 
 
             //Testing
@@ -134,23 +135,23 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="neighbor"></param>
         /// <param name="direction"></param>
-        public bool AttachNeighbor(IoCcNeighbor neighbor, IoCcNeighbor.Kind direction)
+        public async ValueTask<bool> AttachNeighborAsync(IoCcNeighbor neighbor, IoCcNeighbor.Kind direction)
         {
 
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             
             //Attach the other way
-            var attached = Neighbor.AttachPeer(this, direction);
+            var attached = await Neighbor.AttachPeerAsync(this, direction).ZeroBoostAsync().ConfigureAwait(false);
 
             if (attached)
             {
-                _logger.Trace($"{nameof(AttachNeighbor)}: {direction} attach to neighbor {neighbor.Description}");
+                _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {neighbor.Description}");
 
                 StartTestModeAsync();
             }
             else
             {
-                _logger.Trace($"{nameof(AttachNeighbor)}: [RACE LOST]{direction} attach to neighbor {neighbor.Description}, {neighbor.MetaDesc}");
+                _logger.Trace($"{nameof(AttachNeighborAsync)}: [RACE LOST]{direction} attach to neighbor {neighbor.Description}, {neighbor.MetaDesc}");
             }
 
             return attached;
@@ -173,7 +174,7 @@ namespace zero.cocoon
             }
 
             if(neighbor != null)
-                await neighbor.DetachPeerAsync().ConfigureAwait(false);
+                await neighbor.DetachPeerAsync(this).ConfigureAwait(false);
         }
 
         /// <summary>

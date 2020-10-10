@@ -678,7 +678,7 @@ namespace zero.core.patterns.bushes
                         {
                             
                             if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 10000000 &&
-                                _lastStat.UtDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
+                                _lastStat.ElapsedDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
                             {
                                 lock (Environment.Version)
                                 {

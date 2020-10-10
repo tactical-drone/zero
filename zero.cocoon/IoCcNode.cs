@@ -106,7 +106,7 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < Adjuncts * 1 && secondsSinceEnsured.UtDelta() > parm_mean_pat_delay)
+                        if (Neighbors.Count < Adjuncts * 1 && secondsSinceEnsured.ElapsedDelta() > parm_mean_pat_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {Adjuncts * 0.75:0}, {Description}");
@@ -348,24 +348,15 @@ namespace zero.cocoon
             await base.SpawnListenerAsync(async peer =>
             {
                 //limit connects
-                if (Zeroed() || InboundCount > parm_max_inbound || peer == null)
+                if (Zeroed() || InboundCount >= parm_max_inbound || peer == null)
                     return false;
 
                 //Handshake
                 if (await HandshakeAsync((IoCcPeer)peer).ZeroBoostAsync().ConfigureAwait(false))
                 {
-                    try
-                    {
-                        _logger.Info($"+ {peer!.Description}");
-                    }
-                    catch 
-                    {
-
-                        return false;
-                    }
-
                     //ACCEPT
-
+                    _logger.Info($"+ {peer.Description}");
+                    
                     return true; 
                 }
 
@@ -380,11 +371,11 @@ namespace zero.cocoon
         /// <param name="msg">The message</param>
         /// <param name="timeout"></param>
         /// <returns>The number of bytes sent</returns>
-        private async ValueTask<int> SendMessageAsync(IoCcPeer peer, ByteString msgRaw, string type, int timeout = 0)
+        private async ValueTask<int> SendMessageAsync(IoCcPeer peer, ByteString msg, string type, int timeout = 0)
         {
             var responsePacket = new Packet
             {
-                Data = msgRaw,
+                Data = msg,
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
                 Type = (uint)IoCcPeerMessage.MessageTypes.Handshake
             };
@@ -398,7 +389,7 @@ namespace zero.cocoon
             if (sent == protocolRaw.Length)
             {
                 _logger.Trace($"{type}: Sent {sent} bytes to {((IoNetClient<IoCcGossipMessage>)peer.IoSource).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(IoCcPeerMessage.MessageTypes), responsePacket.Type)})");
-                return msgRaw.Length;
+                return msg.Length;
             }
             else
             {
@@ -421,233 +412,252 @@ namespace zero.cocoon
         /// <returns></returns>
         private async ValueTask<bool> HandshakeAsync(IoCcPeer peer)
         {
-            var bytesRead = 0;
-            if (Zeroed()) return false;
-
-            try
+            return await ZeroAtomicAsync(async (z, b) =>
             {
-                var handshakeBuffer = new byte[_handshakeBufferSize];
-                var ioNetSocket = peer.IoSource.IoNetSocket;
+                var bytesRead = 0;
+                if (Zeroed()) return false;
 
-                //inbound
-                if (peer.IoSource.IoNetSocket.Ingress)
+                try
                 {
-                    var verified = false;
+                    var handshakeBuffer = new byte[_handshakeBufferSize];
+                    var ioNetSocket = peer.IoSource.IoNetSocket;
 
-                    _sw.Restart();
-                    //read from the socket
-                    do
+                    //inbound
+                    if (peer.IoSource.IoNetSocket.Ingress)
                     {
+                        var verified = false;
+
+                        _sw.Restart();
+                        //read from the socket
+                        //do
+                        //{
                         bytesRead += await ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _handshakeRequestSize - bytesRead,
                                 timeout: parm_handshake_timeout).ZeroBoostAsync()
                             .ConfigureAwait(false);
-                    } while (
-                        !Zeroed() &&
-                        bytesRead < _handshakeRequestSize &&
-                        ioNetSocket.NativeSocket.Available > 0 &&
-                        bytesRead < handshakeBuffer.Length &&
-                        ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
-                    );
+                        //} while (
+                        //    !Zeroed() &&
+                        //    bytesRead < _handshakeRequestSize &&
+                        //    ioNetSocket.NativeSocket.Available > 0 &&
+                        //    bytesRead < handshakeBuffer.Length &&
+                        //    ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                        //);
 
 
-                    if (bytesRead == 0)
-                    {
-                        _logger.Debug(
-                            $"Failed to read inbound challange request, waited = {_sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
-                        return false;
-                    }
-                    else
-                    {
-                        _logger.Trace(
-                            $"{nameof(HandshakeRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
-                    }
-
-
-                    //parse a packet
-                    //var packet = Packet.Parser.ParseFrom(handshakeBufferStream);
-                    var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
-
-                    if (packet != null && packet.Data != null && packet.Data.Length > 0)
-                    {
-                        var packetData = packet.Data.Memory.AsArray();
-
-                        //verify the signature
-                        if (packet.Signature != null || packet.Signature?.Length != 0)
+                        if (bytesRead == 0)
                         {
-                            verified = CcId.Verify(packetData, 0,
-                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
-                                packet!.Signature!.Memory.AsArray(), 0);
-                        }
-
-                        _logger.Trace(
-                            $"HandshakeRequest [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
-
-                        //Don't process unsigned or unknown messages
-                        if (!verified)
+                            _logger.Trace(
+                                $"Failed to read inbound challange request, waited = {_sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
                             return false;
-
-                        //process handshake request 
-                        var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
-                        if (handshakeRequest != null)
+                        }
+                        else
                         {
-                            //reject old handshake requests
-                            if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp) >
-                                parm_time_e)
-                            {
-                                _logger.Error(
-                                    $"Rejected old handshake request from {ioNetSocket.Key} - d = {Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp)}s, {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
-                                return false;
-                            }
-
-                            //reject invalid protocols
-                            if (handshakeRequest.Version != parm_version)
-                            {
-                                _logger.Error(
-                                    $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
-                                return false;
-                            }
-
-                            //reject requests to invalid ext ip
-                            //if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
-                            //{
-                            //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
-                            //    return false;
-                            //}
-
-                            //send response
-                            var handshakeResponse = new HandshakeResponse
-                            {
-                                ReqHash = ByteString.CopyFrom(
-                                    IoCcIdentity.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
-                            };
-
-                            var handshake = handshakeResponse.ToByteString();
-
-                            _sw.Restart();
-
-                            var sent= await SendMessageAsync(peer, handshake, nameof(HandshakeResponse), parm_handshake_timeout).ZeroBoostAsync().ConfigureAwait(false);
-                            if (sent > 0)
-                            {
-                                _logger.Trace($"Sent {sent} inbound handshake challange response, socket = {ioNetSocket.Description}");
-                            }
-                            else
-                            {
-                                _logger.Debug($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
-                                return false;
-                            }
+                            _logger.Trace(
+                                $"{nameof(HandshakeRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
                         }
 
-                        return ConnectForTheWin(IoCcNeighbor.Kind.Inbound, peer, packet, (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint);
-                    }
-                }
-                else if (peer.IoSource.IoNetSocket.Egress) //Outbound
-                {
-                    var handshakeRequest = new HandshakeRequest
-                    {
-                        Version = parm_version,
-                        To = ioNetSocket.LocalNodeAddress.IpPort,
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                    };
 
-                    var handshake = handshakeRequest.ToByteString();
+                        //parse a packet
+                        var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
 
-                    _sw.Restart();
-                    var sent= await SendMessageAsync(peer, handshake, nameof(HandshakeResponse), parm_handshake_timeout).ZeroBoostAsync()
-                        .ConfigureAwait(false);
-                    if (sent > 0)
-                    {
-                        _logger.Trace(
-                            $"Sent {sent} inbound handshake challange response, socket = {ioNetSocket.Description}");
-                    }
-                    else
-                    {
-                        _logger.Debug(
-                            $"Failed to send inbound handshake challange response, socket = {ioNetSocket.Description}");
-                        return false;
-                    }
+                        if (packet != null && packet.Data != null && packet.Data.Length > 0)
+                        {
+                            var packetData = packet.Data.Memory.AsArray();
 
-                    do
+                            //verify the signature
+                            if (packet.Signature != null || packet.Signature!.Length != 0)
+                            {
+                                verified = CcId.Verify(packetData, 0,
+                                    packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
+                                    packet!.Signature!.Memory.AsArray(), 0);
+                            }
+
+                            _logger.Trace(
+                                $"HandshakeRequest [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
+
+                            //Don't process unsigned or unknown messages
+                            if (!verified)
+                                return false;
+
+                            //Race
+                            if (!await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
+                                    (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                .ConfigureAwait(false))
+                                return false;
+
+                            //process handshake request 
+                            var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
+                            if (handshakeRequest != null)
+                            {
+                                //reject old handshake requests
+                                if (handshakeRequest.Timestamp.ElapsedDelta() > parm_time_e)
+                                {
+                                    _logger.Error(
+                                        $"Rejected old handshake request from {ioNetSocket.Key} - d = {Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - handshakeRequest.Timestamp)}s, {DateTimeOffset.FromUnixTimeSeconds(handshakeRequest.Timestamp)}");
+                                    return false;
+                                }
+
+                                //reject invalid protocols
+                                if (handshakeRequest.Version != parm_version)
+                                {
+                                    _logger.Error(
+                                        $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
+                                    return false;
+                                }
+
+                                //reject requests to invalid ext ip
+                                //if (handshakeRequest.To != ((IoCcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
+                                //{
+                                //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((IoCcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
+                                //    return false;
+                                //}
+
+                                //send response
+                                var handshakeResponse = new HandshakeResponse
+                                {
+                                    ReqHash = ByteString.CopyFrom(
+                                        IoCcIdentity.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
+                                };
+
+                                var handshake = handshakeResponse.ToByteString();
+
+                                _sw.Restart();
+
+                                var sent = await SendMessageAsync(peer, handshake, nameof(HandshakeResponse),
+                                    parm_handshake_timeout).ZeroBoostAsync().ConfigureAwait(false);
+                                if (sent > 0)
+                                {
+                                    _logger.Trace(
+                                        $"Sent {sent} inbound handshake challange response, socket = {ioNetSocket.Description}");
+                                }
+                                else
+                                {
+                                    _logger.Trace($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                    }
+                    else if (peer.IoSource.IoNetSocket.Egress) //Outbound
                     {
+                        var handshakeRequest = new HandshakeRequest
+                        {
+                            Version = parm_version,
+                            To = ioNetSocket.LocalNodeAddress.IpPort,
+                            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                        };
+
+                        var handshake = handshakeRequest.ToByteString();
+
+                        _sw.Restart();
+                        var sent = await SendMessageAsync(peer, handshake, nameof(HandshakeResponse),
+                                parm_handshake_timeout).ZeroBoostAsync()
+                            .ConfigureAwait(false);
+                        if (sent > 0)
+                        {
+                            _logger.Trace(
+                                $"Sent {sent} inbound handshake challange response, socket = {ioNetSocket.Description}");
+                        }
+                        else
+                        {
+                            _logger.Trace(
+                                $"Failed to send inbound handshake challange response, socket = {ioNetSocket.Description}");
+                            return false;
+                        }
+
+                        //do
+                        //{
                         bytesRead += await ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _handshakeResponseSize - bytesRead,
                                 timeout: parm_handshake_timeout).ZeroBoostAsync()
                             .ConfigureAwait(false);
-                    } while (
-                        !Zeroed() &&
-                        bytesRead < _handshakeResponseSize &&
-                        ioNetSocket.NativeSocket.Available > 0 &&
-                        bytesRead < handshakeBuffer.Length &&
-                        ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
-                    );
+                        //} while (
+                        //    !Zeroed() &&
+                        //    bytesRead < _handshakeResponseSize &&
+                        //    ioNetSocket.NativeSocket.Available > 0 &&
+                        //    bytesRead < handshakeBuffer.Length &&
+                        //    ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                        //);
 
-                    if (bytesRead == 0)
-                    {
-                        _logger.Trace(
-                            $"Failed to read outbound handshake challange response, waited = {_sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {Zeroed()}");
-                        return false;
-                    }
-
-                    _logger.Trace(
-                        $"Read outbound handshake challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
-
-                    var verified = false;
-
-                    var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
-
-                    if (packet.Data != null && packet.Data.Length > 0)
-                    {
-                        var packetData = packet.Data.Memory.AsArray();
-
-                        //verify signature
-                        if (packet.Signature != null || packet.Signature?.Length != 0)
+                        if (bytesRead == 0)
                         {
-                            verified = CcId.Verify(packetData, 0,
-                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
-                                packet!.Signature!.Memory.AsArray(), 0);
-                        }
-
-                        _logger.Trace($"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
-
-                        //Don't process unsigned or unknown messages
-                        if (!verified)
-                        {
+                            _logger.Trace(
+                                $"Failed to read outbound handshake challange response, waited = {_sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {Zeroed()}");
                             return false;
                         }
 
-                        //validate handshake response
-                        var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
+                        _logger.Trace(
+                            $"Read outbound handshake challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
 
-                        if (handshakeResponse != null)
+                        var verified = false;
+
+                        var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
+
+                        if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            if (!IoCcIdentity.Sha256
-                                .ComputeHash(handshake.Memory.AsArray())
-                                .SequenceEqual(handshakeResponse.ReqHash))
+                            
+                            var packetData = packet.Data.Memory.AsArray();
+
+                            //verify signature
+                            if (packet.Signature != null || packet.Signature!.Length != 0)
                             {
-                                _logger.Error($"Invalid handshake response! Closing {ioNetSocket.Key}");
+                                verified = CcId.Verify(packetData, 0,
+                                    packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
+                                    packet!.Signature!.Memory.AsArray(), 0);
+                            }
+
+                            _logger.Trace(
+                                $"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {peer.IoSource.Key}");
+
+                            //Don't process unsigned or unknown messages
+                            if (!verified)
+                            {
                                 return false;
                             }
-                        }
 
-                        return ConnectForTheWin(IoCcNeighbor.Kind.OutBound, peer, packet, (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint);
+                            //
+                            if (!await ConnectForTheWinAsync(IoCcNeighbor.Kind.OutBound, peer, packet,
+                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                .ConfigureAwait(false))
+                                return false;
+
+
+                            //validate handshake response
+                            var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
+
+                            if (handshakeResponse != null)
+                            {
+                                if (!IoCcIdentity.Sha256
+                                    .ComputeHash(handshake.Memory.AsArray())
+                                    .SequenceEqual(handshakeResponse.ReqHash))
+                                {
+                                    _logger.Error($"Invalid handshake response! Closing {ioNetSocket.Key}");
+                                    return false;
+                                }
+                            }
+
+                            return true;
+                        }
                     }
+
+                }
+                catch (TaskCanceledException e)
+                {
+                    _logger.Trace(e, Description);
+                }
+                catch (ObjectDisposedException e)
+                {
+                    _logger.Trace(e, Description);
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e,
+                        $"Handshake (size = {bytesRead}/{_handshakeRequestSize}/{_handshakeResponseSize}) for {Description} failed with:");
                 }
 
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e,Description);
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, $"Handshake (size = {bytesRead}/{_handshakeRequestSize}/{_handshakeResponseSize}) for {Description} failed with:");
-            }
-
-            return false;
+                return false;
+            }).ZeroBoostAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -658,12 +668,14 @@ namespace zero.cocoon
         /// <param name="packet">The handshake packet</param>
         /// <param name="remoteEp">The remote</param>
         /// <returns>True if it won, false otherwise</returns>
-        private bool ConnectForTheWin(IoCcNeighbor.Kind direction, IoCcPeer peer, Packet packet, IPEndPoint remoteEp)
+        private async ValueTask<bool> ConnectForTheWinAsync(IoCcNeighbor.Kind direction, IoCcPeer peer, Packet packet, IPEndPoint remoteEp)
         {
+            if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
+                throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint.ToString()}: {Description}");
+
             //Race for connection...
             var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
 
-            //if (_autoPeering.Neighbors.TryGetValue(id, out var neighbor))
             var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
             if (neighbor != null)
             {
@@ -671,11 +683,11 @@ namespace zero.cocoon
                 if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
-                    return peer.AttachNeighbor((IoCcNeighbor) neighbor, direction);
+                    return await peer.AttachNeighborAsync((IoCcNeighbor) neighbor, direction).ZeroBoostAsync().ConfigureAwait(false);
                 }
                 else
                 {
-                    _logger.Trace($"{direction} handshake [REJECT] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
+                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}");
                     return false;
                 }
             }
