@@ -479,12 +479,6 @@ namespace zero.cocoon
                             if (!verified)
                                 return false;
 
-                            //Race
-                            if (!await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
-                                    (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
-                                .ConfigureAwait(false))
-                                return false;
-
                             //process handshake request 
                             var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
                             if (handshakeRequest != null)
@@ -536,7 +530,10 @@ namespace zero.cocoon
                                     return false;
                                 }
                             }
-                            return true;
+                            //Race
+                            return await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
+                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                .ConfigureAwait(false);
                         }
                     }
                     else if (peer.IoSource.IoNetSocket.Egress) //Outbound
