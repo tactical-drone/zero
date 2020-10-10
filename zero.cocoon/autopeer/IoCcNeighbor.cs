@@ -214,7 +214,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        protected long Priority => Enum.GetNames(typeof(Kind)).Length - (long)Direction + PeerRequests - PeeringAttempts > 0 ? 1 : 0;
+        protected long Priority => Enum.GetNames(typeof(Kind)).Length - (long)Direction + PeerRequests - PeeringAttempts > 1 ? 1 : 0;
 
         //uptime
         private long _attachTimestamp;
@@ -548,7 +548,7 @@ namespace zero.cocoon.autopeer
         public async Task WatchdogAsync()
         {
             //Are we limping?
-            if (!Proxy && DiscoveryService.Neighbors.Count < 3)
+            if (!Proxy && DiscoveryService.Neighbors.Count <= 3)
             {
                 //Try to bootstrap again
                 foreach (var ioNodeAddress in CcNode.BootstrapAddress)
@@ -1099,7 +1099,7 @@ namespace zero.cocoon.autopeer
             foreach (var responsePeer in response.Peers)
             {
                 //max neighbor check
-                if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
+                if (DiscoveryService.Neighbors.Count > CcNode.MaxNeighbors)
                     break;
 
                 //Any services attached?
@@ -1147,7 +1147,7 @@ namespace zero.cocoon.autopeer
                     count++;
             }
 
-            if (DiscoveryService.Neighbors.Count < CcNode.Adjuncts && count > 0)
+            if (DiscoveryService.Neighbors.Count <= CcNode.Adjuncts && count > 0)
             {
                 _logger.Trace($"{nameof(DiscoveryResponse)}: Scanned {count}/{response.Peers.Count} discoveries from {Description} ...");
             }
@@ -1424,18 +1424,13 @@ namespace zero.cocoon.autopeer
                 }
 
                 IoNeighbor<IoCcPeerMessage> oldNeighbor = null;
-                //Do we have capacity for one more new neighbor?
-                if (DiscoveryService.Neighbors.Count < CcNode.MaxNeighbors && !DiscoveryService.Neighbors.TryGetValue(keyStr, out oldNeighbor))
+                if (await ZeroAtomicAsync((z, b) => Task.FromResult(DiscoveryService.Neighbors.Count <= CcNode.MaxNeighbors && !DiscoveryService.Neighbors.TryGetValue(keyStr, out oldNeighbor))))
                 {
-                    //Check for races
-                    if (DiscoveryService.Neighbors.Count <= CcNode.MaxNeighbors)
-                    {
-                        var remoteServices = new IoCcService();
-                        foreach (var key in pong.Services.Map.Keys.ToList())
-                            remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
+                    var remoteServices = new IoCcService();
+                    foreach (var key in pong.Services.Map.Keys.ToList())
+                        remoteServices.IoCcRecord.Endpoints.TryAdd(Enum.Parse<IoCcService.Keys>(key), IoNodeAddress.Create($"{pong.Services.Map[key].Network}://{((IPEndPoint)extraData).Address}:{pong.Services.Map[key].Port}"));
 
-                        await AssimilateNeighborAsync(fromAddr.IpEndPoint, idCheck, remoteServices).ConfigureAwait(false);
-                    }
+                    await AssimilateNeighborAsync(fromAddr.IpEndPoint, idCheck, remoteServices).ConfigureAwait(false);
                 }
                 else if (oldNeighbor != null)
                 {
@@ -1563,12 +1558,12 @@ namespace zero.cocoon.autopeer
                 }
 
                 //make space
-                if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
+                if (DiscoveryService.Neighbors.Count > CcNode.MaxNeighbors)
                 {
                     var assimilated = DiscoveryService.Neighbors.Values.Where(n =>
                             ((IoCcNeighbor)n).Direction == Kind.Undefined &&
                             ((IoCcNeighbor)n).Assimilated &&
-                            ((IoCcNeighbor)n).State > NeighborState.Local &&
+                            ((IoCcNeighbor)n).State > NeighborState.Local && ((IoCcNeighbor)n).State < NeighborState.Peering &&
                             ((IoCcNeighbor)n)._totalPats > parm_zombie_max_connection_attempts)
                         .OrderBy(n => ((IoCcNeighbor)n).Priority).Take(parm_min_spare_bays).ToList();
 
@@ -1578,7 +1573,7 @@ namespace zero.cocoon.autopeer
                         if (DiscoveryService.Neighbors.Count > CcNode.MaxNeighbors - parm_min_spare_bays)
                         {
                             ((IoCcNeighbor)dc).State = NeighborState.Zombie;
-                            _logger.Trace($"{nameof(DiscoveryResponse)}: Detached no longer useful {dc.Description}");
+                            _logger.Debug($"~ {dc.Description}");
                             await ((IoCcNeighbor)dc).ZeroAsync(this).ConfigureAwait(false);
                         }
                         else

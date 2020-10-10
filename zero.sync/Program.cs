@@ -117,59 +117,66 @@ namespace zero.sync
                 long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 while (_running)
                 {
-                    ooutBound = 0;
-                    oinBound = 0;
-                    oavailable = 0;
-                    opeers = 0;
-
-                    uptime = 0;
-                    uptimeCount = 1;
-                    foreach (var ioCcNode in _nodes)
+                    try
                     {
-                        opeers += ioCcNode.Neighbors.Values.Count(n => ((IoCcPeer)n).Neighbor.IsPeerConnected);
-                        ooutBound += ioCcNode.OutboundCount;
-                        oinBound += ioCcNode.InboundCount;
-                        oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).Proxy);
-                        if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
-                            uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
-                            {
-                                if (((IoCcNeighbor)n).AttachTimestamp > 0)
+                        ooutBound = 0;
+                        oinBound = 0;
+                        oavailable = 0;
+                        opeers = 0;
+
+                        uptime = 0;
+                        uptimeCount = 1;
+                        foreach (var ioCcNode in _nodes)
+                        {
+                            opeers += ioCcNode.Neighbors.Values.Count(n => ((IoCcPeer)n).Neighbor?.IsPeerConnected??false);
+                            ooutBound += ioCcNode.OutboundCount;
+                            oinBound += ioCcNode.InboundCount;
+                            oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).Proxy);
+                            if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
+                                uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>
                                 {
-                                    uptimeCount++;
-                                    return ((IoCcNeighbor)n).AttachTimestamp.Elapsed();
-                                }
-                                return 0;
-                            }).Sum());
-                    }
+                                    if (((IoCcNeighbor)n).IsPeerConnected && ((IoCcNeighbor)n).AttachTimestamp > 0)
+                                    {
+                                        uptimeCount++;
+                                        return ((IoCcNeighbor)n).AttachTimestamp.Elapsed();
+                                    }
+                                    return 0;
+                                }).Sum());
+                        }
 
 
-                    if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
-                    {
-                        var prevPeers = peers;
-                        outBound = ooutBound;
-                        inBound = oinBound;
-                        peers = opeers;
-                        available = oavailable;
+                        if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
+                        {
+                            var prevPeers = peers;
+                            outBound = ooutBound;
+                            inBound = oinBound;
+                            peers = opeers;
+                            available = oavailable;
                         
-                        ThreadPool.GetAvailableThreads(out var wt, out var cpt);
-                        ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
-                        ThreadPool.GetMinThreads(out var minwt, out var mincpt);
+                            ThreadPool.GetAvailableThreads(out var wt, out var cpt);
+                            ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
+                            ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
-                        Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
-                        Console.ResetColor();
+                            Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
+                            Console.ResetColor();
+                        }
+
+                        if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastUpdate > 120)
+                        {
+                            ThreadPool.GetAvailableThreads(out var wt, out var cpt);
+                            ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
+                            ThreadPool.GetMinThreads(out var minwt, out var mincpt);
+
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{available} , peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
+                            Console.ResetColor();
+                            lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        }
                     }
-
-                    if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastUpdate > 120)
+                    catch (Exception e)
                     {
-                        ThreadPool.GetAvailableThreads(out var wt, out var cpt);
-                        ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
-                        ThreadPool.GetMinThreads(out var minwt, out var mincpt);
-
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{available} , peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
-                        Console.ResetColor();
-                        lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        Console.WriteLine(e);
                     }
 
                     Thread.Sleep(30000);

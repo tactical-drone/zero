@@ -101,12 +101,12 @@ namespace zero.cocoon
 
                     try
                     {
-                        if (Neighbors.Count == 0)
+                        if (Neighbors.Count < 2)
                         {
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < Adjuncts * 1 && secondsSinceEnsured.ElapsedDelta() > parm_mean_pat_delay)
+                        if (Neighbors.Count <= Adjuncts * 1 && secondsSinceEnsured.ElapsedDelta() > parm_mean_pat_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Neighbors running lean {Neighbors.Count} < {Adjuncts * 0.75:0}, {Description}");
