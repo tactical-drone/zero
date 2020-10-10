@@ -214,7 +214,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        protected uint Priority => (uint)Enum.GetNames(typeof(Kind)).Length - (uint)Direction + PeerRequests;
+        protected long Priority => Enum.GetNames(typeof(Kind)).Length - (long)Direction + PeerRequests - PeeringAttempts > 0 ? 1 : 0;
 
         //uptime
         private long _attachTimestamp;
@@ -469,7 +469,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_spare_bays = 6;
+        public int parm_min_spare_bays = 4;
 
         /// <summary>
         /// Handle to neighbor zero sub
@@ -1115,10 +1115,10 @@ namespace zero.cocoon.autopeer
         {
             var discoveryRequest = _discoveryRequest.Response(extraData.ToString());
 
-            if (discoveryRequest == null || !Assimilated || response.Peers.Count > parm_max_discovery_peers)
+            if (discoveryRequest == null || !Assimilated || response.Peers.Count >= parm_max_discovery_peers)
             {
-                if (Collected)
-                    _logger.Debug($"{(Proxy ? "V>" : "X>")}{nameof(DiscoveryResponse)}{response.ToByteArray().PayloadSig()}: Reject, req hash = {response.ReqHash.Memory.HashSig()}, {response.Peers.Count} > {parm_max_discovery_peers}? from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest.Count}, matched = {discoveryRequest}");
+                if (Collected && response.Peers.Count < parm_max_discovery_peers)
+                    _logger.Debug($"{nameof(DiscoveryResponse)}{response.ToByteArray().PayloadSig()}: Reject, rq = {response.ReqHash.Memory.HashSig()}, {response.Peers.Count} >= {parm_max_discovery_peers}? from {MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint)extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest.Count}, matched[{extraData}] = {discoveryRequest != null}");
                 return;
             }
 
@@ -1184,7 +1184,7 @@ namespace zero.cocoon.autopeer
                     count++;
             }
 
-            if (DiscoveryService.Neighbors.Count < CcNode.MaxClients && count > 0)
+            if (DiscoveryService.Neighbors.Count < CcNode.Adjuncts && count > 0)
             {
                 _logger.Trace($"{nameof(DiscoveryResponse)}: Scanned {count}/{response.Peers.Count} discoveries from {Description} ...");
             }
@@ -1604,25 +1604,27 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-                //skip if we are already full
+                //make space
                 if (DiscoveryService.Neighbors.Count >= CcNode.MaxNeighbors)
                 {
-                    var culled = DiscoveryService.Neighbors.Values.Where(n =>
+                    var assimilated = DiscoveryService.Neighbors.Values.Where(n =>
                             ((IoCcNeighbor)n).Direction == Kind.Undefined &&
                             ((IoCcNeighbor)n).Assimilated &&
-                            ((IoCcNeighbor)n).State > NeighborState.Unverified &&
+                            ((IoCcNeighbor)n).State > NeighborState.Local &&
                             ((IoCcNeighbor)n)._totalPats > parm_zombie_max_connection_attempts)
                         .OrderBy(n => ((IoCcNeighbor)n).Priority).Take(parm_min_spare_bays).ToList();
 
-                    foreach (var dc in culled)
+                    foreach (var dc in assimilated)
                     {
                         //Drop assimilated neighbors
-                        if (dc != null)
+                        if (DiscoveryService.Neighbors.Count > CcNode.MaxNeighbors - parm_min_spare_bays)
                         {
                             ((IoCcNeighbor)dc).State = NeighborState.Zombie;
-                            _logger.Debug($"{nameof(DiscoveryResponse)}: Detached Secretive {dc.Description}");
+                            _logger.Trace($"{nameof(DiscoveryResponse)}: Detached no longer useful {dc.Description}");
                             await ((IoCcNeighbor)dc).ZeroAsync(this).ConfigureAwait(false);
                         }
+                        else
+                            break;
                     };
                 }
 

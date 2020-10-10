@@ -567,7 +567,7 @@ namespace zero.sync
                 //if (zeroed > 0 && zeroed % 5 == 0)
                 {
                     Console.WriteLine(
-                        $"Estimated {TimeSpan.FromSeconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
+                        $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
                 }
             });
 

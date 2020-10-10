@@ -91,36 +91,25 @@ namespace zero.cocoon
             //print some stats
             var task = Task.Factory.StartNew(async () =>
             {
-                var inbound = 0;
-                var outbound = 0;
-                var available = 0;
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var random = new Random((int)DateTime.Now.Ticks);
                 while (!Zeroed())
                 {
-                    await Task.Delay(random.Next(30000) + 15000, AsyncToken.Token).ConfigureAwait(false);
+                    await Task.Delay(random.Next(parm_mean_pat_delay*1000) + parm_mean_pat_delay*500, AsyncToken.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
                     try
                     {
-                        if (InboundCount != inbound || OutboundCount != outbound || _autoPeering.Neighbors.Count - 1 != available)
-                        {
-                            //_logger.Info($"Peers connected: Inbound = {InboundCount}, Outbound = {OutboundCount}, Available = {_autoPeering.Neighbors.Count - 1}");
-                            inbound = InboundCount;
-                            outbound = OutboundCount;
-                            available = _autoPeering.Neighbors.Count - 1;
-                        }
-
                         if (Neighbors.Count == 0)
                         {
                             await BootStrapAsync().ConfigureAwait(false);
                         }
                         //Search for peers
-                        if (Neighbors.Count < MaxClients * 0.9 && secondsSinceEnsured.UtDelta() > parm_discovery_force_time_multiplier)
+                        if (Neighbors.Count < Adjuncts * 1 && secondsSinceEnsured.UtDelta() > parm_mean_pat_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            _logger.Trace($"Neighbors running lean {Neighbors.Count} < {MaxClients * 0.75:0}, {Description}");
+                            _logger.Trace($"Neighbors running lean {Neighbors.Count} < {Adjuncts * 0.75:0}, {Description}");
 
                             foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Proxy && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))
                             {
@@ -143,10 +132,13 @@ namespace zero.cocoon
                                 if (Zeroed())
                                     break;
 
-                                if( ((IoCcNeighbor)autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Standby || ((IoCcNeighbor)autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Verified)
+                                if (((IoCcNeighbor) autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Standby ||
+                                    ((IoCcNeighbor) autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Verified)
+                                {
                                     await ((IoCcNeighbor)autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
+                                    count++;
+                                }
 
-                                count++;
                             }
 
                             if (count == 0)
@@ -308,11 +300,11 @@ namespace zero.cocoon
 
 
         /// <summary>
-        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="MaxClients"/>
+        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="Adjuncts"/>
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public double parm_discovery_force_time_multiplier = 200;
+        public int parm_mean_pat_delay = 60;
 
 
         /// <summary>
@@ -323,13 +315,13 @@ namespace zero.cocoon
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
-        public int MaxClients => parm_max_outbound + parm_max_inbound;
+        public int Adjuncts => parm_max_outbound + parm_max_inbound;
 
 
         /// <summary>
         /// Maximum number of allowed neighbors
         /// </summary>
-        public int MaxNeighbors => MaxClients * parm_client_to_neighbor_ratio;
+        public int MaxNeighbors => Adjuncts * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id
