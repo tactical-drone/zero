@@ -56,10 +56,13 @@ namespace zero.core.patterns.misc
         /// Ensures that this action is synchronized 
         /// </summary>
         /// <param name="ownershipAction">The ownership transfer</param>
+        /// <param name="userData"></param>
         /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false);
+        ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, object, bool, Task<bool>> ownershipAction,
+            object userData = null,
+            bool disposing = false, bool force = false);
         
         void ZeroUnmanaged();
         ValueTask ZeroManagedAsync();

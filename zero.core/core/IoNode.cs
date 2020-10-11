@@ -155,7 +155,7 @@ namespace zero.core.core
                     return;
                 }
 
-                if (await ZeroAtomicAsync(async (s, d) =>
+                if (await ZeroAtomicAsync(async (s,u, d) =>
                 {
                     try
                     {
@@ -182,7 +182,7 @@ namespace zero.core.core
                         ZeroOnCascade(newNeighbor); //TODO: double check, why was this not seen?
 
                         //Add new neighbor
-                        return await newNeighbor.ZeroAtomicAsync((s, d) =>
+                        return await newNeighbor.ZeroAtomicAsync((s2, u2, d2) =>
                         {
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
@@ -286,7 +286,7 @@ namespace zero.core.core
                 //    }
                 //}
 
-                async Task<bool> OwnershipAction(IIoZeroable z, bool b)
+                async Task<bool> OwnershipAction(IIoZeroable z, object userData, bool b)
                 {
                     //New neighbor?
                     if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))

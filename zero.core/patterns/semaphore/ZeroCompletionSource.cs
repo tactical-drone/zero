@@ -58,9 +58,11 @@ namespace zero.core.patterns.semaphore
             _nanoprobe.Unsubscribe(sub);
         }
 
-        public ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false)
+        public ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, object, bool, Task<bool>> ownershipAction,
+            object userData = null,
+            bool disposing = false, bool force = false)
         {
-            return _nanoprobe.ZeroAtomicAsync(ownershipAction, disposing, force);
+            return _nanoprobe.ZeroAtomicAsync(ownershipAction, userData, disposing: disposing, force: force);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

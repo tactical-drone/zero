@@ -69,7 +69,7 @@ namespace zero.sync
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
 
-                        await Task.Delay(10000).ConfigureAwait(false);
+                        await Task.Delay(30000).ConfigureAwait(false);
                     }
                 }
 
@@ -169,7 +169,7 @@ namespace zero.sync
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{available} , peers = {peers}/{(double)_nodes.Count * maxNeighbors}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{(double)_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
                             Console.ResetColor();
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }
@@ -626,7 +626,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 2,1);
+                0, 0, 5,1);
 
             _nodes.Add(cocoon);
 

@@ -261,7 +261,7 @@ namespace zero.core.patterns.misc
                 return;
 
             // No races allowed between shutting down and starting up
-            await ZeroAtomicAsync(async (s, isDisposing) =>
+            await ZeroAtomicAsync(async (s, u, isDisposing) =>
             {
                 var @this = (IoNanoprobe)s;
                 @this.CascadeTime = DateTime.Now.Ticks;
@@ -342,7 +342,7 @@ namespace zero.core.patterns.misc
                 _logger = null;
 
                 return true;
-            }, disposing, true).ZeroBoostAsync().ConfigureAwait(false);
+            }, disposing: disposing, force: true).ZeroBoostAsync().ConfigureAwait(false);
         }
 
         
@@ -367,11 +367,14 @@ namespace zero.core.patterns.misc
         ///  Ensures that a ownership transfer action is synchronized
         ///  </summary>
         ///  <param name="ownershipAction">The ownership transfer callback</param>
+        ///  <param name="userData"></param>
         ///  <param name="disposing">If disposing</param>
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>
         /// public async ZeroBoostAsync<bool> ZeroAtomicAsync(Func<IIoZeroable<TMutex>, Task<bool>>  ownershipAction, bool force = false)
-        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, bool, Task<bool>> ownershipAction, bool disposing = false, bool force = false)
+        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, object, bool, Task<bool>> ownershipAction,
+            object userData = null,
+            bool disposing = false, bool force = false)
         {
             try
             {
@@ -389,7 +392,7 @@ namespace zero.core.patterns.misc
                             try
                             {
                                 return (_zeroed == 0) &&
-                                       ownershipAction(this, disposing).ConfigureAwait(false).GetAwaiter().GetResult();
+                                       ownershipAction(this, userData, disposing).ConfigureAwait(false).GetAwaiter().GetResult();
                             }
                             catch (Exception e)
                             {
@@ -405,8 +408,7 @@ namespace zero.core.patterns.misc
                     }
                     else
                     {
-                        return (_zeroed == 0 || force) && 
-                               await ownershipAction(this, disposing).ConfigureAwait(false);
+                        return await ownershipAction(this, userData, disposing).ConfigureAwait(false);
                     }
                 }
                 catch
