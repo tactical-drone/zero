@@ -127,7 +127,7 @@ namespace zero.core.patterns.bushes.contracts
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoChannel{TFJob}"/> to other producers.
+        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoConduitonduit{TJob}"/> to other producers.
         /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
@@ -138,7 +138,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
-        IoChannel<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
+        IoConduit<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoSink<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
             where TFJob : IIoJob;
     }

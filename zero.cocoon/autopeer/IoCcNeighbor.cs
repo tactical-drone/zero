@@ -312,7 +312,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Receives protocol messages from here
         /// </summary>
-        private IoChannel<IoCcProtocolMessage> _protocolChannel;
+        private IoConduit<IoCcProtocolMessage> _protocolConduit;
 
         /// <summary>
         /// Seconds since pat
@@ -533,7 +533,7 @@ namespace zero.cocoon.autopeer
 #if SAFE_RELEASE
             _pingRequest = null;
             _peer = null;
-            _protocolChannel = null;
+            _protocolConduit = null;
             _neighborZeroSub = default;
             ArrayPoolProxy = null;
             StateTransitionHistory = null;
@@ -703,8 +703,8 @@ namespace zero.cocoon.autopeer
         /// <param name="zeroClosure"></param>
         /// <returns></returns>
         private async Task ProcessMsgBatchAsync(IoSink<IoCcProtocolMessage> msg,
-            IoChannel<IoCcProtocolMessage> msgArbiter,
-            Func<ValueTuple<IIoZero, IMessage, object, Packet>, IoChannel<IoCcProtocolMessage>, IIoZero, Task>
+            IoConduit<IoCcProtocolMessage> msgArbiter,
+            Func<ValueTuple<IIoZero, IMessage, object, Packet>, IoConduit<IoCcProtocolMessage>, IIoZero, Task>
                 processCallback, IIoZero zeroClosure)
         {
             if (msg == null)
@@ -755,7 +755,7 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessAsync()
         {
-            _protocolChannel ??= MessageService.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+            _protocolConduit ??= MessageService.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
 
             _logger.Debug($"Processing {Description}");
 
@@ -765,12 +765,12 @@ namespace zero.cocoon.autopeer
             {
                 while (!Zeroed())
                 {
-                    if (_protocolChannel == null)
+                    if (_protocolConduit == null)
                     {
                         _logger.Trace($"Waiting for {Description} stream to spin up...");
-                        _protocolChannel = MessageService.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
-                        if (_protocolChannel != null)
-                            ArrayPoolProxy = ((IoCcProtocolBuffer) _protocolChannel.Source).ArrayPoolProxy;
+                        _protocolConduit = MessageService.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+                        if (_protocolConduit != null)
+                            ArrayPoolProxy = ((IoCcProtocolBuffer) _protocolConduit.Source).ArrayPoolProxy;
                         else
                         {
                             await Task.Delay(2000, AsyncToken.Token).ConfigureAwait(false); //TODO config
@@ -780,30 +780,30 @@ namespace zero.cocoon.autopeer
                     }
                     else if (channelTasks == null)
                     {
-                        channelProduceTasks = new ValueTask<bool>[_protocolChannel.ProducerCount];
-                        channelTasks = new ValueTask<bool>[_protocolChannel.ConsumerCount];
+                        channelProduceTasks = new ValueTask<bool>[_protocolConduit.ProducerCount];
+                        channelTasks = new ValueTask<bool>[_protocolConduit.ConsumerCount];
                     }
 
-                    for (int i = 0; i < _protocolChannel.ProducerCount; i++)
+                    for (int i = 0; i < _protocolConduit.ProducerCount; i++)
                     {
-                        if (AsyncToken.IsCancellationRequested || !_protocolChannel.Source.IsOperational)
+                        if (AsyncToken.IsCancellationRequested || !_protocolConduit.Source.IsOperational)
                             break;
 
-                        channelProduceTasks[i] = _protocolChannel.ProduceAsync();
+                        channelProduceTasks[i] = _protocolConduit.ProduceAsync();
                     }
 
 
-                    for (int i = 0; i < _protocolChannel.ConsumerCount; i++)
+                    for (int i = 0; i < _protocolConduit.ConsumerCount; i++)
                     {
-                        if (AsyncToken.IsCancellationRequested || !_protocolChannel.Source.IsOperational)
+                        if (AsyncToken.IsCancellationRequested || !_protocolConduit.Source.IsOperational)
                             break;
 
-                        channelTasks[i] = _protocolChannel.ConsumeAsync(async (msg, ioZero) =>
+                        channelTasks[i] = _protocolConduit.ConsumeAsync(async (msg, ioZero) =>
                         {
                             var _this = (IoCcNeighbor) ioZero;
                             try
                             {
-                                await _this.ProcessMsgBatchAsync(msg, _this._protocolChannel,
+                                await _this.ProcessMsgBatchAsync(msg, _this._protocolConduit,
                                     async (msgBatch, forward, iioZero) =>
                                     {
                                         var __this = (IoCcNeighbor) iioZero;
@@ -1249,7 +1249,7 @@ namespace zero.cocoon.autopeer
         /// <returns>A task</returns>
         private async Task<bool> AssimilateNeighborAsync(IPEndPoint newRemoteEp, IoCcIdentity id, IoCcService services)
         {
-            if (newRemoteEp != null && newRemoteEp.Equals(NATAddress.IpEndPoint))
+            if (newRemoteEp != null && newRemoteEp.Equals(NATAddress?.IpEndPoint))
             {
                 _logger.Fatal($"x {Description}");
                 return false;
@@ -1990,7 +1990,6 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async ValueTask DetachPeerAsync(IoCcPeer dc, bool force = false)
         {
-            //IoCcPeer peer = null;
             var parms = ValueTuple.Create(dc, force);
             if (!await ZeroAtomicAsync((s, u, d) =>
             {
@@ -2035,6 +2034,7 @@ namespace zero.cocoon.autopeer
 
             Interlocked.Exchange(ref _direction, 0);
             ExtGossipAddress = null;
+            NATAddress = null;
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             TotalPats = 0;
             PeeringAttempts = 0;

@@ -13,7 +13,7 @@ namespace zero.cocoon.models
     public class IoCcProtocolMessage : IoSink<IoCcProtocolMessage>
     {
         public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = -1)
-            : base("channel", $"{nameof(IoCcProtocolMessage)}", originatingSource)
+            : base("conduit", $"{nameof(IoCcProtocolMessage)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
             _logger = LogManager.GetCurrentClassLogger();

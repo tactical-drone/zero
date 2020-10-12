@@ -114,12 +114,12 @@ namespace zero.tangle.models
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoChannel<IoTangleTransaction<TKey>> NodeServicesArbiter;
+        public IoConduit<IoTangleTransaction<TKey>> NodeServicesArbiter;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoChannel<IoTangleTransaction<TKey>> NeighborServicesArbiter;
+        public IoConduit<IoTangleTransaction<TKey>> NeighborServicesArbiter;
 
         /// <summary>
         /// Crc checker

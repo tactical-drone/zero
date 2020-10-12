@@ -102,7 +102,10 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
 
+                        var startCount = Neighbors.Count;
                         double scanRatio = 1;
+                        double peerAttempts = 0;
+                        IoCcNeighbor suceptable = null;
                         //Search for peers
                         if (Neighbors.Count <= Adjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                         {
@@ -121,22 +124,38 @@ namespace zero.cocoon
                                 if (Zeroed())
                                     break;
 
+                                //lock in plan b
+                                suceptable ??= (IoCcNeighbor) autoPeeringNeighbor;
+
                                 if (EgressConnections < parm_max_outbound)
                                 {
-                                    if (await ((IoCcNeighbor) autoPeeringNeighbor).SendPeerRequestAsync().ConfigureAwait(false))
+                                    if (await ((IoCcNeighbor) autoPeeringNeighbor).SendPeerRequestAsync()
+                                        .ConfigureAwait(false))
+                                    {
+                                        peerAttempts++;
                                         await Task.Delay(parm_handshake_timeout, AsyncToken.Token).ConfigureAwait(false);
+                                    }
                                 }
                                 else
                                 {
                                     ((IoCcNeighbor) autoPeeringNeighbor).State = IoCcNeighbor.NeighborState.Standby;
                                 }
                             }
+
+                            //plan b: if we are not able to peer, use long range scanners
+                            if (suceptable!= null && peerAttempts == 0 && startCount == Neighbors.Count)
+                            {
+                                if (await suceptable.SendDiscoveryRequestAsync().ZeroBoostAsync().ConfigureAwait(false))
+                                {
+                                    _logger.Debug($"& {suceptable.Description}");   
+                                }
+                            }
                         }
                     }
-                    catch (NullReferenceException) { }
-                    catch (TaskCanceledException) { }
-                    catch (OperationCanceledException) { }
-                    catch (ObjectDisposedException) { }
+                    catch (NullReferenceException e) { _logger.Trace(e, Description); }
+                    catch (TaskCanceledException e) { _logger.Trace(e, Description);}
+                    catch (ObjectDisposedException e) { _logger.Trace(e, Description);}
+                    catch (OperationCanceledException e) { _logger.Trace(e, Description);}
                     catch (Exception e)
                     {
                         _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");

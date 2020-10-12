@@ -56,6 +56,7 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 0;
+                var rateLimit = 13000;
                 foreach (var task in tasks)
                 {
                     task.Start();
@@ -69,7 +70,7 @@ namespace zero.sync
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
 
-                        await Task.Delay(30000).ConfigureAwait(false);
+                        await Task.Delay(rateLimit+=20 * 150).ConfigureAwait(false);
                     }
                 }
 
@@ -626,7 +627,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 5,1);
+                0, 0, 8,1);
 
             _nodes.Add(cocoon);
 

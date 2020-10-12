@@ -53,7 +53,7 @@ namespace zero.cocoon.models
                     return Task.FromResult(false);
                 }).ZeroBoostAsync().ConfigureAwait(false).GetAwaiter().GetResult())
                 {
-                    ProtocolChannel = MessageService.EnsureChannel(
+                    ProtocolConduit = MessageService.EnsureChannel(
                         nameof(IoCcNeighbor),
                         true,
                         channelSource,
@@ -62,7 +62,7 @@ namespace zero.cocoon.models
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((IoCcProtocolBuffer) ProtocolChannel.Source).ArrayPoolProxy;
+                    _arrayPool = ((IoCcProtocolBuffer) ProtocolConduit.Source).ArrayPoolProxy;
                 }
                 else
                 {
@@ -77,7 +77,7 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolChannel = MessageService.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+                ProtocolConduit = MessageService.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
             }
         }
 
@@ -94,7 +94,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoChannel<IoCcProtocolMessage> ProtocolChannel;
+        public IoConduit<IoCcProtocolMessage> ProtocolConduit;
 
         /// <summary>
         /// Base source
@@ -193,7 +193,7 @@ namespace zero.cocoon.models
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             ProducerExtraData = null;
-            ProtocolChannel = null;
+            ProtocolConduit = null;
             _protocolMsgBatch = null;
             _arrayPool = null;
 #endif
@@ -612,7 +612,7 @@ namespace zero.cocoon.models
                 }
                 
                 //cog the source
-                var cogSuccess = await ProtocolChannel.Source.ProduceAsync(async (source, _, __, ioJob) =>
+                var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
                 {
                     var _this = (IoCcPeerMessage) ioJob;
 
@@ -641,9 +641,9 @@ namespace zero.cocoon.models
                 ////forward transactions
                 //if (cogSuccess)
                 //{
-                //    if (!await ProtocolChannel.ProduceAsync().ConfigureAwait(false))
+                //    if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
                 //    {
-                //        _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolChannel.Source.Description}'");
+                //        _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
                 //    }
                 //}
             }
@@ -665,7 +665,7 @@ namespace zero.cocoon.models
             }
             catch (Exception e)
             {
-                _logger.Debug(e, $"Forwarding from {Description} to {ProtocolChannel.Description} failed");
+                _logger.Debug(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
             }
         }
 

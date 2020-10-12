@@ -154,8 +154,8 @@ namespace zero.tangle
         /// <returns></returns>
         private async Task ProcessTransactionsAsync(IIoDataSource<RowSet> dataSource,
             IoSink<IoTangleTransaction<TKey>> transactions,
-            IoChannel<IoTangleTransaction<TKey>> transactionArbiter, 
-            Func<IIoTransactionModel<TKey>, IoChannel<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> processCallback)
+            IoConduit<IoTangleTransaction<TKey>> transactionArbiter, 
+            Func<IIoTransactionModel<TKey>, IoConduit<IoTangleTransaction<TKey>>, IIoDataSource<RowSet>, Task> processCallback)
         {
             if (transactions == null)
                 return;
@@ -191,7 +191,7 @@ namespace zero.tangle
         /// <param name="consumer">The consumer used to signal events</param>
         /// <param name="transactionArbiter">The arbiter</param>
         /// <returns></returns>
-        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoSink<IoTangleTransaction<TKey>> consumer, IoChannel<IoTangleTransaction<TKey>> transactionArbiter)
+        private async Task LoadTransactionAsync(IIoTransactionModel<TKey> transaction, IIoDataSource<RowSet> dataSource, IoSink<IoTangleTransaction<TKey>> consumer, IoConduit<IoTangleTransaction<TKey>> transactionArbiter)
         {
             var stopwatch = Stopwatch.StartNew();
             //_logger.Trace($"{consumer.TraceDescription} Loading transaction [ENTER]");

@@ -60,7 +60,7 @@ namespace zero.cocoon.models.sources
         public override string Key => $"{nameof(IoCcProtocolBuffer)}({Upstream.Key})";
 
         /// <summary>
-        /// Description of upstream channel
+        /// Description of upstream conduit
         /// </summary>
         //public override string Description
         //{
