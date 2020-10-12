@@ -44,7 +44,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+                    channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 3);
                     if (MessageService.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
                         return Task.FromResult(MessageService.ZeroOnCascade(channelSource).success);
@@ -58,7 +58,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
-                        Source.ConcurrencyLevel, Source.ConcurrencyLevel
+                        Source.ConcurrencyLevel * 3, Source.ConcurrencyLevel * 3
                     );
 
                     //get reference to a central mem pool
@@ -165,7 +165,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Userdata in the source
         /// </summary>
-        protected volatile object ProducerExtraData;
+        protected volatile object ProducerExtraData = new IPEndPoint(0,0);
 
         public enum MessageTypes
         {
@@ -234,14 +234,16 @@ namespace zero.cocoon.models
                         {
                             int rx = 0;
 
-                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _remoteEp, _this.MessageService.BlackList);
+                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
                             await readTask.OverBoostAsync().ConfigureAwait(false);
 
                             rx = readTask.Result;
                             
                             //Success
                             //UDP signals source ip
-                            _this.ProducerExtraData = _remoteEp;
+                            
+                            ((IPEndPoint) _this.ProducerExtraData).Address = _this._remoteEp.Address;
+                            ((IPEndPoint) _this.ProducerExtraData).Port = _this._remoteEp.Port;
 
                             //Drop zero reads
                             if (rx == 0)
@@ -583,8 +585,8 @@ namespace zero.cocoon.models
                     if (_currBatch >= parm_max_msg_batch_size)
                         await ForwardToNeighborAsync().ConfigureAwait(false);
 
-                    var remoteEp = (IPEndPoint) ProducerExtraData;
-                    _protocolMsgBatch[_currBatch] = ValueTuple.Create(zero, (IMessage)request, (object)IPEndPoint.Parse(remoteEp.ToString()), packet);
+                    var remoteEp = new IPEndPoint(((IPEndPoint) ProducerExtraData).Address, ((IPEndPoint) ProducerExtraData).Port);
+                    _protocolMsgBatch[_currBatch] = ValueTuple.Create(zero, (IMessage)request, remoteEp, packet);
                     Interlocked.Increment(ref _currBatch);
                 }
             }
@@ -618,7 +620,7 @@ namespace zero.cocoon.models
 
                     if (!await ((IoCcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
-                        _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {Description}");
+                        _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }
 
@@ -629,7 +631,7 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _logger.Fatal(e,$"Unable to rent from mempool: {Description}");
+                        _this._logger.Fatal(e,$"Unable to rent from mempool: {_this.Description}");
                         return false;
                     }
 
@@ -639,13 +641,13 @@ namespace zero.cocoon.models
                 }, jobClosure: this).ConfigureAwait(false);
 
                 ////forward transactions
-                //if (cogSuccess)
-                //{
-                //    if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
-                //    {
-                //        _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
-                //    }
-                //}
+                // if (cogSuccess)
+                // {
+                //     if (!await ProtocolConduit.ProduceAsync().ZeroBoostAsync().ConfigureAwait(false))
+                //     {
+                //         _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
+                //     }
+                // }
             }
             catch (TaskCanceledException e)
             {

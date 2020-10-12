@@ -102,29 +102,33 @@ namespace zero.cocoon
                             await BootStrapAsync().ConfigureAwait(false);
                         }
 
-                        var startCount = Neighbors.Count;
+                        var totalAdjuncts = TotalConnections;
                         double scanRatio = 1;
                         double peerAttempts = 0;
                         IoCcNeighbor suceptable = null;
                         //Search for peers
-                        if (Neighbors.Count <= Adjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
+                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            _logger.Trace($"Scanning {Neighbors.Count} < {Adjuncts * scanRatio:0}, {Description}");
+                            _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");
 
                             //Send peer requests
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => 
-                                ((IoCcNeighbor)n).Assimilated && 
-                                ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined &&
-                                ((IoCcNeighbor)n).State > IoCcNeighbor.NeighborState.Unverified &&
-                                ((IoCcNeighbor)n).State < IoCcNeighbor.NeighborState.Peering &&
-                                ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl).
-                                OrderByDescending(n=>((IoCcNeighbor)n).Priority))
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n =>
+                                    ((IoCcNeighbor)n).Assimilated && 
+                                    ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined &&
+                                    ((IoCcNeighbor)n).State > IoCcNeighbor.NeighborState.Unverified &&
+                                    ((IoCcNeighbor)n).State < IoCcNeighbor.NeighborState.Peering &&
+                                    ((IoCcNeighbor)n).TotalPats > ((IoCcNeighbor)n).parm_zombie_max_connection_attempts &&
+                                    ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl).
+                                OrderBy(n=>((IoCcNeighbor)n).Priority))
                             {
                                 if (Zeroed())
                                     break;
-
-                                //lock in plan b
+                                
+                                //We select the neighbor that makes least requests which means it is saturated,
+                                //but that means it is probably not depleting its standby neighbors which is what 
+                                //we are after. It's a long shot that relies on probability in the long run
+                                //to work.
                                 suceptable ??= (IoCcNeighbor) autoPeeringNeighbor;
 
                                 if (EgressConnections < parm_max_outbound)
@@ -133,7 +137,7 @@ namespace zero.cocoon
                                         .ConfigureAwait(false))
                                     {
                                         peerAttempts++;
-                                        await Task.Delay(parm_handshake_timeout, AsyncToken.Token).ConfigureAwait(false);
+                                        await Task.Delay(parm_scan_throttle, AsyncToken.Token).ConfigureAwait(false);
                                     }
                                 }
                                 else
@@ -142,8 +146,8 @@ namespace zero.cocoon
                                 }
                             }
 
-                            //plan b: if we are not able to peer, use long range scanners
-                            if (suceptable!= null && peerAttempts == 0 && startCount == Neighbors.Count)
+                            //if we are not able to peer, use long range scanners
+                            if (suceptable!= null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
                             {
                                 if (await suceptable.SendDiscoveryRequestAsync().ZeroBoostAsync().ConfigureAwait(false))
                                 {
@@ -241,7 +245,13 @@ namespace zero.cocoon
         /// Timeout for handshake messages
         /// </summary>
         [IoParameter]
-        public int parm_handshake_timeout = 10000;
+        public int parm_handshake_timeout = 5000;
+        
+        /// <summary>
+        /// Timeout for handshake messages
+        /// </summary>
+        [IoParameter]
+        public int parm_scan_throttle = 2000;
 
         /// <summary>
         /// The discovery service
@@ -305,7 +315,7 @@ namespace zero.cocoon
 
 
         /// <summary>
-        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="Adjuncts"/>
+        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="MaxAdjuncts"/>
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -320,13 +330,13 @@ namespace zero.cocoon
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
-        public int Adjuncts => parm_max_outbound + parm_max_inbound;
+        public int MaxAdjuncts => parm_max_outbound + parm_max_inbound;
 
 
         /// <summary>
         /// Maximum number of allowed neighbors
         /// </summary>
-        public int MaxNeighbors => Adjuncts * parm_client_to_neighbor_ratio;
+        public int MaxNeighbors => MaxAdjuncts * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id

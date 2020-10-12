@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using zero.core.patterns.misc;
@@ -16,10 +17,10 @@ namespace zero.core.misc
     /// <typeparam name="T">The payload matched</typeparam>
     public class IoZeroMatcher<T> : IoNanoprobe
     {
-        public IoZeroMatcher(string description, long ttl = 2000)
+        public IoZeroMatcher(string description, long ttlMs = 2000)
         {
             _description = description??"";
-            _ttl = ttl;
+            _ttlMs = ttlMs;
         }
 
         /// <summary>
@@ -35,7 +36,7 @@ namespace zero.core.misc
         /// <summary>
         /// Time to live
         /// </summary>
-        private readonly long _ttl;
+        private readonly long _ttlMs;
 
         /// <summary>
         /// Present a challenge
@@ -44,19 +45,19 @@ namespace zero.core.misc
         /// <param name="body">The payload</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Challenge(string key, T body)
+        public async ValueTask<bool> ChallengeAsync(string key, T body)
         {
-            var temp = new TemporalValue { Payload = body, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()};
+            var temp = new TemporalValue { Payload = body, TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()};
             if (!_challenge.TryAdd(key, temp))
             {
                 if (_challenge.TryGetValue(key, out var cur))
                 {
-                    if (cur.Timestamp.ElapsedMs() > _ttl)
+                    if (cur.TimestampMs.ElapsedMs() > _ttlMs)
                     {
                         if (_challenge.TryRemove(key, out var dropped))
                         {
                             //LogManager.GetCurrentClassLogger().Error($"[{_description}:{_challenge.Count}] {cur.Timestamp.ElapsedMs()}ms  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-                            return Challenge(key, body);
+                            return await ChallengeAsync(key, body).ZeroBoostAsync().ConfigureAwait(false);
                         }
                     }
                     //LogManager.GetCurrentClassLogger().Warn($"[{_description}:{_challenge.Count}] {cur.Timestamp.ElapsedMs()}ms <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
@@ -64,8 +65,8 @@ namespace zero.core.misc
                 }
                 else
                 {
-                    Thread.Sleep(0);
-                    return Challenge(key, body);
+                    await Task.Delay(0).ConfigureAwait(false);
+                    return await ChallengeAsync(key, body).ZeroBoostAsync().ConfigureAwait(false);
                 }
             }
             return true;
@@ -145,7 +146,7 @@ namespace zero.core.misc
             /// <summary>
             /// When the payload was challenged
             /// </summary>
-            public long Timestamp;
+            public long TimestampMs;
 
             /// <summary>
             /// The payload
