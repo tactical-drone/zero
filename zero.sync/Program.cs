@@ -70,7 +70,7 @@ namespace zero.sync
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
 
-                        await Task.Delay(rateLimit+=10 * 150).ConfigureAwait(false);
+                        await Task.Delay(rateLimit+=15 * 150).ConfigureAwait(false);
                     }
                 }
 
