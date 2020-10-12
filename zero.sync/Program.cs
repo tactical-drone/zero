@@ -129,8 +129,8 @@ namespace zero.sync
                         foreach (var ioCcNode in _nodes)
                         {
                             opeers += ioCcNode.Neighbors.Values.Count(n => ((IoCcPeer)n).Neighbor?.IsPeerConnected??false);
-                            ooutBound += ioCcNode.OutboundCount;
-                            oinBound += ioCcNode.InboundCount;
+                            ooutBound += ioCcNode.EgressConnections;
+                            oinBound += ioCcNode.IngressConnections;
                             oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).Proxy);
                             if (ioCcNode.DiscoveryService.Neighbors.Count > 0)
                                 uptime += (long)(ioCcNode.DiscoveryService.Neighbors.Values.Select(n =>

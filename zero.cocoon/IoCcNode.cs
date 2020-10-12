@@ -80,63 +80,56 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            //print some stats
+            //ensure some liveness
             var task = Task.Factory.StartNew(async () =>
             {
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var random = new Random((int)DateTime.Now.Ticks);
+                
+                //while running
                 while (!Zeroed())
                 {
-                    await Task.Delay(random.Next(parm_mean_pat_delay*1000) + parm_mean_pat_delay*500, AsyncToken.Token).ConfigureAwait(false);
+                    //periodically
+                    await Task.Delay((random.Next(parm_mean_pat_delay*1000) + parm_mean_pat_delay*500)/4, AsyncToken.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
                     try
                     {
+                        //boostrap if alone
                         if (Neighbors.Count < 2)
                         {
                             await BootStrapAsync().ConfigureAwait(false);
                         }
+
+                        double scanRatio = 1;
                         //Search for peers
-                        if (Neighbors.Count <= Adjuncts * 1 && secondsSinceEnsured.ElapsedDelta() > parm_mean_pat_delay)
+                        if (Neighbors.Count <= Adjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            _logger.Trace($"Neighbors running lean {Neighbors.Count} < {Adjuncts * 0.75:0}, {Description}");
+                            _logger.Trace($"Scanning {Neighbors.Count} < {Adjuncts * scanRatio:0}, {Description}");
 
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Proxy && ((IoCcNeighbor)n).Verified && ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2).OrderByDescending(n=>((IoCcNeighbor)n).Priority))
+                            //Send peer requests
+                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => 
+                                ((IoCcNeighbor)n).Assimilated && 
+                                ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined &&
+                                ((IoCcNeighbor)n).State > IoCcNeighbor.NeighborState.Unverified &&
+                                ((IoCcNeighbor)n).State < IoCcNeighbor.NeighborState.Peering &&
+                                ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl).
+                                OrderByDescending(n=>((IoCcNeighbor)n).Priority))
                             {
                                 if (Zeroed())
                                     break;
 
-                                if (OutboundCount < parm_max_outbound)
+                                if (EgressConnections < parm_max_outbound)
                                 {
                                     if (await ((IoCcNeighbor) autoPeeringNeighbor).SendPeerRequestAsync().ConfigureAwait(false))
-                                        await Task.Delay(parm_handshake_timeout,AsyncToken.Token).ConfigureAwait(false);
+                                        await Task.Delay(parm_handshake_timeout, AsyncToken.Token).ConfigureAwait(false);
                                 }
                                 else
                                 {
                                     ((IoCcNeighbor) autoPeeringNeighbor).State = IoCcNeighbor.NeighborState.Standby;
                                 }
-                            }
-
-                            var count = 0;
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor)n).Assimilated && ((IoCcNeighbor)n).SecondsSincePat < ((IoCcNeighbor)n).parm_zombie_max_ttl * 2))//TODO
-                            {
-                                if (Zeroed())
-                                    break;
-
-                                if (((IoCcNeighbor) autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Standby ||
-                                    ((IoCcNeighbor) autoPeeringNeighbor).State == IoCcNeighbor.NeighborState.Verified)
-                                {
-                                    await ((IoCcNeighbor)autoPeeringNeighbor).SendDiscoveryRequestAsync().ConfigureAwait(false);
-                                    count++;
-                                }
-
-                            }
-
-                            if (count == 0)
-                            {
-                                await BootStrapAsync().ConfigureAwait(false);
                             }
                         }
                     }
@@ -240,17 +233,17 @@ namespace zero.cocoon
         /// <summary>
         /// Total number of connections
         /// </summary>
-        public int TotalConnections => InboundCount + OutboundCount;
+        public int TotalConnections => IngressConnections + EgressConnections;
 
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int InboundCount => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor != null && ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Inbound) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
+        public int IngressConnections => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor != null && ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Inbound) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int OutboundCount => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor != null && ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Outbound) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
+        public int EgressConnections => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor != null && ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Outbound) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
 
 
         /// <summary>
@@ -341,7 +334,7 @@ namespace zero.cocoon
             await base.SpawnListenerAsync(async peer =>
             {
                 //limit connects
-                if (Zeroed() || InboundCount >= parm_max_inbound || peer == null)
+                if (Zeroed() || IngressConnections >= parm_max_inbound || peer == null)
                     return false;
 
                 //Handshake
@@ -701,7 +694,7 @@ namespace zero.cocoon
                     !Zeroed() && 
                     neighbor.Assimilated &&
                     !neighbor.IsPeerConnected &&
-                    OutboundCount < parm_max_outbound &&
+                    EgressConnections < parm_max_outbound &&
                     //TODO add distance calc &&
                     neighbor.Services.IoCcRecord.Endpoints.ContainsKey(IoCcService.Keys.gossip)
                 )
