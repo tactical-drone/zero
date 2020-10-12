@@ -2,7 +2,7 @@
 
 namespace zero.core.patterns.misc
 {
-    public interface IIoNanoprobe: IIoZeroable
+    public interface IIoNanoprobe: IIoNanite
     {
         
     }

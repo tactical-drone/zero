@@ -15,7 +15,7 @@ namespace zero.core.patterns.misc
     /// <summary>
     /// ZeroAsync teardown
     /// </summary>
-    public class IoNanoprobe : IIoZeroable, IDisposable 
+    public class IoNanoprobe : IIoNanite, IDisposable 
     {
         /// <summary>
         /// static constructor
@@ -84,7 +84,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Who zeroed this object
         /// </summary>
-        public IIoZeroable ZeroedFrom { get; private set; }
+        public IIoNanite ZeroedFrom { get; private set; }
 
         /// <summary>
         /// Measures how long teardown takes
@@ -129,13 +129,13 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public async ValueTask ZeroAsync(IIoZeroable from)
+        public async ValueTask ZeroAsync(IIoNanite from)
         {
             if (_zeroed > 0)
                 return;
 
             if (from?.GetHashCode() != GetHashCode())
-                ZeroedFrom = (IIoZeroable)from;
+                ZeroedFrom = (IIoNanite)from;
             
             await ZeroAsync(true).ConfigureAwait(false);
             GC.SuppressFinalize(obj: this);
@@ -151,7 +151,7 @@ namespace zero.core.patterns.misc
             while (cur?.Zeroed() ?? false)
             {
                 builder.Append($"/> {cur.GetType().Name}({cur.Description})");
-                if (cur == this as IIoZeroable)
+                if (cur == this as IIoNanite)
                     break;
                 cur = cur.ZeroedFrom;
             }
@@ -177,7 +177,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public IoZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
+        public IoZeroSub ZeroEvent(Func<IIoNanite, Task> sub)
         {
             IoZeroSub newSub;
             _zeroSubs.Push(newSub = new IoZeroSub
@@ -204,7 +204,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">Enforces mutual zero</param>
-        public (T target, bool success) ZeroOnCascade<T>(T target, bool twoWay = false) where T : IIoZeroable
+        public (T target, bool success) ZeroOnCascade<T>(T target, bool twoWay = false) where T : IIoNanite
         {
              if(_zeroed > 0)
                 return (default, false);
@@ -296,7 +296,7 @@ namespace zero.core.patterns.misc
                         }
                         catch (Exception e)
                         {
-                            _logger.Fatal(e, $"zero sub {((IIoZeroable)zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
+                            _logger.Fatal(e, $"zero sub {((IIoNanite)zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
                         }
                     }
                 }
@@ -372,7 +372,7 @@ namespace zero.core.patterns.misc
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>
         /// public async ZeroBoostAsync<bool> ZeroAtomicAsync(Func<IIoZeroable<TMutex>, Task<bool>>  ownershipAction, bool force = false)
-        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, object, bool, Task<bool>> ownershipAction,
+        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, Task<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)
         {
@@ -427,7 +427,7 @@ namespace zero.core.patterns.misc
             return false;
         }
 
-        public bool Equals(IIoZeroable other)
+        public bool Equals(IIoNanite other)
         {
             return NpId == other.NpId;
         }

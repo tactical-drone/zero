@@ -23,7 +23,7 @@ namespace zero.core.patterns.semaphore
 
         private readonly IoNanoprobe _nanoprobe;
 
-        public IIoZeroable ZeroedFrom => _nanoprobe.ZeroedFrom;
+        public IIoNanite ZeroedFrom => _nanoprobe.ZeroedFrom;
 
         public ulong NpId => _nanoprobe.NpId;
 
@@ -37,7 +37,7 @@ namespace zero.core.patterns.semaphore
         /// </summary>
         /// <param name="from"></param>
         /// <returns></returns>
-        public ValueTask ZeroAsync(IIoZeroable from)
+        public ValueTask ZeroAsync(IIoNanite from)
         {
             TrySetCanceled(_nanoprobe.AsyncToken.Token);
             return _nanoprobe.ZeroAsync(from);
@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore
         /// </summary>
         /// <param name="sub"></param>
         /// <returns></returns>
-        public IoZeroSub ZeroEvent(Func<IIoZeroable, Task> sub)
+        public IoZeroSub ZeroEvent(Func<IIoNanite, Task> sub)
         {
             return _nanoprobe.ZeroEvent(sub);
         }
@@ -58,7 +58,7 @@ namespace zero.core.patterns.semaphore
             _nanoprobe.Unsubscribe(sub);
         }
 
-        public ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, object, bool, Task<bool>> ownershipAction,
+        public ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, Task<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)
         {
@@ -66,9 +66,9 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoZeroable
+        public (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoNanite
         {
-            return ((IIoZeroable) _nanoprobe).ZeroOnCascade(target, twoWay);
+            return ((IIoNanite) _nanoprobe).ZeroOnCascade(target, twoWay);
         }
 
         public bool Zeroed()
@@ -86,7 +86,7 @@ namespace zero.core.patterns.semaphore
             return _nanoprobe.ZeroManagedAsync();
         }
 
-        public void ZeroRef(ref IIoZeroable nanoprobe)
+        public void ZeroRef(ref IIoNanite nanoprobe)
         {
             throw new NotImplementedException();
         }
@@ -99,7 +99,7 @@ namespace zero.core.patterns.semaphore
         }
         public CancellationTokenSource AsyncToken => _nanoprobe.AsyncToken;
         
-        public bool Equals(IIoZeroable other)
+        public bool Equals(IIoNanite other)
         {
             throw new NotImplementedException();
         }

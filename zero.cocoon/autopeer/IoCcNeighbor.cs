@@ -757,7 +757,7 @@ namespace zero.cocoon.autopeer
         {
             _protocolConduit ??= MessageService.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
 
-            _logger.Debug($"Processing {Description}");
+            _logger.Debug($"$ {Description}");
 
             ValueTask<bool>[] channelProduceTasks = null;
             ValueTask<bool>[] channelTasks = null;

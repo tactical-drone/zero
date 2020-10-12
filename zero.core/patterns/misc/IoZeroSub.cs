@@ -5,7 +5,7 @@ namespace zero.core.patterns.misc
 {
     public class IoZeroSub
     {
-        public Func<IIoZeroable, Task> Action;
+        public Func<IIoNanite, Task> Action;
         public volatile bool Schedule;
     }
 }

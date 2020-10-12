@@ -185,7 +185,7 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Equals(IIoZeroable other)
+        public bool Equals(IIoNanite other)
         {
             //return NpId == other.NpId;
             return true;

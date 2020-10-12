@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace zero.core.patterns.misc
 {
-    public interface IIoZeroable : IEquatable<IIoZeroable>
+    public interface IIoNanite : IEquatable<IIoNanite>
     {
         /// <summary>
         /// returns an identity
@@ -14,12 +14,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// The source of zero
         /// </summary>
-        IIoZeroable ZeroedFrom { get; }
+        IIoNanite ZeroedFrom { get; }
         
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
-        ValueTask ZeroAsync(IIoZeroable from);
+        ValueTask ZeroAsync(IIoNanite from);
         
         /// <summary>
         /// A description of this object
@@ -37,14 +37,14 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">If the zeroing is both ways</param>
-        (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoZeroable;
+        (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoNanite;
         
         /// <summary>
         /// Subscribe to disposed event
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        IoZeroSub ZeroEvent(Func<IIoZeroable, Task> sub);
+        IoZeroSub ZeroEvent(Func<IIoNanite, Task> sub);
 
         /// <summary>
         /// Unsubscribe
@@ -60,7 +60,7 @@ namespace zero.core.patterns.misc
         /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        ValueTask<bool> ZeroAtomicAsync(Func<IIoZeroable, object, bool, Task<bool>> ownershipAction,
+        ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, Task<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false);
         

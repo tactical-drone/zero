@@ -43,7 +43,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A dictionary of downstream channels
         /// </summary>
-        protected internal ConcurrentDictionary<string, IIoChannel> IoChannels = new ConcurrentDictionary<string, IIoChannel>();
+        protected internal ConcurrentDictionary<string, IIoConduit> IoChannels = new ConcurrentDictionary<string, IIoConduit>();
 
         /// <summary>
         /// Keys this instance.

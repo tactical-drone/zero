@@ -9,8 +9,8 @@ namespace zero.core.patterns.bushes
     /// </summary>
     /// <typeparam name="TJob">The type of the job.</typeparam>
     /// <seealso cref="IoZero{TJob}" />
-    /// <seealso cref="IIoChannel" />
-    public class IoConduit<TJob>:IoZero<TJob>, IIoChannel
+    /// <seealso cref="IIoConduit" />
+    public class IoConduit<TJob>:IoZero<TJob>, IIoConduit
         where TJob : IIoJob
     {
         /// <summary>

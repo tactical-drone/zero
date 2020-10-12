@@ -286,7 +286,7 @@ namespace zero.core.core
                 //    }
                 //}
 
-                async Task<bool> OwnershipAction(IIoZeroable z, object userData, bool b)
+                async Task<bool> OwnershipAction(IIoNanite z, object userData, bool b)
                 {
                     //New neighbor?
                     if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))

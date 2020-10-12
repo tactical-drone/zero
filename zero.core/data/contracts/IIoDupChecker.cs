@@ -4,7 +4,7 @@ using zero.core.patterns.misc;
 
 namespace zero.core.data.contracts
 {
-    public interface IIoDupChecker :IIoZeroable
+    public interface IIoDupChecker :IIoNanite
     {
         /// <summary>
         /// True if the backend is operational

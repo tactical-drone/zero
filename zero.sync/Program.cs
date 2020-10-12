@@ -56,7 +56,7 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 0;
-                var rateLimit = 13000;
+                var rateLimit = 11000;
                 foreach (var task in tasks)
                 {
                     task.Start();
@@ -159,7 +159,7 @@ namespace zero.sync
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                             Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(peers) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(inBound + outBound) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
                             Console.ResetColor();
                         }
 
@@ -170,7 +170,7 @@ namespace zero.sync
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{(double)_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(peers) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{(double)_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(inBound + outBound) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
                             Console.ResetColor();
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }
