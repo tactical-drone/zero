@@ -1302,6 +1302,7 @@ namespace zero.cocoon.autopeer
                 if (_this.DiscoveryService.Neighbors.Count > _this.CcNode.MaxNeighbors)
                 {
                     var q = _this.DiscoveryService.Neighbors.Values.Where(n =>
+                        !((IoCcNeighbor) n).IsLocal &&
                         ((IoCcNeighbor) n).Direction == Kind.Undefined &&
                         ((IoCcNeighbor) n).State < NeighborState.Peering);
                     
