@@ -144,7 +144,7 @@ namespace zero.core.patterns.bushes
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_max_q_size = 100; //TODO
+        public long parm_max_q_size = 500; //TODO
 
         /// <summary>
         /// Time to wait for insert before complaining about it

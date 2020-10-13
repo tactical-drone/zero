@@ -36,7 +36,7 @@ namespace zero.core.patterns.misc
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
 
-            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 9);
+            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 1000);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 

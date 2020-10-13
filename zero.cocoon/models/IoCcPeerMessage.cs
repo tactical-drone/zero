@@ -58,7 +58,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
-                        Source.ConcurrencyLevel, Source.ConcurrencyLevel
+                        Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
                     );
 
                     //get reference to a central mem pool

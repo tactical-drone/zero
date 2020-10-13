@@ -1,13 +1,19 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.Arm;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Microsoft.AspNetCore.Razor.TagHelpers;
 using NLog;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.misc
 {
@@ -16,11 +22,15 @@ namespace zero.core.misc
     /// </summary>
     /// <typeparam name="T">The payload matched</typeparam>
     public class IoZeroMatcher<T> : IoNanoprobe
+    where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, long ttlMs = 2000)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10)
         {
+            _capacity = capacity;
             _description = description??"";
             _ttlMs = ttlMs;
+            _matcherMutex = new IoZeroSemaphore(nameof(_matcherMutex), concurrencyLevel, 1);
+            _matcherMutex.ZeroRef(ref _matcherMutex, AsyncTasks.Token);
         }
 
         /// <summary>
@@ -29,9 +39,15 @@ namespace zero.core.misc
         private string _description;
 
         /// <summary>
+        /// Used to sync the list of challanges 
+        /// </summary>
+        private IIoZeroSemaphore _matcherMutex;
+
+        /// <summary>
         /// Holds requests
         /// </summary>
-        private readonly ConcurrentDictionary<string, TemporalValue> _challenge = new ConcurrentDictionary<string, TemporalValue>();
+        //private readonly ConcurrentDictionary<string, System.Collections.Generic.List<TemporalValue>> _challenge = new ConcurrentDictionary<string, System.Collections.Generic.List<TemporalValue>>();
+        List<TemporalValue> _challenge = new List<TemporalValue>();
 
         /// <summary>
         /// Time to live
@@ -43,49 +59,95 @@ namespace zero.core.misc
         /// </summary>
         /// <param name="key">The key</param>
         /// <param name="body">The payload</param>
+        /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<bool> ChallengeAsync(string key, T body)
+        public async ValueTask<bool> ChallengeAsync(string key, T body, bool bump = true)
         {
-            var temp = new TemporalValue { Payload = body, TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()};
-            if (!_challenge.TryAdd(key, temp))
+            var temp = new TemporalValue { Key = key, Payload = body, TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()};
+
+            try
             {
-                if (_challenge.TryGetValue(key, out var cur))
+                if (await _matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
                 {
-                    if (cur.TimestampMs.ElapsedMs() > _ttlMs)
-                    {
-                        if (_challenge.TryRemove(key, out var dropped))
-                        {
-                            //LogManager.GetCurrentClassLogger().Error($"[{_description}:{_challenge.Count}] {cur.TimestampMs.ElapsedMs() / 1000}s  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-                            return await ChallengeAsync(key, body).ZeroBoostAsync().ConfigureAwait(false);
-                        }
-                    }
-                    //LogManager.GetCurrentClassLogger().Warn($"[{_description}:{_challenge.Count}] {cur.Timestamp.ElapsedMs()}ms <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
-                    return false;
+                    _challenge.Add(temp);    
                 }
                 else
                 {
-                    await Task.Delay(0).ConfigureAwait(false);
-                    return await ChallengeAsync(key, body).ZeroBoostAsync().ConfigureAwait(false);
+                    return false;
                 }
             }
+            finally
+            {
+                if (_challenge.Count > _capacity)
+                {
+                    _challenge = _challenge.Where(c => !c.Collected).ToList();
+                }
+                _matcherMutex.Release();
+            }
+
             return true;
         }
 
         /// <summary>
+        /// Used internally
+        /// </summary>
+        private readonly SHA256 _sha256 = SHA256.Create();
+        
+        /// <summary>
+        /// The bucket capacity this matcher targets
+        /// </summary>
+        private readonly int _capacity;
+        
+        /// <summary>
         /// Present a response
         /// </summary>
         /// <param name="key">The response key</param>
+        /// <param name="responseReqHash"></param>
         /// <returns>The response payload</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T Response(string key)
+        public async ValueTask<TemporalValue> ResponseAsync(string key, ByteString responseReqHash)
         {
-            if (_challenge.TryGetValue(key, out var temp))
+            try
             {
-                _challenge.TryRemove(key, out _);
-                return temp.Payload;
-            }
+                var hashMatch = MemoryMarshal.Read<long>(responseReqHash.Memory.AsArray());
+                if (await _matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                {
+                    var hit = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
+                    while (hit.Key != null)
+                    {
+                        var hash = _sha256.ComputeHash((hit.Payload as ByteString)?.Memory.AsArray());
+                        hit.Payload = default;
+                        if (hit.Hash == 0)
+                            hit.Hash = MemoryMarshal.Read<long>(hash);
+                        
+                        if (hit.Hash == hashMatch)
+                        {
+                            hit.Collected = true;
+                            return hit;
+                        }
 
+                        hit.Scanned = true;
+                        hit = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
+                    }
+
+                    foreach (var temporalValue in _challenge)
+                    {
+                        if (temporalValue.TimestampMs.ElapsedMs() > _ttlMs)
+                            temporalValue.Collected = true;
+                        
+                        temporalValue.Scanned = false;
+                    }
+                }
+                else
+                {
+                    return default;
+                }
+            }
+            finally
+            {
+                _matcherMutex.Release();
+            }
             return default;
         }
 
@@ -98,7 +160,7 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Peek(string key)
         {
-            return _challenge.ContainsKey(key);
+            return _challenge.FirstOrDefault(v => !v.Collected == false && v.Key == key).Key != null;
         }
 
         /// <summary>
@@ -106,11 +168,18 @@ namespace zero.core.misc
         /// </summary>
         /// <param name="target"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Dump(IoZeroMatcher<T> target)
+        public async ValueTask DumpAsync(IoZeroMatcher<T> target)
         {
-            foreach (var temporalValue in _challenge)
+            try
             {
-                target._challenge.TryAdd(temporalValue.Key, temporalValue.Value);
+                if (await target._matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                {
+                    target._challenge.AddRange(_challenge);
+                }
+            }
+            finally
+            {
+                target._matcherMutex.Release();
             }
         }
 
@@ -130,7 +199,7 @@ namespace zero.core.misc
         {
             try
             {
-                return $"{Count}:  {string.Join(", ",_challenge.Select(kv=>$"{kv.Key}::{Sha256.ComputeHash((kv.Value.Payload as ByteString)?.ToByteArray()).HashSig()}, "))}";
+                return $"{Count}:  {string.Join(", ",_challenge.Select(kv=>$"{kv.Key}::{Sha256.ComputeHash((kv.Payload as ByteString)?.ToByteArray()).HashSig()}, "))}";
             }
             catch (Exception e)
             {
@@ -144,6 +213,10 @@ namespace zero.core.misc
         public class TemporalValue
         {
             /// <summary>
+            /// The key
+            /// </summary>
+            public string Key;
+            /// <summary>
             /// When the payload was challenged
             /// </summary>
             public long TimestampMs;
@@ -152,6 +225,21 @@ namespace zero.core.misc
             /// The payload
             /// </summary>
             public T Payload;
+            
+            /// <summary>
+            /// The computed hash
+            /// </summary>
+            public long Hash;
+
+            /// <summary>
+            /// Used internally
+            /// </summary>
+            public bool Scanned;
+
+            /// <summary>
+            /// if this instance has been collected
+            /// </summary>
+            public bool Collected;
         }
     }
 }
