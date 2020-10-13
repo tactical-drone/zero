@@ -704,7 +704,7 @@ namespace zero.cocoon
                 }
 
                 return false;
-            }, peer, force: true).ZeroBoostAsync().ConfigureAwait(false);
+            }, peer, force: false).ZeroBoostAsync().ConfigureAwait(false);
         }
 
         /// <summary>

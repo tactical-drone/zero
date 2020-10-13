@@ -454,14 +454,16 @@ namespace zero.core.network.ip
             NativeSocket.ExclusiveAddressUse = true;
 
             // Set the receive buffer size to 32k
-            NativeSocket.ReceiveBufferSize = 8192 * 4;
+            //NativeSocket.ReceiveBufferSize = 8192 * 4;
+            NativeSocket.ReceiveBufferSize = 4096;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
             NativeSocket.ReceiveTimeout = 10000;
 
             // Set the send buffer size to 8k.
-            NativeSocket.SendBufferSize = 8192 * 2;
+            //NativeSocket.SendBufferSize = 8192 * 2;
+            NativeSocket.SendBufferSize = 2048;
 
             // Set the timeout for synchronous send methods
             // to 1 second (1000 milliseconds.)
