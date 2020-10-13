@@ -1028,16 +1028,9 @@ namespace zero.cocoon.autopeer
             PeeringResponse peeringResponse = peeringResponse = new PeeringResponse
             {
                 ReqHash = ByteString.CopyFrom(IoCcIdentity.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
-                Status = CcNode.IngressConnections < CcNode.parm_max_inbound
+                Status = CcNode.IngressConnections < CcNode.parm_max_inbound & _direction == 0
             };
-
-            if (!(peeringResponse.Status &&
-                  (Interlocked.CompareExchange(ref _direction, 0, (int) (Kind.Undefined)) == (int) Kind.Undefined) ||
-                  Interlocked.CompareExchange(ref _direction, 0, (int) (Kind.Inbound)) == (int) Kind.Inbound))
-            {
-                peeringResponse.Status = false;
-            } //Were we inbound?
-
+            
             if (await SendMessageAsync(data: peeringResponse.ToByteString(),
                 type: IoCcPeerMessage.MessageTypes.PeeringResponse).ZeroBoostAsync().ConfigureAwait(false) > 0)
             {
@@ -1083,14 +1076,11 @@ namespace zero.cocoon.autopeer
                 var _this = (IoCcNeighbor) s;
                 if (_this.State == NeighborState.Peering)
                     _this.State = NeighborState.Standby;
-                return Task.FromResult(true);
+                return ValueTask.FromResult(true);
             }).ZeroBoostAsync().ConfigureAwait(false);
 
             //Race for 
-            if (response.Status &&
-                Interlocked.CompareExchange(ref _direction, 0, (int) (Kind.Undefined)) == (int) Kind.Undefined ||
-                Interlocked.CompareExchange(ref _direction, 0, (int) (Kind.OutBound)) == (int) Kind.OutBound
-            )
+            if (response.Status && _direction == 0)
             {
                 if (!await ConnectAsync().ConfigureAwait(false))
                 {
@@ -1103,7 +1093,7 @@ namespace zero.cocoon.autopeer
                         var _this = (IoCcNeighbor) s;
                         if (_this.State == NeighborState.Peering)
                             _this.State = NeighborState.Standby;
-                        return Task.FromResult(true);
+                        return ValueTask.FromResult(true);
                     }).ZeroBoostAsync().ConfigureAwait(false);
                 }
             } //Were we inbound?
@@ -1257,7 +1247,7 @@ namespace zero.cocoon.autopeer
                 if (await AssimilateNeighborAsync(newRemoteEp, id, services))
                 {
                     count++;
-                    await Task.Delay(CcNode.parm_scan_throttle / 2, AsyncTasks.Token).ConfigureAwait(false);
+                    //await Task.Delay(CcNode.parm_scan_throttle / 8, AsyncTasks.Token).ConfigureAwait(false);
                 }
             }
 
@@ -1369,7 +1359,7 @@ namespace zero.cocoon.autopeer
 
                         return Task.CompletedTask;
                     });
-                    return Task.FromResult(true);
+                    return ValueTask.FromResult(true);
                 }, ValueTuple.Create(this, newNeighbor)).ZeroBoostAsync().ConfigureAwait(false))
                 {
                     _logger.Debug($"# {newNeighbor.Description}");
@@ -1830,15 +1820,15 @@ namespace zero.cocoon.autopeer
                 {
                     var _this = (IoCcNeighbor) s;
                     if (_this.State > NeighborState.Peering)
-                        return Task.FromResult(true);
+                        return ValueTask.FromResult(true);
 
                     if (_this.State == NeighborState.Peering)
                     {
                         _this.State = NeighborState.Standby;
-                        return Task.FromResult(true);
+                        return ValueTask.FromResult(true);
                     }
 
-                    return Task.FromResult(false);
+                    return ValueTask.FromResult(false);
                 }).ZeroBoostAsync().ConfigureAwait(false))
                 {
                     return false;
@@ -1989,16 +1979,17 @@ namespace zero.cocoon.autopeer
                     {
                         _this._logger.Warn(
                             $"oz: race for {__direciton} lost {__ioCcPeer.Description}, current = {_this.Direction}, {_this._peer?.Description}");
-                        return Task.FromResult(false);
+                        return ValueTask.FromResult(false);
                     }
 
                     _this._peer = __ioCcPeer ?? throw new ArgumentNullException($"{nameof(__ioCcPeer)}");
-                    return Task.FromResult(true);
+                    _this.State = NeighborState.Connected;
+                    return ValueTask.FromResult(true);
                 }, ValueTuple.Create(ioCcPeer, direction));
 
                 _logger.Trace($"{nameof(AttachPeerAsync)}: [WON] {_peer?.Description}");
 
-                State = NeighborState.Connected;
+                
                 ConnectedAtLeastOnce = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
@@ -2037,16 +2028,16 @@ namespace zero.cocoon.autopeer
                 var _this = (IoCcNeighbor) s;
                 var t = (ValueTuple<IoCcPeer, bool>) u;
                 if (_this._peer == null && !t.Item2)
-                    return Task.FromResult(false);
+                    return ValueTask.FromResult(false);
 
                 if (_this._peer != t.Item1)
-                    return Task.FromResult(false);
+                    return ValueTask.FromResult(false);
 
                 //peer = _this._peer;
                 t.Item1 = _this._peer;
 
                 _this._peer = null;
-                return Task.FromResult(true);
+                return ValueTask.FromResult(true);
             }, parms).ZeroBoostAsync().ConfigureAwait(false))
             {
                 return;

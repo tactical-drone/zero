@@ -212,7 +212,7 @@ namespace zero.core.core
                                 }
                                 return Task.CompletedTask;
                             });
-                            return Task.FromResult(true);
+                            return ValueTask.FromResult(true);
                         }).ZeroBoostAsync().ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
@@ -286,7 +286,7 @@ namespace zero.core.core
                 //    }
                 //}
 
-                async Task<bool> OwnershipAction(IIoNanite z, object userData, bool b)
+                async ValueTask<bool> OwnershipAction(IIoNanite z, object userData, bool b)
                 {
                     //New neighbor?
                     if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))

@@ -71,7 +71,7 @@ namespace zero.sync
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
 
-                        await Task.Delay(rateLimit+=5 * 150).ConfigureAwait(false);
+                        await Task.Delay(rateLimit+=10 * 150).ConfigureAwait(false);
                     }
                 }
 
@@ -565,18 +565,25 @@ namespace zero.sync
 
             _nodes.ToList().ForEach(n =>
             {
-                s.Wait();
-                var task = Task.Run(() =>
+                try
                 {
-                    n.ZeroAsync(new IoNanoprobe("Zero.Sync")).ConfigureAwait(false);
-                    Interlocked.Increment(ref zeroed);
-                    s.Release();
-                });
+                    s.Wait();
+                    var task = Task.Run(() =>
+                    {
+                        n.ZeroAsync(new IoNanoprobe("Zero.Sync")).ConfigureAwait(false);
+                        Interlocked.Increment(ref zeroed);
+                        s.Release();
+                    });
 
-                if (zeroed > 0 && zeroed % 100 == 0)
+                    if (zeroed > 0 && zeroed % 100 == 0)
+                    {
+                        Console.WriteLine(
+                            $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
+                    }
+                }
+                catch 
                 {
-                    Console.WriteLine(
-                        $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
+                    
                 }
             });
 

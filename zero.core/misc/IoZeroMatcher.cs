@@ -55,6 +55,28 @@ namespace zero.core.misc
         private readonly long _ttlMs;
 
         /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+#if SAFE_RELEASE
+            _matcherMutex = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        /// <returns></returns>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            _matcherMutex.Zero();
+            await base.ZeroManagedAsync().ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Present a challenge
         /// </summary>
         /// <param name="key">The key</param>

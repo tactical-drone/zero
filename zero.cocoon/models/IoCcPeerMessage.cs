@@ -47,10 +47,10 @@ namespace zero.cocoon.models
                     channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
                     if (MessageService.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
-                        return Task.FromResult(MessageService.ZeroOnCascade(channelSource).success);
+                        return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
 
-                    return Task.FromResult(false);
+                    return ValueTask.FromResult(false);
                 }).ZeroBoostAsync().ConfigureAwait(false).GetAwaiter().GetResult())
                 {
                     ProtocolConduit = MessageService.EnsureChannel(

@@ -116,7 +116,7 @@ namespace zero.cocoon
                             _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");
 
                             //Send peer requests
-                            foreach (var autoPeeringNeighbor in _autoPeering.Neighbors.Values.Where(n =>
+                            foreach (var neighbor in _autoPeering.Neighbors.Values.Where(n =>
                                     ((IoCcNeighbor)n).Assimilated && 
                                     ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined &&
                                     ((IoCcNeighbor)n).State > IoCcNeighbor.NeighborState.Unverified &&
@@ -132,11 +132,11 @@ namespace zero.cocoon
                                 //but that means it is probably not depleting its standby neighbors which is what 
                                 //we are after. It's a long shot that relies on probability in the long run
                                 //to work.
-                                suceptable ??= (IoCcNeighbor) autoPeeringNeighbor;
+                                suceptable ??= (IoCcNeighbor) neighbor;
 
                                 if (EgressConnections < parm_max_outbound)
                                 {
-                                    if (await ((IoCcNeighbor) autoPeeringNeighbor).SendPeerRequestAsync()
+                                    if (await ((IoCcNeighbor) neighbor).SendPeerRequestAsync()
                                         .ConfigureAwait(false))
                                     {
                                         peerAttempts++;
@@ -145,7 +145,7 @@ namespace zero.cocoon
                                 }
                                 else
                                 {
-                                    ((IoCcNeighbor) autoPeeringNeighbor).State = IoCcNeighbor.NeighborState.Standby;
+                                    ((IoCcNeighbor) neighbor).State = IoCcNeighbor.NeighborState.Standby;
                                 }
                             }
                             

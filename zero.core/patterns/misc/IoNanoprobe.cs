@@ -28,7 +28,7 @@ namespace zero.core.patterns.misc
         public IoNanoprobe(string description = null)
         {
             Description = description ?? GetType().Name;
-            
+
             _zeroSubs = new ConcurrentStack<IoZeroSub>();
             _zeroed = 0;
             ZeroedFrom = default;
@@ -118,13 +118,13 @@ namespace zero.core.patterns.misc
         /// All subscriptions
         /// </summary>
         private ConcurrentStack<IoZeroSub> _zeroSubs;
-        
+
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(true).ConfigureAwait(false);//.GetAwaiter().GetResult();
+            ZeroAsync(true).ConfigureAwait(false); //.GetAwaiter().GetResult();
             GC.SuppressFinalize(this);
         }
 
@@ -143,7 +143,7 @@ namespace zero.core.patterns.misc
 
             if (!from.Equals(this))
                 ZeroedFrom = from;
-            
+
             await ZeroAsync(true).ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
@@ -163,7 +163,8 @@ namespace zero.core.patterns.misc
                 cur = cur.ZeroedFrom;
             }
 
-            _logger.Trace($"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
+            _logger.Trace(
+                $"[{GetType().Name}]{Description}: ZEROED from: {(!string.IsNullOrEmpty(builder.ToString()) ? builder.ToString() : "this")}");
         }
 
         /// <summary>
@@ -175,7 +176,7 @@ namespace zero.core.patterns.misc
         {
             return _zeroed > 0;
         }
-        
+
         /// <summary>
         /// Subscribe to zero event
         /// </summary>
@@ -189,7 +190,7 @@ namespace zero.core.patterns.misc
                 Action = sub,
                 Schedule = true
             });
-            
+
             return newSub;
         }
 
@@ -210,44 +211,44 @@ namespace zero.core.patterns.misc
         /// <param name="twoWay">Enforces mutual zero</param>
         public (T target, bool success) ZeroOnCascade<T>(T target, bool twoWay = false) where T : IIoNanite
         {
-             if(_zeroed > 0)
+            if (_zeroed > 0)
                 return (default, false);
 
-             if (twoWay)//zero
-             {
-                 IoZeroSub sourceZeroHandler = default;
-                 IoZeroSub targetZeroHandler = default;
-                 
-                 sourceZeroHandler = ZeroEvent(async s =>
-                 {
-                     if (s.Equals(target))
-                         Unsubscribe(sourceZeroHandler);
-                     else
-                         await target.ZeroAsync(s).ConfigureAwait(false);
-                 });
+            if (twoWay) //zero
+            {
+                IoZeroSub sourceZeroHandler = default;
+                IoZeroSub targetZeroHandler = default;
 
-                 // ReSharper disable once AccessToModifiedClosure
-                 targetZeroHandler = target.ZeroEvent(async s =>
-                 {
-                     if (s.Equals(this))
-                         target.Unsubscribe(targetZeroHandler);
-                     else
-                         await ZeroAsync(s).ConfigureAwait(false);
-                 });
-             }
-             else 
-             {
-                 var sub = ZeroEvent(async from => await target.ZeroAsync(from).ConfigureAwait(false));
+                sourceZeroHandler = ZeroEvent(async s =>
+                {
+                    if (s.Equals(target))
+                        Unsubscribe(sourceZeroHandler);
+                    else
+                        await target.ZeroAsync(s).ConfigureAwait(false);
+                });
 
-                 target.ZeroEvent(s =>
-                 {
-                     if (!s.Equals(this))
-                         Unsubscribe(sub);
-                     return Task.CompletedTask;
-                 });
-             }
+                // ReSharper disable once AccessToModifiedClosure
+                targetZeroHandler = target.ZeroEvent(async s =>
+                {
+                    if (s.Equals(this))
+                        target.Unsubscribe(targetZeroHandler);
+                    else
+                        await ZeroAsync(s).ConfigureAwait(false);
+                });
+            }
+            else
+            {
+                var sub = ZeroEvent(async from => await target.ZeroAsync(from).ConfigureAwait(false));
 
-             return (target, true);
+                target.ZeroEvent(s =>
+                {
+                    if (!s.Equals(this))
+                        Unsubscribe(sub);
+                    return Task.CompletedTask;
+                });
+            }
+
+            return (target, true);
         }
 
         /// <summary>
@@ -263,7 +264,7 @@ namespace zero.core.patterns.misc
             // No races allowed between shutting down and starting up
             await ZeroAtomicAsync(async (s, u, isDisposing) =>
             {
-                var @this = (IoNanoprobe)s;
+                var @this = (IoNanoprobe) s;
                 @this.CascadeTime = DateTime.Now.Ticks;
                 try
                 {
@@ -288,15 +289,16 @@ namespace zero.core.patterns.misc
                         {
                             if (!zeroSub.Schedule)
                                 continue;
-                            await zeroSub.Action(ZeroedFrom??this).ConfigureAwait(false);
+                            await zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
                         }
                         catch (NullReferenceException e)
                         {
-                            _logger.Trace(e,@this.Description);
+                            _logger.Trace(e, @this.Description);
                         }
                         catch (Exception e)
                         {
-                            _logger.Fatal(e, $"zero sub {((IIoNanite)zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
+                            _logger.Fatal(e,
+                                $"zero sub {((IIoNanite) zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
                         }
                     }
                 }
@@ -322,12 +324,14 @@ namespace zero.core.patterns.misc
                         @this.AsyncTasks.Dispose();
 
                         @this.ZeroUnmanaged();
-                        
+
                         @this.AsyncTasks = null;
                         @this.ZeroedFrom = null;
-                        @this._zeroSubs = null; 
+                        @this._zeroSubs = null;
                     }
-                    catch (NullReferenceException) { }
+                    catch (NullReferenceException)
+                    {
+                    }
                     catch (Exception e)
                     {
                         _logger.Error(e, $"ZeroAsync [Un]managed errors: {@this.Description}");
@@ -338,14 +342,15 @@ namespace zero.core.patterns.misc
                 //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
                 //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
                 if (@this.Uptime.TickSec() > 10 && @this.TearDownTime.TickSec() > @this.CascadeTime.TickSec() + 200)
-                    _logger.Fatal($"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, t = {@this.TearDownTime.TickSec()/1000.0:0.000}, c = {@this.CascadeTime.TickSec()/1000.0:0.000}");
+                    _logger.Fatal(
+                        $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, t = {@this.TearDownTime.TickSec() / 1000.0:0.000}, c = {@this.CascadeTime.TickSec() / 1000.0:0.000}");
                 _logger = null;
 
                 return true;
             }, disposing: disposing, force: true).ZeroBoostAsync().ConfigureAwait(false);
         }
 
-        
+
         /// <summary>
         /// Cancellation token source
         /// </summary>
@@ -355,13 +360,18 @@ namespace zero.core.patterns.misc
         /// Manages unmanaged objects
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual void ZeroUnmanaged() { }
+        public virtual void ZeroUnmanaged()
+        {
+        }
 
         /// <summary>
         /// Manages managed objects
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual ValueTask ZeroManagedAsync() {return ValueTask.CompletedTask;}
+        public virtual ValueTask ZeroManagedAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
 
         ///  <summary>
         ///  Ensures that a ownership transfer action is synchronized
@@ -372,13 +382,13 @@ namespace zero.core.patterns.misc
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>
         /// public async ZeroBoostAsync<bool> ZeroAtomicAsync(Func<IIoZeroable<TMutex>, Task<bool>>  ownershipAction, bool force = false)
-        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, Task<bool>> ownershipAction,
+        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)
         {
             try
             {
-                //Prevent strange things from happening
+                //Prevents strange things from happening
                 if (_zeroed > 0 && !force)
                     return false;
 
@@ -387,28 +397,28 @@ namespace zero.core.patterns.misc
                     if (!force)
                     {
                         //lock (_nanoMutex)
-                        if(await _nanoMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                        try
                         {
-                            try
+                            if (await _nanoMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
                             {
                                 return (_zeroed == 0) &&
-                                       ownershipAction(this, userData, disposing).ConfigureAwait(false).GetAwaiter().GetResult();
+                                       await ownershipAction(this, userData, disposing).ZeroBoostAsync().ConfigureAwait(false);
                             }
-                            catch (Exception e)
-                            {
-                                _logger.Error(e,
-                                    $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
-                                return false;
-                            }
-                            finally
-                            {
-                                _nanoMutex.Release();
-                            }
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e,
+                                $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+                            return false;
+                        }
+                        finally
+                        {
+                            _nanoMutex.Release();
                         }
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing).ConfigureAwait(false);
+                        return await ownershipAction(this, userData, disposing).ZeroBoostAsync().ConfigureAwait(false);
                     }
                 }
                 catch
@@ -424,6 +434,7 @@ namespace zero.core.patterns.misc
             {
                 _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
             }
+
             return false;
         }
 

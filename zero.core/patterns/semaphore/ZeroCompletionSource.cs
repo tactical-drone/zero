@@ -58,7 +58,7 @@ namespace zero.core.patterns.semaphore
             _nanoprobe.Unsubscribe(sub);
         }
 
-        public ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, Task<bool>> ownershipAction,
+        public ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)
         {
