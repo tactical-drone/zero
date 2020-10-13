@@ -1066,7 +1066,7 @@ namespace zero.cocoon.autopeer
             {
                 if (Collected)
                     _logger.Debug(
-                        $"<\\- {nameof(PeeringResponse)}{response.ToByteArray().PayloadSig()}: Unexpected {extraData}, {RemoteAddress}, req = {response.ReqHash.Memory.HashSig()}, _peerRequest = {_peerRequest.Count}");
+                        $"<\\- {nameof(PeeringResponse)}{response.ToByteArray().PayloadSig()}: No-Hash {extraData}, {RemoteAddress}, r = {response.ReqHash.Memory.HashSig()}, _peerRequest = {_peerRequest.Count}");
                 return;
             }
 
@@ -1075,7 +1075,7 @@ namespace zero.cocoon.autopeer
             {
                 if (Collected)
                     _logger.Debug(
-                        $"<\\- {nameof(PeeringResponse)}{response.ToByteArray().PayloadSig()}: Invalid hash: req = {response.ReqHash.Memory.HashSig()} != {hash.HashSig()}, {Description}");
+                        $"<\\- {nameof(PeeringResponse)}{response.ToByteArray().PayloadSig()}: bad-Hash, r = {response.ReqHash.Memory.HashSig()} != {hash.HashSig()}, {Description}");
                 return;
             }
 
@@ -1302,26 +1302,28 @@ namespace zero.cocoon.autopeer
                 if (_this.DiscoveryService.Neighbors.Count > _this.CcNode.MaxNeighbors)
                 {
                     var q = _this.DiscoveryService.Neighbors.Values.Where(n =>
-                        ((IoCcNeighbor) n).Assimilated && 
                         ((IoCcNeighbor) n).Direction == Kind.Undefined &&
                         ((IoCcNeighbor) n).State < NeighborState.Peering);
                     
                     var assimilated = q.Where(n =>
+                            ((IoCcNeighbor) n).Assimilated &&
                             ((IoCcNeighbor) n).State > NeighborState.Local &&
                             ((IoCcNeighbor) n)._totalPats > _this.parm_min_pats_before_shuffle)
                         .OrderBy(n => ((IoCcNeighbor) n).Priority).FirstOrDefault();
                     
                     if (synAck && assimilated == null)
                     {
-                        assimilated = q.ToList()[_random.Next(q.Count())];
+                        var selection = q.ToList();
+                        if(selection.Count > 0)
+                            assimilated = selection[_random.Next(selection.Count)];
                     }
 
                     if (assimilated != null)
                     {
                         //Drop assimilated neighbors
-                        ((IoCcNeighbor) q).State = NeighborState.Zombie;
+                        ((IoCcNeighbor) assimilated).State = NeighborState.Zombie;
                         _this._logger.Debug($"~ {assimilated.Description}");
-                        await ((IoCcNeighbor) q).ZeroAsync(_this).ConfigureAwait(false);
+                        await ((IoCcNeighbor) assimilated).ZeroAsync(_this).ConfigureAwait(false);
                     }
                     else if(synAck)
                     {
@@ -2062,7 +2064,7 @@ namespace zero.cocoon.autopeer
 
             var peer = parms.Item1;
 
-            if (peer == dc)
+            if (peer != dc)
                 throw new ApplicationException("peer == dc");
 
             //send drop request

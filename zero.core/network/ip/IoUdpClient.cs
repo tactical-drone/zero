@@ -31,7 +31,7 @@ namespace zero.core.network.ip
 
         }
 
-        public IoUdpClient(IoSocket ioSocket, int readAheadBufferSize, int concurrencyLevel) : base(new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305)), readAheadBufferSize, concurrencyLevel)
+        public IoUdpClient(IoSocket ioSocket, int readAheadBufferSize, int concurrencyLevel) : base(new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), concurrencyLevel), readAheadBufferSize, concurrencyLevel)
         {
             
         }
@@ -39,7 +39,7 @@ namespace zero.core.network.ip
 
         readonly byte[] _blacklist;
 
-        public IoUdpClient(IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp), clone.PrefetchSize, clone.ConcurrencyLevel)
+        public IoUdpClient(IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.ConcurrencyLevel), clone.PrefetchSize, clone.ConcurrencyLevel)
         {
 
         }
@@ -57,7 +57,7 @@ namespace zero.core.network.ip
         /// </returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            IoNetSocket = ZeroOnCascade(new IoUdpSocket(), true).target;
+            IoNetSocket = ZeroOnCascade(new IoUdpSocket(ConcurrencyLevel), true).target;
             return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
         }
 

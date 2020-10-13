@@ -107,17 +107,7 @@ namespace zero.core.patterns.bushes
         /// The job queue
         /// </summary>
         private ConcurrentQueue<IoSink<TJob>> _queue = new ConcurrentQueue<IoSink<TJob>>();
-
-        /// <summary>
-        /// A separate ingress point to the q
-        /// </summary>
-        private readonly BlockingCollection<IoSink<TJob>> _ingressBalancer = new BlockingCollection<IoSink<TJob>>();
-
-        /// <summary>
-        /// Q signaling
-        /// </summary>
-        private readonly AutoResetEvent _preInsertEvent = new AutoResetEvent(false);
-
+        
         /// <summary>
         /// The heap where new consumable meta data is allocated from
         /// </summary>
@@ -139,16 +129,6 @@ namespace zero.core.patterns.bushes
         private readonly ILogger _logger;
 
         /// <summary>
-        /// The current observer, there can only be one
-        /// </summary>
-        //private IObserver<IoLoad<TJob>> _observer;
-
-        /// <summary>
-        /// A connectable observer, used to multicast messages
-        /// </summary>
-        //public IConnectableObservable<IoLoad<TJob>> ObservableRouter { private set; get; }
-
-        /// <summary>
         /// Indicates whether jobs are being processed
         /// </summary>
         public bool IsArbitrating { get; set; }
@@ -157,7 +137,6 @@ namespace zero.core.patterns.bushes
         /// Maintains a handle to a job if fragmentation was detected so that the
         /// source can marshal fragments into the next production
         /// </summary>
-        //private volatile ConcurrentDictionary<long, IoLoad<TJob>>  _previousJobFragment = new ConcurrentDictionary<long, IoLoad<TJob>>();
         private volatile ConcurrentQueue<IoSink<TJob>> _previousJobFragment = new ConcurrentQueue<IoSink<TJob>>();
 
         /// <summary>
@@ -180,9 +159,9 @@ namespace zero.core.patterns.bushes
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_stats_mod_count = 50000;
+        public int parm_stats_mod_count = 5000;
 #else
-        public int parm_stats_mod_count = 50000;
+        public int parm_stats_mod_count = 5000;
 #endif
 
         /// <summary>
@@ -368,7 +347,7 @@ namespace zero.core.patterns.bushes
                                     }
 
                                     return true;
-                                }, this).ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
+                                }, this).ZeroBoostAsync().ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
                                 {
                                     _producerStopwatch.Stop();
                                     IsArbitrating = true;
@@ -629,7 +608,7 @@ namespace zero.core.patterns.bushes
                     try
                     {
                         //Consume the job
-                        if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
+                        if (await curJob.ConsumeAsync().ZeroBoostAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
                             curJob.State == IoJobMeta.JobState.ConInlined &&
                             !Zeroed())
                         {

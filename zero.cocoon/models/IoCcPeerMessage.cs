@@ -150,7 +150,7 @@ namespace zero.cocoon.models
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 48;//TODO
+        public int parm_max_msg_batch_size = 64;//TODO
 
         /// <summary>
         /// 
@@ -620,7 +620,8 @@ namespace zero.cocoon.models
 
                     if (!await ((IoCcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
-                        _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
+                        if(!((IoCcProtocolBuffer) source).Zeroed())
+                            _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }
 
