@@ -132,9 +132,6 @@ namespace zero.cocoon.autopeer
                 {
                     return $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{TotalPats.ToString().PadLeft(2)}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
                 }
-                catch (NullReferenceException)
-                {
-                }
                 catch (Exception e)
                 {
                     if (Collected)
@@ -1327,12 +1324,12 @@ namespace zero.cocoon.autopeer
                     {
                         //Drop assimilated neighbors
                         ((IoCcNeighbor) assimilated).State = NeighborState.Zombie;
-                        _this._logger.Debug($"~ {assimilated.Description}");
+                        _this._logger.Trace($"~ {assimilated.Description}");
                         await ((IoCcNeighbor) assimilated).ZeroAsync(_this).ConfigureAwait(false);
                     }
                     else if(synAck)
                     {
-                        _logger.Warn($"@ {Description}");
+                        _logger.Trace($"@ {Description}");
                     }
                 }
 
