@@ -27,8 +27,7 @@ namespace zero.core.patterns.misc
 
         public IoNanoprobe(string description = null)
         {
-            if(description == null)
-                Description = GetType().Name;
+            Description = description ?? GetType().Name;
             
             _zeroSubs = new ConcurrentStack<IoZeroSub>();
             _zeroed = 0;
@@ -134,6 +133,11 @@ namespace zero.core.patterns.misc
         /// </summary>
         public async ValueTask ZeroAsync(IIoNanite from)
         {
+#if DEBUG
+            if (from == null)
+                throw new NullReferenceException(nameof(from));
+#endif
+
             if (_zeroed > 0)
                 return;
 

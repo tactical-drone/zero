@@ -12,6 +12,7 @@ using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.core.misc;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using zero.tangle;
 using zero.tangle.entangled;
@@ -567,7 +568,7 @@ namespace zero.sync
                 s.Wait();
                 var task = Task.Run(() =>
                 {
-                    n.ZeroAsync(null).ConfigureAwait(false);
+                    n.ZeroAsync(new IoNanoprobe("Zero.Sync")).ConfigureAwait(false);
                     Interlocked.Increment(ref zeroed);
                     s.Release();
                 });

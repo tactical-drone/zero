@@ -449,7 +449,7 @@ namespace zero.core.patterns.semaphore.core
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
-        /// <returns></returns>
+        /// <returns>The current count, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
         /// <exception cref="TaskCanceledException">Thrown if a cancel was requested</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -461,7 +461,7 @@ namespace zero.core.patterns.semaphore.core
 
             //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested)
-                throw new TaskCanceledException(Description);
+                return -1;
             
             //Lock
             ZeroLock();

@@ -1063,7 +1063,7 @@ namespace zero.cocoon.autopeer
             }
             
             var peerRequest = await _peerRequest.ResponseAsync(extraData.ToString(), response.ReqHash).ZeroBoostAsync().ConfigureAwait(false);
-            if (peerRequest.Key == null)
+            if (peerRequest?.Key == null)
             {
                 if (Collected)
                     _logger.Debug(
@@ -1188,7 +1188,7 @@ namespace zero.cocoon.autopeer
         {
             var discoveryRequest = await _discoveryRequest.ResponseAsync(extraData.ToString(), response.ReqHash).ZeroBoostAsync().ConfigureAwait(false);
 
-            if (discoveryRequest.Key == null || !Assimilated || response.Peers.Count > parm_max_discovery_peers)
+            if (discoveryRequest?.Key == null || !Assimilated || response.Peers.Count > parm_max_discovery_peers)
             {
                 if (Proxy && Collected && response.Peers.Count <= parm_max_discovery_peers)
                     _logger.Debug(
@@ -1561,12 +1561,12 @@ namespace zero.cocoon.autopeer
         {
             var pingRequest = await _pingRequest.ResponseAsync(extraData.ToString(), pong.ReqHash).ZeroBoostAsync().ConfigureAwait(false);
             
-            if (pingRequest.Key == null && Proxy)
+            if (pingRequest?.Key == null && Proxy)
             {
                 pingRequest = await DiscoveryService.Router._pingRequest.ResponseAsync(extraData.ToString(), pong.ReqHash).ZeroBoostAsync().ConfigureAwait(false);
             }
 
-            if (pingRequest.Key == null)
+            if (pingRequest?.Key == null)
             {
                 if (Collected)
                     _logger.Trace(
