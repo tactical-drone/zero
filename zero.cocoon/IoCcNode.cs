@@ -6,6 +6,7 @@ using System.Net;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
+using Org.BouncyCastle.Bcpg;
 using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
@@ -16,6 +17,7 @@ using zero.core.core;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
+using Packet = Proto.Packet;
 
 namespace zero.cocoon
 {
@@ -90,7 +92,7 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     //periodically
-                    await Task.Delay((random.Next(parm_mean_pat_delay*1000) + parm_mean_pat_delay*500)/4, AsyncToken.Token).ConfigureAwait(false);
+                    await Task.Delay((random.Next(parm_mean_pat_delay*1000) + parm_mean_pat_delay*500)/4, AsyncTasks.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
@@ -106,7 +108,8 @@ namespace zero.cocoon
                         double scanRatio = 1;
                         double peerAttempts = 0;
                         IoCcNeighbor suceptable = null;
-                        //Search for peers
+                        
+                        //Attempt to peer with standbys
                         if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -137,7 +140,7 @@ namespace zero.cocoon
                                         .ConfigureAwait(false))
                                     {
                                         peerAttempts++;
-                                        await Task.Delay(parm_scan_throttle, AsyncToken.Token).ConfigureAwait(false);
+                                        await Task.Delay(parm_scan_throttle, AsyncTasks.Token).ConfigureAwait(false);
                                     }
                                 }
                                 else
@@ -145,13 +148,37 @@ namespace zero.cocoon
                                     ((IoCcNeighbor) autoPeeringNeighbor).State = IoCcNeighbor.NeighborState.Standby;
                                 }
                             }
-
+                            
                             //if we are not able to peer, use long range scanners
                             if (suceptable!= null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
                             {
                                 if (await suceptable.SendDiscoveryRequestAsync().ZeroBoostAsync().ConfigureAwait(false))
                                 {
                                     _logger.Debug($"& {suceptable.Description}");   
+                                }
+                            }
+                        }
+                        else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 2 + 1) //scan for discovery
+                        {
+                            var maxP = _autoPeering.Neighbors.Values.Max(n => ((IoCcNeighbor) n).Priority);
+                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor) n).Assimilated && ((IoCcNeighbor) n).Priority < maxP/2)
+                                .OrderBy(n => ((IoCcNeighbor) n).Priority).ToList();
+
+                            //Have we found a suitable direction to scan in?
+                            if (targetQ.Count > 0)
+                            {
+                                var target = targetQ[_random.Next(targetQ.Count)];
+
+                                //scan
+                                if (target != null && !await ((IoCcNeighbor) target).SendDiscoveryRequestAsync().ZeroBoostAsync()
+                                    .ConfigureAwait(false))
+                                {
+                                    if(target != null)
+                                        _logger.Trace($"{nameof(IoCcNeighbor.SendDiscoveryRequestAsync)}: [FAILED], c = {targetQ.Count}, {Description}");
+                                }
+                                else
+                                {
+                                    _logger.Debug($"* {Description}");   
                                 }
                             }
                         }
@@ -219,6 +246,8 @@ namespace zero.cocoon
         private readonly IoNodeAddress _peerAddress;
         private readonly IoNodeAddress _fpcAddress;
 
+        readonly Random _random = new Random((int) DateTime.Now.Ticks);
+
         /// <summary>
         /// Bootstrap
         /// </summary>
@@ -267,13 +296,17 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor != null && ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Inbound) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
+        public int IngressConnections => Neighbors.Values.Count(kv => ((IoCcPeer)kv).Neighbor != null && ((IoCcPeer)kv).Neighbor.IsPeerConnected && (((IoCcPeer)kv).Neighbor.Inbound) && ((IoCcPeer)kv).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Neighbors.Count(kv => ((IoCcPeer)kv.Value).Neighbor != null && ((IoCcPeer)kv.Value).Neighbor.IsPeerConnected && (((IoCcPeer)kv.Value).Neighbor.Outbound) && ((IoCcPeer)kv.Value).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
+        public int EgressConnections => Neighbors.Values.Count(kv => ((IoCcPeer)kv).Neighbor != null && ((IoCcPeer)kv).Neighbor.IsPeerConnected && (((IoCcPeer)kv).Neighbor.Outbound) && ((IoCcPeer)kv).Neighbor.State == IoCcNeighbor.NeighborState.Connected);
 
+        /// <summary>
+        /// Connected nodes
+        /// </summary>
+        private List<IoNeighbor<IoCcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((IoCcPeer)kv).Neighbor != null && ((IoCcPeer)kv).Neighbor.IsPeerConnected && ((IoCcPeer)kv).Neighbor.Inbound && ((IoCcPeer)kv).Neighbor.State == IoCcNeighbor.NeighborState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -690,11 +723,11 @@ namespace zero.cocoon
             //Race for connection...
             var id = IoCcNeighbor.MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
 
-            var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => ((IoCcNeighbor)n).Assimilated && n.Key.Contains(id));
+            var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
             if (neighbor != null)
             {
-                var ccNeighbor = ((IoCcNeighbor) neighbor);
-                if (!ccNeighbor.IsPeerAttached)
+                var ccNeighbor = (IoCcNeighbor) neighbor;
+                if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
                     return await peer.AttachNeighborAsync((IoCcNeighbor) neighbor, direction).ZeroBoostAsync().ConfigureAwait(false);
@@ -789,7 +822,7 @@ namespace zero.cocoon
                 {
                     if (!ioNodeAddress.Equals(_peerAddress))
                     {
-                        //_logger.Trace($"{Description} Boostrapping from {ioNodeAddress}");
+                        //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
                         if (!await DiscoveryService.Router.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
                         {
                             if(!DiscoveryService.Router.Zeroed())

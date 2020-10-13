@@ -28,9 +28,9 @@ namespace zero.core.patterns.bushes
             ConcurrencyLevel = concurrencyLevel;
             
             //todo GENERALIZE
-            (_pressure, _) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
-            (_backPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:true));
-            (_prefetchPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:true));
+            (_pressure, _) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false, maxCount:concurrencyLevel, enableDeadlockDetection:true, enableFairQ:true));
+            (_backPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:true, enableFairQ:true));
+            (_prefetchPressure,_) = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:true, enableFairQ:true));
 
             _logger = LogManager.GetCurrentClassLogger();
         }

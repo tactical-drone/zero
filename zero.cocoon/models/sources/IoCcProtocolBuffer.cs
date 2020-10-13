@@ -25,8 +25,8 @@ namespace zero.cocoon.models.sources
 
             MessageQueue = new ConcurrentQueue<ValueTuple<IIoZero, IMessage, object, Packet>[]>();
             
-            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true)).target;
-            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncToken, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, true)).target;
+            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true)).target;
+            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, true)).target;
         }
 
         /// <summary>

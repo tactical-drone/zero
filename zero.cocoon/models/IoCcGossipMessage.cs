@@ -193,7 +193,7 @@ namespace zero.cocoon.models
                     catch (Exception e)
                     {
                         _logger.Debug(e,$"Error producing {_this.Description}");
-                        await Task.Delay(250, _this.AsyncToken.Token).ConfigureAwait(false); //TODO
+                        await Task.Delay(250, _this.AsyncTasks.Token).ConfigureAwait(false); //TODO
 
                         _this.State = IoJobMeta.JobState.ProduceErr;
 

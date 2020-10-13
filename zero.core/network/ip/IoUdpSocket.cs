@@ -111,7 +111,7 @@ namespace zero.core.network.ip
 
                 while (!Zeroed())
                 {
-                    await Task.Delay(5000, AsyncToken.Token).ConfigureAwait(false);
+                    await Task.Delay(5000, AsyncTasks.Token).ConfigureAwait(false);
                 }
                 _logger.Trace($"Stopped listening at {LocalNodeAddress}");
             }
@@ -341,7 +341,7 @@ namespace zero.core.network.ip
 
 
                         IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", 1);
-                        tcs.ZeroRef(ref tcs, AsyncToken.Token);
+                        tcs.ZeroRef(ref tcs, AsyncTasks.Token);
 
                         try
                         {

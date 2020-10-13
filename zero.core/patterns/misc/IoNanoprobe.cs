@@ -34,10 +34,10 @@ namespace zero.core.patterns.misc
             CascadeTime = default;
             Uptime = default;
             _zId = Interlocked.Increment(ref _uidSeed);
-            AsyncToken = new CancellationTokenSource();
+            AsyncTasks = new CancellationTokenSource();
 
             _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 9);
-            _nanoMutex.ZeroRef(ref _nanoMutex, AsyncToken.Token);
+            _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 
         /// <summary>
@@ -267,7 +267,7 @@ namespace zero.core.patterns.misc
                 @this.CascadeTime = DateTime.Now.Ticks;
                 try
                 {
-                    @this.AsyncToken.Cancel();
+                    @this.AsyncTasks.Cancel();
                 }
                 catch (Exception e)
                 {
@@ -319,11 +319,11 @@ namespace zero.core.patterns.misc
                 {
                     try
                     {
-                        @this.AsyncToken.Dispose();
+                        @this.AsyncTasks.Dispose();
 
                         @this.ZeroUnmanaged();
                         
-                        @this.AsyncToken = null;
+                        @this.AsyncTasks = null;
                         @this.ZeroedFrom = null;
                         @this._zeroSubs = null; 
                     }
@@ -349,7 +349,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Cancellation token source
         /// </summary>
-        public CancellationTokenSource AsyncToken { get; protected set; }
+        public CancellationTokenSource AsyncTasks { get; protected set; }
 
         /// <summary>
         /// Manages unmanaged objects

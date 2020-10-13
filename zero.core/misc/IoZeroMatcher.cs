@@ -56,7 +56,7 @@ namespace zero.core.misc
                     {
                         if (_challenge.TryRemove(key, out var dropped))
                         {
-                            //LogManager.GetCurrentClassLogger().Error($"[{_description}:{_challenge.Count}] {cur.Timestamp.ElapsedMs()}ms  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+                            //LogManager.GetCurrentClassLogger().Error($"[{_description}:{_challenge.Count}] {cur.TimestampMs.ElapsedMs() / 1000}s  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
                             return await ChallengeAsync(key, body).ZeroBoostAsync().ConfigureAwait(false);
                         }
                     }

@@ -444,7 +444,7 @@ namespace zero.core.patterns.bushes
                                     
                                     //Is the producer spinning?
                                     if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
-                                        await Task.Delay(parm_min_failed_production_time, AsyncToken.Token).ConfigureAwait(false);
+                                        await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(false);
 
                                     //Free job
                                     nextJob.State = IoJobMeta.JobState.Reject;
@@ -474,7 +474,7 @@ namespace zero.core.patterns.bushes
                             }
 
                             _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.CurrentHeapSize}/{JobHeap.MaxSize}");
-                            await Task.Delay(parm_error_timeout, AsyncToken.Token).ConfigureAwait(false);
+                            await Task.Delay(parm_error_timeout, AsyncTasks.Token).ConfigureAwait(false);
                             return false;
                         }
                     }
@@ -513,7 +513,7 @@ namespace zero.core.patterns.bushes
                     if (enablePrefetchOption)
                     {
                         _logger.Warn($"{GetType().Name}: Source for `{Description}' is waiting for consumer to catch up! parm_max_q_size = `{parm_max_q_size}'");
-                        await Task.Delay(parm_producer_consumer_throttle_delay, AsyncToken.Token).ConfigureAwait(false);
+                        await Task.Delay(parm_producer_consumer_throttle_delay, AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }                
             }
@@ -607,7 +607,7 @@ namespace zero.core.patterns.bushes
                     if (!pressure.Result)
                     {
                         //Was shutdown requested?
-                        if (Zeroed() || AsyncToken.IsCancellationRequested)
+                        if (Zeroed() || AsyncTasks.IsCancellationRequested)
                         {
                             _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
                             return false;
@@ -615,7 +615,7 @@ namespace zero.core.patterns.bushes
 
                         //wait...
                         _logger.Trace($"{GetType().Name}: Consumer `{Description}' [[ProducerPressure]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
-                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncToken.Token).ConfigureAwait(false);
+                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
 
                         //Try again
                         return false;    
@@ -772,7 +772,7 @@ namespace zero.core.patterns.bushes
                     }
                     
                 }
-            }, AsyncToken.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach , TaskScheduler.Default);
+            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach , TaskScheduler.Default);
 
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
@@ -810,7 +810,7 @@ namespace zero.core.patterns.bushes
                             return;
                     }
                 }
-            }, AsyncToken.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
 
             //Wait for tear down                
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ConfigureAwait(false);

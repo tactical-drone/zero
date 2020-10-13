@@ -39,7 +39,7 @@ namespace zero.core.patterns.semaphore
         /// <returns></returns>
         public ValueTask ZeroAsync(IIoNanite from)
         {
-            TrySetCanceled(_nanoprobe.AsyncToken.Token);
+            TrySetCanceled(_nanoprobe.AsyncTasks.Token);
             return _nanoprobe.ZeroAsync(from);
         }
 
@@ -97,7 +97,7 @@ namespace zero.core.patterns.semaphore
                 ? (options & ~TaskCreationOptions.RunContinuationsAsynchronously)
                 : (options | TaskCreationOptions.RunContinuationsAsynchronously);
         }
-        public CancellationTokenSource AsyncToken => _nanoprobe.AsyncToken;
+        public CancellationTokenSource AsyncToken => _nanoprobe.AsyncTasks;
         
         public bool Equals(IIoNanite other)
         {

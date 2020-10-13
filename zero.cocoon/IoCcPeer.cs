@@ -20,8 +20,10 @@ namespace zero.cocoon
         /// <param name="neighbor">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
         public IoCcPeer(IoNode<IoCcGossipMessage> node, IoCcNeighbor neighbor,
-            IoNetClient<IoCcGossipMessage> ioNetClient) 
-            : base(node, ioNetClient, userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}", ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
+            IoNetClient<IoCcGossipMessage> ioNetClient)
+            : base(node, ioNetClient,
+                userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
+                    ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
@@ -33,26 +35,19 @@ namespace zero.cocoon
 
             //Testing
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
-#pragma warning disable 1998
-            Task.Run(async () =>
-#pragma warning restore 1998
+
+            var t = Task.Run(async () =>
             {
-                return;
-                
-//                await Task.Delay(rand.Next(60000000), AsyncTasks.Token).ContinueWith(r =>
-//                //await Task.Delay(rand.Next(30000), AsyncT
-//                //asks.Token).ContinueWith(r =>
-//                {
-//                    if (r.IsCompletedSuccessfully && !Zeroed())
-//                    {
-//                        _logger.Fatal($"Testing SOCKET FAILURE {Id}");
-//
-//                        Source.ZeroAsync(this);
-//
-//                        GC.Collect(GC.MaxGeneration);
-//                    }
-//                });
-            }).ConfigureAwait(false);
+                while (!Zeroed())
+                {
+                    await Task.Delay(60000, AsyncTasks.Token);
+                    if (!Zeroed() && Neighbor == null || Neighbor?.Direction == IoCcNeighbor.Kind.Undefined || Neighbor?.State < IoCcNeighbor.NeighborState.Connected)
+                    {
+                        _logger.Fatal($"! {Description} - n = {Neighbor}, d = {Neighbor?.Direction}, s = {Neighbor?.State}");
+                        await ZeroAsync(this);
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -73,6 +68,7 @@ namespace zero.cocoon
                 //if (_description != null)
                 //    return _description;
                 return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+                
             }
         }
 

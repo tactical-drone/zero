@@ -536,7 +536,7 @@ namespace zero.tangle.models
                                     State = IoJobMeta.JobState.ProduceErr;
                                     throw new InvalidAsynchronousStateException($"Job =`{Description}', IoJobMeta.CurrentState={rx.Status}");
                             }
-                        }, AsyncToken.Token);
+                        }, AsyncTasks.Token);
                     }
                     else
                     {
