@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
@@ -316,24 +317,10 @@ namespace zero.core.network.ip
         /// </summary>
         private IoHeap<IIoZeroSemaphore> _tcsHeap;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Signal(object sender, SocketAsyncEventArgs eventArgs)
         {
-            var tcs = (IIoZeroSemaphore) eventArgs.UserToken;
-            //eventArgs!.Completed -= _this!.Signal;
-
-            try
-            {
-                tcs!.Release();
-                //eventArgs.SetBuffer(null, 0, 0);
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e);
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e, Description);
-            }
+            ((IIoZeroSemaphore) eventArgs.UserToken)!.Release();
         }
 
         /// <summary>

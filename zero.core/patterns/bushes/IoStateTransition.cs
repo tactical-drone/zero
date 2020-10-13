@@ -14,7 +14,7 @@ namespace zero.core.patterns.bushes
     /// <typeparam name="TState">The state enum</typeparam>
     public class IoStateTransition<TState> : IoNanoprobe, IIoHeapItem
         where TState : Enum {
-        public IoStateTransition()
+        public IoStateTransition() : base()
         {
             ConstructorAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }

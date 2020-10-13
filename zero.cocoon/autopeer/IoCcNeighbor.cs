@@ -436,7 +436,7 @@ namespace zero.cocoon.autopeer
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_network_latency = 10000;
+        public int parm_max_network_latency = 1000;
 
         /// <summary>
         /// Maximum number of peers in discovery response
@@ -549,8 +549,7 @@ namespace zero.cocoon.autopeer
             State = NeighborState.ZeroState;
 
             if (ConnectedAtLeastOnce && Direction != Kind.Undefined)
-                _logger.Info(
-                    $"- {(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description} from {ZeroedFrom?.Description}");
+                _logger.Info($"- {(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachPeerAsync(_peer, true).ConfigureAwait(false);
 
@@ -605,7 +604,7 @@ namespace zero.cocoon.autopeer
                 else
                     _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}, {MetaDesc}");
 
-                await ZeroAsync(this).ConfigureAwait(false);
+                await ZeroAsync(new IoNanoprobe("Watchdog Failure")).ConfigureAwait(false);
 
                 if (reconnect)
                     await Router.SendPingAsync(address).ConfigureAwait(false);
@@ -642,14 +641,14 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Fatal(processingAsync.Exception, "Neighbor processing returned with errors!");
 
-                    await ZeroAsync(this).ConfigureAwait(false);
+                    await ZeroAsync(new IoNanoprobe($"processingAsync.IsFaulted")).ConfigureAwait(false);
                 }
 
                 if (protocol.IsFaulted)
                 {
                     _logger.Fatal(protocol.Exception, "Protocol processing returned with errors!");
 
-                    await ZeroAsync(this).ConfigureAwait(false);
+                    await ZeroAsync(new IoNanoprobe($"protocol.IsFaulted")).ConfigureAwait(false);
                 }
             }
             catch (Exception e)
@@ -1322,7 +1321,7 @@ namespace zero.cocoon.autopeer
                         //Drop assimilated neighbors
                         ((IoCcNeighbor) assimilated).State = NeighborState.Zombie;
                         _this._logger.Trace($"~ {assimilated.Description}");
-                        await ((IoCcNeighbor) assimilated).ZeroAsync(_this).ConfigureAwait(false);
+                        await ((IoCcNeighbor) assimilated).ZeroAsync(new IoNanoprobe("Assimilated")).ConfigureAwait(false);
                     }
                     else if(synAck)
                     {
@@ -1384,7 +1383,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 if (newNeighbor != null)
-                    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                    await newNeighbor.ZeroAsync(new IoNanoprobe("AssimilateNeighborAsync")).ConfigureAwait(false);
             }
 
             return false;
@@ -1601,7 +1600,7 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Warn(
                         $"Removing stale neighbor {staleNeighbor.Key}:{((IoCcNeighbor) staleNeighbor).RemoteAddress.Port} ==> {keyStr}:{((IPEndPoint) extraData).Port}");
-                    await staleNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                    await staleNeighbor.ZeroAsync(new IoNanoprobe($"{nameof(staleNeighbor)}")).ConfigureAwait(false);
                 }
 
                 var remoteServices = new IoCcService();

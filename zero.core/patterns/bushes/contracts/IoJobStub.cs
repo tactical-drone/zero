@@ -11,7 +11,10 @@ namespace zero.core.patterns.bushes.contracts
     /// <seealso cref="IIoJob" />
     public class IoJobStub: IoNanoprobe, IIoJob
     {
-        public override string Description { get; } = "Job Stub";
+        private readonly string _description = "Job Stub";
+
+        public override string Description => _description;
+
         public long Id { get; } = -1;
         public IoJobMeta.JobState State { get; set; }
         public IIoJob PreviousJob { get; } = null;

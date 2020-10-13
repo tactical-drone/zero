@@ -24,7 +24,7 @@ namespace zero.core.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 64) : base()
         {
             _capacity = capacity;
             _description = description??"";
@@ -98,45 +98,41 @@ namespace zero.core.misc
         /// The bucket capacity this matcher targets
         /// </summary>
         private readonly int _capacity;
-        
+
         /// <summary>
         /// Present a response
         /// </summary>
         /// <param name="key">The response key</param>
-        /// <param name="responseReqHash"></param>
+        /// <param name="reqHash"></param>
         /// <returns>The response payload</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<TemporalValue> ResponseAsync(string key, ByteString responseReqHash)
+        public async ValueTask<TemporalValue> ResponseAsync(string key, ByteString reqHash)
         {
+            TemporalValue response = default;
             try
             {
-                var hashMatch = MemoryMarshal.Read<long>(responseReqHash.Memory.AsArray());
+                var hashMatch = MemoryMarshal.Read<long>(reqHash.Memory.AsArray());
                 if (await _matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
                 {
-                    var hit = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
-                    while (hit.Key != null)
+                    response = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
+                    while (response?.Key != null)
                     {
-                        var hash = _sha256.ComputeHash((hit.Payload as ByteString)?.Memory.AsArray());
-                        hit.Payload = default;
-                        if (hit.Hash == 0)
-                            hit.Hash = MemoryMarshal.Read<long>(hash);
-                        
-                        if (hit.Hash == hashMatch)
+
+                        if (response.Hash == 0)
                         {
-                            hit.Collected = true;
-                            return hit;
+                            var hash = _sha256.ComputeHash((response.Payload as ByteString)?.Memory.AsArray() ?? Array.Empty<byte>());
+                            response.Payload = default;
+                            response.Hash = MemoryMarshal.Read<long>(hash);
                         }
 
-                        hit.Scanned = true;
-                        hit = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
-                    }
+                        if (response.Hash == hashMatch)
+                        {
+                            response.Collected = true;
+                            return response;
+                        }
 
-                    foreach (var temporalValue in _challenge)
-                    {
-                        if (temporalValue.TimestampMs.ElapsedMs() > _ttlMs)
-                            temporalValue.Collected = true;
-                        
-                        temporalValue.Scanned = false;
+                        response.Scanned = true;
+                        response = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
                     }
                 }
                 else
@@ -146,6 +142,16 @@ namespace zero.core.misc
             }
             finally
             {
+                foreach (var temporalValue in _challenge)
+                {
+                    if (temporalValue.TimestampMs.ElapsedMs() > _ttlMs)
+                        temporalValue.Collected = true;
+                    else if (response?.Key != null && response.Key == temporalValue.Key && temporalValue.TimestampMs < response.TimestampMs)
+                         temporalValue.Collected = true;
+                    
+                    temporalValue.Scanned = false;
+                }
+                
                 _matcherMutex.Release();
             }
             return default;
@@ -160,7 +166,7 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Peek(string key)
         {
-            return _challenge.FirstOrDefault(v => !v.Collected == false && v.Key == key).Key != null;
+            return _challenge.FirstOrDefault(v => !v.Collected == false && v.Key == key)?.Key != null;
         }
 
         /// <summary>
@@ -193,19 +199,19 @@ namespace zero.core.misc
         /// <summary>
         /// used internally for debug
         /// </summary>
-        private static readonly SHA256 Sha256 = new SHA256CryptoServiceProvider();
+        //private static readonly SHA256 Sha256 = new SHA256CryptoServiceProvider();
 
-        public override string ToString()
-        {
-            try
-            {
-                return $"{Count}:  {string.Join(", ",_challenge.Select(kv=>$"{kv.Key}::{Sha256.ComputeHash((kv.Payload as ByteString)?.ToByteArray()).HashSig()}, "))}";
-            }
-            catch (Exception e)
-            {
-                return e.Message;
-            }
-        }
+        //public override string ToString()
+        //{
+        //    try
+        //    {
+        //        return $"{Count}:  {string.Join(", ",_challenge.Select(kv=>$"{kv.Key}::{Sha256.ComputeHash((kv.Payload as ByteString)?.ToByteArray()).HashSig()}, "))}";
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        return e.Message;
+        //    }
+        //}
 #endif
         /// <summary>
         /// Meta payload to be matched

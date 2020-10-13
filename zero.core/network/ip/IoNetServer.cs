@@ -29,7 +29,7 @@ namespace zero.core.network.ip
         /// <param name="listeningAddress">The listening address</param>
         /// <param name="readAheadBufferSize">Nr of reads the producer can lead the consumer</param>
         /// <param name="concurrencyLevel">Max Nr of expected concurrent consumers</param>
-        protected IoNetServer(IoNodeAddress listeningAddress, int readAheadBufferSize = 1, int concurrencyLevel = 1)
+        protected IoNetServer(IoNodeAddress listeningAddress, int readAheadBufferSize = 1, int concurrencyLevel = 1) : base()
         {
             ListeningAddress = listeningAddress;
             ReadAheadBufferSize = readAheadBufferSize;

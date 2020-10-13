@@ -14,7 +14,7 @@ namespace zero.core.patterns.semaphore
     public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
     {
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks, string description = "", int maxCount = 1, int initialCount = 0,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false)
+            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base()
         {
             _semaphore = new IoZeroSemaphore(description, maxCount, initialCount, enableAutoScale, enableFairQ, enableDeadlockDetection);
             _semaphore.ZeroRef(ref _semaphore, asyncTasks.Token);

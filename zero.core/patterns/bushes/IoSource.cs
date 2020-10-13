@@ -22,7 +22,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1)
+        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1) : base()
         {
             PrefetchSize = prefetchSize;
             ConcurrencyLevel = concurrencyLevel;

@@ -30,7 +30,7 @@ namespace zero.core.patterns.bushes
         /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
-        protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob, bool sourceZeroCascade = false, int producers = 1, int consumers = 1)
+        protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob, bool sourceZeroCascade = false, int producers = 1, int consumers = 1) : base()
         {
             ProducerCount = producers;
             ConsumerCount = consumers;

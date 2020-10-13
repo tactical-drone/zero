@@ -15,7 +15,7 @@ namespace zero.core.patterns.misc
     /// <summary>
     /// ZeroAsync teardown
     /// </summary>
-    public class IoNanoprobe : IIoNanite, IDisposable 
+    public class IoNanoprobe : IIoNanite, IDisposable
     {
         /// <summary>
         /// static constructor
@@ -25,8 +25,11 @@ namespace zero.core.patterns.misc
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        public IoNanoprobe()
+        public IoNanoprobe(string description = null)
         {
+            if(description == null)
+                Description = GetType().Name;
+            
             _zeroSubs = new ConcurrentStack<IoZeroSub>();
             _zeroed = 0;
             ZeroedFrom = default;
@@ -45,7 +48,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoNanoprobe()
         {
-            ZeroAsync(false).ConfigureAwait(false);//.GetAwaiter().GetResult();
+            ZeroAsync(false).ConfigureAwait(false); //.GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -67,12 +70,12 @@ namespace zero.core.patterns.misc
         /// returns UID
         /// </summary>
         public ulong NpId => _zId;
-        
+
         /// <summary>
         /// Description
         /// </summary>
-        public virtual string Description => $"{nameof(IoNanoprobe)}";
-        
+        public virtual string Description { get; private set; }
+
         //private IoHeap<TMutex> _mutHeap;
 
         /// <summary>
@@ -134,11 +137,11 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return;
 
-            if (from?.GetHashCode() != GetHashCode())
-                ZeroedFrom = (IIoNanite)from;
+            if (!from.Equals(this))
+                ZeroedFrom = from;
             
             await ZeroAsync(true).ConfigureAwait(false);
-            GC.SuppressFinalize(obj: this);
+            GC.SuppressFinalize(this);
         }
 
         /// <summary>
@@ -168,10 +171,7 @@ namespace zero.core.patterns.misc
         {
             return _zeroed > 0;
         }
-
         
-        
-
         /// <summary>
         /// Subscribe to zero event
         /// </summary>
@@ -214,16 +214,12 @@ namespace zero.core.patterns.misc
                  IoZeroSub sourceZeroHandler = default;
                  IoZeroSub targetZeroHandler = default;
                  
-                 
-                 var handler = sourceZeroHandler;
-                 
                  sourceZeroHandler = ZeroEvent(async s =>
                  {
                      if (s.Equals(target))
-                         Unsubscribe(handler);
+                         Unsubscribe(sourceZeroHandler);
                      else
-                         await target.ZeroAsync(this).ConfigureAwait(false);
-
+                         await target.ZeroAsync(s).ConfigureAwait(false);
                  });
 
                  // ReSharper disable once AccessToModifiedClosure
@@ -232,12 +228,12 @@ namespace zero.core.patterns.misc
                      if (s.Equals(this))
                          target.Unsubscribe(targetZeroHandler);
                      else
-                         await ZeroAsync(target).ConfigureAwait(false);
+                         await ZeroAsync(s).ConfigureAwait(false);
                  });
              }
-             else //Release source if target goes
+             else 
              {
-                 var sub = ZeroEvent(async from => await target.ZeroAsync(@from).ConfigureAwait(false));
+                 var sub = ZeroEvent(async from => await target.ZeroAsync(from).ConfigureAwait(false));
 
                  target.ZeroEvent(s =>
                  {
@@ -288,7 +284,7 @@ namespace zero.core.patterns.misc
                         {
                             if (!zeroSub.Schedule)
                                 continue;
-                            await zeroSub.Action(@this).ConfigureAwait(false);
+                            await zeroSub.Action(ZeroedFrom??this).ConfigureAwait(false);
                         }
                         catch (NullReferenceException e)
                         {
