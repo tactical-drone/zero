@@ -439,7 +439,7 @@ namespace zero.cocoon.autopeer
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_ping_timeout = 1000;
+        public int parm_ping_timeout = 2000;
 
         /// <summary>
         /// Maximum number of peers in discovery response
@@ -1262,7 +1262,10 @@ namespace zero.cocoon.autopeer
 
                 //connect
                 if (await AssimilateNeighborAsync(newRemoteEp, id, services))
+                {
                     count++;
+                    await Task.Delay(CcNode.parm_scan_throttle / 2, AsyncTasks.Token).ConfigureAwait(false);
+                }
             }
 
             if (DiscoveryService.Neighbors.Count <= CcNode.MaxAdjuncts && count > 0)
@@ -1302,9 +1305,10 @@ namespace zero.cocoon.autopeer
                 if (_this.DiscoveryService.Neighbors.Count > _this.CcNode.MaxNeighbors)
                 {
                     var q = _this.DiscoveryService.Neighbors.Values.Where(n =>
-                        !((IoCcNeighbor) n).IsLocal &&
+                        ((IoCcNeighbor) n).Proxy &&
                         ((IoCcNeighbor) n).Direction == Kind.Undefined &&
-                        ((IoCcNeighbor) n).State < NeighborState.Peering);
+                        ((IoCcNeighbor) n).State < NeighborState.Peering &&
+                        ((IoCcNeighbor) n).Uptime.Elapsed() > parm_ping_timeout);
                     
                     var assimilated = q.Where(n =>
                             ((IoCcNeighbor) n).Assimilated &&
@@ -1316,7 +1320,7 @@ namespace zero.cocoon.autopeer
                     {
                         var selection = q.ToList();
                         if(selection.Count > 0)
-                            assimilated = selection[_random.Next(selection.Count)];
+                            assimilated = selection[Math.Max(_random.Next(selection.Count) - 1, 0)];
                     }
 
                     if (assimilated != null)
@@ -1758,6 +1762,7 @@ namespace zero.cocoon.autopeer
             return false;
         }
 
+        private long LastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 1000;
         /// <summary>
         /// Sends a discovery request
         /// </summary>
@@ -1785,6 +1790,12 @@ namespace zero.cocoon.autopeer
                 {
                     return false;
                 }
+
+                //rate limit
+                if (LastScan.Elapsed() < CcNode.parm_mean_pat_delay * 4)
+                    return false;
+
+                LastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 var sent = await SendMessageAsync(reqBuf, RemoteAddress,
                     IoCcPeerMessage.MessageTypes.DiscoveryRequest).ZeroBoostAsync().ConfigureAwait(false);

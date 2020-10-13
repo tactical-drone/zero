@@ -32,7 +32,7 @@ namespace zero.core.patterns.misc
             ZeroedFrom = default;
             TearDownTime = default;
             CascadeTime = default;
-            Uptime = default;
+            Uptime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
 
