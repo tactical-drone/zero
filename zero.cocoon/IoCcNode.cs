@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
@@ -118,7 +119,7 @@ namespace zero.cocoon
                             //Send peer requests
                             foreach (var neighbor in _autoPeering.Neighbors.Values.Where(n =>
                                     ((IoCcNeighbor)n).Assimilated && 
-                                    ((IoCcNeighbor)n).Direction == IoCcNeighbor.Kind.Undefined &&
+                                    ((IoCcNeighbor)n).Direction == IoCcNeighbor.Heading.Undefined &&
                                     ((IoCcNeighbor)n).State > IoCcNeighbor.NeighborState.Unverified &&
                                     ((IoCcNeighbor)n).State < IoCcNeighbor.NeighborState.Peering &&
                                     ((IoCcNeighbor)n).TotalPats > ((IoCcNeighbor)n).parm_zombie_max_connection_attempts &&
@@ -167,7 +168,7 @@ namespace zero.cocoon
                             //Have we found a suitable direction to scan in?
                             if (targetQ.Count > 0)
                             {
-                                var target = targetQ[_random.Next(targetQ.Count)];
+                                var target = targetQ[Math.Max(_random.Next(targetQ.Count) - 1, 0)];
 
                                 //scan
                                 if (target != null && !await ((IoCcNeighbor) target).SendDiscoveryRequestAsync().ZeroBoostAsync()
@@ -511,7 +512,7 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            if (!await _this.ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, __peer, packet,
+                            if (!await _this.ConnectForTheWinAsync(IoCcNeighbor.Heading.Ingress, __peer, packet,
                                     (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
                                 .ConfigureAwait(false))
                                 return false;
@@ -647,7 +648,7 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            if (!await _this.ConnectForTheWinAsync(IoCcNeighbor.Kind.OutBound, __peer, packet,
+                            if (!await _this.ConnectForTheWinAsync(IoCcNeighbor.Heading.Egress, __peer, packet,
                                     (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
                                 .ConfigureAwait(false))
                                 return false;
@@ -657,7 +658,7 @@ namespace zero.cocoon
                             //verify signature
                             if (packet.Signature != null || packet.Signature!.Length != 0)
                             {
-                                verified = CcId.Verify(packetData, 0,
+                                verified = _this.CcId.Verify(packetData, 0,
                                     packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
                                     packet.Signature.Memory.AsArray(), 0);
                             }
@@ -704,7 +705,7 @@ namespace zero.cocoon
                 }
 
                 return false;
-            }, peer, force: false).ZeroBoostAsync().ConfigureAwait(false);
+            }, peer, force: true).ZeroBoostAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -715,7 +716,7 @@ namespace zero.cocoon
         /// <param name="packet">The handshake packet</param>
         /// <param name="remoteEp">The remote</param>
         /// <returns>True if it won, false otherwise</returns>
-        private async ValueTask<bool> ConnectForTheWinAsync(IoCcNeighbor.Kind direction, IoCcPeer peer, Packet packet, IPEndPoint remoteEp)
+        private async ValueTask<bool> ConnectForTheWinAsync(IoCcNeighbor.Heading direction, IoCcPeer peer, Packet packet, IPEndPoint remoteEp)
         {
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint.ToString()}: {Description}");
@@ -734,7 +735,7 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {TimeSpan.FromSeconds(ccNeighbor.Uptime.Elapsed())}");
+                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {ccNeighbor.Uptime.TickSec()}");
                     return false;
                 }
             }
@@ -746,7 +747,7 @@ namespace zero.cocoon
         }
 
         /// <summary>
-        /// Opens an <see cref="IoCcNeighbor.Kind.OutBound"/> connection to a gossip peer
+        /// Opens an <see cref="IoCcNeighbor.Heading.Egress"/> connection to a gossip peer
         /// </summary>
         /// <param name="neighbor">The verified neighbor associated with this connection</param>
         public async ValueTask<bool> ConnectToPeerAsync(IoCcNeighbor neighbor)
@@ -794,7 +795,7 @@ namespace zero.cocoon
         /// </summary>
         public async Task BootAsync()
         {
-            //Interlocked.Exchange(ref Testing, 1);
+            Interlocked.Exchange(ref Testing, 1);
             
             foreach (var ioNeighbor in Neighbors.Values)
             {

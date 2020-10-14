@@ -24,9 +24,14 @@ namespace zero.cocoon.models.sources
             ArrayPoolProxy = arrayPool;
 
             MessageQueue = new ConcurrentQueue<ValueTuple<IIoZero, IMessage, object, Packet>[]>();
+
+            var enableDeadlockDetection = true;
+#if RELEASE
+            enableDeadlockDetection = false;
+#endif
             
-            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, true)).target;
-            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, true)).target;
+            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, enableDeadlockDetection)).target;
+            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, enableDeadlockDetection)).target;
         }
 
         /// <summary>
@@ -127,6 +132,7 @@ namespace zero.cocoon.models.sources
             try
             {
                 var backPressure = await _queueBackPressure.WaitAsync().ZeroBoostAsync().ConfigureAwait(false);
+                
                 backed = true;
                 
                 if (!backPressure)
@@ -134,7 +140,7 @@ namespace zero.cocoon.models.sources
 
                 MessageQueue.Enqueue(item);
 
-                _queuePressure.Release();
+                return _queuePressure.Release() != -1;
             }
             catch(Exception e)
             {
@@ -144,8 +150,6 @@ namespace zero.cocoon.models.sources
                 _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
                 return false;
             }
-
-            return true;
         }
 
 
@@ -161,13 +165,7 @@ namespace zero.cocoon.models.sources
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
                     var checkQ = await _queuePressure.WaitAsync().ZeroBoostAsync(oomCheck:false).ConfigureAwait(false);
-
-                    if(Zeroed())
-                        break;
-
-                    _queueBackPressure.Release();
-
-                    if (!checkQ)
+                    if (Zeroed() || _queueBackPressure.Release() < 0 || !checkQ)
                         break;
                 }
                 return batch;

@@ -88,5 +88,16 @@ namespace zero.core.misc
             return ticks.DeltaTicks().TicksToSpan().TotalSeconds;
         }
         
+        /// <summary>
+        /// Delta ticks
+        /// </summary>
+        /// <param name="ticks"># of ticks</param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double TickMs(this long ticks)
+        {
+            return ticks.DeltaTicks().TicksToSpan().TotalMilliseconds;
+        }
+        
     }
 }

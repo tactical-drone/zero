@@ -44,7 +44,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+                    channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 1);
                     if (MessageService.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
@@ -58,7 +58,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
-                        Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
+                        Source.ConcurrencyLevel * 1, Source.ConcurrencyLevel * 1
                     );
 
                     //get reference to a central mem pool

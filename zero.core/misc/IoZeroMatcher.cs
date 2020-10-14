@@ -24,7 +24,7 @@ namespace zero.core.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 64) : base()
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base()
         {
             _capacity = capacity;
             _description = description??"";

@@ -41,7 +41,7 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     await Task.Delay(60000, AsyncTasks.Token);
-                    if (!Zeroed() && Neighbor == null || Neighbor?.Direction == IoCcNeighbor.Kind.Undefined || Neighbor?.State < IoCcNeighbor.NeighborState.Connected)
+                    if (!Zeroed() && Neighbor == null || Neighbor?.Direction == IoCcNeighbor.Heading.Undefined || Neighbor?.State < IoCcNeighbor.NeighborState.Connected)
                     {
                         _logger.Fatal($"! {Description} - n = {Neighbor}, d = {Neighbor?.Direction}, s = {Neighbor?.State}");
                         await ZeroAsync(this);
@@ -67,7 +67,7 @@ namespace zero.cocoon
             {
                 //if (_description != null)
                 //    return _description;
-                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Kind.OutBound.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
                 
             }
         }
@@ -131,7 +131,7 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="neighbor"></param>
         /// <param name="direction"></param>
-        public async ValueTask<bool> AttachNeighborAsync(IoCcNeighbor neighbor, IoCcNeighbor.Kind direction)
+        public async ValueTask<bool> AttachNeighborAsync(IoCcNeighbor neighbor, IoCcNeighbor.Heading direction)
         {
 
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
@@ -189,7 +189,7 @@ namespace zero.cocoon
                 if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
                     return;
             
-                if (Neighbor?.Direction == IoCcNeighbor.Kind.OutBound)
+                if (Neighbor?.Direction == IoCcNeighbor.Heading.Egress)
                 {
                     long v = 0;
                     var vb = new byte[8];

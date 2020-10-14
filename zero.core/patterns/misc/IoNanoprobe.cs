@@ -34,11 +34,17 @@ namespace zero.core.patterns.misc
             ZeroedFrom = default;
             TearDownTime = default;
             CascadeTime = default;
-            Uptime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            Uptime = DateTimeOffset.UtcNow.UtcTicks;
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
+            
+            var enableFairQ = false;
+            var enableDeadlockDetection = true;
+#if RELEASE
+            enableDeadlockDetection = false;
+#endif
 
-            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 1000);
+            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 100, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 
@@ -131,6 +137,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask ZeroAsync(IIoNanite from)
         {
 #if DEBUG
@@ -254,13 +261,14 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Our dispose implementation
         /// </summary>
-        /// <param name="disposing">Whether we are disposing unmanaged objects</param>
+        /// <param name="disposing">Whether we are disposing unmanaged objects</
+        [MethodImpl(MethodImplOptions.AggressiveInlining)] 
         private async ValueTask ZeroAsync(bool disposing)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0)
                 return;
-
+            
             // No races allowed between shutting down and starting up
             await ZeroAtomicAsync(async (s, u, isDisposing) =>
             {
@@ -341,9 +349,9 @@ namespace zero.core.patterns.misc
                 @this.TearDownTime = DateTime.Now.Ticks;
                 //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
                 //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
-                if (@this.Uptime.TickSec() > 10 && @this.TearDownTime.TickSec() > @this.CascadeTime.TickSec() + 200)
+                if (@this.Uptime.TickSec() > 10 && @this.TearDownTime.TickMs() > @this.CascadeTime.TickMs() + 200)
                     _logger.Fatal(
-                        $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, t = {@this.TearDownTime.TickSec() / 1000.0:0.000}, c = {@this.CascadeTime.TickSec() / 1000.0:0.000}");
+                        $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, t = {@this.TearDownTime.TickMs() / 1000.0:0.000}, c = {@this.CascadeTime.TickMs() / 1000.0:0.000}");
                 _logger = null;
 
                 return true;
@@ -362,6 +370,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void ZeroUnmanaged()
         {
+            
         }
 
         /// <summary>
@@ -380,8 +389,8 @@ namespace zero.core.patterns.misc
         ///  <param name="userData"></param>
         ///  <param name="disposing">If disposing</param>
         ///  <param name="force">Forces the action regardless of zero state</param>
-        ///  <returns>true if ownership was passed, false otherwise</returns>
-        /// public async ZeroBoostAsync<bool> ZeroAtomicAsync(Func<IIoZeroable<TMutex>, Task<bool>>  ownershipAction, bool force = false)
+        ///  <returns>true if ownership was passed, false otherwise</returns>s
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)
@@ -438,6 +447,7 @@ namespace zero.core.patterns.misc
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(IIoNanite other)
         {
             return NpId == other.NpId;
@@ -447,6 +457,7 @@ namespace zero.core.patterns.misc
         /// A description of this object
         /// </summary>
         /// <returns>A description</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override string ToString()
         {
             return Description;

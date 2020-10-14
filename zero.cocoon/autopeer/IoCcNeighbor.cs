@@ -194,7 +194,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Looks for a zombie peer
         /// </summary>
-        public bool PolledZombie => Direction != Kind.Undefined && !(Assimilated && IsPeerConnected);
+        public bool PolledZombie => Direction != Heading.Undefined && !(Assimilated && IsPeerConnected);
 
         /// <summary>
         /// Indicates whether we have successfully established a connection before
@@ -215,7 +215,7 @@ namespace zero.cocoon.autopeer
         /// Node broadcast priority. 
         /// </summary>
         public long Priority =>
-            Enum.GetNames(typeof(Kind)).Length - (long) Direction - 1 + PeerRequests - PeeringAttempts > 1 ? 1 : 0;
+            Enum.GetNames(typeof(Heading)).Length - (long) Direction - 1 + PeerRequests - PeeringAttempts > 1 ? 1 : 0;
 
         //uptime
         private long _attachTimestamp;
@@ -268,26 +268,26 @@ namespace zero.cocoon.autopeer
         /// Who contacted who?
         /// </summary>
         //public Kind Direction { get; protected set; } = Kind.Undefined;
-        public Kind Direction => (Kind) _direction;
+        public Heading Direction => (Heading) _direction;
 
         /// <summary>
         /// inbound
         /// </summary>
-        public bool Inbound => Direction == Kind.Inbound && IsPeerConnected; //TODO
+        public bool Inbound => Direction == Heading.Ingress && IsPeerConnected; //TODO
 
         /// <summary>
         /// outbound
         /// </summary>
-        public bool Outbound => Direction == Kind.OutBound && IsPeerConnected;
+        public bool Outbound => Direction == Heading.Egress && IsPeerConnected;
 
         /// <summary>
         /// Who contacted who?
         /// </summary>
-        public enum Kind
+        public enum Heading
         {
             Undefined = 0,
-            Inbound = 1,
-            OutBound = 2
+            Ingress = 1,
+            Egress = 2
         }
 
         /// <summary>
@@ -436,7 +436,7 @@ namespace zero.cocoon.autopeer
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_network_latency = 1000;
+        public int parm_max_network_latency = 2000;
 
         /// <summary>
         /// Maximum number of peers in discovery response
@@ -548,7 +548,7 @@ namespace zero.cocoon.autopeer
 
             State = NeighborState.ZeroState;
 
-            if (ConnectedAtLeastOnce && Direction != Kind.Undefined)
+            if (ConnectedAtLeastOnce && Direction != Heading.Undefined)
                 _logger.Info($"- {(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachPeerAsync(_peer, true).ConfigureAwait(false);
@@ -596,7 +596,7 @@ namespace zero.cocoon.autopeer
             //Watchdog failure
             if (SecondsSincePat > parm_zombie_max_ttl * 2)
             {
-                var reconnect = this.Direction == Kind.OutBound;
+                var reconnect = this.Direction == Heading.Egress;
                 var address = RemoteAddress;
 
                 if (TotalPats > 1)
@@ -1243,18 +1243,13 @@ namespace zero.cocoon.autopeer
                 if (services == null || services.IoCcRecord.Endpoints.Count == 0)
                     continue;
 
-                //connect
-                if (await AssimilateNeighborAsync(newRemoteEp, id, services))
+                var assimilate = Task.Factory.StartNew(async c =>
                 {
-                    count++;
-                    //await Task.Delay(CcNode.parm_scan_throttle / 8, AsyncTasks.Token).ConfigureAwait(false);
-                }
-            }
-
-            if (DiscoveryService.Neighbors.Count <= CcNode.MaxAdjuncts && count > 0)
-            {
-                _logger.Trace(
-                    $"{nameof(DiscoveryResponse)}: Scanned {count}/{response.Peers.Count} discoveries from {Description} ...");
+                    await Task.Delay(parm_max_network_latency * (int) c).ConfigureAwait(false);
+                    await AssimilateNeighborAsync(newRemoteEp, id, services);
+                },count, TaskCreationOptions.LongRunning);
+                
+                count++;
             }
         }
 
@@ -1281,50 +1276,51 @@ namespace zero.cocoon.autopeer
 
             if (await DiscoveryService.ZeroAtomicAsync(async (s, u, ___) =>
             {
-                var t = (ValueTuple<IoCcNeighbor, IoCcNeighbor>) u;
+                var t = (ValueTuple<IoCcNeighbor, IoCcNeighbor, bool>) u;
                 var _this = t.Item1;
                 var __newNeighbor = t.Item2;
+                var _synAck = t.Item3;
 
                 if (_this.DiscoveryService.Neighbors.Count > _this.CcNode.MaxNeighbors)
                 {
                     var q = _this.DiscoveryService.Neighbors.Values.Where(n =>
+                        ((IoCcNeighbor) n).State < NeighborState.Local || 
                         ((IoCcNeighbor) n).Proxy &&
-                        ((IoCcNeighbor) n).Direction == Kind.Undefined &&
+                        ((IoCcNeighbor) n).Direction == Heading.Undefined &&
                         ((IoCcNeighbor) n).State < NeighborState.Peering &&
-                        ((IoCcNeighbor) n).Uptime.Elapsed() > parm_max_network_latency);
+                        ((IoCcNeighbor) n).Uptime.TickMs() > _this.parm_max_network_latency * 2);
                     
                     var assimilated = q.Where(n =>
                             ((IoCcNeighbor) n).Assimilated &&
-                            ((IoCcNeighbor) n).State > NeighborState.Local &&
                             ((IoCcNeighbor) n)._totalPats > _this.parm_min_pats_before_shuffle)
                         .OrderBy(n => ((IoCcNeighbor) n).Priority).FirstOrDefault();
                     
-                    if (synAck && assimilated == null)
+                    if (_synAck && assimilated == null)
                     {
                         var selection = q.ToList();
                         if(selection.Count > 0)
-                            assimilated = selection[Math.Max(_random.Next(selection.Count) - 1, 0)];
+                            assimilated = selection[Math.Max(_this._random.Next(selection.Count) - 1, 0)];
                     }
 
-                    if (assimilated != null)
+                    if (assimilated != null && ((IoCcNeighbor) assimilated).State < NeighborState.Peering)
                     {
                         //Drop assimilated neighbors
-                        ((IoCcNeighbor) assimilated).State = NeighborState.Zombie;
-                        _this._logger.Trace($"~ {assimilated.Description}");
+                        _this._logger.Debug($"~ {assimilated.Description}");
                         await ((IoCcNeighbor) assimilated).ZeroAsync(new IoNanoprobe("Assimilated")).ConfigureAwait(false);
                     }
-                    else if(synAck)
+                    else if(_synAck)
                     {
-                        _logger.Trace($"@ {Description}");
+                        if(_this._logger.IsDebugEnabled)
+                            _this._logger.Warn($"@ {_this.Description}");
                     }
                 }
 
                 //Transfer?
-                if (_this.DiscoveryService.Neighbors.Count <= CcNode.MaxNeighbors)
+                if (_this.DiscoveryService.Neighbors.Count <= _this.CcNode.MaxNeighbors)
                     return _this.DiscoveryService.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor);
                 else
                     return false;
-            }, ValueTuple.Create(this, newNeighbor)).ZeroBoostAsync().ConfigureAwait(false))
+            }, ValueTuple.Create(this, newNeighbor, synAck)).ZeroBoostAsync().ConfigureAwait(false))
             {
                 newNeighbor.MessageService.SetChannel(nameof(IoCcNeighbor),
                     MessageService.GetChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor)));
@@ -1564,13 +1560,13 @@ namespace zero.cocoon.autopeer
                 return;
             }
             
+            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            Interlocked.Increment(ref _totalPats);
+            
             //drop old matches
             if (pingRequest.TimestampMs.ElapsedMs()/1000 > parm_max_time_error)
                 return;
             
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            Interlocked.Increment(ref _totalPats);
-
             //Process SYN-ACK
             if (!Proxy)
             {
@@ -1962,20 +1958,20 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="ioCcPeer">The peer</param>
         /// <param name="direction"></param>
-        public async ValueTask<bool> AttachPeerAsync(IoCcPeer ioCcPeer, Kind direction)
+        public async ValueTask<bool> AttachPeerAsync(IoCcPeer ioCcPeer, Heading direction)
         {
             try
             {
                 await ZeroAtomicAsync((s, u, d) =>
                 {
                     var _this = (IoCcNeighbor) s;
-                    var t = (ValueTuple<IoCcPeer, Kind>) u;
+                    var t = (ValueTuple<IoCcPeer, Heading>) u;
                     var __ioCcPeer = t.Item1;
                     var __direciton = t.Item2;
 
                     //Race for direction
-                    if (Interlocked.CompareExchange(ref _this._direction, (int) __direciton, (int) Kind.Undefined) !=
-                        (int) Kind.Undefined)
+                    if (Interlocked.CompareExchange(ref _this._direction, (int) __direciton, (int) Heading.Undefined) !=
+                        (int) Heading.Undefined)
                     {
                         _this._logger.Warn(
                             $"oz: race for {__direciton} lost {__ioCcPeer.Description}, current = {_this.Direction}, {_this._peer?.Description}");

@@ -279,15 +279,11 @@ namespace zero.cocoon.models
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        //await Task.Delay(3, AsyncToken.Token).ConfigureAwait(false);
+                        await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
 
-                        var sentTask = ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize);
+                        var sentTask = await ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ZeroBoostAsync().ConfigureAwait(false);
                         
-                        //slow path
-                        if (!sentTask.IsCompletedSuccessfully)
-                            await sentTask.ConfigureAwait(false);
-                        
-                        if (sentTask.Result > 0)
+                        if (sentTask > 0)
                         {
                             Interlocked.Add(ref ((IoCcPeer) IoZero).AccountingBit, 2);
                         }
