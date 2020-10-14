@@ -51,7 +51,7 @@ namespace zero.cocoon.models
                     }
 
                     return ValueTask.FromResult(false);
-                }).ZeroBoostAsync().ConfigureAwait(false).GetAwaiter().GetResult())
+                }).GetAwaiter().GetResult())
                 {
                     ProtocolConduit = MessageService.EnsureChannel(
                         nameof(IoCcNeighbor),
@@ -232,12 +232,12 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational)
                         {
-                            int rx = 0;
+                            int rx = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize, _this._remoteEp, _this.MessageService.BlackList).ConfigureAwait(false);
 
-                            var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
-                            await readTask.OverBoostAsync().ConfigureAwait(false);
+                            //var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
+                            //await readTask.OverBoostAsync().ConfigureAwait(false);
 
-                            rx = readTask.Result;
+                            //rx = readTask.Result;
                             
                             //Success
                             //UDP signals source ip
@@ -644,7 +644,7 @@ namespace zero.cocoon.models
                 ////forward transactions
                 // if (cogSuccess)
                 // {
-                //     if (!await ProtocolConduit.ProduceAsync().ZeroBoostAsync().ConfigureAwait(false))
+                //     if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
                 //     {
                 //         _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
                 //     }

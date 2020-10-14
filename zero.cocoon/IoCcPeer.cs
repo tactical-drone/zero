@@ -137,7 +137,7 @@ namespace zero.cocoon
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
             
             //Attach the other way
-            var attached = await Neighbor.AttachPeerAsync(this, direction).ZeroBoostAsync().ConfigureAwait(false);
+            var attached = await Neighbor.AttachPeerAsync(this, direction).ConfigureAwait(false);
 
             if (attached)
             {

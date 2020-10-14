@@ -126,7 +126,7 @@ namespace zero.core.network.ip
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {            
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress).ZeroBoostAsync().ConfigureAwait(false); 
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress).ConfigureAwait(false); 
 
             if(connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', {Description}");

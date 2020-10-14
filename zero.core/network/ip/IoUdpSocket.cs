@@ -165,7 +165,7 @@ namespace zero.core.network.ip
 
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            if (!await base.ConnectAsync(remoteAddress).ZeroBoostAsync().ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress).ConfigureAwait(false))
                 return false;
 
             Configure();
@@ -360,7 +360,7 @@ namespace zero.core.network.ip
                     //receive
                     if (NativeSocket.ReceiveFromAsync(args))
                     {
-                        if (!await tcs.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                        if (!await tcs.WaitAsync().ConfigureAwait(false))
                             return 0;
                     }
 

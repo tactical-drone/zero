@@ -355,7 +355,7 @@ namespace zero.core.patterns.misc
                 _logger = null;
 
                 return true;
-            }, disposing: disposing, force: true).ZeroBoostAsync().ConfigureAwait(false);
+            }, disposing: disposing, force: true).ConfigureAwait(false);
         }
 
 
@@ -408,10 +408,10 @@ namespace zero.core.patterns.misc
                         //lock (_nanoMutex)
                         try
                         {
-                            if (await _nanoMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                            if (await _nanoMutex.WaitAsync().ConfigureAwait(false))
                             {
                                 return (_zeroed == 0) &&
-                                       await ownershipAction(this, userData, disposing).ZeroBoostAsync().ConfigureAwait(false);
+                                       await ownershipAction(this, userData, disposing).ConfigureAwait(false);
                             }
                         }
                         catch (Exception e)
@@ -427,7 +427,7 @@ namespace zero.core.patterns.misc
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing).ZeroBoostAsync().ConfigureAwait(false);
+                        return await ownershipAction(this, userData, disposing).ConfigureAwait(false);
                     }
                 }
                 catch

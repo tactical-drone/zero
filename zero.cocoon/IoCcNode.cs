@@ -153,7 +153,7 @@ namespace zero.cocoon
                             //if we are not able to peer, use long range scanners
                             if (suceptable!= null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
                             {
-                                if (await suceptable.SendDiscoveryRequestAsync().ZeroBoostAsync().ConfigureAwait(false))
+                                if (await suceptable.SendDiscoveryRequestAsync().ConfigureAwait(false))
                                 {
                                     _logger.Debug($"& {suceptable.Description}");   
                                 }
@@ -171,7 +171,7 @@ namespace zero.cocoon
                                 var target = targetQ[Math.Max(_random.Next(targetQ.Count) - 1, 0)];
 
                                 //scan
-                                if (target != null && !await ((IoCcNeighbor) target).SendDiscoveryRequestAsync().ZeroBoostAsync()
+                                if (target != null && !await ((IoCcNeighbor) target).SendDiscoveryRequestAsync()
                                     .ConfigureAwait(false))
                                 {
                                     if(target != null)
@@ -401,7 +401,7 @@ namespace zero.cocoon
                     return false;
 
                 //Handshake
-                if (await HandshakeAsync((IoCcPeer)peer).ZeroBoostAsync().ConfigureAwait(false))
+                if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
                 {
                     //ACCEPT
                     _logger.Info($"+ {peer.Description}");
@@ -484,7 +484,7 @@ namespace zero.cocoon
                         //{
                         bytesRead += await ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeRequestSize - bytesRead,
-                                timeout: _this.parm_handshake_timeout).ZeroBoostAsync()
+                                timeout: _this.parm_handshake_timeout)
                             .ConfigureAwait(false);
                         //} while (
                         //    !Zeroed() &&
@@ -513,7 +513,7 @@ namespace zero.cocoon
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
                             if (!await _this.ConnectForTheWinAsync(IoCcNeighbor.Heading.Ingress, __peer, packet,
-                                    (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                    (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint)
                                 .ConfigureAwait(false))
                                 return false;
                         
@@ -571,7 +571,7 @@ namespace zero.cocoon
                                 _this._sw.Restart();
                                 
                                 var sent = await _this.SendMessageAsync(__peer, handshake, nameof(HandshakeResponse),
-                                    _this.parm_handshake_timeout).ZeroBoostAsync().ConfigureAwait(false);
+                                    _this.parm_handshake_timeout).ConfigureAwait(false);
                                 if (sent > 0)
                                 {
                                     _this._logger.Trace(
@@ -585,7 +585,7 @@ namespace zero.cocoon
                             }
                             //Race
                             //return await ConnectForTheWinAsync(IoCcNeighbor.Kind.Inbound, peer, packet,
-                            //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                            //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                             //    .ConfigureAwait(false);
                             return true;
                         
@@ -604,7 +604,7 @@ namespace zero.cocoon
                         
                         _this._sw.Restart();
                         var sent = await _this.SendMessageAsync(__peer, handshake, nameof(HandshakeResponse),
-                                _this.parm_handshake_timeout).ZeroBoostAsync()
+                                _this.parm_handshake_timeout)
                             .ConfigureAwait(false);
                         if (sent > 0)
                         {
@@ -622,7 +622,7 @@ namespace zero.cocoon
                         //{
                         bytesRead += await ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeResponseSize - bytesRead,
-                                timeout: _this.parm_handshake_timeout).ZeroBoostAsync()
+                                timeout: _this.parm_handshake_timeout)
                             .ConfigureAwait(false);
                         //} while (
                         //    !Zeroed() &&
@@ -649,7 +649,7 @@ namespace zero.cocoon
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
                             if (!await _this.ConnectForTheWinAsync(IoCcNeighbor.Heading.Egress, __peer, packet,
-                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ZeroBoostAsync()
+                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                                 .ConfigureAwait(false))
                                 return false;
                         
@@ -705,7 +705,7 @@ namespace zero.cocoon
                 }
 
                 return false;
-            }, peer, force: true).ZeroBoostAsync().ConfigureAwait(false);
+            }, peer, force: true).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -731,7 +731,7 @@ namespace zero.cocoon
                 if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
-                    return await peer.AttachNeighborAsync((IoCcNeighbor) neighbor, direction).ZeroBoostAsync().ConfigureAwait(false);
+                    return await peer.AttachNeighborAsync((IoCcNeighbor) neighbor, direction).ConfigureAwait(false);
                 }
                 else
                 {
@@ -771,7 +771,7 @@ namespace zero.cocoon
                 }
                 
                 //Race for a connection
-                if (await HandshakeAsync((IoCcPeer)peer).ZeroBoostAsync().ConfigureAwait(false))
+                if (await HandshakeAsync((IoCcPeer)peer).ConfigureAwait(false))
                 {
                     _logger.Info($"+ {peer.Description}");
                     NeighborTasks.Add(peer.AssimilateAsync());

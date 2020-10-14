@@ -281,7 +281,7 @@ namespace zero.cocoon.models
                         //if (Id % 10 == 0)
                         await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
 
-                        var sentTask = await ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ZeroBoostAsync().ConfigureAwait(false);
+                        var sentTask = await ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
                         
                         if (sentTask > 0)
                         {

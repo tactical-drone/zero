@@ -152,7 +152,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            if (!await base.ConnectAsync(remoteAddress).ZeroBoostAsync().ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress).ConfigureAwait(false))
                 return false;
 
             NativeSocket.Blocking = false;

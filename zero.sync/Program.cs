@@ -116,6 +116,8 @@ namespace zero.sync
                 long uptimeCount = 1;
                 long opeers = 0;
                 long peers = 0;
+                long minOut = long.MaxValue;
+                long minIn = long.MaxValue;
                 long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 while (_running)
                 {
@@ -131,6 +133,10 @@ namespace zero.sync
                         foreach (var ioCcNode in _nodes)
                         {
                             opeers += ioCcNode.Neighbors.Values.Count(n => ((IoCcPeer)n).Neighbor?.IsPeerConnected??false);
+                            var e = ioCcNode.EgressConnections;
+                            var i = ioCcNode.IngressConnections;
+                            minOut = Math.Min(minOut, e);
+                            minIn = Math.Min(minIn, i); 
                             ooutBound += ioCcNode.EgressConnections;
                             oinBound += ioCcNode.IngressConnections;
                             oavailable += ioCcNode.DiscoveryService.Neighbors.Values.Count(n => ((IoCcNeighbor)n).Proxy);
@@ -160,7 +166,7 @@ namespace zero.sync
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                             Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(inBound + outBound) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut},{minIn}), {inBound + outBound}/{_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(inBound + outBound) / ((double)_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt})");
                             Console.ResetColor();
                         }
 
@@ -171,7 +177,7 @@ namespace zero.sync
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, {inBound + outBound}/{(double)_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(inBound + outBound) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut},{minIn}), {inBound + outBound}/{(double)_nodes.Count * maxNeighbors} , peers = {peers}/{available}, {(inBound + outBound) / (double)(_nodes.Count * maxNeighbors) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}");
                             Console.ResetColor();
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }

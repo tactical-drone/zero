@@ -142,7 +142,7 @@ namespace zero.core.network.ip
                     {
                         //Ensure ownership
                         var client = ioNetClient;
-                        if (!await ZeroAtomicAsync((s,u,d) => ValueTask.FromResult(s.ZeroOnCascade(client).success)).ZeroBoostAsync().ConfigureAwait(false))
+                        if (!await ZeroAtomicAsync((s,u,d) => ValueTask.FromResult(s.ZeroOnCascade(client).success)).ConfigureAwait(false))
                         {
                             _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                             //REJECT

@@ -90,7 +90,7 @@ namespace zero.core.misc
 
             try
             {
-                if (await _matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                if (await _matcherMutex.WaitAsync().ConfigureAwait(false))
                 {
                     _challenge.Add(temp);    
                 }
@@ -134,7 +134,7 @@ namespace zero.core.misc
             try
             {
                 var hashMatch = MemoryMarshal.Read<long>(reqHash.Memory.AsArray());
-                if (await _matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                if (await _matcherMutex.WaitAsync().ConfigureAwait(false))
                 {
                     response = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
                     while (response?.Key != null)
@@ -200,7 +200,7 @@ namespace zero.core.misc
         {
             try
             {
-                if (await target._matcherMutex.WaitAsync().ZeroBoostAsync().ConfigureAwait(false))
+                if (await target._matcherMutex.WaitAsync().ConfigureAwait(false))
                 {
                     target._challenge.AddRange(_challenge);
                 }

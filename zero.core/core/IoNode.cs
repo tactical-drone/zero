@@ -213,13 +213,13 @@ namespace zero.core.core
                                 return Task.CompletedTask;
                             });
                             return ValueTask.FromResult(true);
-                        }).ZeroBoostAsync().ConfigureAwait(false);
+                        }).ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
                     catch (TaskCanceledException) { return false; }
                     catch (OperationCanceledException) { return false; }
                     catch (ObjectDisposedException) { return false; }
-                }).ZeroBoostAsync().ConfigureAwait(false))
+                }).ConfigureAwait(false))
                 {
                     //New peer connection event
                     //ConnectedEvent?.Invoke(this, newNeighbor);
@@ -305,7 +305,7 @@ namespace zero.core.core
                     return true;
                 }
 
-                if (await ZeroAtomicAsync(OwnershipAction).ZeroBoostAsync().ConfigureAwait(false))
+                if (await ZeroAtomicAsync(OwnershipAction).ConfigureAwait(false))
                 {
                     //Is this a race condition? Between subbing and being zeroed out?
                     newNeighbor.ZeroEvent(s =>

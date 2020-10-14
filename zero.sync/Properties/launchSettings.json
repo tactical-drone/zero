@@ -1,7 +1,11 @@
 {
   "profiles": {
     "zero.sync": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "environmentVariables": {
+        "Key": "Value",
+        "DOTNET_SYSTEM_THREADING_POOLASYNCVALUETASKS": "1"
+      }
     }
   }
 }

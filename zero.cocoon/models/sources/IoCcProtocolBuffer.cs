@@ -131,7 +131,7 @@ namespace zero.cocoon.models.sources
             var backed = false;
             try
             {
-                var backPressure = await _queueBackPressure.WaitAsync().ZeroBoostAsync().ConfigureAwait(false);
+                var backPressure = await _queueBackPressure.WaitAsync().ConfigureAwait(false);
                 
                 backed = true;
                 
@@ -164,7 +164,7 @@ namespace zero.cocoon.models.sources
                 ValueTuple<IIoZero, IMessage, object, Packet>[] batch = null;
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
-                    var checkQ = await _queuePressure.WaitAsync().ZeroBoostAsync(oomCheck:false).ConfigureAwait(false);
+                    var checkQ = await _queuePressure.WaitAsync().ConfigureAwait(false);
                     if (Zeroed() || _queueBackPressure.Release() < 0 || !checkQ)
                         break;
                 }
