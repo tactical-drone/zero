@@ -7,12 +7,11 @@ using zero.cocoon.models;
 using zero.core.core;
 using zero.core.misc;
 using zero.core.network.ip;
-using zero.core.patterns.misc;
 using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
-    public class IoCcPeer : IoNeighbor<IoCcGossipMessage>
+    public class CcPeer : IoNeighbor<CcGossipMessage>
     {
         /// <summary>
         /// Ctor
@@ -20,10 +19,10 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="neighbor">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public IoCcPeer(IoNode<IoCcGossipMessage> node, IoCcNeighbor neighbor,
-            IoNetClient<IoCcGossipMessage> ioNetClient)
+        public CcPeer(IoNode<CcGossipMessage> node, CcNeighbor neighbor,
+            IoNetClient<CcGossipMessage> ioNetClient)
             : base(node, ioNetClient,
-                userData => new IoCcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
+                userData => new CcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
                     ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -42,7 +41,7 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     await Task.Delay(60000, AsyncTasks.Token);
-                    if (!Zeroed() && Neighbor == null || Neighbor?.Direction == IoCcNeighbor.Heading.Undefined || Neighbor?.State < IoCcNeighbor.NeighborState.Connected)
+                    if (!Zeroed() && Neighbor == null || Neighbor?.Direction == CcNeighbor.Heading.Undefined || Neighbor?.State < CcNeighbor.NeighborState.Connected)
                     {
                         _logger.Fatal($"! {Description} - n = {Neighbor}, d = {Neighbor?.Direction}, s = {Neighbor?.State}");
                         await ZeroAsync(this);
@@ -77,7 +76,7 @@ namespace zero.cocoon
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Neighbor?.Identity.IdString()}]'";
+                    return _description = $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Neighbor?.Identity.IdString()}]'";
                 }
                 catch
                 {
@@ -98,7 +97,7 @@ namespace zero.cocoon
         //     {
         //         //if (_description != null)
         //         //    return _description;
-        //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+        //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
         //         
         //     }
         // }
@@ -106,12 +105,12 @@ namespace zero.cocoon
         /// <summary>
         /// The source
         /// </summary>
-        public new IoNetClient<IoCcGossipMessage> IoSource => (IoNetClient<IoCcGossipMessage>) Source;
+        public new IoNetClient<CcGossipMessage> IoSource => (IoNetClient<CcGossipMessage>) Source;
 
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public IoCcNeighbor Neighbor { get; private set; }
+        public CcNeighbor Neighbor { get; private set; }
 
         /// <summary>
         /// CcId
@@ -126,7 +125,7 @@ namespace zero.cocoon
         /// <summary>
         /// Helper
         /// </summary>
-        protected IoNetClient<IoCcGossipMessage> IoNetClient;
+        protected IoNetClient<CcGossipMessage> IoNetClient;
 
         /// <summary>
         /// 
@@ -162,7 +161,7 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="neighbor"></param>
         /// <param name="direction"></param>
-        public async ValueTask<bool> AttachNeighborAsync(IoCcNeighbor neighbor, IoCcNeighbor.Heading direction)
+        public async ValueTask<bool> AttachNeighborAsync(CcNeighbor neighbor, CcNeighbor.Heading direction)
         {
 
             Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
@@ -191,7 +190,7 @@ namespace zero.cocoon
         /// </summary>
         public async Task DetachNeighborAsync()
         {
-            IoCcNeighbor neighbor = null;
+            CcNeighbor neighbor = null;
 
             lock (this)
             {
@@ -213,7 +212,7 @@ namespace zero.cocoon
         {
             try
             {
-                if (Interlocked.Read(ref ((IoCcNode) Node).Testing) == 0)
+                if (Interlocked.Read(ref ((CcNode) Node).Testing) == 0)
                     return;
 
                 if (Interlocked.Read(ref _isTesting) > 0)
@@ -222,7 +221,7 @@ namespace zero.cocoon
                 if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
                     return;
             
-                if (Neighbor?.Direction == IoCcNeighbor.Heading.Egress)
+                if (Neighbor?.Direction == CcNeighbor.Heading.Egress)
                 {
                     long v = 0;
                     var vb = new byte[8];
@@ -230,7 +229,7 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if (await((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                        if (await((IoNetClient<CcGossipMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
                         {
                             Interlocked.Increment(ref AccountingBit);
                         }

@@ -1,21 +1,19 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 
 namespace zero.cocoon.models.sources
 {
-    public class IoCcProtocolBuffer : IoSource<IoCcProtocolMessage>
+    public class CcProtocolBuffer : IoSource<CcProtocolMessage>
     {
-        public IoCcProtocolBuffer(IIoSource ioSource,ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
+        public CcProtocolBuffer(IIoSource ioSource,ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
             : base(prefetchSize, concurrencyLevel)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -62,7 +60,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => $"{nameof(IoCcProtocolBuffer)}({Upstream.Key})";
+        public override string Key => $"{nameof(CcProtocolBuffer)}({Upstream.Key})";
 
         /// <summary>
         /// Description of upstream conduit

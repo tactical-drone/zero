@@ -1,23 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading;
 using Base58Check;
-using MathNet.Numerics;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities.Encoders;
 
 namespace zero.cocoon.identity
 {
-    public class IoCcIdentity
+    public class CcIdentity
     {
-        static IoCcIdentity()
+        static CcIdentity()
         {
             SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
         }
@@ -42,10 +35,10 @@ namespace zero.cocoon.identity
             return Base58CheckEncoding.EncodePlain(PublicKey);
         }
 
-        public static IoCcIdentity FromPubKey(ReadOnlySpan<byte> pk)
+        public static CcIdentity FromPubKey(ReadOnlySpan<byte> pk)
         {
             var a = pk.ToArray();
-            return new IoCcIdentity
+            return new CcIdentity
             {
                 PublicKey = a,
                 Id = Sha256.ComputeHash(a)
@@ -53,7 +46,7 @@ namespace zero.cocoon.identity
         }
 
         private static readonly SecureRandom SecureRandom = SecureRandom.GetInstance("SHA256PRNG");
-        public static IoCcIdentity Generate(bool devMode = false)
+        public static CcIdentity Generate(bool devMode = false)
         {
             //var skBuf = new byte[Ed25519.SecretKeySize];
             var skBuf = Base58CheckEncoding.Decode(DevKey);
@@ -68,7 +61,7 @@ namespace zero.cocoon.identity
             //Console.WriteLine($"PK = {Base58CheckEncoding.EncodePlain(pkBuf)}");
             //Console.WriteLine($"ID = {Base58CheckEncoding.EncodePlain(Sha256.ComputeHash(pkBuf).AsSpan().Slice(0,8).ToArray())}");
 
-            return new IoCcIdentity
+            return new CcIdentity
             {
                 PublicKey = pkBuf,
                 SecretKey = skBuf,
@@ -91,7 +84,7 @@ namespace zero.cocoon.identity
 
         public override bool Equals(object obj)
         {
-            var id = obj as IoCcIdentity;
+            var id = obj as CcIdentity;
 
             if (id == null)
                 throw new ArgumentNullException(nameof(obj));

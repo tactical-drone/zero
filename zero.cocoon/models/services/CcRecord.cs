@@ -6,8 +6,8 @@ using zero.core.network.ip;
 
 namespace zero.cocoon.models.services
 {
-    public class IoCcRecord
+    public class CcRecord
     {
-        public ConcurrentDictionary<IoCcService.Keys, IoNodeAddress> Endpoints = new ConcurrentDictionary<IoCcService.Keys, IoNodeAddress>();
+        public ConcurrentDictionary<CcService.Keys, IoNodeAddress> Endpoints = new ConcurrentDictionary<CcService.Keys, IoNodeAddress>();
     }
 }

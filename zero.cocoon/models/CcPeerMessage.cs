@@ -16,13 +16,12 @@ using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.core.patterns.misc;
 
 namespace zero.cocoon.models
 {
-    public class IoCcPeerMessage : IoMessage<IoCcPeerMessage>
+    public class CcPeerMessage : IoMessage<CcPeerMessage>
     {
-        public IoCcPeerMessage(string sinkDesc, string jobDesc, IoSource<IoCcPeerMessage> source) 
+        public CcPeerMessage(string sinkDesc, string jobDesc, IoSource<CcPeerMessage> source) 
             : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -37,15 +36,15 @@ namespace zero.cocoon.models
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             ByteSegment = ByteBuffer;
 
-            if (!MessageService.ObjectStorage.ContainsKey(nameof(IoCcProtocolBuffer)))
+            if (!MessageService.ObjectStorage.ContainsKey(nameof(CcProtocolBuffer)))
             {
-                IoCcProtocolBuffer channelSource = null;
+                CcProtocolBuffer channelSource = null;
 
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new IoCcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 1);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(IoCcProtocolBuffer), channelSource))
+                    channelSource = new CcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 1);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocolBuffer), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
@@ -54,15 +53,15 @@ namespace zero.cocoon.models
                 }).GetAwaiter().GetResult())
                 {
                     ProtocolConduit = MessageService.EnsureChannel(
-                        nameof(IoCcNeighbor),
+                        nameof(CcNeighbor),
                         true,
                         channelSource,
-                        userData => new IoCcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
+                        userData => new CcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
                         Source.ConcurrencyLevel * 1, Source.ConcurrencyLevel * 1
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((IoCcProtocolBuffer) ProtocolConduit.Source).ArrayPoolProxy;
+                    _arrayPool = ((CcProtocolBuffer) ProtocolConduit.Source).ArrayPoolProxy;
                 }
                 else
                 {
@@ -77,7 +76,7 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolConduit = MessageService.EnsureChannel<IoCcProtocolMessage>(nameof(IoCcNeighbor));
+                ProtocolConduit = MessageService.EnsureChannel<CcProtocolMessage>(nameof(CcNeighbor));
             }
         }
 
@@ -89,17 +88,17 @@ namespace zero.cocoon.models
         /// <summary>
         /// The decoded tangle transaction
         /// </summary>
-        //private static IoCcProtocolBuffer _protocolBuffer;
+        //private static CcProtocolBuffer _protocolBuffer;
 
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoConduit<IoCcProtocolMessage> ProtocolConduit;
+        public IoConduit<CcProtocolMessage> ProtocolConduit;
 
         /// <summary>
         /// Base source
         /// </summary>
-        protected IoUdpClient<IoCcPeerMessage> MessageService => (IoUdpClient<IoCcPeerMessage>) Source;
+        protected IoUdpClient<CcPeerMessage> MessageService => (IoUdpClient<CcPeerMessage>) Source;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -218,7 +217,7 @@ namespace zero.cocoon.models
             {
                 await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (IoCcPeerMessage)ioJob;
+                    var _this = (CcPeerMessage)ioJob;
                     //----------------------------------------------------------------------------
                     // BARRIER
                     // We are only allowed to run ahead of the consumer by some configurable
@@ -366,7 +365,7 @@ namespace zero.cocoon.models
         {
             if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
-            var p = (IoMessage<IoCcPeerMessage>) PreviousJob;
+            var p = (IoMessage<CcPeerMessage>) PreviousJob;
             try
             {
                 var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
@@ -394,12 +393,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// CC Node
         /// </summary>
-        protected IoCcNode CcNode => ((IoCcNeighbor) IoZero)?.CcNode;
+        protected CcNode CcNode => ((CcNeighbor) IoZero)?.CcNode;
 
         /// <summary>
         /// Cc Identity
         /// </summary>
-        public IoCcIdentity CcId => CcNode.CcId;
+        public CcIdentity CcId => CcNode.CcId;
 
         /// <summary>
         /// Message sink
@@ -579,7 +578,7 @@ namespace zero.cocoon.models
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
                     IIoZero zero = null;
-                    //if (((IoNetClient<IoCcPeerMessage>)Source).Socket.FfAddress != null)
+                    //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
                     //    zero = IoZero;
 
                     if (_currBatch >= parm_max_msg_batch_size)
@@ -616,11 +615,11 @@ namespace zero.cocoon.models
                 //cog the source
                 var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
                 {
-                    var _this = (IoCcPeerMessage) ioJob;
+                    var _this = (CcPeerMessage) ioJob;
 
-                    if (!await ((IoCcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+                    if (!await ((CcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
-                        if(!((IoCcProtocolBuffer) source).Zeroed())
+                        if(!((CcProtocolBuffer) source).Zeroed())
                             _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }

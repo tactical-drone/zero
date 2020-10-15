@@ -11,21 +11,21 @@ namespace zero.cocoon.autopeer
     /// <summary>
     /// Used by <see cref="CcNode"/> to discover other nodes
     /// </summary>
-    public class IoCcNeighborDiscovery : IoNode<IoCcPeerMessage>
+    public class CcNeighborDiscovery : IoNode<CcPeerMessage>
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="ioCcNode">The node this service belongs to</param>
+        /// <param name="ccNode">The node this service belongs to</param>
         /// <param name="address">The listening address of this service</param>
         /// <param name="mallocNeighbor">Allocates neighbors on connection</param>
         /// <param name="prefetch">TCP job read ahead</param>
         /// <param name="concurrencyLevel">Nr of consumers that run concurrently</param>
-        public IoCcNeighborDiscovery(IoCcNode ioCcNode, IoNodeAddress address,
-            Func<IoNode<IoCcPeerMessage>, IoNetClient<IoCcPeerMessage>, object, IoNeighbor<IoCcPeerMessage>> mallocNeighbor, int prefetch, int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel)
+        public CcNeighborDiscovery(CcNode ccNode, IoNodeAddress address,
+            Func<IoNode<CcPeerMessage>, IoNetClient<CcPeerMessage>, object, IoNeighbor<CcPeerMessage>> mallocNeighbor, int prefetch, int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            CcNode = ioCcNode;
+            CcNode = ccNode;
         }
 
         /// <summary>
@@ -41,14 +41,14 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The cocoon node this discovery service belongs to 
         /// </summary>
-        public IoCcNode CcNode;
+        public CcNode CcNode;
 
         /// <summary>
         /// Services Proxy request helper
         /// </summary>
-        public IoCcService Services => CcNode.Services;
+        public CcService Services => CcNode.Services;
 
-        public IoCcNeighbor Router { get; protected set; }
+        public CcNeighbor Router { get; protected set; }
 
         public override void ZeroUnmanaged()
         {
@@ -67,11 +67,11 @@ namespace zero.cocoon.autopeer
             return base.ZeroManagedAsync();
         }
 
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<IoCcPeerMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcPeerMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             await base.SpawnListenerAsync(async neighbor =>
             {
-                Router ??= (IoCcNeighbor) neighbor;
+                Router ??= (CcNeighbor) neighbor;
                 return acceptConnection == null || await acceptConnection(neighbor).ConfigureAwait(false);
             }, bootstrapAsync).ConfigureAwait(false);
         }

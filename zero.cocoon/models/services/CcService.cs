@@ -6,10 +6,10 @@ using zero.core.network.ip;
 
 namespace zero.cocoon.models.services
 {
-    public class IoCcService
+    public class CcService
     {
-        public IoCcRecord IoCcRecord = new IoCcRecord();
-        public IoCcService()
+        public CcRecord CcRecord = new CcRecord();
+        public CcService()
         {
             
         }

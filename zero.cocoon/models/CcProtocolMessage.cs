@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using NLog;
 using zero.cocoon.models.sources;
 using zero.core.patterns.bushes;
@@ -10,10 +8,10 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
-    public class IoCcProtocolMessage : IoSink<IoCcProtocolMessage>
+    public class CcProtocolMessage : IoSink<CcProtocolMessage>
     {
-        public IoCcProtocolMessage(IoSource<IoCcProtocolMessage> originatingSource, int waitForConsumerTimeout = -1)
-            : base("conduit", $"{nameof(IoCcProtocolMessage)}", originatingSource)
+        public CcProtocolMessage(IoSource<CcProtocolMessage> originatingSource, int waitForConsumerTimeout = -1)
+            : base("conduit", $"{nameof(CcProtocolMessage)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
             _logger = LogManager.GetCurrentClassLogger();
@@ -49,14 +47,14 @@ namespace zero.cocoon.models
         {
             if (!await Source.ProduceAsync(async (producer, backPressure, ioZero, ioJob )=>
             {
-                var _this = (IoCcProtocolMessage)ioJob;
+                var _this = (CcProtocolMessage)ioJob;
                 
                 if (!await backPressure(ioJob, ioZero).ConfigureAwait(false))
                     return false;
 
                 try
                 {
-                    _this.Batch = await ((IoCcProtocolBuffer) _this.Source).DequeueAsync().ConfigureAwait(false);
+                    _this.Batch = await ((CcProtocolBuffer) _this.Source).DequeueAsync().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
