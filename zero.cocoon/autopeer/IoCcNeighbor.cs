@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -138,13 +139,13 @@ namespace zero.cocoon.autopeer
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
+                    return _description = $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Identity.IdString()}]'";
                 }
                 catch (Exception e)
                 {
                     if (Collected)
                         _logger.Debug(e, Description);
-                    return _description?? $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress}, remote: {Key}'";;
+                    return _description?? $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Identity.IdString()}]'";;
                 }
             }
         }
@@ -556,7 +557,19 @@ namespace zero.cocoon.autopeer
         public override async ValueTask ZeroManagedAsync()
         {
             if (Proxy)
+            {
+                try
+                {
+                    //Remove from routing table
+                    Router._routingTable[((IoNetClient<IoCcPeerMessage>) IoSource).IoNetSocket.RemoteNodeAddress.Port] = null;
+                }
+                catch
+                {
+                    // ignored
+                }
+
                 await SendPeerDropAsync().ConfigureAwait(false);
+            }
             
             State = NeighborState.ZeroState;
 
@@ -612,7 +625,7 @@ namespace zero.cocoon.autopeer
                 var address = RemoteAddress;
 
                 if (TotalPats > 1)
-                    _logger.Debug($"w {Description}, s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}");
+                    _logger.Debug($"w {Description}");
                 else
                     _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}, {MetaDesc}");
 
@@ -993,8 +1006,8 @@ namespace zero.cocoon.autopeer
                 {
                     //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
                     if (await Router.SendPingAsync(remote)
-                        .ConfigureAwait(false)) ;
-                    _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
+                        .ConfigureAwait(false)) 
+                        _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
                 }
                 
                 return;
@@ -1842,7 +1855,6 @@ namespace zero.cocoon.autopeer
                 if (!await _peerRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
                     .ConfigureAwait(false))
                 {
-                    State = NeighborState.Standby;
                     return false;
                 }
 
@@ -1857,7 +1869,6 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    State = NeighborState.Standby;
                     if (Collected)
                         _logger.Debug($"-/> {nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
                 }
@@ -1882,8 +1893,7 @@ namespace zero.cocoon.autopeer
             {
                 _logger.Debug(e, $"{nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
             }
-
-            State = NeighborState.Standby;
+            
             return false;
         }
 

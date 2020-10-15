@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using Base58Check;
@@ -24,7 +26,7 @@ namespace zero.cocoon.identity
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
         public byte[] Id { get; set; }
-        public byte[] PublicKey { get; set; }
+        public byte[] PublicKey { get; private set; }
         public byte[] SecretKey { get; set; }
 
         private static string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
@@ -87,7 +89,7 @@ namespace zero.cocoon.identity
             return Ed25519.Verify(signature, sigOffset, pubKey, 0, msg, offset, len);
         }
 
-        public override bool Equals(object? obj)
+        public override bool Equals(object obj)
         {
             var id = obj as IoCcIdentity;
 
@@ -95,6 +97,11 @@ namespace zero.cocoon.identity
                 throw new ArgumentNullException(nameof(obj));
 
             return id == this || id.PublicKey.SequenceEqual(PublicKey);
+        }
+
+        public override int GetHashCode()
+        {
+            return MemoryMarshal.Read<int>(PublicKey);
         }
     }
 }

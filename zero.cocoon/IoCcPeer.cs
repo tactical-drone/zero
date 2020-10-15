@@ -77,7 +77,7 @@ namespace zero.cocoon
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+                    return _description = $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Neighbor?.Identity.IdString()}]'";
                 }
                 catch
                 {
@@ -174,7 +174,9 @@ namespace zero.cocoon
             {
                 _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {neighbor.Description}");
 
+#pragma warning disable 4014
                 StartTestModeAsync();
+#pragma warning restore 4014
             }
             else
             {

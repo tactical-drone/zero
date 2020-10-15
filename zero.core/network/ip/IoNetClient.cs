@@ -218,7 +218,7 @@ namespace zero.core.network.ip
                             )
                         {
                             if(Uptime.TickSec() > 5)
-                                _logger.Trace($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
+                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
 
                             //Do cleanup
                             return _operational = false;
