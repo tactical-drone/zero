@@ -436,7 +436,7 @@ namespace zero.cocoon.autopeer
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_network_latency = 500;
+        public int parm_max_network_latency = 1000;
 
         /// <summary>
         /// Maximum number of peers in discovery response
@@ -926,7 +926,7 @@ namespace zero.cocoon.autopeer
         private async Task ProcessAsync(PeeringDrop request, object extraData, Packet packet)
         {
             var diff = 0;
-            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
+            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_network_latency/1000 * 2)
             {
                 _logger.Trace(
                     $"{(Proxy ? "V>" : "X>")}{nameof(PeeringDrop)}: Ignoring {diff}s old/invalid request, error = ({diff})");
@@ -1037,7 +1037,7 @@ namespace zero.cocoon.autopeer
             }
             
             //drop old requests
-            if (peerRequest.TimestampMs.ElapsedMs()/1000 > parm_max_time_error)
+            if (peerRequest.TimestampMs.ElapsedMs() > parm_max_network_latency * 2)
                 return;
 
             //Validated
@@ -1158,7 +1158,7 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            if (discoveryRequest.TimestampMs.ElapsedMs()/1000 > parm_max_time_error)
+            if (discoveryRequest.TimestampMs.ElapsedMs() > parm_max_network_latency * 2)
             {
                 return;
             }
@@ -1536,7 +1536,7 @@ namespace zero.cocoon.autopeer
             Interlocked.Increment(ref _totalPats);
             
             //drop old matches
-            if (pingRequest.TimestampMs.ElapsedMs()/1000 > parm_max_time_error)
+            if (pingRequest.TimestampMs.ElapsedMs() > parm_max_network_latency * 2)
                 return;
             
             //Process SYN-ACK
