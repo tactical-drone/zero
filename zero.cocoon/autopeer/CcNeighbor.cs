@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -274,6 +273,9 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public bool Verified { get; protected set; }
 
+        /// <summary>
+        /// Backing cache
+        /// </summary>
         private volatile int _direction;
 
         /// <summary>
@@ -448,7 +450,7 @@ namespace zero.cocoon.autopeer
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_network_latency = 1000;
+        public int parm_max_network_latency = 2000;
 
         /// <summary>
         /// Maximum number of peers in discovery response
@@ -656,6 +658,7 @@ namespace zero.cocoon.autopeer
         public override async Task AssimilateAsync()
         {
             var processingAsync = base.AssimilateAsync();
+            //var protocol = Task.Factory.StartNew(o => ProcessAsync(),TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).Unwrap();
             var protocol = ProcessAsync();
 
             try
@@ -665,7 +668,6 @@ namespace zero.cocoon.autopeer
                 if (processingAsync.IsFaulted)
                 {
                     _logger.Fatal(processingAsync.Exception, "Neighbor processing returned with errors!");
-
                     await ZeroAsync(new IoNanoprobe($"processingAsync.IsFaulted")).ConfigureAwait(false);
                 }
 
@@ -1245,12 +1247,11 @@ namespace zero.cocoon.autopeer
                 {
                     await Task.Delay(parm_max_network_latency * (int) c).ConfigureAwait(false);
                     await AssimilateNeighborAsync(newRemoteEp, id, services);
-                },count, TaskCreationOptions.LongRunning);
+                },++count, TaskCreationOptions.LongRunning);
                 
-                count++;
             }
         }
-
+        
         /// <summary>
         /// Connect to another neighbor
         /// </summary>
@@ -1265,7 +1266,7 @@ namespace zero.cocoon.autopeer
                 _logger.Fatal($"x {Description}");
                 return false;
             }
-
+            
             CcNeighbor newNeighbor = null;
 
             var source = new IoUdpClient<CcPeerMessage>(MessageService, newRemoteEp);
@@ -1293,7 +1294,7 @@ namespace zero.cocoon.autopeer
                             ((CcNeighbor) n)._totalPats > _this.parm_min_pats_before_shuffle)
                         .OrderBy(n => ((CcNeighbor) n).Priority).FirstOrDefault();
                     
-                    if (_synAck && assimilated == null)
+                    if (_synAck && assimilated == null && id.PublicKey[_random.Next(byte.MaxValue)] < byte.MaxValue/2)
                     {
                         var selection = q.ToList();
                         if(selection.Count > 0)
@@ -1326,15 +1327,14 @@ namespace zero.cocoon.autopeer
                 newNeighbor.State = NeighborState.Unverified;
                 newNeighbor.Verified = false;
 
-                DiscoveryService
-                    .ZeroOnCascade(newNeighbor); //TODO: Maybe remove? Use the one that floods through source?
+                DiscoveryService.ZeroOnCascade(newNeighbor);
 
                 if (await newNeighbor.ZeroAtomicAsync((s, u, _____) =>
                 {
                     var t = (ValueTuple<CcNeighbor, CcNeighbor>) u;
                     var _this = t.Item1;
                     var __newNeighbor = t.Item2;
-                    var sub = newNeighbor.ZeroEvent(_ =>
+                    var sub = __newNeighbor.ZeroEvent(_ =>
                     {
                         try
                         {
@@ -1646,7 +1646,7 @@ namespace zero.cocoon.autopeer
                 var pingRequest = new Ping
                 {
                     DstAddr = dest.IpEndPoint.Address.ToString(),
-                    NetworkId = 6,
+                    NetworkId = 8,
                     Version = 0,
                     SrcAddr = "0.0.0.0",
                     SrcPort = (uint) CcNode.Services.CcRecord.Endpoints[CcService.Keys.peering].Port,
@@ -1727,7 +1727,7 @@ namespace zero.cocoon.autopeer
             return false;
         }
 
-        private long LastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 1000;
+        private long _lastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 1000;
         /// <summary>
         /// Sends a discovery request
         /// </summary>
@@ -1758,10 +1758,10 @@ namespace zero.cocoon.autopeer
                 }
 
                 //rate limit
-                if (LastScan.Elapsed() < CcNode.parm_mean_pat_delay * 4)
+                if (_lastScan.Elapsed() < CcNode.parm_mean_pat_delay * 4)
                     return false;
 
-                LastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                _lastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 var sent = await SendMessageAsync(reqBuf, RemoteAddress,
                     CcPeerMessage.MessageTypes.DiscoveryRequest).ConfigureAwait(false);

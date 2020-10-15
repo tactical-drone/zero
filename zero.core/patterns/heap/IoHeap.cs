@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -114,7 +115,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public void ZeroManaged()
+        public void ZeroManaged(Action<T> zeroAction = null)
         {
 
             try
@@ -122,7 +123,10 @@ namespace zero.core.patterns.heap
                 //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
                 // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
                 // to zero eventually?
-                //_buffer.ToList().ForEach(h=>h.ZeroAsync(this));
+                _buffer.ToList().ForEach(h=>
+                {
+                    if (zeroAction != null) zeroAction(h);
+                });
                 _buffer.Clear();
             }
             catch { }

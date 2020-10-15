@@ -91,14 +91,14 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     //periodically
-                    await Task.Delay((random.Next(parm_mean_pat_delay/2*1000) + parm_mean_pat_delay*500)/8, AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay((random.Next(parm_mean_pat_delay)/3 * 1000), AsyncTasks.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
                     try
                     {
                         //boostrap if alone
-                        if (Neighbors.Count < 2)
+                        if (TotalConnections < 2)
                         {
                             await BootStrapAsync().ConfigureAwait(false);
                         }
@@ -106,7 +106,7 @@ namespace zero.cocoon
                         var totalAdjuncts = TotalConnections;
                         double scanRatio = 1;
                         double peerAttempts = 0;
-                        CcNeighbor suceptable = null;
+                        CcNeighbor susceptible = null;
                         
                         //Attempt to peer with standbys
                         if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > (parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)) * 2)
@@ -131,7 +131,7 @@ namespace zero.cocoon
                                 //but that means it is probably not depleting its standby neighbors which is what 
                                 //we are after. It's a long shot that relies on probability in the long run
                                 //to work.
-                                suceptable ??= (CcNeighbor) neighbor;
+                                susceptible ??= (CcNeighbor) neighbor;
 
                                 if (EgressConnections < parm_max_outbound)
                                 {
@@ -149,11 +149,11 @@ namespace zero.cocoon
                             }
                             
                             //if we are not able to peer, use long range scanners
-                            if (suceptable!= null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
+                            if (susceptible!= null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
                             {
-                                if (await suceptable.SendDiscoveryRequestAsync().ConfigureAwait(false))
+                                if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
                                 {
-                                    _logger.Debug($"& {suceptable.Description}");   
+                                    _logger.Debug($"& {susceptible.Description}");   
                                 }
                             }
                         }
@@ -431,11 +431,11 @@ namespace zero.cocoon
 
             var protocolRaw = responsePacket.ToByteArray();
 
-            var sent = await ((IoNetClient<CcGossipMessage>)peer.IoSource).IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).ConfigureAwait(false);
+            var sent = await peer.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).ConfigureAwait(false);
 
             if (sent == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sent} bytes to {((IoNetClient<CcGossipMessage>)peer.IoSource).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcPeerMessage.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"{type}: Sent {sent} bytes to {peer.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcPeerMessage.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else

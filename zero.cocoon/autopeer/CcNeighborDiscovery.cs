@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using NLog;
 using zero.cocoon.models;
 using zero.cocoon.models.services;
 using zero.core.core;
+using zero.core.misc;
 using zero.core.network.ip;
 
 namespace zero.cocoon.autopeer
@@ -47,9 +49,15 @@ namespace zero.cocoon.autopeer
         /// Services Proxy request helper
         /// </summary>
         public CcService Services => CcNode.Services;
-
+        
+        /// <summary>
+        /// The router
+        /// </summary>
         public CcNeighbor Router { get; protected set; }
 
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();

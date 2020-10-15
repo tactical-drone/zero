@@ -22,14 +22,15 @@ namespace zero.cocoon.models.sources
             ArrayPoolProxy = arrayPool;
 
             MessageQueue = new ConcurrentQueue<ValueTuple<IIoZero, IMessage, object, Packet>[]>();
-
+    
+            var enableFairQ = false;
             var enableDeadlockDetection = true;
 #if RELEASE
             enableDeadlockDetection = false;
 #endif
             
-            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  false, enableDeadlockDetection)).target;
-            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, false, enableDeadlockDetection)).target;
+            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  enableFairQ, enableDeadlockDetection)).target;
+            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, enableFairQ, enableDeadlockDetection)).target;
         }
 
         /// <summary>

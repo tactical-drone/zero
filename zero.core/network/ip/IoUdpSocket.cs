@@ -75,6 +75,8 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _argsIoHeap = null;
+            _tcsHeap = null;
             RemoteNodeAddress = null;
 #endif
         }
@@ -84,7 +86,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override ValueTask ZeroManagedAsync()
         {
-            _argsIoHeap.ZeroManaged();
+            _argsIoHeap.ZeroManaged(o => ((IDisposable)o).Dispose());
+            _tcsHeap.ZeroManaged(o => ((IIoZeroSemaphore)o).Zero());
             return base.ZeroManagedAsync();
         }
 
