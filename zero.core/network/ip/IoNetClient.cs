@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.core;
+using zero.core.misc;
 using zero.core.models;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
@@ -176,7 +178,17 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Detects socket drops //TODO this needs some work or testing
+        /// Backing variable
+        /// </summary>
+        private bool _operational = false;
+
+        /// <summary>
+        /// Rate limit socket health checks
+        /// </summary>
+        private long _lastSocketHealthCheck = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).ToUnixTimeMilliseconds();
+        
+        /// <summary>
+        /// Detects socket drops
         /// </summary>
         /// <returns>True it the connection is up, false otherwise</returns>
         public override bool IsOperational
@@ -185,39 +197,43 @@ namespace zero.core.network.ip
             {
                 try
                 {
+                    //fail fast
                     if (Zeroed())
                         return false;
-
-                    if (IoNetSocket == null)
-                        return false;
-
+                    
+                    //check TCP
                     if (IoNetSocket.IsTcpSocket)
                     {
-                        //var selectError = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectError)?"FAILED":"OK";
-                        //var selectRead = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectRead)? "OK" : "FAILED";//TODO what is this?
-                        //var selectWrite = _ioNetClient.Client.Poll(IoConstants.parm_rx_timeout, SelectMode.SelectWrite)? "OK" : "FAILED";
-
+                        //rate limit
+                        if (_lastSocketHealthCheck.ElapsedMsDelta() < 5000)
+                            return _operational && IoNetSocket.NativeSocket.Connected;
+                        
+                        _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         //TODO more checks?
-                        if (!IoNetSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
+                        if (!IoNetSocket.IsConnected() 
+                            // || 
+                            // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) || 
+                            // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectRead) ||
+                            // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
+                            )
                         {
-                            //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                            _logger.Trace($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
+                            if(Uptime.TickSec() > 5)
+                                _logger.Trace($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
 
                             //Do cleanup
-                            return false;
+                            return _operational = false;
                         }
+                        
+                        return _operational = true;
+                    }
 
-                        return true;
-                    }
-                    else
-                    {
-                        return IoNetSocket?.IsConnected() ?? false;
-                    }
+                    //Check UDP
+                    return _operational = (bool) IoNetSocket?.IsConnected();
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"The connection to `{Description}' has been closed:");
-                    return false;
+                    _logger.Trace(e, $"{Description}");
+                    return _operational = false;
                 }
             }            
         }

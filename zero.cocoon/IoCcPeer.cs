@@ -5,6 +5,7 @@ using NLog;
 using zero.cocoon.autopeer;
 using zero.cocoon.models;
 using zero.core.core;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
 using static System.Runtime.InteropServices.MemoryMarshal;
@@ -55,22 +56,52 @@ namespace zero.cocoon
         /// </summary>
         private readonly Logger _logger;
 
-
+        
+        /// <summary>
+        /// Description
+        /// </summary>
         private string _description;
 
         /// <summary>
-        /// A description of this peer
+        /// rate limit desc gens
         /// </summary>
+        private long _lastDescGen = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).Millisecond;
+
         public override string Description
         {
             get
             {
-                //if (_description != null)
-                //    return _description;
-                return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+                if (_lastDescGen.ElapsedMsDelta() > 10000 && _description != null)
+                    return _description;
                 
+                _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                try
+                {
+                    return _description = $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+                }
+                catch
+                {
+                    return _description??Key;
+                }
             }
         }
+        
+
+        // private string _description;
+        //
+        // /// <summary>
+        // /// A description of this peer
+        // /// </summary>
+        // public override string Description
+        // {
+        //     get
+        //     {
+        //         //if (_description != null)
+        //         //    return _description;
+        //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(IoCcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+        //         
+        //     }
+        // }
 
         /// <summary>
         /// The source

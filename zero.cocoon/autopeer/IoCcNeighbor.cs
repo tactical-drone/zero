@@ -76,6 +76,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 State = NeighborState.Local;
+                _routingTable = new IoCcNeighbor[IPEndPoint.MaxPort];
             }
         }
 
@@ -122,24 +123,29 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private string _description;
 
+        /// <summary>
+        /// rate limit desc gens
+        /// </summary>
+        private long _lastDescGen = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).Millisecond;
+
         public override string Description
         {
             get
             {
-                //if (_description != null)
-                //    return _description;
+                if (_lastDescGen.ElapsedMsDelta() > 10000 && _description != null)
+                    return _description;
+                
+                _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{TotalPats.ToString().PadLeft(2)}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
+                    return _description = $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress}, remote: {Key}'";
                 }
                 catch (Exception e)
                 {
                     if (Collected)
                         _logger.Debug(e, Description);
-                    return $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{TotalPats.ToString().PadLeft(2)}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress}, remote: {Key}'";;
+                    return _description?? $"`neighbor({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress}, remote: {Key}'";;
                 }
-
-                return _description;
             }
         }
 
@@ -160,6 +166,11 @@ namespace zero.cocoon.autopeer
         /// Source
         /// </summary>
         protected IoNetClient<IoCcPeerMessage> MessageService => (IoNetClient<IoCcPeerMessage>) Source;
+
+        /// <summary>
+        /// The udp routing table 
+        /// </summary>
+        private IoCcNeighbor[] _routingTable;
 
         /// <summary>
         /// The gossip peer associated with this neighbor
@@ -527,6 +538,7 @@ namespace zero.cocoon.autopeer
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _routingTable = null;
             _pingRequest = null;
             _peer = null;
             _protocolConduit = null;
@@ -545,7 +557,7 @@ namespace zero.cocoon.autopeer
         {
             if (Proxy)
                 await SendPeerDropAsync().ConfigureAwait(false);
-
+            
             State = NeighborState.ZeroState;
 
             if (ConnectedAtLeastOnce && Direction != Heading.Undefined)
@@ -743,7 +755,7 @@ namespace zero.cocoon.autopeer
                 ArrayPoolProxy?.Return(((IoCcProtocolMessage) msg).Batch);
             }
         }
-
+        
         /// <summary>
         /// Processes a protocol message
         /// </summary>
@@ -806,10 +818,11 @@ namespace zero.cocoon.autopeer
                                         var (iccNeighbor, message, extraData, packet) = msgBatch;
                                         try
                                         {
-                                            var ccNeighbor = (IoCcNeighbor) iccNeighbor;
-                                            if (ccNeighbor == null || ccNeighbor.IsLocal)
-                                                ccNeighbor = (IoCcNeighbor) __this.DiscoveryService.Neighbors.Values.FirstOrDefault(n => ((IoNetClient<IoCcPeerMessage>)((IoCcNeighbor)n).Source).IoNetSocket.RemoteNodeAddress.Port == ((IPEndPoint)extraData).Port);
-
+                                            var ccNeighbor = Router._routingTable[((IPEndPoint) extraData).Port] ?? 
+                                                             (IoCcNeighbor) __this.DiscoveryService.Neighbors.Values.FirstOrDefault(n => ((IoNetClient<IoCcPeerMessage>)((IoCcNeighbor)n).Source).IoNetSocket.RemoteNodeAddress.Port == ((IPEndPoint)extraData).Port);
+                                            
+                                            Router._routingTable[((IPEndPoint) extraData).Port] ??= ccNeighbor;
+                                            
                                             ccNeighbor ??= __this.DiscoveryService.Router;
 
                                             switch ((IoCcPeerMessage.MessageTypes)packet.Type)
