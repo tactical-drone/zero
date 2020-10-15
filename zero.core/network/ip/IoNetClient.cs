@@ -148,12 +148,6 @@ namespace zero.core.network.ip
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
         {
-            //Is the connection up?
-            if (!IsOperational)
-            {
-                return false;
-            }
-
             try
             {
                 return await callback((IIoSourceBase) IoNetSocket, barrier, zeroClosure, jobClosure).ConfigureAwait(false);
@@ -207,7 +201,7 @@ namespace zero.core.network.ip
                         if (!IoNetSocket.IsConnected() /*|| selectError=="FAILED" || selectRead == "FAILED" || selectWrite == "FAILED" */)
                         {
                             //_logger.Warn($"`{Address}' is in a faulted state, connected={_ioNetClient.Client.Connected}, {SelectMode.SelectError}={selectError}, {SelectMode.SelectRead}={selectRead}, {SelectMode.SelectWrite}={selectWrite}");
-                            _logger.Warn($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
+                            _logger.Trace($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
 
                             //Do cleanup
                             return false;
