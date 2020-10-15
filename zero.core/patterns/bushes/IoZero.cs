@@ -654,8 +654,8 @@ namespace zero.core.patterns.bushes
                                 lock (Environment.Version)
                                 {
                                     _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                    _logger.Info(
-                                        "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+                                    //_logger.Info(
+                                    //    "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                                     _logger.Info(
                                         $"{Description} {JobHeap.IoFpsCounter.Fps():F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();

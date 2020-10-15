@@ -41,9 +41,9 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), parm_max_network_latency, Source.ConcurrencyLevel);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), parm_max_network_latency, Source.ConcurrencyLevel);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), parm_max_network_latency, Source.ConcurrencyLevel);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel, parm_max_network_latency, CcNode.parm_max_inbound);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel, parm_max_network_latency, CcNode.parm_max_inbound);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel, parm_max_network_latency, CcNode.parm_max_inbound);
 
             if (extraData != null)
             {
@@ -174,7 +174,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether the peer is nominal
         /// </summary>
-        public bool IsPeerConnected => IsPeerAttached && (_peer?.IoSource?.IsOperational ?? false);
+        public bool IsPeerConnected => IsPeerAttached && (_peer?.IoSource?.IsOperational ?? false) && State == NeighborState.Connected;
 
         /// <summary>
         /// Is this the local listener
@@ -436,7 +436,7 @@ namespace zero.cocoon.autopeer
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_network_latency = 2000;
+        public int parm_max_network_latency = 500;
 
         /// <summary>
         /// Maximum number of peers in discovery response
@@ -808,64 +808,40 @@ namespace zero.cocoon.autopeer
                                         {
                                             var ccNeighbor = (IoCcNeighbor) iccNeighbor;
                                             if (ccNeighbor == null || ccNeighbor.IsLocal)
-                                            {
-                                                if (__this.DiscoveryService.Neighbors.TryGetValue(
-                                                    MakeId(IoCcIdentity.FromPubKey(packet.PublicKey.Span),
-                                                        extraData.ToString()),
-                                                    out var n))
-                                                {
-                                                    ccNeighbor = (IoCcNeighbor) n;
-#if DEBUG
-                                                    if (ccNeighbor.Proxy &&
-                                                        ((IoNetClient<IoCcPeerMessage>) ccNeighbor.Source).IoNetSocket
-                                                        .LocalNodeAddress.Port == ((IPEndPoint) extraData).Port ||
-                                                        ((IoNetClient<IoCcPeerMessage>) ccNeighbor.Source).IoNetSocket
-                                                        .RemoteNodeAddress.Port != ((IPEndPoint) extraData).Port)
-                                                    {
-                                                        __this._logger.Fatal(
-                                                            $"{ccNeighbor.Description}, <=> {extraData} BAD ROUTING!");
-                                                        msg.State = IoJobMeta.JobState.ConInvalid;
-                                                        return;
-                                                    }
-#endif
-                                                }
-                                            }
-                                            else
-                                            {
-                                            }
+                                                ccNeighbor = (IoCcNeighbor) __this.DiscoveryService.Neighbors.Values.FirstOrDefault(n => ((IoNetClient<IoCcPeerMessage>)((IoCcNeighbor)n).Source).IoNetSocket.RemoteNodeAddress.Port == ((IPEndPoint)extraData).Port);
 
                                             ccNeighbor ??= __this.DiscoveryService.Router;
 
-                                            switch (message.GetType().Name)
+                                            switch ((IoCcPeerMessage.MessageTypes)packet.Type)
                                             {
-                                                case nameof(Ping):
+                                                case IoCcPeerMessage.MessageTypes.Ping:
                                                     await ccNeighbor.ProcessAsync((Ping) message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
-                                                case nameof(Pong):
+                                                case IoCcPeerMessage.MessageTypes.Pong:
                                                     await ccNeighbor.ProcessAsync((Pong) message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
-                                                case nameof(DiscoveryRequest):
+                                                case IoCcPeerMessage.MessageTypes.DiscoveryRequest:
                                                     await ccNeighbor
                                                         .ProcessAsync((DiscoveryRequest) message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
-                                                case nameof(DiscoveryResponse):
+                                                case IoCcPeerMessage.MessageTypes.DiscoveryResponse:
                                                     await ccNeighbor.ProcessAsync((DiscoveryResponse) message,
                                                         extraData, packet).ConfigureAwait(false);
                                                     break;
-                                                case nameof(PeeringRequest):
+                                                case IoCcPeerMessage.MessageTypes.PeeringRequest:
                                                     await ccNeighbor
                                                         .ProcessAsync((PeeringRequest) message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
-                                                case nameof(PeeringResponse):
+                                                case IoCcPeerMessage.MessageTypes.PeeringResponse:
                                                     await ccNeighbor
                                                         .ProcessAsync((PeeringResponse) message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
-                                                case nameof(PeeringDrop):
+                                                case IoCcPeerMessage.MessageTypes.PeeringDrop:
                                                     await ccNeighbor
                                                         .ProcessAsync((PeeringDrop) message, extraData, packet)
                                                         .ConfigureAwait(false);
@@ -1012,7 +988,7 @@ namespace zero.cocoon.autopeer
             }
 
             //Drop old requests
-            if (request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
+            if (request.Timestamp.ElapsedDelta() > parm_max_network_latency / 1000 * 2)
             {
                 _logger.Trace(
                     $"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.ElapsedDelta()}");
@@ -1380,7 +1356,7 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_time_error * 2)
+            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_network_latency / 1000 * 2)
             {
                 if (Collected)
                     _logger.Trace(
@@ -1436,10 +1412,10 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(Ping ping, object extraData, Packet packet)
         {
             var remoteEp = (IPEndPoint) extraData;
-            var age = Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - ping.Timestamp);
-            if (age > parm_max_time_error * 2) //TODO params
+            
+            if (ping.Timestamp.ElapsedDelta() > parm_max_network_latency/1000 * 2) //TODO params
             {
-                _logger.Trace($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {age}s");
+                _logger.Trace($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.Elapsed()}s");
                 return;
             }
 
@@ -1648,8 +1624,9 @@ namespace zero.cocoon.autopeer
                     Version = 0,
                     SrcAddr = "0.0.0.0",
                     SrcPort = (uint) CcNode.Services.IoCcRecord.Endpoints[IoCcService.Keys.peering].Port,
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
-                        parm_max_time_error + parm_max_time_error / 2
+                    // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
+                    //     parm_max_time_error + parm_max_time_error / 2
+                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
                 var reqBuf = pingRequest.ToByteString();
@@ -1742,8 +1719,9 @@ namespace zero.cocoon.autopeer
 
                 var discoveryRequest = new DiscoveryRequest
                 {
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
-                        parm_max_time_error + parm_max_time_error / 2
+                    // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
+                    //     parm_max_time_error + parm_max_time_error / 2
+                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
                 var reqBuf = discoveryRequest.ToByteString();
@@ -1842,8 +1820,9 @@ namespace zero.cocoon.autopeer
                 {
                     Salt = new Salt
                         {ExpTime = (ulong) DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeSeconds(), Bytes = GetSalt},
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
-                        parm_max_time_error + parm_max_time_error / 2
+                    // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
+                    //     parm_max_time_error + parm_max_time_error / 2
+                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
                 var reqBuf = peerRequest.ToByteString();
@@ -1913,8 +1892,9 @@ namespace zero.cocoon.autopeer
 
                 var dropRequest = new PeeringDrop
                 {
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
-                        parm_max_time_error + parm_max_time_error / 2
+                    // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
+                    //     parm_max_time_error + parm_max_time_error / 2
+                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
                 var sent = 0;

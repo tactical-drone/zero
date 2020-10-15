@@ -492,27 +492,27 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    switch (messageType)
+                    switch ((MessageTypes)packet.Type)
                     {
-                        case nameof(MessageTypes.Ping):
+                        case MessageTypes.Ping:
                             await ProcessRequestAsync<Ping>(packet).ConfigureAwait(false);
                             break;
-                        case nameof(MessageTypes.Pong):
+                        case MessageTypes.Pong:
                             await ProcessRequestAsync<Pong>(packet).ConfigureAwait(false);
                             break;
-                        case nameof(MessageTypes.DiscoveryRequest):
+                        case MessageTypes.DiscoveryRequest:
                             await ProcessRequestAsync<DiscoveryRequest>(packet).ConfigureAwait(false);
                             break;
-                        case nameof(MessageTypes.DiscoveryResponse):
+                        case MessageTypes.DiscoveryResponse:
                             await ProcessRequestAsync<DiscoveryResponse>(packet).ConfigureAwait(false);
                             break;
-                        case nameof(MessageTypes.PeeringRequest):
+                        case MessageTypes.PeeringRequest:
                             await ProcessRequestAsync<PeeringRequest>(packet).ConfigureAwait(false);
                             break;
-                        case nameof(MessageTypes.PeeringResponse):
+                        case MessageTypes.PeeringResponse:
                             await ProcessRequestAsync<PeeringResponse>(packet).ConfigureAwait(false);
                             break;
-                        case nameof(MessageTypes.PeeringDrop):
+                        case MessageTypes.PeeringDrop:
                             await ProcessRequestAsync<PeeringDrop>(packet).ConfigureAwait(false);
                             break;
                         default:

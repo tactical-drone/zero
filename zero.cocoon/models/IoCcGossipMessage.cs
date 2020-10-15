@@ -273,13 +273,12 @@ namespace zero.cocoon.models
                     var exp = Interlocked.Read(ref ((IoCcPeer) IoZero).AccountingBit);
                     if (req == exp)
                     {
-                        //_logger.Warn($"MATCH {((IoCcPeer)IoZero).AccountingBit}");
-
+                        
                         req++;
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        await Task.Delay(1000, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(500, AsyncTasks.Token).ConfigureAwait(false);
 
                         var sentTask = await ((IoNetClient<IoCcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
                         
@@ -287,9 +286,6 @@ namespace zero.cocoon.models
                         {
                             Interlocked.Add(ref ((IoCcPeer) IoZero).AccountingBit, 2);
                         }
-
-                        //if ((req % 1000) == 0)
-                        //    _logger.Info($"1000>> {exp}");
                     }
                     else
                     {

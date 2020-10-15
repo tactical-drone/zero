@@ -111,7 +111,7 @@ namespace zero.cocoon
                         IoCcNeighbor suceptable = null;
                         
                         //Attempt to peer with standbys
-                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
+                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 2)
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");
@@ -159,7 +159,7 @@ namespace zero.cocoon
                                 }
                             }
                         }
-                        else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 2 + 1) //scan for discovery
+                        else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 8 + 1) //scan for discovery
                         {
                             var maxP = _autoPeering.Neighbors.Values.Max(n => ((IoCcNeighbor) n).Priority);
                             var targetQ = _autoPeering.Neighbors.Values.Where(n => ((IoCcNeighbor) n).Assimilated && ((IoCcNeighbor) n).Priority < maxP/2)
