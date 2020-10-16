@@ -370,7 +370,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void ZeroUnmanaged()
         {
-            
+            _nanoMutex = null;
         }
 
         /// <summary>
@@ -379,6 +379,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual ValueTask ZeroManagedAsync()
         {
+            _nanoMutex.Zero();
             return ValueTask.CompletedTask;
         }
 
@@ -447,6 +448,11 @@ namespace zero.core.patterns.misc
             return false;
         }
 
+        /// <summary>
+        /// Equals
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns>True if equal, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(IIoNanite other)
         {

@@ -11,7 +11,7 @@ using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
-    public class CcPeer : IoNeighbor<CcGossipMessage>
+    public class CcDrone : IoNeighbor<CcGossipMessage>
     {
         /// <summary>
         /// Ctor
@@ -19,7 +19,7 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcPeer(IoNode<CcGossipMessage> node, CcAdjunct adjunct,
+        public CcDrone(IoNode<CcGossipMessage> node, CcAdjunct adjunct,
             IoNetClient<CcGossipMessage> ioNetClient)
             : base(node, ioNetClient,
                 userData => new CcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
@@ -76,7 +76,7 @@ namespace zero.cocoon
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`peer({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Identity.IdString()}]'";
+                    return _description = $"`peer({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Designation.IdString()}]'";
                 }
                 catch
                 {

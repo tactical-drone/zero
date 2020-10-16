@@ -2,9 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
-using System.Threading;
 using NLog;
-using zero.core.core;
 
 namespace zero.core.network.ip
 {
@@ -143,9 +141,7 @@ namespace zero.core.network.ip
 
             return this;
         }
-
-
-
+        
         /// <summary>
         /// The Url string in form url://ip:port
         /// </summary>
@@ -287,11 +283,20 @@ namespace zero.core.network.ip
             return obj != null && Equals((IoNodeAddress) obj);
         }
 
+        /// <summary>
+        /// Determines equality based on IP:Port
+        /// </summary>
+        /// <param name="other">The comparator</param>
+        /// <returns>True if the IPs are the same, false otherwise</returns>
         protected bool Equals(IoNodeAddress other)
         {
             return Port == other.Port && Ip == other.Ip;
         }
 
+        /// <summary>
+        /// Hash function
+        /// </summary>
+        /// <returns>The hash</returns>
         public override int GetHashCode()
         {
             return Key.GetHashCode();

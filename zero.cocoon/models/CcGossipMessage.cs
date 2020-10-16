@@ -55,7 +55,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The node that this message belongs to
         /// </summary>
-        protected CcNode CcNode => ((CcPeer)IoZero).Neighbor.CcNode;
+        protected CcNode CcNode => ((CcDrone)IoZero).Adjunct.CcNode;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -119,7 +119,7 @@ namespace zero.cocoon.models
             if (!sentTask.IsCompletedSuccessfully)
                 await sentTask.ConfigureAwait(false);
             
-            _logger.Debug($"{nameof(CcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<CcGossipMessage>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcPeerMessage.MessageTypes), responsePacket.Type)})");
+            _logger.Debug($"{nameof(CcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<CcGossipMessage>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
             return sentTask.Result;
         }
 
@@ -272,7 +272,7 @@ namespace zero.cocoon.models
                 for (var i = 0; i < DatumCount; i++)
                 {
                     var req = MemoryMarshal.Read<long>(BufferSpan.Slice(BufferOffset, DatumSize));
-                    var exp = Interlocked.Read(ref ((CcPeer) IoZero).AccountingBit);
+                    var exp = Interlocked.Read(ref ((CcDrone) IoZero).AccountingBit);
                     if (req == exp)
                     {
                         
@@ -286,7 +286,7 @@ namespace zero.cocoon.models
                         
                         if (sentTask > 0)
                         {
-                            Interlocked.Add(ref ((CcPeer) IoZero).AccountingBit, 2);
+                            Interlocked.Add(ref ((CcDrone) IoZero).AccountingBit, 2);
                         }
                     }
                     else
@@ -302,7 +302,7 @@ namespace zero.cocoon.models
                             if (await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket
                                 .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
-                                Volatile.Write(ref ((CcPeer)IoZero).AccountingBit, 2);
+                                Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 2);
                             }
                         }
                         else
@@ -314,7 +314,7 @@ namespace zero.cocoon.models
                             if (await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket
                                 .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
-                                Volatile.Write(ref ((CcPeer)IoZero).AccountingBit, 1);
+                                Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 1);
                             }
                         }
                     }

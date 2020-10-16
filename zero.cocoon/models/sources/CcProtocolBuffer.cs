@@ -5,14 +5,25 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
+using zero.cocoon.autopeer;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.semaphore;
 
 namespace zero.cocoon.models.sources
 {
+    /// <summary>
+    /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/> for <see cref="CcAdjunct"/>
+    /// </summary>
     public class CcProtocolBuffer : IoSource<CcProtocolMessage>
     {
+        /// <summary>
+        /// ctor
+        /// </summary>
+        /// <param name="ioSource">The source of this model</param>
+        /// <param name="arrayPool">Used to establish a pool</param>
+        /// <param name="prefetchSize">Initial job prefetch from source</param>
+        /// <param name="concurrencyLevel">The level of concurrency when producing and consuming on this source</param>
         public CcProtocolBuffer(IIoSource ioSource,ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
             : base(prefetchSize, concurrencyLevel)//TODO config
         {
@@ -62,28 +73,10 @@ namespace zero.cocoon.models.sources
         /// Keys this instance.
         /// </summary>
         public override string Key => $"{nameof(CcProtocolBuffer)}({Upstream.Key})";
-
+        
         /// <summary>
-        /// Description of upstream conduit
+        /// A description
         /// </summary>
-        //public override string Description
-        //{
-        //    get
-        //    {
-        //        try
-        //        {
-        //            if(!Zeroed())
-        //                return $"{MessageQueue.Select(m => m.Length > 0 ? m.FirstOrDefault() : null).FirstOrDefault()?.Item2}";
-        //        }
-        //        catch (Exception e)
-        //        {
-        //            _logger.Trace(e,"Failed to get description:");
-        //        }
-
-        //        return null;
-        //    }
-        //} 
-
         public override string Description => Key;
 
         /// <summary>

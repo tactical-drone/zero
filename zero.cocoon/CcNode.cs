@@ -25,9 +25,9 @@ namespace zero.cocoon
     /// </summary>
     public class CcNode : IoNode<CcGossipMessage>
     {
-        public CcNode(CcIdentity ccIdentity, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
+        public CcNode(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, (node, ioNetClient, extraData) => new CcPeer((CcNode)node, (CcNeighbor)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
+            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcNode)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -35,13 +35,13 @@ namespace zero.cocoon
             _fpcAddress = fpcAddress;
             BootstrapAddress = bootstrap;
             ExtAddress = extAddress; //this must be the external or NAT address.
-            CcId = ccIdentity;
+            CcId = ccDesignation;
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = ZeroOnCascade(new CcNeighborDiscovery(this, _peerAddress, (node, client, extraData) => new CcNeighbor((CcNeighborDiscovery)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
+            _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
 
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -55,7 +55,7 @@ namespace zero.cocoon
             {
                 Data = handshakeRequest.ToByteString(),
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcPeerMessage.MessageTypes.Handshake
+                Type = (uint)CcSubspaceMessage.MessageTypes.Handshake
             };
             protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length));
 
@@ -63,14 +63,14 @@ namespace zero.cocoon
 
             var handshakeResponse = new HandshakeResponse
             {
-                ReqHash = ByteString.CopyFrom(CcIdentity.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray()))
+                ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray()))
             };
 
             protocolMsg = new Packet
             {
                 Data = handshakeResponse.ToByteString(),
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcPeerMessage.MessageTypes.Handshake
+                Type = (uint)CcSubspaceMessage.MessageTypes.Handshake
             };
             protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length));
 
@@ -106,7 +106,7 @@ namespace zero.cocoon
                         var totalAdjuncts = TotalConnections;
                         double scanRatio = 1;
                         double peerAttempts = 0;
-                        CcNeighbor susceptible = null;
+                        CcAdjunct susceptible = null;
                         
                         //Attempt to peer with standbys
                         if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > (parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)) * 2)
@@ -116,13 +116,13 @@ namespace zero.cocoon
 
                             //Send peer requests
                             foreach (var neighbor in _autoPeering.Neighbors.Values.Where(n =>
-                                    ((CcNeighbor)n).Assimilated && 
-                                    ((CcNeighbor)n).Direction == CcNeighbor.Heading.Undefined &&
-                                    ((CcNeighbor)n).State > CcNeighbor.NeighborState.Unverified &&
-                                    ((CcNeighbor)n).State < CcNeighbor.NeighborState.Peering &&
-                                    ((CcNeighbor)n).TotalPats > ((CcNeighbor)n).parm_zombie_max_connection_attempts &&
-                                    ((CcNeighbor)n).SecondsSincePat < ((CcNeighbor)n).parm_zombie_max_ttl).
-                                OrderBy(n=>((CcNeighbor)n).Priority))
+                                    ((CcAdjunct)n).Assimilated && 
+                                    ((CcAdjunct)n).Direction == CcAdjunct.Heading.Undefined &&
+                                    ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified &&
+                                    ((CcAdjunct)n).State < CcAdjunct.AdjunctState.Peering &&
+                                    ((CcAdjunct)n).TotalPats > ((CcAdjunct)n).parm_zombie_max_connection_attempts &&
+                                    ((CcAdjunct)n).SecondsSincePat < ((CcAdjunct)n).parm_zombie_max_ttl).
+                                OrderBy(n=>((CcAdjunct)n).Priority))
                             {
                                 if (Zeroed())
                                     break;
@@ -131,11 +131,11 @@ namespace zero.cocoon
                                 //but that means it is probably not depleting its standby neighbors which is what 
                                 //we are after. It's a long shot that relies on probability in the long run
                                 //to work.
-                                susceptible ??= (CcNeighbor) neighbor;
+                                susceptible ??= (CcAdjunct) neighbor;
 
                                 if (EgressConnections < parm_max_outbound)
                                 {
-                                    if (await ((CcNeighbor) neighbor).SendPeerRequestAsync()
+                                    if (await ((CcAdjunct) neighbor).SendPeerRequestAsync()
                                         .ConfigureAwait(false))
                                     {
                                         peerAttempts++;
@@ -144,7 +144,7 @@ namespace zero.cocoon
                                 }
                                 else
                                 {
-                                    ((CcNeighbor) neighbor).State = CcNeighbor.NeighborState.Standby;
+                                    ((CcAdjunct) neighbor).State = CcAdjunct.AdjunctState.Standby;
                                 }
                             }
                             
@@ -159,9 +159,9 @@ namespace zero.cocoon
                         }
                         else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 8 + 1) //scan for discovery
                         {
-                            var maxP = _autoPeering.Neighbors.Values.Max(n => ((CcNeighbor) n).Priority);
-                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcNeighbor) n).Assimilated && ((CcNeighbor) n).Priority < maxP/2)
-                                .OrderBy(n => ((CcNeighbor) n).Priority).ToList();
+                            var maxP = _autoPeering.Neighbors.Values.Max(n => ((CcAdjunct) n).Priority);
+                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).Assimilated && ((CcAdjunct) n).Priority < maxP/2)
+                                .OrderBy(n => ((CcAdjunct) n).Priority).ToList();
 
                             //Have we found a suitable direction to scan in?
                             if (targetQ.Count > 0)
@@ -169,11 +169,11 @@ namespace zero.cocoon
                                 var target = targetQ[Math.Max(_random.Next(targetQ.Count) - 1, 0)];
 
                                 //scan
-                                if (target != null && !await ((CcNeighbor) target).SendDiscoveryRequestAsync()
+                                if (target != null && !await ((CcAdjunct) target).SendDiscoveryRequestAsync()
                                     .ConfigureAwait(false))
                                 {
                                     if(target != null)
-                                        _logger.Trace($"{nameof(CcNeighbor.SendDiscoveryRequestAsync)}: [FAILED], c = {targetQ.Count}, {Description}");
+                                        _logger.Trace($"{nameof(CcAdjunct.SendDiscoveryRequestAsync)}: [FAILED], c = {targetQ.Count}, {Description}");
                                 }
                                 else
                                 {
@@ -191,7 +191,7 @@ namespace zero.cocoon
                         _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");
                     }
                 }
-            }, TaskCreationOptions.LongRunning);
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
         }
 
         /// <summary>
@@ -240,7 +240,7 @@ namespace zero.cocoon
             }
         }
 
-        private IoNode<CcPeerMessage> _autoPeering;
+        private IoNode<CcSubspaceMessage> _autoPeering;
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
         private readonly IoNodeAddress _fpcAddress;
@@ -284,7 +284,7 @@ namespace zero.cocoon
         /// <summary>
         /// The discovery service
         /// </summary>
-        public CcNeighborDiscovery DiscoveryService => (CcNeighborDiscovery)_autoPeering;
+        public CcHub Hub => (CcHub)_autoPeering;
 
 
         /// <summary>
@@ -295,17 +295,17 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Neighbors.Values.Count(kv => ((CcPeer)kv).Neighbor != null && ((CcPeer)kv).Neighbor.IsPeerConnected && (((CcPeer)kv).Neighbor.Inbound) && ((CcPeer)kv).Neighbor.State == CcNeighbor.NeighborState.Connected);
+        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Inbound) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Neighbors.Values.Count(kv => ((CcPeer)kv).Neighbor != null && ((CcPeer)kv).Neighbor.IsPeerConnected && (((CcPeer)kv).Neighbor.Outbound) && ((CcPeer)kv).Neighbor.State == CcNeighbor.NeighborState.Connected);
+        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Outbound) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
 
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcPeer)kv).Neighbor != null && ((CcPeer)kv).Neighbor.IsPeerConnected && ((CcPeer)kv).Neighbor.Inbound && ((CcPeer)kv).Neighbor.State == CcNeighbor.NeighborState.Connected).ToList();
+        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && ((CcDrone)kv).Adjunct.Inbound && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -373,7 +373,7 @@ namespace zero.cocoon
         /// <summary>
         /// The node id
         /// </summary>
-        public CcIdentity CcId { get; protected set; }
+        public CcDesignation CcId { get; protected set; }
 
         /// <summary>
         /// Spawn the node listeners
@@ -399,7 +399,7 @@ namespace zero.cocoon
                     return false;
 
                 //Handshake
-                if (await HandshakeAsync((CcPeer)peer).ConfigureAwait(false))
+                if (await HandshakeAsync((CcDrone)peer).ConfigureAwait(false))
                 {
                     //ACCEPT
                     _logger.Info($"+ {peer.Description}");
@@ -414,28 +414,28 @@ namespace zero.cocoon
         /// <summary>
         /// Sends a message to a peer
         /// </summary>
-        /// <param name="peer">The destination</param>
+        /// <param name="drone">The destination</param>
         /// <param name="msg">The message</param>
         /// <param name="timeout"></param>
         /// <returns>The number of bytes sent</returns>
-        private async ValueTask<int> SendMessageAsync(CcPeer peer, ByteString msg, string type, int timeout = 0)
+        private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type, int timeout = 0)
         {
             var responsePacket = new Packet
             {
                 Data = msg,
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcPeerMessage.MessageTypes.Handshake
+                Type = (uint)CcSubspaceMessage.MessageTypes.Handshake
             };
 
             responsePacket.Signature = ByteString.CopyFrom(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
 
             var protocolRaw = responsePacket.ToByteArray();
 
-            var sent = await peer.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).ConfigureAwait(false);
+            var sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).ConfigureAwait(false);
 
             if (sent == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sent} bytes to {peer.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcPeerMessage.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else
@@ -455,14 +455,14 @@ namespace zero.cocoon
         /// <summary>
         /// Perform handshake
         /// </summary>
-        /// <param name="peer"></param>
+        /// <param name="drone"></param>
         /// <returns></returns>
-        private async ValueTask<bool> HandshakeAsync(CcPeer peer)
+        private async ValueTask<bool> HandshakeAsync(CcDrone drone)
         {
             return await ZeroAtomicAsync(async (s, u, d) =>
             {
                 var _this = (CcNode)s;
-                var __peer = (CcPeer) u;
+                var __peer = (CcDrone) u;
                 var bytesRead = 0;
                 if (_this.Zeroed()) return false;
 
@@ -510,7 +510,7 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            if (!await _this.ConnectForTheWinAsync(CcNeighbor.Heading.Ingress, __peer, packet,
+                            if (!await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet,
                                     (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint)
                                 .ConfigureAwait(false))
                                 return false;
@@ -561,7 +561,7 @@ namespace zero.cocoon
                                 //send response
                                 var handshakeResponse = new HandshakeResponse
                                 {
-                                    ReqHash = ByteString.CopyFrom(CcIdentity.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
+                                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
                                 };
                                 
                                 var handshake = handshakeResponse.ToByteString();
@@ -646,7 +646,7 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            if (!await _this.ConnectForTheWinAsync(CcNeighbor.Heading.Egress, __peer, packet,
+                            if (!await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Egress, __peer, packet,
                                     (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                                 .ConfigureAwait(false))
                                 return false;
@@ -675,7 +675,7 @@ namespace zero.cocoon
                         
                             if (handshakeResponse != null)
                             {
-                                if (!CcIdentity.Sha256
+                                if (!CcDesignation.Sha256
                                     .ComputeHash(handshake.Memory.AsArray())
                                     .SequenceEqual(handshakeResponse.ReqHash))
                                 {
@@ -703,33 +703,33 @@ namespace zero.cocoon
                 }
 
                 return false;
-            }, peer, force: true).ConfigureAwait(false);
+            }, drone, force: true).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Race for a connection locked on the neighbor it finds
         /// </summary>
         /// <param name="direction">The direction of the lock</param>
-        /// <param name="peer">The peer requesting the lock</param>
+        /// <param name="drone">The peer requesting the lock</param>
         /// <param name="packet">The handshake packet</param>
         /// <param name="remoteEp">The remote</param>
         /// <returns>True if it won, false otherwise</returns>
-        private async ValueTask<bool> ConnectForTheWinAsync(CcNeighbor.Heading direction, CcPeer peer, Packet packet, IPEndPoint remoteEp)
+        private async ValueTask<bool> ConnectForTheWinAsync(CcAdjunct.Heading direction, CcDrone drone, Packet packet, IPEndPoint remoteEp)
         {
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint.ToString()}: {Description}");
 
             //Race for connection...
-            var id = CcNeighbor.MakeId(CcIdentity.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
+            var id = CcAdjunct.MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
 
             var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
             if (neighbor != null)
             {
-                var ccNeighbor = (CcNeighbor) neighbor;
+                var ccNeighbor = (CcAdjunct) neighbor;
                 if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
-                    return await peer.AttachNeighborAsync((CcNeighbor) neighbor, direction).ConfigureAwait(false);
+                    return await drone.AttachNeighborAsync((CcAdjunct) neighbor, direction).ConfigureAwait(false);
                 }
                 else
                 {
@@ -745,31 +745,31 @@ namespace zero.cocoon
         }
 
         /// <summary>
-        /// Opens an <see cref="CcNeighbor.Heading.Egress"/> connection to a gossip peer
+        /// Opens an <see cref="CcAdjunct.Heading.Egress"/> connection to a gossip peer
         /// </summary>
-        /// <param name="neighbor">The verified neighbor associated with this connection</param>
-        public async ValueTask<bool> ConnectToPeerAsync(CcNeighbor neighbor)
+        /// <param name="adjunct">The verified neighbor associated with this connection</param>
+        public async ValueTask<bool> ConnectToPeerAsync(CcAdjunct adjunct)
         {
             //Validate
             if (
                     !Zeroed() && 
-                    neighbor.Assimilated &&
-                    !neighbor.IsPeerConnected &&
+                    adjunct.Assimilated &&
+                    !adjunct.IsPeerConnected &&
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc &&
-                    neighbor.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)
+                    adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)
                 )
             {
-                var peer = await ConnectAsync(neighbor.Services.CcRecord.Endpoints[CcService.Keys.gossip], neighbor).ConfigureAwait(false);
+                var peer = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
                 if (Zeroed() || peer == null)
                 {
                     if (peer != null) await peer.ZeroAsync(this).ConfigureAwait(false);
-                    _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {neighbor.Description}, {neighbor.MetaDesc}");
+                    _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                     return false;
                 }
                 
                 //Race for a connection
-                if (await HandshakeAsync((CcPeer)peer).ConfigureAwait(false))
+                if (await HandshakeAsync((CcDrone)peer).ConfigureAwait(false))
                 {
                     _logger.Info($"+ {peer.Description}");
                     NeighborTasks.Add(peer.AssimilateAsync());
@@ -783,7 +783,7 @@ namespace zero.cocoon
             }
             else
             {
-                _logger.Trace($"{nameof(ConnectToPeerAsync)}: Connect skipped: {neighbor.Description}");
+                _logger.Trace($"{nameof(ConnectToPeerAsync)}: Connect skipped: {adjunct.Description}");
                 return false;
             }
         }
@@ -799,7 +799,7 @@ namespace zero.cocoon
             {
                 try
                 {
-                    await ((CcPeer) ioNeighbor).StartTestModeAsync().ConfigureAwait(false);
+                    await ((CcDrone) ioNeighbor).StartTestModeAsync().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
@@ -822,9 +822,9 @@ namespace zero.cocoon
                     if (!ioNodeAddress.Equals(_peerAddress))
                     {
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                        if (!await DiscoveryService.Router.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
+                        if (!await Hub.Router.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
                         {
-                            if(!DiscoveryService.Router.Zeroed())
+                            if(!Hub.Router.Zeroed())
                                 _logger.Trace($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
                         }
                     }

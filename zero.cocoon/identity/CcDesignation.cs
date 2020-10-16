@@ -8,9 +8,9 @@ using Org.BouncyCastle.Security;
 
 namespace zero.cocoon.identity
 {
-    public class CcIdentity
+    public class CcDesignation
     {
-        static CcIdentity()
+        static CcDesignation()
         {
             SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
         }
@@ -35,10 +35,10 @@ namespace zero.cocoon.identity
             return Base58CheckEncoding.EncodePlain(PublicKey);
         }
 
-        public static CcIdentity FromPubKey(ReadOnlySpan<byte> pk)
+        public static CcDesignation FromPubKey(ReadOnlySpan<byte> pk)
         {
             var a = pk.ToArray();
-            return new CcIdentity
+            return new CcDesignation
             {
                 PublicKey = a,
                 Id = Sha256.ComputeHash(a)
@@ -46,7 +46,7 @@ namespace zero.cocoon.identity
         }
 
         private static readonly SecureRandom SecureRandom = SecureRandom.GetInstance("SHA256PRNG");
-        public static CcIdentity Generate(bool devMode = false)
+        public static CcDesignation Generate(bool devMode = false)
         {
             //var skBuf = new byte[Ed25519.SecretKeySize];
             var skBuf = Base58CheckEncoding.Decode(DevKey);
@@ -61,7 +61,7 @@ namespace zero.cocoon.identity
             //Console.WriteLine($"PK = {Base58CheckEncoding.EncodePlain(pkBuf)}");
             //Console.WriteLine($"ID = {Base58CheckEncoding.EncodePlain(Sha256.ComputeHash(pkBuf).AsSpan().Slice(0,8).ToArray())}");
 
-            return new CcIdentity
+            return new CcDesignation
             {
                 PublicKey = pkBuf,
                 SecretKey = skBuf,
@@ -84,7 +84,7 @@ namespace zero.cocoon.identity
 
         public override bool Equals(object obj)
         {
-            var id = obj as CcIdentity;
+            var id = obj as CcDesignation;
 
             if (id == null)
                 throw new ArgumentNullException(nameof(obj));

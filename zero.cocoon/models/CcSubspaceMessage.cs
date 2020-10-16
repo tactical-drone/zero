@@ -22,9 +22,9 @@ namespace zero.cocoon.models
     /// <summary>
     /// The model for translating <see cref="CcHub"/> messages
     /// </summary>
-    public class CcPeerMessage : IoMessage<CcPeerMessage>
+    public class CcSubspaceMessage : IoMessage<CcSubspaceMessage>
     {
-        public CcPeerMessage(string sinkDesc, string jobDesc, IoSource<CcPeerMessage> source) 
+        public CcSubspaceMessage(string sinkDesc, string jobDesc, IoSource<CcSubspaceMessage> source) 
             : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -101,7 +101,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Base source
         /// </summary>
-        protected IoUdpClient<CcPeerMessage> MessageService => (IoUdpClient<CcPeerMessage>) Source;
+        protected IoUdpClient<CcSubspaceMessage> MessageService => (IoUdpClient<CcSubspaceMessage>) Source;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -220,7 +220,7 @@ namespace zero.cocoon.models
             {
                 await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (CcPeerMessage)ioJob;
+                    var _this = (CcSubspaceMessage)ioJob;
                     //----------------------------------------------------------------------------
                     // BARRIER
                     // We are only allowed to run ahead of the consumer by some configurable
@@ -368,7 +368,7 @@ namespace zero.cocoon.models
         {
             if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
-            var p = (IoMessage<CcPeerMessage>) PreviousJob;
+            var p = (IoMessage<CcSubspaceMessage>) PreviousJob;
             try
             {
                 var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
@@ -401,7 +401,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Cc Identity
         /// </summary>
-        public CcIdentity CcId => CcNode.CcId;
+        public CcDesignation CcId => CcNode.CcId;
 
         /// <summary>
         /// Message sink
@@ -618,7 +618,7 @@ namespace zero.cocoon.models
                 //cog the source
                 var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
                 {
-                    var _this = (CcPeerMessage) ioJob;
+                    var _this = (CcSubspaceMessage) ioJob;
 
                     if (!await ((CcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
