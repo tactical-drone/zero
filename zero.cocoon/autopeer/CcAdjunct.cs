@@ -1,7 +1,6 @@
-﻿using System;
+﻿//#define LOSS
+using System;
 using System.Buffers;
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
@@ -36,7 +35,7 @@ namespace zero.cocoon.autopeer
             (
                 node,
                 ioNetClient,
-                userData => new CcSubspaceMessage("peer RX", $"{ioNetClient.Key}", ioNetClient),
+                userData => new CcSubspaceMessage("adjunct RX", $"{ioNetClient.Key}", ioNetClient),
                 ioNetClient.ConcurrencyLevel,
                 ioNetClient.ConcurrencyLevel
             )
@@ -1133,8 +1132,33 @@ namespace zero.cocoon.autopeer
                     ByteString.CopyFrom(CcNode.CcId.Sign(packet.Data!.Memory.AsArray(), 0, packet.Data.Length));
                 var msgRaw = packet.ToByteArray();
 
+
+//simulate byzantine failure.                
+#if LOSS
+                var sent = 0;
+                var loss = 75;
+                if (_random.Next(100) < loss) //drop
+                {
+                    sent = msgRaw.Length;
+                } 
+                else if(_random.Next(100) < loss) //duplicate
+                {
+                    sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                        .ConfigureAwait(false);
+                    
+                    sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                        .ConfigureAwait(false);
+                }
+                else //nominal
+                {
+                    sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                        .ConfigureAwait(false);
+                }
+#else
                 var sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
                     .ConfigureAwait(false);
+#endif
+                
 #if DEBUG
                 //await sent.OverBoostAsync().ConfigureAwait(false);
                 _logger.Trace(

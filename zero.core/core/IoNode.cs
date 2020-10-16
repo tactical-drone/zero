@@ -234,6 +234,10 @@ namespace zero.core.core
             }, bootstrapAsync).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Assimilate neighbor
+        /// </summary>
+        /// <param name="newNeighbor"></param>
         public void Assimilate(IoNeighbor<TJob> newNeighbor)
         {
             try
