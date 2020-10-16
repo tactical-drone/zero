@@ -26,6 +26,9 @@ using Logger = NLog.Logger;
 
 namespace zero.cocoon.autopeer
 {
+    /// <summary>
+    /// Processes (UDP) discovery messages from neighbors to form a mesh.
+    /// </summary>
     public class CcNeighbor : IoNeighbor<CcPeerMessage>
     {
         public CcNeighbor(CcNeighborDiscovery node, IoNetClient<CcPeerMessage> ioNetClient,
@@ -71,7 +74,7 @@ namespace zero.cocoon.autopeer
                         await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000,
                             AsyncTasks.Token).ConfigureAwait(false);
                     }
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
             else
             {
@@ -100,18 +103,10 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The current state
         /// </summary>
-#if DEBUG
         private volatile IoStateTransition<NeighborState> _currState = new IoStateTransition<NeighborState>()
         {
             FinalState = NeighborState.FinalState
         };
-#else
-        private volatile IoStateTransition<NeighborState> _currState = new IoStateTransition<NeighborState>()
-        {
-            FinalState = NeighborState.FinalState
-        };
-
-#endif
 
         /// <summary>
         /// logger
@@ -149,6 +144,9 @@ namespace zero.cocoon.autopeer
             }
         }
 
+        /// <summary>
+        /// return extra information about the state
+        /// </summary>
         public string MetaDesc =>
             $"(d = {Direction}, s = {State}, v = {Verified}, a = {Assimilated}, att = {IsPeerAttached}, c = {IsPeerConnected}, r = {PeeringAttempts}, g = {IsGossiping}, arb = {IsArbitrating}, o = {MessageService.IsOperational}, w = {TotalPats})";
 
@@ -440,14 +438,23 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public CcService Services { get; protected set; }
 
+        /// <summary>
+        /// Salt length
+        /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_salt_length = 20;
 
+        /// <summary>
+        /// Salt time to live
+        /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_salt_ttl = 2 * 60 * 60;
 
+        /// <summary>
+        /// Max expected network delay
+        /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_network_latency = 2000;
@@ -481,14 +488,14 @@ namespace zero.cocoon.autopeer
         public int parm_zombie_max_ttl = 120;
 
         /// <summary>
-        /// Maximum number of services supported
+        /// Maximum connection retry on non responsive nodes 
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_zombie_max_connection_attempts = 3;
 
         /// <summary>
-        /// Maximum number of services supported
+        /// Minimum pats before a node could be culled
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -595,29 +602,22 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async Task WatchdogAsync()
         {
-            //Are we limping?
-            if (!Proxy && DiscoveryService.Neighbors.Count <= 3)
-            {
-                //Try to bootstrap again
-                foreach (var ioNodeAddress in CcNode.BootstrapAddress)
-                {
-                    _logger.Trace($"Boostrapping: {ioNodeAddress} from {Description}");
-                    await DiscoveryService.Router.SendPingAsync(ioNodeAddress)
-                        .ConfigureAwait(false);
-                    return;
-                }
-            }
-
             // Verify request
             if (!Assimilated)
             {
                 return;
             }
-
+            
             //Moderate requests if we ensured at least once
             if (SecondsSincePat < parm_zombie_max_ttl / 2)
             {
                 return;
+            }
+            
+            //Are we limping?
+            if (!Proxy && DiscoveryService.Neighbors.Count <= 3)
+            {
+                await CcNode.BootAsync().ConfigureAwait(false);
             }
 
             //Watchdog failure
@@ -658,8 +658,8 @@ namespace zero.cocoon.autopeer
         public override async Task AssimilateAsync()
         {
             var processingAsync = base.AssimilateAsync();
-            //var protocol = Task.Factory.StartNew(o => ProcessAsync(),TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).Unwrap();
-            var protocol = ProcessAsync();
+            var protocol = Task.Factory.StartNew(o => ProcessAsync(),TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).Unwrap();
+            //var protocol = ProcessAsync();
 
             try
             {
@@ -732,8 +732,7 @@ namespace zero.cocoon.autopeer
             if (msg == null)
                 return;
 
-            var stopwatch = Stopwatch.StartNew();
-
+            //var stopwatch = Stopwatch.StartNew();
             try
             {
                 var protocolMsgs = ((CcProtocolMessage) msg).Batch;
@@ -756,7 +755,7 @@ namespace zero.cocoon.autopeer
 
                 msg.State = IoJobMeta.JobState.Consumed;
 
-                stopwatch.Stop();
+                //stopwatch.Stop();
                 //_logger.Trace($"{(Proxy ? "V>" : "X>")} Processed `{protocolMsgs.Count}' consumer: t = `{stopwatch.ElapsedMilliseconds:D}', `{protocolMsgs.Count * 1000 / (stopwatch.ElapsedMilliseconds + 1):D} t/s'");
             }
             catch (Exception e)
@@ -787,6 +786,7 @@ namespace zero.cocoon.autopeer
             {
                 while (!Zeroed())
                 {
+                    //Get the conduit
                     if (_protocolConduit == null)
                     {
                         _logger.Trace($"Waiting for {Description} stream to spin up...");
@@ -806,6 +806,7 @@ namespace zero.cocoon.autopeer
                         channelTasks = new ValueTask<bool>[_protocolConduit.ConsumerCount];
                     }
 
+                    //produce
                     for (int i = 0; i < _protocolConduit.ProducerCount; i++)
                     {
                         if (AsyncTasks.IsCancellationRequested || !_protocolConduit.Source.IsOperational)
@@ -813,9 +814,8 @@ namespace zero.cocoon.autopeer
 
                         channelProduceTasks[i] = _protocolConduit.ProduceAsync();
                     }
-
-
-                    //_protocolConduit.ConsumerCount = 1;
+                    
+                    //Consume
                     for (int i = 0; i < _protocolConduit.ConsumerCount; i++)
                     {
                         if (AsyncTasks.IsCancellationRequested || !_protocolConduit.Source.IsOperational)
@@ -833,10 +833,10 @@ namespace zero.cocoon.autopeer
                                         var (iccNeighbor, message, extraData, packet) = msgBatch;
                                         try
                                         {
-                                            var ccNeighbor = Router._routingTable[((IPEndPoint) extraData).Port] ?? 
+                                            var ccNeighbor = __this.Router._routingTable[((IPEndPoint) extraData).Port] ?? 
                                                              (CcNeighbor) __this.DiscoveryService.Neighbors.Values.FirstOrDefault(n => ((IoNetClient<CcPeerMessage>)((CcNeighbor)n).Source).IoNetSocket.RemoteNodeAddress.Port == ((IPEndPoint)extraData).Port);
                                             
-                                            Router._routingTable[((IPEndPoint) extraData).Port] ??= ccNeighbor;
+                                            __this.Router._routingTable[((IPEndPoint) extraData).Port] ??= ccNeighbor;
                                             
                                             ccNeighbor ??= __this.DiscoveryService.Router;
 
@@ -951,7 +951,7 @@ namespace zero.cocoon.autopeer
         /// <param name="request">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessAsync(PeeringDrop request, object extraData, Packet packet)
+        private async ValueTask ProcessAsync(PeeringDrop request, object extraData, Packet packet)
         {
             var diff = 0;
             if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_network_latency/1000 * 2)
@@ -982,7 +982,7 @@ namespace zero.cocoon.autopeer
         /// <param name="request">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessAsync(PeeringRequest request, object extraData, Packet packet)
+        private async ValueTask ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
             //fail fast
             if (!Assimilated)
@@ -1047,7 +1047,7 @@ namespace zero.cocoon.autopeer
         /// <param name="response">The request</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessAsync(PeeringResponse response, object extraData, Packet packet)
+        private async ValueTask ProcessAsync(PeeringResponse response, object extraData, Packet packet)
         {
             //Validate
             if (!Assimilated)
@@ -1174,7 +1174,7 @@ namespace zero.cocoon.autopeer
         /// <param name="response">The response</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessAsync(DiscoveryResponse response, object extraData, Packet packet)
+        private async ValueTask ProcessAsync(DiscoveryResponse response, object extraData, Packet packet)
         {
             var discoveryRequest = await _discoveryRequest.ResponseAsync(extraData.ToString(), response.ReqHash).ConfigureAwait(false);
 
@@ -1380,7 +1380,7 @@ namespace zero.cocoon.autopeer
         /// <param name="extraData"></param>
         /// <param name="packet"></param>
         /// <returns></returns>
-        private async Task ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
+        private async ValueTask ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
             if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_network_latency / 1000 * 2)
             {
@@ -1541,7 +1541,7 @@ namespace zero.cocoon.autopeer
         /// <param name="pong">The Pong packet</param>
         /// <param name="extraData">Endpoint data</param>
         /// <param name="packet">The original packet</param>
-        private async Task ProcessAsync(Pong pong, object extraData, Packet packet)
+        private async ValueTask ProcessAsync(Pong pong, object extraData, Packet packet)
         {
             var pingRequest = await _pingRequest.ResponseAsync(extraData.ToString(), pong.ReqHash).ConfigureAwait(false);
             
@@ -1632,7 +1632,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         /// <param name="dest">The destination address</param>
         /// <returns>Task</returns>
-        public async Task<bool> SendPingAsync(IoNodeAddress dest = null)
+        public async ValueTask<bool> SendPingAsync(IoNodeAddress dest = null)
         {
             try
             {
@@ -1807,7 +1807,7 @@ namespace zero.cocoon.autopeer
         /// Sends a peer request
         /// </summary>
         /// <returns>Task</returns>
-        public async Task<bool> SendPeerRequestAsync()
+        public async ValueTask<bool> SendPeerRequestAsync()
         {
             try
             {
@@ -1901,7 +1901,7 @@ namespace zero.cocoon.autopeer
         /// Tell peer to drop us when things go wrong. (why or when? cause it wont reconnect otherwise. This is a bug)
         /// </summary>
         /// <returns></returns>
-        private async Task SendPeerDropAsync(IoNodeAddress dest = null)
+        private async ValueTask SendPeerDropAsync(IoNodeAddress dest = null)
         {
             try
             {

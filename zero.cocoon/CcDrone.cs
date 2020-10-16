@@ -17,9 +17,9 @@ namespace zero.cocoon
         /// Ctor
         /// </summary>
         /// <param name="node">The node this peer belongs to </param>
-        /// <param name="neighbor">Optional neighbor association</param>
+        /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcPeer(IoNode<CcGossipMessage> node, CcNeighbor neighbor,
+        public CcPeer(IoNode<CcGossipMessage> node, CcAdjunct adjunct,
             IoNetClient<CcGossipMessage> ioNetClient)
             : base(node, ioNetClient,
                 userData => new CcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
@@ -28,7 +28,7 @@ namespace zero.cocoon
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
 
-            Neighbor = neighbor;
+            Adjunct = adjunct;
             //if(Neighbor != null)
             //    AttachNeighborAsync(Neighbor);
 
@@ -36,18 +36,18 @@ namespace zero.cocoon
             //Testing
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
 
-            var t = Task.Run(async () =>
+            var t = Task.Factory.StartNew(async () =>
             {
                 while (!Zeroed())
                 {
                     await Task.Delay(60000, AsyncTasks.Token);
-                    if (!Zeroed() && Neighbor == null || Neighbor?.Direction == CcNeighbor.Heading.Undefined || Neighbor?.State < CcNeighbor.NeighborState.Connected)
+                    if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Connected)
                     {
-                        _logger.Fatal($"! {Description} - n = {Neighbor}, d = {Neighbor?.Direction}, s = {Neighbor?.State}");
+                        _logger.Fatal($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}");
                         await ZeroAsync(this);
                     }
                 }
-            });
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
         }
 
         /// <summary>
@@ -76,7 +76,7 @@ namespace zero.cocoon
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Neighbor?.Identity.IdString()}]'";
+                    return _description = $"`peer({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Identity.IdString()}]'";
                 }
                 catch
                 {
@@ -110,12 +110,12 @@ namespace zero.cocoon
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public CcNeighbor Neighbor { get; private set; }
+        public CcAdjunct Adjunct { get; private set; }
 
         /// <summary>
         /// CcId
         /// </summary>
-        public override string Key => Neighbor?.Key ?? "null";
+        public override string Key => Adjunct?.Key ?? "null";
 
         /// <summary>
         /// Used for testing
@@ -140,7 +140,7 @@ namespace zero.cocoon
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             IoNetClient = null;
-            Neighbor = null;
+            Adjunct = null;
 #endif
         }
 
@@ -149,7 +149,7 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            if((Neighbor?.ConnectedAtLeastOnce??false) && Source.IsOperational)
+            if((Adjunct?.ConnectedAtLeastOnce??false) && Source.IsOperational)
                 _logger.Info($"- {Description}, from {ZeroedFrom?.Description}");
 
             await DetachNeighborAsync().ConfigureAwait(false);
@@ -159,19 +159,19 @@ namespace zero.cocoon
         /// <summary>
         /// Attaches a neighbor to this peer
         /// </summary>
-        /// <param name="neighbor"></param>
+        /// <param name="adjunct"></param>
         /// <param name="direction"></param>
-        public async ValueTask<bool> AttachNeighborAsync(CcNeighbor neighbor, CcNeighbor.Heading direction)
+        public async ValueTask<bool> AttachNeighborAsync(CcAdjunct adjunct, CcAdjunct.Heading direction)
         {
 
-            Neighbor = neighbor ?? throw new ArgumentNullException($"{nameof(neighbor)} cannot be null");
+            Adjunct = adjunct ?? throw new ArgumentNullException($"{nameof(adjunct)} cannot be null");
             
             //Attach the other way
-            var attached = await Neighbor.AttachPeerAsync(this, direction).ConfigureAwait(false);
+            var attached = await Adjunct.AttachPeerAsync(this, direction).ConfigureAwait(false);
 
             if (attached)
             {
-                _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {neighbor.Description}");
+                _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {adjunct.Description}");
 
 #pragma warning disable 4014
                 StartTestModeAsync();
@@ -179,7 +179,7 @@ namespace zero.cocoon
             }
             else
             {
-                _logger.Trace($"{nameof(AttachNeighborAsync)}: [RACE LOST]{direction} attach to neighbor {neighbor.Description}, {neighbor.MetaDesc}");
+                _logger.Trace($"{nameof(AttachNeighborAsync)}: [RACE LOST]{direction} attach to neighbor {adjunct.Description}, {adjunct.MetaDesc}");
             }
 
             return attached;
@@ -188,27 +188,27 @@ namespace zero.cocoon
         /// <summary>
         /// Detaches current neighbor
         /// </summary>
-        public async Task DetachNeighborAsync()
+        public async ValueTask DetachNeighborAsync()
         {
-            CcNeighbor neighbor = null;
+            CcAdjunct adjunct = null;
 
             lock (this)
             {
-                if (Neighbor != null)
+                if (Adjunct != null)
                 {
-                    neighbor = Neighbor;
-                    Neighbor = null;
+                    adjunct = Adjunct;
+                    Adjunct = null;
                 }
             }
 
-            if(neighbor != null)
-                await neighbor.DetachPeerAsync(this).ConfigureAwait(false);
+            if(adjunct != null)
+                await adjunct.DetachPeerAsync(this).ConfigureAwait(false);
         }
 
         /// <summary>
         /// A test mode
         /// </summary>
-        public async Task StartTestModeAsync()
+        public async ValueTask StartTestModeAsync()
         {
             try
             {
@@ -221,7 +221,7 @@ namespace zero.cocoon
                 if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
                     return;
             
-                if (Neighbor?.Direction == CcNeighbor.Heading.Egress)
+                if (Adjunct?.Direction == CcAdjunct.Heading.Egress)
                 {
                     long v = 0;
                     var vb = new byte[8];

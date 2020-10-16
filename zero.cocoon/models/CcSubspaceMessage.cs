@@ -19,6 +19,9 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
+    /// <summary>
+    /// The model for translating <see cref="CcHub"/> messages
+    /// </summary>
     public class CcPeerMessage : IoMessage<CcPeerMessage>
     {
         public CcPeerMessage(string sinkDesc, string jobDesc, IoSource<CcPeerMessage> source) 
@@ -53,7 +56,7 @@ namespace zero.cocoon.models
                 }).GetAwaiter().GetResult())
                 {
                     ProtocolConduit = MessageService.EnsureChannel(
-                        nameof(CcNeighbor),
+                        nameof(CcAdjunct),
                         true,
                         channelSource,
                         userData => new CcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
@@ -76,7 +79,7 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolConduit = MessageService.EnsureChannel<CcProtocolMessage>(nameof(CcNeighbor));
+                ProtocolConduit = MessageService.EnsureChannel<CcProtocolMessage>(nameof(CcAdjunct));
             }
         }
 
@@ -393,7 +396,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// CC Node
         /// </summary>
-        protected CcNode CcNode => ((CcNeighbor) IoZero)?.CcNode;
+        protected CcNode CcNode => ((CcAdjunct) IoZero)?.CcNode;
 
         /// <summary>
         /// Cc Identity

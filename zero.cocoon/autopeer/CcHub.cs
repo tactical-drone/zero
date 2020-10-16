@@ -53,7 +53,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The router
         /// </summary>
-        public CcNeighbor Router { get; protected set; }
+        public CcAdjunct Router { get; protected set; }
 
         /// <summary>
         /// zero unmanaged
@@ -79,7 +79,7 @@ namespace zero.cocoon.autopeer
         {
             await base.SpawnListenerAsync(async neighbor =>
             {
-                Router ??= (CcNeighbor) neighbor;
+                Router ??= (CcAdjunct) neighbor;
                 return acceptConnection == null || await acceptConnection(neighbor).ConfigureAwait(false);
             }, bootstrapAsync).ConfigureAwait(false);
         }
