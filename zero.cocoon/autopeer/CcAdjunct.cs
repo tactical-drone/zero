@@ -69,8 +69,7 @@ namespace zero.cocoon.autopeer
                     while (!Zeroed())
                     {
                         await WatchdogAsync().ConfigureAwait(false);
-                        await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000,
-                            AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(parm_zombie_max_ttl / 2) * 1000 + parm_zombie_max_ttl / 4 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
@@ -568,7 +567,7 @@ namespace zero.cocoon.autopeer
                 try
                 {
                     //Remove from routing table
-                    Router._routingTable[((IoNetClient<CcSubspaceMessage>) IoSource).IoNetSocket.RemoteNodeAddress.Port] = null;
+                    Interlocked.CompareExchange(ref Router._routingTable[((IoNetClient<CcSubspaceMessage>) IoSource).IoNetSocket.RemoteNodeAddress.Port], null,this);
                 }
                 catch
                 {
@@ -581,7 +580,7 @@ namespace zero.cocoon.autopeer
             State = AdjunctState.ZeroState;
 
             if (ConnectedAtLeastOnce && Direction != Heading.Undefined)
-                _logger.Info($"- `{(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
+                _logger.Info($"- `{(ConnectedAtLeastOnce ? "Distinct" : "Common")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachPeerAsync(_drone, true).ConfigureAwait(false);
 
@@ -619,7 +618,7 @@ namespace zero.cocoon.autopeer
             }
 
             //Watchdog failure
-            if (SecondsSincePat > parm_zombie_max_ttl * 2)
+            if (SecondsSincePat > parm_zombie_max_ttl * 4)
             {
                 var reconnect = this.Direction == Heading.Egress;
                 var address = RemoteAddress;
@@ -628,9 +627,9 @@ namespace zero.cocoon.autopeer
                     _logger.Debug($"w {Description}");
                 else
                     _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {parm_zombie_max_ttl * 2}, {MetaDesc}");
-
-                await ZeroAsync(new IoNanoprobe("Watchdog Failure")).ConfigureAwait(false);
-
+                
+                await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago...")).ConfigureAwait(false);
+                
                 if (reconnect)
                     await Router.SendPingAsync(address).ConfigureAwait(false);
 
@@ -643,8 +642,7 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                if (Collected && !(_pingRequest.Peek(RemoteAddress.IpPort) ||
-                                   Router._pingRequest.Peek(RemoteAddress.IpPort)))
+                if (Collected && !(_pingRequest.Peek(RemoteAddress.IpPort) || Router._pingRequest.Peek(RemoteAddress.IpPort)))
                     _logger.Debug($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
             }
         }
@@ -1361,7 +1359,8 @@ namespace zero.cocoon.autopeer
                     {
                         if (Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
-                            _logger.Info( $"% {Description}");
+                            if(((CcAdjunct)n).ConnectedAtLeastOnce)
+                                _logger.Info( $"% {Description}");
                         }
 
                         //MessageService.WhiteList(__newNeighbor.RemoteAddress.Port);
