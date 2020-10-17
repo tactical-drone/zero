@@ -76,7 +76,7 @@ namespace zero.cocoon
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`peer({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Designation.IdString()}]'";
+                    return _description = $"`drone({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Ingress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Designation.IdString()}]'";
                 }
                 catch
                 {
@@ -150,7 +150,7 @@ namespace zero.cocoon
         public override async ValueTask ZeroManagedAsync()
         {
             if((Adjunct?.ConnectedAtLeastOnce??false) && Source.IsOperational)
-                _logger.Info($"- {Description}, from {ZeroedFrom?.Description}");
+                _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachNeighborAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);

@@ -91,7 +91,7 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     //periodically
-                    await Task.Delay((random.Next(parm_mean_pat_delay)/3 * 1000), AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay((random.Next(parm_mean_pat_delay)/4 * 1000), AsyncTasks.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
@@ -109,7 +109,7 @@ namespace zero.cocoon
                         CcAdjunct susceptible = null;
                         
                         //Attempt to peer with standbys
-                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > (parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)) * 2)
+                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > (parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)*3))
                         {
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");

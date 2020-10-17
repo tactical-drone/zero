@@ -586,7 +586,7 @@ namespace zero.sync
             int zeroed = 0;
             var sw = Stopwatch.StartNew();
 
-            _nodes.ToList().ForEach(n =>
+            _nodes?.ToList().ForEach(n =>
             {
                 try
                 {
@@ -610,7 +610,7 @@ namespace zero.sync
                 }
             });
 
-            Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
+            Console.WriteLine($"z = {_nodes?.Count(n => n.Zeroed())}/{total}");
         }
 
         private static void Tangle(string listenerAddress)

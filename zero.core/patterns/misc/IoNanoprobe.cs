@@ -297,7 +297,7 @@ namespace zero.core.patterns.misc
                         {
                             if (!zeroSub.Schedule)
                                 continue;
-                            await zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
+                            var zero = zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
                         }
                         catch (NullReferenceException e)
                         {

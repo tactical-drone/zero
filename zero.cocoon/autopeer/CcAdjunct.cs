@@ -581,7 +581,7 @@ namespace zero.cocoon.autopeer
             State = AdjunctState.ZeroState;
 
             if (ConnectedAtLeastOnce && Direction != Heading.Undefined)
-                _logger.Info($"- {(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
+                _logger.Info($"- `{(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachPeerAsync(_drone, true).ConfigureAwait(false);
 
@@ -1136,7 +1136,7 @@ namespace zero.cocoon.autopeer
 //simulate byzantine failure.                
 #if LOSS
                 var sent = 0;
-                var loss = 75;
+                var loss = 27;
                 if (_random.Next(100) < loss) //drop
                 {
                     sent = msgRaw.Length;
@@ -1269,20 +1269,20 @@ namespace zero.cocoon.autopeer
                 var assimilate = Task.Factory.StartNew(async c =>
                 {
                     await Task.Delay(parm_max_network_latency * (int) c).ConfigureAwait(false);
-                    await AssimilateNeighborAsync(newRemoteEp, id, services);
+                    await CollectAsync(newRemoteEp, id, services);
                 },++count, TaskCreationOptions.LongRunning);
                 
             }
         }
         
         /// <summary>
-        /// Connect to another neighbor
+        /// Collect another drone into the fold
         /// </summary>
         /// <param name="newRemoteEp">The location</param>
         /// <param name="id">The adjunctId</param>
-        /// <param name="services">The adjunctservices</param>
-        /// <returns>A task</returns>
-        private async ValueTask<bool> AssimilateNeighborAsync(IPEndPoint newRemoteEp, CcDesignation id, CcService services, bool synAck = false)
+        /// <param name="services">The adjunct services</param>
+        /// <returns>A task, true if successful, false otherwise</returns>
+        private async ValueTask<bool> CollectAsync(IPEndPoint newRemoteEp, CcDesignation id, CcService services, bool synAck = false)
         {
             if (newRemoteEp != null && newRemoteEp.Equals(NATAddress?.IpEndPoint))
             {
@@ -1301,10 +1301,11 @@ namespace zero.cocoon.autopeer
                 var t = (ValueTuple<CcAdjunct, CcAdjunct, bool>) u;
                 var _this = t.Item1;
                 var __newNeighbor = t.Item2;
-                var _synAck = t.Item3;
+                var __synAck = t.Item3;
 
                 if (_this.Hub.Neighbors.Count > _this.CcNode.MaxNeighbors)
                 {
+                    //drop something
                     var q = _this.Hub.Neighbors.Values.Where(n =>
                         ((CcAdjunct) n).State < AdjunctState.Local || 
                         ((CcAdjunct) n).Proxy &&
@@ -1317,7 +1318,8 @@ namespace zero.cocoon.autopeer
                             ((CcAdjunct) n)._totalPats > _this.parm_min_pats_before_shuffle)
                         .OrderBy(n => ((CcAdjunct) n).Priority).FirstOrDefault();
                     
-                    if (_synAck && assimilated == null && id.PublicKey[_random.Next(byte.MaxValue)] < byte.MaxValue/2)
+                    //try harder when this comes from a synack 
+                    if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(byte.MaxValue)] < byte.MaxValue/2)
                     {
                         var selection = q.ToList();
                         if(selection.Count > 0)
@@ -1330,7 +1332,7 @@ namespace zero.cocoon.autopeer
                         _this._logger.Debug($"~ {assimilated.Description}");
                         await ((CcAdjunct) assimilated).ZeroAsync(new IoNanoprobe("Assimilated")).ConfigureAwait(false);
                     }
-                    else if(_synAck)
+                    else if(__synAck)
                     {
                         if(_this._logger.IsDebugEnabled)
                             _this._logger.Warn($"@ {_this.Description}");
@@ -1344,6 +1346,7 @@ namespace zero.cocoon.autopeer
                     return false;
             }, ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
             {
+                //setup conduits to messages
                 newAdjunct.MessageService.SetChannel(nameof(CcAdjunct),
                     MessageService.GetChannel<CcProtocolMessage>(nameof(CcAdjunct)));
                 newAdjunct.ExtGossipAddress = ExtGossipAddress; 
@@ -1351,41 +1354,34 @@ namespace zero.cocoon.autopeer
                 newAdjunct.Verified = false;
 
                 Hub.ZeroOnCascade(newAdjunct);
-
-                if (await newAdjunct.ZeroAtomicAsync((s, u, _____) =>
+                
+                var sub = newAdjunct.ZeroEvent(_ =>
                 {
-                    var t = (ValueTuple<CcAdjunct, CcAdjunct>) u;
-                    var _this = t.Item1;
-                    var __newNeighbor = t.Item2;
-                    var sub = __newNeighbor.ZeroEvent(_ =>
+                    try
                     {
-                        try
+                        if (Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
-                            if (_this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out var n))
-                            {
-                                _this._logger.Trace(
-                                    $"{nameof(DiscoveryResponse)}: Removed {n.Description} from {_this.Description}");
-                            }
-
-                            //MessageService.WhiteList(__newNeighbor.RemoteAddress.Port);
-                        }
-                        catch
-                        {
-                            // ignored
+                            _logger.Info( $"% {Description}");
                         }
 
-                        return Task.CompletedTask;
-                    });
-                    return ValueTask.FromResult(true);
-                }, ValueTuple.Create(this, newAdjunct)).ConfigureAwait(false))
+                        //MessageService.WhiteList(__newNeighbor.RemoteAddress.Port);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+
+                    return Task.CompletedTask;
+                });
+
+                if (sub == null)
                 {
-                    _logger.Debug($"# {newAdjunct.Description}");
-                    return await newAdjunct.SendPingAsync().ConfigureAwait(false);
+                    _logger.Fatal($"Could not subscribe to zero: {Description}");
+                    return false;
                 }
-                else
-                {
-                    _logger.Debug($"{nameof(DiscoveryResponse)}: newNeighbor.ZeroAtomicAsync [FAILED]");
-                }
+                
+                _logger.Debug($"# {newAdjunct.Description}");
+                return await newAdjunct.SendPingAsync().ConfigureAwait(false);
             }
             else
             {
@@ -1616,7 +1612,7 @@ namespace zero.cocoon.autopeer
                         IoNodeAddress.Create(
                             $"{pong.Services.Map[key].Network}://{((IPEndPoint) extraData).Address}:{pong.Services.Map[key].Port}"));
 
-                await AssimilateNeighborAsync(fromAddr.IpEndPoint, idCheck, remoteServices, true)
+                await CollectAsync(fromAddr.IpEndPoint, idCheck, remoteServices, true)
                     .ConfigureAwait(false);
             }
             else if (!Verified) //Process ACK SYN
