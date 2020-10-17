@@ -1,4 +1,4 @@
-﻿//#define LOSS
+﻿#define LOSS
 using System;
 using System.Buffers;
 using System.Linq;
@@ -130,13 +130,13 @@ namespace zero.cocoon.autopeer
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`adjunct({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
+                    return _description = $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
                 }
                 catch (Exception e)
                 {
                     if (Collected)
                         _logger.Debug(e, Description);
-                    return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(ConnectedAtLeastOnce ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Designation.IdString()}]'";;
+                    return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Designation.IdString()}]'";;
                 }
             }
         }
@@ -145,7 +145,7 @@ namespace zero.cocoon.autopeer
         /// return extra information about the state
         /// </summary>
         public string MetaDesc =>
-            $"(d = {Direction}, s = {State}, v = {Verified}, a = {Assimilated}, att = {IsPeerAttached}, c = {IsPeerConnected}, r = {PeeringAttempts}, g = {IsGossiping}, arb = {IsArbitrating}, o = {MessageService.IsOperational}, w = {TotalPats})";
+            $"(d = {Direction}, s = {State}, v = {Verified}, a = {MarkedForAssimilation}, att = {IsPeerAttached}, c = {IsPeerConnected}, r = {PeeringAttempts}, g = {IsGossiping}, arb = {IsArbitrating}, o = {MessageService.IsOperational}, w = {TotalPats})";
 
         /// <summary>
         /// Random number generator
@@ -190,22 +190,22 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Is autopeering
         /// </summary>
-        public bool Assimilated => !Zeroed() && Verified && Proxy;
+        public bool MarkedForAssimilation => !Zeroed() && Verified && Proxy;
 
         /// <summary>
         /// Whether the node, peer and adjunctare nominal
         /// </summary>
-        public bool IsGossiping => Assimilated && IsPeerConnected;
+        public bool IsGossiping => MarkedForAssimilation && IsPeerConnected;
 
         /// <summary>
         /// Looks for a zombie peer
         /// </summary>
-        public bool PolledZombie => Direction != Heading.Undefined && !(Assimilated && IsPeerConnected);
+        public bool PolledZombie => Direction != Heading.Undefined && !(MarkedForAssimilation && IsPeerConnected);
 
         /// <summary>
         /// Indicates whether we have successfully established a connection before
         /// </summary>
-        public volatile bool ConnectedAtLeastOnce;
+        public volatile bool Assimilated;
 
         /// <summary>
         /// Indicates whether we have successfully established a connection before
@@ -567,7 +567,10 @@ namespace zero.cocoon.autopeer
                 try
                 {
                     //Remove from routing table
-                    Interlocked.CompareExchange(ref Router._routingTable[((IoNetClient<CcSubspaceMessage>) IoSource).IoNetSocket.RemoteNodeAddress.Port], null,this);
+                    if(Interlocked.CompareExchange(ref Router._routingTable[((IoNetClient<CcSubspaceMessage>) IoSource).IoNetSocket.RemoteNodeAddress.Port], null,this) != this)
+                    {
+                        _logger.Warn($"Router reset [FAILED], value is {Router._routingTable[((IoNetClient<CcSubspaceMessage>) IoSource).IoNetSocket.RemoteNodeAddress.Port]}: {Description}");
+                    }
                 }
                 catch
                 {
@@ -576,11 +579,15 @@ namespace zero.cocoon.autopeer
 
                 await SendPeerDropAsync().ConfigureAwait(false);
             }
+            else
+            {
+                await _protocolConduit.ZeroAsync(this).ConfigureAwait(false);
+            }
             
             State = AdjunctState.ZeroState;
 
-            if (ConnectedAtLeastOnce && Direction != Heading.Undefined)
-                _logger.Info($"- `{(ConnectedAtLeastOnce ? "Distinct" : "Common")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
+            if (Assimilated && Direction != Heading.Undefined)
+                _logger.Info($"- `{(Assimilated ? "Distinct" : "Common")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachPeerAsync(_drone, true).ConfigureAwait(false);
 
@@ -600,7 +607,7 @@ namespace zero.cocoon.autopeer
         public async Task WatchdogAsync()
         {
             // Verify request
-            if (!Assimilated)
+            if (!MarkedForAssimilation)
             {
                 return;
             }
@@ -688,7 +695,7 @@ namespace zero.cocoon.autopeer
         protected async ValueTask<bool> ConnectAsync()
         {
             //Validate request
-            if (!Assimilated && !IsPeerAttached)
+            if (!MarkedForAssimilation && !IsPeerAttached)
             {
 #if DEBUG
                 if (IsPeerAttached || State < NeighborState.Disconnected)
@@ -699,7 +706,7 @@ namespace zero.cocoon.autopeer
                 return false;
             }
 
-            State = ConnectedAtLeastOnce ? AdjunctState.Reconnecting : AdjunctState.Connecting;
+            State = Assimilated ? AdjunctState.Reconnecting : AdjunctState.Connecting;
 
             //Attempt the connection, race to win
             if (await CcNode.ConnectToPeerAsync(this).ConfigureAwait(false))
@@ -772,7 +779,7 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessAsync()
         {
-            _protocolConduit ??= MessageService.GetChannel<CcProtocolMessage>(nameof(CcAdjunct));
+            _protocolConduit ??= MessageService.GetConduit<CcProtocolMessage>(nameof(CcAdjunct));
 
             _logger.Debug($"$ {Description}");
 
@@ -786,9 +793,9 @@ namespace zero.cocoon.autopeer
                     if (_protocolConduit == null)
                     {
                         _logger.Trace($"Waiting for {Description} stream to spin up...");
-                        _protocolConduit = MessageService.EnsureChannel<CcProtocolMessage>(nameof(CcAdjunct));
+                        _protocolConduit = MessageService.AttachConduit<CcProtocolMessage>(nameof(CcAdjunct));
                         if (_protocolConduit != null)
-                            ArrayPoolProxy = ((CcProtocolBuffer) _protocolConduit.Source).ArrayPoolProxy;
+                            ArrayPoolProxy = ((CcProtocolBuffer) _protocolConduit.Source).ArrayPool;
                         else
                         {
                             await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false); //TODO config
@@ -950,7 +957,7 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(PeeringDrop request, object extraData, Packet packet)
         {
             var diff = 0;
-            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_network_latency/1000 * 2)
+            if (!MarkedForAssimilation || request.Timestamp.ElapsedDelta() > parm_max_network_latency/1000 * 2)
             {
                 _logger.Trace(
                     $"{(Proxy ? "V>" : "X>")}{nameof(PeeringDrop)}: Ignoring {diff}s old/invalid request, error = ({diff})");
@@ -981,7 +988,7 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
             //fail fast
-            if (!Assimilated)
+            if (!MarkedForAssimilation)
             {
                 //send reject so that the sender's state can be fixed
                 var reject = new PeeringResponse
@@ -1046,7 +1053,7 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(PeeringResponse response, object extraData, Packet packet)
         {
             //Validate
-            if (!Assimilated)
+            if (!MarkedForAssimilation)
             {
                 return;
             }
@@ -1092,7 +1099,11 @@ namespace zero.cocoon.autopeer
                         return ValueTask.FromResult(true);
                     }).ConfigureAwait(false);
                 }
-            } //Were we inbound?
+            }
+            else if (!response.Status && Hub.Neighbors.Count < CcNode.MaxAdjuncts) //at least probe
+            {
+                await SendDiscoveryRequestAsync().ConfigureAwait(false);
+            }
         }
 
         /// <summary>
@@ -1134,7 +1145,7 @@ namespace zero.cocoon.autopeer
 //simulate byzantine failure.                
 #if LOSS
                 var sent = 0;
-                var loss = 27;
+                var loss = 50;
                 if (_random.Next(100) < loss) //drop
                 {
                     sent = msgRaw.Length;
@@ -1199,7 +1210,7 @@ namespace zero.cocoon.autopeer
         {
             var discoveryRequest = await _discoveryRequest.ResponseAsync(extraData.ToString(), response.ReqHash).ConfigureAwait(false);
 
-            if (discoveryRequest?.Key == null || !Assimilated || response.Peers.Count > parm_max_discovery_peers)
+            if (discoveryRequest?.Key == null || !MarkedForAssimilation || response.Peers.Count > parm_max_discovery_peers)
             {
                 if (Proxy && Collected && response.Peers.Count <= parm_max_discovery_peers)
                     _logger.Debug(
@@ -1274,7 +1285,7 @@ namespace zero.cocoon.autopeer
         }
         
         /// <summary>
-        /// Collect another drone into the fold
+        /// Collect another drone into the collective
         /// </summary>
         /// <param name="newRemoteEp">The location</param>
         /// <param name="id">The adjunctId</param>
@@ -1312,7 +1323,7 @@ namespace zero.cocoon.autopeer
                         ((CcAdjunct) n).Uptime.TickMs() > _this.parm_max_network_latency * 2);
                     
                     var assimilated = q.Where(n =>
-                            ((CcAdjunct) n).Assimilated &&
+                            ((CcAdjunct) n).MarkedForAssimilation &&
                             ((CcAdjunct) n)._totalPats > _this.parm_min_pats_before_shuffle)
                         .OrderBy(n => ((CcAdjunct) n).Priority).FirstOrDefault();
                     
@@ -1345,8 +1356,8 @@ namespace zero.cocoon.autopeer
             }, ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
             {
                 //setup conduits to messages
-                newAdjunct.MessageService.SetChannel(nameof(CcAdjunct),
-                    MessageService.GetChannel<CcProtocolMessage>(nameof(CcAdjunct)));
+                newAdjunct.MessageService.SetConduit(nameof(CcAdjunct),
+                    MessageService.GetConduit<CcProtocolMessage>(nameof(CcAdjunct)));
                 newAdjunct.ExtGossipAddress = ExtGossipAddress; 
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;
@@ -1359,7 +1370,7 @@ namespace zero.cocoon.autopeer
                     {
                         if (Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
-                            if(((CcAdjunct)n).ConnectedAtLeastOnce)
+                            if(((CcAdjunct)n).Assimilated)
                                 _logger.Info( $"% {Description}");
                         }
 
@@ -1385,7 +1396,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 if (newAdjunct != null)
-                    await newAdjunct.ZeroAsync(new IoNanoprobe("AssimilateNeighborAsync")).ConfigureAwait(false);
+                    await newAdjunct.ZeroAsync(new IoNanoprobe("CollectAsync")).ConfigureAwait(false);
             }
 
             return false;
@@ -1400,7 +1411,7 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async ValueTask ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            if (!Assimilated || request.Timestamp.ElapsedDelta() > parm_max_network_latency / 1000 * 2)
+            if (!MarkedForAssimilation || request.Timestamp.ElapsedDelta() > parm_max_network_latency / 1000 * 2)
             {
                 if (Collected)
                     _logger.Trace(
@@ -1418,7 +1429,7 @@ namespace zero.cocoon.autopeer
             //         ((CcNeighbor) n).Verified && n != this && !((CcNeighbor) n).IsLocal)
             //     .OrderByDescending(n => (int) ((CcNeighbor) n).Priority).ToList();
             var certified = Hub.Neighbors.Values.Where(n =>
-                    ((CcAdjunct) n).Assimilated && n != this)
+                    ((CcAdjunct) n).MarkedForAssimilation && n != this)
                 .OrderByDescending(n => (int) ((CcAdjunct) n).Priority).ToList();
             foreach (var ioNeighbor in certified)
             {
@@ -1754,10 +1765,10 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilated || State < AdjunctState.Verified)
+                if (!MarkedForAssimilation || State < AdjunctState.Verified)
                 {
                     _logger.Debug(
-                        $"{nameof(SendDiscoveryRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilated}");
+                        $"{nameof(SendDiscoveryRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {MarkedForAssimilation}");
                     return false;
                 }
 
@@ -1849,11 +1860,11 @@ namespace zero.cocoon.autopeer
                 }
 
 
-                if (!Assimilated || IsPeerConnected)
+                if (!MarkedForAssimilation || IsPeerConnected)
                 {
                     if (Collected)
                         _logger.Warn(
-                            $"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilated}, p = {IsPeerConnected}");
+                            $"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {MarkedForAssimilation}, p = {IsPeerConnected}");
                     return false;
                 }
 
@@ -1923,7 +1934,7 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilated)
+                if (!MarkedForAssimilation)
                 {
                     _logger.Trace($"{nameof(SendPeerDropAsync)}: [ABORTED], {Description}, {MetaDesc}");
                     return;
@@ -1965,7 +1976,7 @@ namespace zero.cocoon.autopeer
             {
                 if (Collected)
                     _logger.Debug(e,
-                        $"{nameof(SendPeerDropAsync)}: [ERROR], {Description}, s = {State}, a = {Assimilated}, p = {IsPeerConnected}, d = {dest}, s = {MessageService}");
+                        $"{nameof(SendPeerDropAsync)}: [ERROR], {Description}, s = {State}, a = {MarkedForAssimilation}, p = {IsPeerConnected}, d = {dest}, s = {MessageService}");
             }
         }
 
@@ -2003,7 +2014,7 @@ namespace zero.cocoon.autopeer
                 _logger.Trace($"{nameof(AttachPeerAsync)}: [WON] {_drone?.Description}");
 
                 
-                ConnectedAtLeastOnce = true;
+                Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 _zeroSub = ZeroEvent(async sender =>
@@ -2060,12 +2071,8 @@ namespace zero.cocoon.autopeer
 
             if (peer != dc)
                 throw new ApplicationException("peer == dc");
-
-            //send drop request
-            await SendPeerDropAsync().ConfigureAwait(false);
-
-            _logger.Trace(
-                $"{(ConnectedAtLeastOnce ? "Useful" : "Useless")} {Direction} peer detaching: s = {State}, a = {Assimilated}, p = {IsPeerConnected}, {peer?.Description ?? Description}");
+            
+            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {MarkedForAssimilation}, p = {IsPeerConnected}, {peer?.Description ?? Description}");
 
             //Detach zeroed
             Unsubscribe(_zeroSub);
@@ -2078,12 +2085,13 @@ namespace zero.cocoon.autopeer
             }
 
             Interlocked.Exchange(ref _direction, 0);
-            ExtGossipAddress = null;
-            NATAddress = null;
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             TotalPats = 0;
             PeeringAttempts = 0;
             State = AdjunctState.Disconnected;
+            
+            //send drop request
+            await SendPeerDropAsync().ConfigureAwait(false);
         }
 
 

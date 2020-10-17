@@ -57,7 +57,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The underlying .net socket that is abstracted
         /// </summary>
-        public Socket NativeSocket { get; }
+        public Socket NativeSocket { get; private set; }
 
         /// <summary>
         /// If this socket is a (udp) proxy
@@ -198,6 +198,7 @@ namespace zero.core.network.ip
 #if SAFE_RELEASE
             LocalNodeAddress = null;
             RemoteNodeAddress = null;
+            NativeSocket = null;
 #endif
         }
 

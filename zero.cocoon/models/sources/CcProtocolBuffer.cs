@@ -30,7 +30,7 @@ namespace zero.cocoon.models.sources
             _logger = LogManager.GetCurrentClassLogger();
 
             Upstream = ioSource;
-            ArrayPoolProxy = arrayPool;
+            ArrayPool = arrayPool;
 
             MessageQueue = new ConcurrentQueue<ValueTuple<IIoZero, IMessage, object, Packet>[]>();
     
@@ -52,7 +52,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Shared heap
         /// </summary>
-        public ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
+        public ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> ArrayPool { get; protected set; }
 
         /// <summary>
         /// Used to load the next value to be produced
@@ -98,7 +98,7 @@ namespace zero.cocoon.models.sources
             _queuePressure = null;
             _queueBackPressure = null;
             MessageQueue = null;
-            ArrayPoolProxy = null;
+            ArrayPool = null;
 #endif
         }
 

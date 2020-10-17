@@ -61,7 +61,7 @@ namespace zero.core.network.ip
 
 #if SAFE_RELEASE
             IoNetSocket = null;
-            IoChannels = null;
+            IoConduits = null;
 #endif
 
         }

@@ -55,7 +55,7 @@ namespace zero.cocoon.models
                     return ValueTask.FromResult(false);
                 }).GetAwaiter().GetResult())
                 {
-                    ProtocolConduit = MessageService.EnsureChannel(
+                    ProtocolConduit = MessageService.AttachConduit(
                         nameof(CcAdjunct),
                         true,
                         channelSource,
@@ -64,7 +64,7 @@ namespace zero.cocoon.models
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((CcProtocolBuffer) ProtocolConduit.Source).ArrayPoolProxy;
+                    _arrayPool = ((CcProtocolBuffer) ProtocolConduit.Source).ArrayPool;
                 }
                 else
                 {
@@ -79,7 +79,7 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolConduit = MessageService.EnsureChannel<CcProtocolMessage>(nameof(CcAdjunct));
+                ProtocolConduit = MessageService.AttachConduit<CcProtocolMessage>(nameof(CcAdjunct));
             }
         }
 

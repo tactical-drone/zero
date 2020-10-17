@@ -116,7 +116,7 @@ namespace zero.cocoon
 
                             //Send peer requests
                             foreach (var neighbor in _autoPeering.Neighbors.Values.Where(n =>
-                                    ((CcAdjunct)n).Assimilated && 
+                                    ((CcAdjunct)n).MarkedForAssimilation && 
                                     ((CcAdjunct)n).Direction == CcAdjunct.Heading.Undefined &&
                                     ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified &&
                                     ((CcAdjunct)n).State < CcAdjunct.AdjunctState.Peering &&
@@ -160,7 +160,7 @@ namespace zero.cocoon
                         else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 8 + 1) //scan for discovery
                         {
                             var maxP = _autoPeering.Neighbors.Values.Max(n => ((CcAdjunct) n).Priority);
-                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).Assimilated && ((CcAdjunct) n).Priority < maxP/2)
+                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).MarkedForAssimilation && ((CcAdjunct) n).Priority < maxP/2)
                                 .OrderBy(n => ((CcAdjunct) n).Priority).ToList();
 
                             //Have we found a suitable direction to scan in?
@@ -726,14 +726,14 @@ namespace zero.cocoon
             if (neighbor != null)
             {
                 var ccNeighbor = (CcAdjunct) neighbor;
-                if (ccNeighbor.Assimilated && !ccNeighbor.IsPeerAttached)
+                if (ccNeighbor.MarkedForAssimilation && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
                     return await drone.AttachNeighborAsync((CcAdjunct) neighbor, direction).ConfigureAwait(false);
                 }
                 else
                 {
-                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilated}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {ccNeighbor.Uptime.TickSec()}");
+                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.MarkedForAssimilation}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {ccNeighbor.Uptime.TickSec()}");
                     return false;
                 }
             }
@@ -753,7 +753,7 @@ namespace zero.cocoon
             //Validate
             if (
                     !Zeroed() && 
-                    adjunct.Assimilated &&
+                    adjunct.MarkedForAssimilation &&
                     !adjunct.IsPeerConnected &&
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc &&

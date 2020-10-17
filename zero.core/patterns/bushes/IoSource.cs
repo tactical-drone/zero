@@ -49,7 +49,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A dictionary of downstream channels
         /// </summary>
-        protected internal ConcurrentDictionary<string, IIoConduit> IoChannels = new ConcurrentDictionary<string, IIoConduit>();
+        protected internal ConcurrentDictionary<string, IIoConduit> IoConduits = new ConcurrentDictionary<string, IIoConduit>();
 
         /// <summary>
         /// Keys this instance.
@@ -173,7 +173,7 @@ namespace zero.core.patterns.bushes
             _backPressure = null;
             _prefetchPressure = null;
             RecentlyProcessed = null;
-            IoChannels = null;
+            IoConduits = null;
             ObjectStorage = null;
 #endif
         }
@@ -188,7 +188,7 @@ namespace zero.core.patterns.bushes
             _prefetchPressure.Zero();
 
             ObjectStorage.Clear();
-            IoChannels.Clear();
+            IoConduits.Clear();
 
             try
             {
@@ -202,7 +202,7 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoConduitonduit{TJob}"/> to other producers.
+        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoConduit{TJob}"/> to other producers.
         /// This function helps set up a conduit using the supplied source. Channels are cached when created. Channels are associated with producers.
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
@@ -213,11 +213,11 @@ namespace zero.core.patterns.bushes
         /// /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
-        public IoConduit<TFJob> EnsureChannel<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
+        public IoConduit<TFJob> AttachConduit<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
             Func<object, IoSink<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
         where TFJob : IIoJob
         {
-            if (!IoChannels.ContainsKey(id))
+            if (!IoConduits.ContainsKey(id))
             {
                 if (channelSource == null || jobMalloc == null)
                 {
@@ -231,13 +231,13 @@ namespace zero.core.patterns.bushes
 
                     ZeroAtomicAsync((s, u, d) =>
                     {
-                        if (!IoChannels.TryAdd(id, newChannel)) return ValueTask.FromResult(false);
+                        if (!IoConduits.TryAdd(id, newChannel)) return ValueTask.FromResult(false);
                         return ValueTask.FromResult(ZeroOnCascade(newChannel, cascade).success);
                     }).ConfigureAwait(false).GetAwaiter().GetResult();
                 }
             }
 
-            return (IoConduit<TFJob>)IoChannels[id];
+            return (IoConduit<TFJob>)IoConduits[id];
         }
 
         /// <summary>
@@ -246,12 +246,12 @@ namespace zero.core.patterns.bushes
         /// <typeparam name="TFJob">The type that the conduit speaks</typeparam>
         /// <param name="id">The id of the conduit</param>
         /// <returns>The conduit</returns>
-        public IoConduit<TFJob> GetChannel<TFJob>(string id)
+        public IoConduit<TFJob> GetConduit<TFJob>(string id)
             where TFJob : IoSink<TFJob>, IIoJob
         {
             try
             {
-                return (IoConduit<TFJob>)IoChannels[id];
+                return (IoConduit<TFJob>)IoConduits[id];
             }
             catch { }
 
@@ -265,10 +265,10 @@ namespace zero.core.patterns.bushes
         /// <param name="id">The conduit Id</param>
         /// <param name="conduit">The conduit</param>
         /// <returns>True if successful</returns>
-        public bool SetChannel<TFJob>(string id, IoConduit<TFJob> conduit)
+        public bool SetConduit<TFJob>(string id, IoConduit<TFJob> conduit)
             where TFJob : IoSink<TFJob>, IIoJob
         {
-            return IoChannels.TryAdd(id, conduit);
+            return IoConduits.TryAdd(id, conduit);
         }
 
         /// <summary>
