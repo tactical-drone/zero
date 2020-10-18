@@ -278,7 +278,7 @@ namespace zero.core.network.ip
                 _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}");
 #endif
                 _logger.Trace(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
-                ZeroAsync(this).ConfigureAwait(false);
+                ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).ConfigureAwait(false);
             }
             catch (Exception e)
             {

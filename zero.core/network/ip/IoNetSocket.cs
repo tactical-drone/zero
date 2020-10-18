@@ -1,5 +1,8 @@
-﻿using System.Net;
+﻿using System;
+using System.Linq;
+using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
@@ -48,7 +51,7 @@ namespace zero.core.network.ip
 
             // The socket will linger for 10 seconds after
             // Socket.Close is called.
-            NativeSocket.LingerState = new LingerOption(true, 10);
+            NativeSocket.LingerState = new LingerOption(false, 0);
 
             // Disable the Nagle Algorithm for this tcp socket.
             NativeSocket.NoDelay = false;
@@ -69,6 +72,20 @@ namespace zero.core.network.ip
 
             // Set the Time To Live (TTL) to 42 router hops.
             NativeSocket.Ttl = 42;
+
+
+
+            //var v = new uint[] {1, 1000, 2000}.SelectMany(BitConverter.GetBytes).ToArray();
+            //var r = NativeSocket.IOControl(
+            //    IOControlCode.KeepAliveValues,
+            //    v,
+            //    null
+            //);
+
+            NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 2);
+            NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 5);
+            NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 1);
 
             //_logger.Trace($"Tcp Socket configured: {Description}:" +
             //              $"  ExclusiveAddressUse {socket.ExclusiveAddressUse}" +

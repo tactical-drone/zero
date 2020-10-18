@@ -52,7 +52,7 @@ namespace zero.core.network.ip
         private readonly Logger _logger;
 
         //Socket description 
-        public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket.IsBound}";
+        public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
 
         /// <summary>
         /// The underlying .net socket that is abstracted
@@ -210,8 +210,10 @@ namespace zero.core.network.ip
             try
             {
                 if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
-                    NativeSocket?.Shutdown(SocketShutdown.Both);
-
+                {
+                    NativeSocket.Shutdown(SocketShutdown.Both);
+                    NativeSocket.Disconnect(false);
+                }
             }
             catch (SocketException e) { _logger.Trace(e, Description); }
             catch (Exception e)
@@ -219,8 +221,8 @@ namespace zero.core.network.ip
                 _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
             }
 
-            if(!Proxy)
-                NativeSocket?.Close();
+            if (!Proxy)
+                NativeSocket.Close();
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");

@@ -580,12 +580,12 @@ namespace zero.core.patterns.bushes
                         //Was shutdown requested?
                         if (Zeroed() || AsyncTasks.IsCancellationRequested)
                         {
-                            _logger.Trace($"{GetType().Name}: Consumer `{Description}' is shutting down");
+                            _logger.Trace($"{GetType().Name}: Consumer {Description} is shutting down");
                             return false;
                         }
 
                         //wait...
-                        _logger.Trace($"{GetType().Name}: Consumer `{Description}' [[ProducerPressure]] timed out waiting on `{Description}', willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        _logger.Trace($"{GetType().Name}: Consumer {Description} [[ProducerPressure]] timed out waiting on {Description}, willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
                         await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
 
                         //Try again

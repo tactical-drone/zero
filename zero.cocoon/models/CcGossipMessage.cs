@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -192,7 +193,7 @@ namespace zero.cocoon.models
                     catch (OperationCanceledException e) { _this._logger.Trace(e, Description); return false; }
                     catch (Exception e)
                     {
-                        if(!Zeroed())
+                        if(!Zeroed() && !(e is SocketException))
                             _logger.Debug(e,$"Error producing {_this.Description}");
                         
                         await Task.Delay(10, _this.AsyncTasks.Token).ConfigureAwait(false); //TODO

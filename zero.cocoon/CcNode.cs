@@ -91,76 +91,83 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     //periodically
-                    await Task.Delay((random.Next(parm_mean_pat_delay)/4 * 1000), AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay(random.Next(parm_mean_pat_delay)/4 * 1000, AsyncTasks.Token).ConfigureAwait(false);
                     if (Zeroed())
                         break;
 
                     try
                     {
-                        //boostrap if alone
-                        if (TotalConnections < 2)
-                        {
-                            await BootStrapAsync().ConfigureAwait(false);
-                        }
-
                         var totalAdjuncts = TotalConnections;
                         double scanRatio = 1;
                         double peerAttempts = 0;
                         CcAdjunct susceptible = null;
                         
                         //Attempt to peer with standbys
-                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > (parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)*3))
+                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)/(double)MaxAdjuncts * parm_mean_pat_delay * 3/4)
                         {
-                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");
-
-                            //Send peer requests
-                            foreach (var neighbor in _autoPeering.Neighbors.Values.Where(n =>
-                                    ((CcAdjunct)n).MarkedForAssimilation && 
-                                    ((CcAdjunct)n).Direction == CcAdjunct.Heading.Undefined &&
-                                    ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified &&
-                                    ((CcAdjunct)n).State < CcAdjunct.AdjunctState.Peering &&
-                                    ((CcAdjunct)n).TotalPats > ((CcAdjunct)n).parm_zombie_max_connection_attempts &&
-                                    ((CcAdjunct)n).SecondsSincePat < ((CcAdjunct)n).parm_zombie_max_ttl).
-                                OrderBy(n=>((CcAdjunct)n).Priority))
+                            if (Neighbors.Count > 1)
                             {
-                                if (Zeroed())
-                                    break;
-                                
-                                //We select the neighbor that makes least requests which means it is saturated,
-                                //but that means it is probably not depleting its standby neighbors which is what 
-                                //we are after. It's a long shot that relies on probability in the long run
-                                //to work.
-                                susceptible ??= (CcAdjunct) neighbor;
+                                _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");
 
-                                if (EgressConnections < parm_max_outbound)
+                                //Send peer requests
+                                foreach (var adjunct in _autoPeering.Neighbors.Values.Where(n =>
+                                        ((CcAdjunct)n).Assimilating &&
+                                        ((CcAdjunct)n).Direction == CcAdjunct.Heading.Undefined &&
+                                        ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified &&
+                                        ((CcAdjunct)n).State < CcAdjunct.AdjunctState.Peering &&
+                                        ((CcAdjunct)n).TotalPats > ((CcAdjunct)n).parm_zombie_max_connection_attempts &&
+                                        ((CcAdjunct)n).SecondsSincePat < parm_mean_pat_delay * 4).
+                                    OrderBy(n => ((CcAdjunct)n).Priority))
                                 {
-                                    if (await ((CcAdjunct) neighbor).SendPeerRequestAsync()
-                                        .ConfigureAwait(false))
+                                    if (Zeroed())
+                                        break;
+
+                                    //We select the neighbor that makes least requests which means it is saturated,
+                                    //but that means it is probably not depleting its standby neighbors which is what 
+                                    //we are after. It's a long shot that relies on probability in the long run
+                                    //to work.
+                                    susceptible ??= (CcAdjunct)adjunct;
+
+                                    if (EgressConnections < parm_max_outbound)
                                     {
-                                        peerAttempts++;
-                                        await Task.Delay(parm_scan_throttle, AsyncTasks.Token).ConfigureAwait(false);
+                                        if (await ((CcAdjunct)adjunct).SendPeerRequestAsync()
+                                            .ConfigureAwait(false))
+                                        {
+                                            peerAttempts++;
+                                            await Task.Delay(parm_scan_throttle, AsyncTasks.Token).ConfigureAwait(false);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        ((CcAdjunct)adjunct).State = CcAdjunct.AdjunctState.Standby;
                                     }
                                 }
-                                else
+
+                                //if we are not able to peer, use long range scanners
+                                if (susceptible != null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
                                 {
-                                    ((CcAdjunct) neighbor).State = CcAdjunct.AdjunctState.Standby;
+                                    if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
+                                    {
+                                        _logger.Debug($"& {susceptible.Description}");
+                                    }
                                 }
+
+                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             }
-                            
-                            //if we are not able to peer, use long range scanners
-                            if (susceptible!= null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
+                            else
                             {
-                                if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
+                                //boostrap if alone
+                                if (TotalConnections < 2 && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
-                                    _logger.Debug($"& {susceptible.Description}");   
+                                    await BootStrapAsync().ConfigureAwait(false);
+                                    secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 }
                             }
                         }
-                        else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 8 + 1) //scan for discovery
+                        else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 3) //scan for discovery
                         {
                             var maxP = _autoPeering.Neighbors.Values.Max(n => ((CcAdjunct) n).Priority);
-                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).MarkedForAssimilation && ((CcAdjunct) n).Priority < maxP/2)
+                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).Assimilating && ((CcAdjunct) n).Priority < maxP/2)
                                 .OrderBy(n => ((CcAdjunct) n).Priority).ToList();
 
                             //Have we found a suitable direction to scan in?
@@ -351,7 +358,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 30;
+        public int parm_mean_pat_delay = 70;
 
 
         /// <summary>
@@ -726,14 +733,14 @@ namespace zero.cocoon
             if (neighbor != null)
             {
                 var ccNeighbor = (CcAdjunct) neighbor;
-                if (ccNeighbor.MarkedForAssimilation && !ccNeighbor.IsPeerAttached)
+                if (ccNeighbor.Assimilating && !ccNeighbor.IsPeerAttached)
                 {
                     //did we win?
                     return await drone.AttachNeighborAsync((CcAdjunct) neighbor, direction).ConfigureAwait(false);
                 }
                 else
                 {
-                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.MarkedForAssimilation}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {ccNeighbor.Uptime.TickSec()}");
+                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilating}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {ccNeighbor.Uptime.TickSec()}");
                     return false;
                 }
             }
@@ -753,7 +760,7 @@ namespace zero.cocoon
             //Validate
             if (
                     !Zeroed() && 
-                    adjunct.MarkedForAssimilation &&
+                    adjunct.Assimilating &&
                     !adjunct.IsPeerConnected &&
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc &&
@@ -821,6 +828,9 @@ namespace zero.cocoon
                 {
                     if (!ioNodeAddress.Equals(_peerAddress))
                     {
+                        if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
+                            continue;
+
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
                         if (!await Hub.Router.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
                         {
