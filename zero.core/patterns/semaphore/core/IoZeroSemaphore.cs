@@ -141,7 +141,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether this semaphore has been cleared out
         /// </summary>
-        private int _zeroed;
+        private volatile int _zeroed;
 
         #endregion
 
@@ -191,8 +191,7 @@ namespace zero.core.patterns.semaphore.core
         {
             if(Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
-
-
+            
             try
             {
                 _asyncTokenReg.Unregister();
@@ -206,7 +205,7 @@ namespace zero.core.patterns.semaphore.core
             Action<object> waiter = null;
             while (waiter != null || i < _signalAwaiter.Length)
             {
-                waiter = _signalAwaiter[i];
+                waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
                 if (waiter != null)
                 {
                     try
@@ -219,7 +218,7 @@ namespace zero.core.patterns.semaphore.core
                     }
                     finally
                     {
-                        _signalAwaiter[i] = null;
+                        waiter = null;
                         _signalAwaiterState[i] = null;
                     }
                 }
@@ -351,9 +350,12 @@ namespace zero.core.patterns.semaphore.core
             ValueTaskSourceOnCompletedFlags flags)
         {
             //fast path
-            if (Signalled())
+            if (Signalled() || _zeroed == 1)
             {
-                continuation(state);
+                if(_zeroed == 0)
+                    continuation(state);
+                else
+                    throw new TaskCanceledException(Description);
                 return;
             }
             
