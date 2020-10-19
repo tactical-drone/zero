@@ -17,28 +17,37 @@ namespace zero.core.network.ip
         
     {
         /// <summary>
-        ///// Used by listeners
-        ///// </summary>
-        ///// <param name="proxy">The proxy to steel a <see cref="System.Net.Sockets.Socket"/> from</param>
-        ///// <param name="endPoint"></param>
-        //public IoUdpClient(IoNetClient<TJob> proxy, IPEndPoint endPoint) : base(new IoUdpSocket(proxy.IoNetSocket.NativeSocket, endPoint), proxy.PrefetchSize, proxy.ConcurrencyLevel)
-        //{
-            
-        //}
-
+        /// Base constructor
+        /// </summary>
+        /// <param name="readAheadBufferSize">Read ahead size</param>
+        /// <param name="concurrencyLevel">Level of concurrency</param>
         public IoUdpClient(int readAheadBufferSize, int concurrencyLevel) : base(readAheadBufferSize, concurrencyLevel)
         {
 
         }
 
+        /// <summary>
+        /// Constructor used by listeners
+        /// </summary>
+        /// <param name="ioSocket">The socket the listener created</param>
+        /// <param name="readAheadBufferSize">Read ahead size</param>
+        /// <param name="concurrencyLevel">Level of concurrency</param>
         public IoUdpClient(IoSocket ioSocket, int readAheadBufferSize, int concurrencyLevel) : base(new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), concurrencyLevel), readAheadBufferSize, concurrencyLevel)
         {
             
         }
-
-
-        readonly byte[] _blacklist;
-
+        
+        /// <summary>
+        /// Constructor used to create a <see cref="IoNetClient{TJob}"/> that wraps <see cref="clone"/>'s native UDP socket.
+        ///
+        /// We call these connections, Proxies. But they are not really proxies. This is just a hack to get UDP
+        /// multi-connectionless setup that listens on the same port, to work. The correct way to do this would be
+        /// to have one local listening port for each remote client. But, some applications don't do it that way. Hence support
+        /// is added here for such setups.
+        /// 
+        /// </summary>
+        /// <param name="clone"></param>
+        /// <param name="newRemoteEp"></param>
         public IoUdpClient(IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.ConcurrencyLevel), clone.PrefetchSize, clone.ConcurrencyLevel)
         {
 
@@ -47,7 +56,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// current blacklist
         /// </summary>
-        public byte[] BlackList => _blacklist;
+        public byte[] BlackList { get; } = null;
 
         /// <summary>
         /// Connects to a remote listener
@@ -63,12 +72,12 @@ namespace zero.core.network.ip
 
         public override void Blacklist(int remoteAddressPort)
         {
-            _blacklist[remoteAddressPort] = 0;
+            //_blacklist[remoteAddressPort] = 0;
         }
 
         public override void WhiteList(int remoteAddressPort)
         {
-            _blacklist[remoteAddressPort] = 0;
+            //_blacklist[remoteAddressPort] = 0;
         }
     }
 }

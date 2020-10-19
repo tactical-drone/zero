@@ -562,7 +562,6 @@ namespace zero.core.patterns.bushes
         /// <returns>True if consumption happened</returns>
         public async ValueTask<bool> ConsumeAsync(Func<IoSink<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null)
         {
-            var consumed = 0;
             try
             {
                 //_logger.Fatal($"{nameof(ConsumeAsync)}: `{Description}' [ENTER]");

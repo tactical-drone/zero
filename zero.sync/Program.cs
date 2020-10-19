@@ -236,125 +236,13 @@ namespace zero.sync
             Console.WriteLine("##");
 
             Console.ReadLine();
-
-            //var c1 = CoCoonAsync(CcIdentity.Generate(true), "tcp://127.0.0.1:14667", "udp://127.0.0.1:14627", null, "udp://127.0.0.1:14627", "udp://127.0.0.1:15627");
-            //var c2 = CoCoonAsync(CcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627");
-            //var c2 = Task.CompletedTask;
-            //c1.Wait();
-            //c2.Wait();
-            //CoCoonAsync(CcIdentity.Generate(true),"tcp://127.0.0.1:14667", "udp://127.0.0.1:14627", null, "udp://127.0.0.1:14627", "udp://127.0.0.1:14626").GetAwaiter().GetResult();
-            //CoCoonAsync(CcIdentity.Generate(), "tcp://127.0.0.1:15667", "udp://127.0.0.1:15627", null, "udp://127.0.0.1:15627", "udp://127.0.0.1:14627").GetAwaiter().GetResult();
-        }
-
-        class MutexClass : IIoMutex
-        {
-            public IIoMutex AsyncMutex;
-            public void Configure(CancellationTokenSource asyncTasks, bool signalled = false, bool allowInliningContinuations = true)
-            {
-                 AsyncMutex = new IoAsyncMutex(asyncTasks);
-                 AsyncMutex.ByRef(ref AsyncMutex);
-                
-                 AsyncMutex.Configure(asyncTasks, signalled, allowInliningContinuations);
-            }
-
-            public void Set()
-            {
-                Console.WriteLine($"WAITED IS {AsyncMutex.GetWaited()}");
-                Console.WriteLine($"HOOKED IS {AsyncMutex.GetHooked()}");
-                AsyncMutex.Set();
-            }
-
-            public ValueTask<bool> WaitAsync()
-            {
-                var retval = AsyncMutex.WaitAsync();
-                Console.WriteLine($"WAITED SHOULD BE one => {AsyncMutex.GetWaited()}");
-                return retval;
-            }
-
-            public int GetWaited()
-            {
-                throw new NotImplementedException();
-            }
-
-            public void SetWaited()
-            {
-                throw new NotImplementedException();
-            }
-
-            public int GetHooked()
-            {
-                throw new NotImplementedException();
-            }
-
-            public void SetHooked()
-            {
-                throw new NotImplementedException();
-            }
-
-            public void SetResult(bool result)
-            {
-                throw new NotImplementedException();
-            }
-
-            public void Zero()
-            {
-                throw new NotImplementedException();
-            }
-
-            public void ByRef(ref IIoMutex root)
-            {
-                throw new NotImplementedException();
-            }
-
-            public short Version()
-            {
-                throw new NotImplementedException();
-            }
-
-            public ref IIoMutex GetRef(ref IIoMutex mutex)
-            {
-                throw new NotImplementedException();
-            }
-
-            public short GetCurFrame()
-            {
-                throw new NotImplementedException();
-            }
-
-            public bool SetWaiter(Action<object> continuation, object state)
-            {
-                throw new NotImplementedException();
-            }
-
-            public bool GetResult(short token)
-            {
-                throw new NotImplementedException();
-            }
-
-            public ValueTaskSourceStatus GetStatus(short token)
-            {
-                throw new NotImplementedException();
-            }
-
-            public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
-            {
-                throw new NotImplementedException();
-            }
         }
         
         private static void Test()
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
-            //IIoSemaphore sem = new IoSemaphoreOne<IoAutoMutex>(asyncTasks, 1);
             
-            // var mutex = new MutexClass
-            // {
-            //     AsyncMutex = new IoAsyncMutex( asyncTasks)
-            // };
-            
-             // var mutex = new MutexClass();
-             // mutex.Configure(asyncTasks);
-             var capacity = 50000;
+            var capacity = 50000;
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, false, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
@@ -376,7 +264,6 @@ namespace zero.sync
             IoFpsCounter ifps2 = new IoFpsCounter(1000,10000);
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             TaskCreationOptions options = TaskCreationOptions.None;
-            
             
             
             var t1= Task.Factory.StartNew(async o =>

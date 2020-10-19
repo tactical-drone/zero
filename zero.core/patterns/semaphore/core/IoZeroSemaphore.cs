@@ -138,6 +138,11 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private int Tail => _tail % _maxCount;
 
+        /// <summary>
+        /// Whether this semaphore has been cleared out
+        /// </summary>
+        private int _zeroed;
+
         #endregion
 
         #region core
@@ -184,27 +189,42 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         public void Zero()
         {
-            if (!_asyncTokenReg.Unregister())
-            {
+            if(Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+                return;
 
+
+            try
+            {
+                _asyncTokenReg.Unregister();
+            }
+            catch
+            {
+                // s
             }
 
-            for (var i = 0; i < _maxCount; i++)
+            var i = 0;
+            Action<object> waiter = null;
+            while (waiter != null || i < _signalAwaiter.Length)
             {
-                var waiter = Interlocked.CompareExchange(ref _signalAwaiterState[i], null, null);
-
+                waiter = _signalAwaiter[i];
                 if (waiter != null)
                 {
                     try
                     {
-                        _signalAwaiter[i](_signalAwaiterState[i]);
-                        _signalAwaiterState[i] = null;
+                        waiter(_signalAwaiterState[i]);
                     }
                     catch
                     {
                         // ignored
                     }
+                    finally
+                    {
+                        _signalAwaiter[i] = null;
+                        _signalAwaiterState[i] = null;
+                    }
                 }
+
+                i++;
             }
 
             Array.Clear(_signalAwaiter, 0, _maxCount);
@@ -460,7 +480,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount}, must be bigger than zero and smaller than {nameof(_maxCount)} = {_maxCount}");
 
             //fail fast on cancellation token
-            if (_asyncToken.IsCancellationRequested)
+            if (_asyncToken.IsCancellationRequested || _zeroed == 1)
                 return -1;
             
             //Lock
@@ -541,7 +561,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         { 
             //fail fast 
-            if (_asyncToken.IsCancellationRequested)
+            if (_asyncToken.IsCancellationRequested || _zeroed == 1)
                 return ValueTask.FromResult(false);
 
             //Enter on fast path if signalled or wait

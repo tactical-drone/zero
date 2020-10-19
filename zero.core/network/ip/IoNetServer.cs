@@ -122,13 +122,13 @@ namespace zero.core.network.ip
 
                 //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(false);
                 //if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
-                {
-                    _logger.Warn($"Cancelling existing connection attempt to `{remoteAddress}'");
-
-                    await _connectionAttempts[remoteAddress.Key].ZeroAsync(this).ConfigureAwait(false);
-                    _connectionAttempts.TryRemove(remoteAddress.Key, out _);
-                    return await ConnectAsync(remoteAddress, ioNetClient).ConfigureAwait(false);
-                }
+                // {
+                //     _logger.Warn($"Cancelling existing connection attempt to `{remoteAddress}'");
+                //
+                //     await _connectionAttempts[remoteAddress.Key].ZeroAsync(this).ConfigureAwait(false);
+                //     _connectionAttempts.TryRemove(remoteAddress.Key, out _);
+                //     return await ConnectAsync(remoteAddress, ioNetClient).ConfigureAwait(false);
+                // }
             }
 
             var connected = false;

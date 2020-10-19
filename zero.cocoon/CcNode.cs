@@ -85,6 +85,7 @@ namespace zero.cocoon
             var task = Task.Factory.StartNew(async () =>
             {
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var random = new Random((int)DateTime.Now.Ticks);
                 
                 //while running
@@ -153,11 +154,18 @@ namespace zero.cocoon
                                 }
 
                                 secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                
+                                //boostrap every now and again
+                                if (secondsSinceBoot.Elapsed() > parm_mean_pat_delay * 4)
+                                {
+                                    await BootStrapAsync().ConfigureAwait(false);
+                                    secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                }
                             }
                             else
                             {
                                 //boostrap if alone
-                                if (TotalConnections < 2 && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
+                                if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
                                     await BootStrapAsync().ConfigureAwait(false);
                                     secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

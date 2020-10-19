@@ -1877,9 +1877,7 @@ namespace zero.cocoon.autopeer
                 {
                     Salt = new Salt
                         {ExpTime = (ulong) DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeSeconds(), Bytes = GetSalt},
-                    // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
-                    //     parm_max_time_error + parm_max_time_error / 2
-                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
                 var reqBuf = peerRequest.ToByteString();
