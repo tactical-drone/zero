@@ -149,7 +149,7 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            if((Adjunct?.Assimilated??false) && Source.IsOperational)
+            if((Adjunct?.Assimilated??false))
                 _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachNeighborAsync().ConfigureAwait(false);

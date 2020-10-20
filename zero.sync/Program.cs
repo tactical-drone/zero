@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using NLog;
 using zero.cocoon;
 using zero.cocoon.autopeer;
@@ -38,7 +37,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 2000;
+            int total = 1999;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<CcNode>>();
             
@@ -251,8 +250,8 @@ namespace zero.sync
             var twoWaiters = true;
             var twoReleasers = 2;
             var targetSleep = (long) 0;
+            var logSpam = 50000;
             var targetSleepMult = twoWaiters ? 2 : 1;
-            var logSpam = 3000;
             var sw = new Stopwatch();    
             var sw2 = new Stopwatch();
             var c = 0;
@@ -394,7 +393,7 @@ namespace zero.sync
                         }
                         catch (Exception e)
                         {
-                            
+                            Console.WriteLine(e);
                         }
 
                         Interlocked.Increment(ref semPollCount);

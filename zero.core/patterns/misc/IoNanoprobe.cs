@@ -107,7 +107,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Uptime
         /// </summary>
-        public long Uptime;
+        public readonly long Uptime;
 
         // /// <summary>
         // /// Used by superclass to manage all async calls

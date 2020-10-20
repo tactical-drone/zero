@@ -126,7 +126,7 @@ namespace zero.cocoon.autopeer
             {
                 if (_lastDescGen.ElapsedMsDelta() > 10000 && _description != null)
                     return _description;
-                
+
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
@@ -579,7 +579,7 @@ namespace zero.cocoon.autopeer
                     // ignored
                 }
 
-                await SendPeerDropAsync().ConfigureAwait(false);
+                await Router.SendPeerDropAsync(RemoteAddress).ConfigureAwait(false);
             }
             else
             {
@@ -603,7 +603,11 @@ namespace zero.cocoon.autopeer
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
-        //private static uint _dropOne = 0;
+        /// <summary>
+        /// Test mode
+        /// </summary>
+        private static uint _dropOne = 1;
+
         /// <summary>
         /// Ensures that the peer is running
         /// </summary>
@@ -629,8 +633,9 @@ namespace zero.cocoon.autopeer
 
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
-            if (SecondsSincePat > CcNode.parm_mean_pat_delay * 4)
+            if (SecondsSincePat > CcNode.parm_mean_pat_delay * 4 || _dropOne == 0)
             {
+                _dropOne = 1;
                 var reconnect = this.Direction == Heading.Egress;
                 var address = RemoteAddress;
 
@@ -641,9 +646,6 @@ namespace zero.cocoon.autopeer
                 
                 await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago...")).ConfigureAwait(false);
                 
-                if (reconnect)
-                    await Router.SendPingAsync(address).ConfigureAwait(false);
-
                 return;
             }
 
@@ -1154,7 +1156,7 @@ namespace zero.cocoon.autopeer
 //simulate byzantine failure.                
 #if LOSS
                 var sent = 0;
-                var loss = 25;
+                var loss = 33;
                 if (_random.Next(100) < loss) //drop
                 {
                     sent = msgRaw.Length;
@@ -1239,7 +1241,7 @@ namespace zero.cocoon.autopeer
 
             foreach (var responsePeer in response.Peers)
             {
-                if (Hub.Neighbors.Count > CcNode.MaxNeighbors && count > parm_min_spare_bays)
+                if (Hub.Neighbors.Count > CcNode.MaxDrones && count > parm_min_spare_bays)
                     break;
 
                 //Any services attached?
@@ -1321,7 +1323,7 @@ namespace zero.cocoon.autopeer
                 var __newNeighbor = t.Item2;
                 var __synAck = t.Item3;
 
-                if (_this.Hub.Neighbors.Count > _this.CcNode.MaxNeighbors)
+                if (_this.Hub.Neighbors.Count > _this.CcNode.MaxDrones)
                 {
                     //drop something
                     var q = _this.Hub.Neighbors.Values.Where(n =>
@@ -1358,7 +1360,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 //Transfer?
-                if (_this.Hub.Neighbors.Count <= _this.CcNode.MaxNeighbors)
+                if (_this.Hub.Neighbors.Count <= _this.CcNode.MaxDrones)
                     return _this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor);
                 else
                     return false;
@@ -1672,9 +1674,18 @@ namespace zero.cocoon.autopeer
                     await SendPeerRequestAsync().ConfigureAwait(false);
                 }
             }
-            else
+            else //sometimes drones we know prod us for connections
             {
-                _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
+                if (Direction == Heading.Undefined && CcNode.TotalConnections < CcNode.MaxDrones)
+                {
+                    _logger.Trace(
+                        $"<\\- {nameof(Pong)}(acksyn-fast): {(CcNode.EgressConnections < CcNode.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
+                    await SendPeerRequestAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
+                }
             }
         }
 
@@ -1796,8 +1807,6 @@ namespace zero.cocoon.autopeer
 
                 var discoveryRequest = new DiscoveryRequest
                 {
-                    // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
-                    //     parm_max_time_error + parm_max_time_error / 2
                      Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
@@ -1809,8 +1818,8 @@ namespace zero.cocoon.autopeer
                 }
 
                 //rate limit
-                if (_lastScan.Elapsed() < CcNode.parm_mean_pat_delay / 3)
-                    return false;
+                // if (_lastScan.Elapsed() < CcNode.parm_mean_pat_delay / 3)
+                //     return false;
 
                 _lastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
@@ -1933,12 +1942,6 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilated)
-                {
-                    _logger.Trace($"{nameof(SendPeerDropAsync)}: [ABORTED], {Description}, {MetaDesc}");
-                    return;
-                }
-
                 dest ??= RemoteAddress;
 
                 var dropRequest = new PeeringDrop
@@ -2071,6 +2074,9 @@ namespace zero.cocoon.autopeer
             if (peer != dc)
                 throw new ApplicationException("peer == dc");
             
+            //send drop request
+            await SendPeerDropAsync().ConfigureAwait(false);
+            
             _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsPeerConnected}, {peer?.Description ?? Description}");
 
             //Detach zeroed
@@ -2088,9 +2094,9 @@ namespace zero.cocoon.autopeer
             TotalPats = 0;
             PeeringAttempts = 0;
             State = AdjunctState.Disconnected;
-            
-            //send drop request
-            await SendPeerDropAsync().ConfigureAwait(false);
+
+            //Try to re-establish a link
+            await SendPingAsync().ConfigureAwait(false);
         }
 
 

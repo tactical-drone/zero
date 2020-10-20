@@ -381,9 +381,9 @@ namespace zero.cocoon
 
 
         /// <summary>
-        /// Maximum number of allowed neighbors
+        /// Maximum number of allowed drones
         /// </summary>
-        public int MaxNeighbors => MaxAdjuncts * parm_client_to_neighbor_ratio;
+        public int MaxDrones => MaxAdjuncts * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id

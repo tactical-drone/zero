@@ -74,7 +74,7 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long DeltaTicks(this long timestamp)
         {
-            var delta = System.DateTime.Now.Ticks - timestamp ;
+            var delta = System.DateTime.UtcNow.Ticks - timestamp ;
             if (delta < 0)
                 return -delta;
             return delta;

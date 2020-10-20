@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Proto {
 
   /// <summary>Holder for reflection information generated from autopeering/selection/proto/message.proto</summary>
-  public static partial class Message2Reflection {
+  public static partial class MessageReflection {
 
     #region Descriptor
     /// <summary>File descriptor for autopeering/selection/proto/message.proto</summary>
@@ -21,7 +21,7 @@ namespace Proto {
     }
     private static pbr::FileDescriptor descriptor;
 
-    static Message2Reflection() {
+    static MessageReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "CilhdXRvcGVlcmluZy9zZWxlY3Rpb24vcHJvdG8vbWVzc2FnZS5wcm90bxIF",
@@ -51,7 +51,7 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Proto.Message2Reflection.Descriptor.MessageTypes[0]; }
+      get { return global::Proto.MessageReflection.Descriptor.MessageTypes[0]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -220,7 +220,7 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Proto.Message2Reflection.Descriptor.MessageTypes[1]; }
+      get { return global::Proto.MessageReflection.Descriptor.MessageTypes[1]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -383,7 +383,7 @@ namespace Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Proto.Message2Reflection.Descriptor.MessageTypes[2]; }
+      get { return global::Proto.MessageReflection.Descriptor.MessageTypes[2]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]

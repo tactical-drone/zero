@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Proto {
 
   /// <summary>Holder for reflection information generated from autopeering/discover/proto/message.proto</summary>
-  public static partial class MessageReflection {
+  public static partial class Message2Reflection {
 
     #region Descriptor
     /// <summary>File descriptor for autopeering/discover/proto/message.proto</summary>
@@ -21,7 +21,7 @@ namespace Proto {
     }
     private static pbr::FileDescriptor descriptor;
 
-    static MessageReflection() {
+    static Message2Reflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "CihhdXRvcGVlcmluZy9kaXNjb3Zlci9wcm90by9tZXNzYWdlLnByb3RvEgVw",

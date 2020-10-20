@@ -196,7 +196,7 @@ namespace zero.cocoon.models
                         if(!Zeroed() && !(e is SocketException))
                             _logger.Debug(e,$"Error producing {_this.Description}");
                         
-                        await Task.Delay(10, _this.AsyncTasks.Token).ConfigureAwait(false); //TODO
+                        await Task.Delay(100).ConfigureAwait(false); //TODO
 
                         _this.State = IoJobMeta.JobState.ProduceErr;
 
