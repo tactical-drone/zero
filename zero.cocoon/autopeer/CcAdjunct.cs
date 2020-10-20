@@ -633,7 +633,7 @@ namespace zero.cocoon.autopeer
 
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
-            if (SecondsSincePat > CcNode.parm_mean_pat_delay * 4 || _dropOne == 0)
+            if (SecondsSincePat > CcNode.parm_mean_pat_delay * 8 || _dropOne == 0)
             {
                 _dropOne = 1;
                 var reconnect = this.Direction == Heading.Egress;
@@ -1156,7 +1156,7 @@ namespace zero.cocoon.autopeer
 //simulate byzantine failure.                
 #if LOSS
                 var sent = 0;
-                var loss = 33;
+                var loss = 51;
                 if (_random.Next(100) < loss) //drop
                 {
                     sent = msgRaw.Length;
