@@ -352,8 +352,7 @@ namespace zero.core.patterns.semaphore.core
             //fast path
             if (Signalled() || _zeroed == 1)
             {
-                if(_zeroed == 0)
-                    continuation(state);
+                continuation(state);
                 return;
             }
             
