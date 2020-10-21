@@ -354,8 +354,6 @@ namespace zero.core.patterns.semaphore.core
             {
                 if(_zeroed == 0)
                     continuation(state);
-                else
-                    throw new TaskCanceledException(Description);
                 return;
             }
             

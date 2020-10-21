@@ -208,7 +208,7 @@ namespace zero.cocoon.autopeer
         public bool PolledZombie => Direction != Heading.Undefined && !(Assimilating && IsPeerConnected);
 
         /// <summary>
-        /// Indicates whether we have successfully established a connection before
+        /// Indicates whether we have extracted information from this drone
         /// </summary>
         public volatile bool Assimilated;
 

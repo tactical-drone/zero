@@ -145,11 +145,11 @@ namespace zero.cocoon
         }
 
         /// <summary>
-        /// zero unmanaged
+        /// zero managed
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            if((Adjunct?.Assimilated??false))
+            if((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
                 _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
             await DetachNeighborAsync().ConfigureAwait(false);

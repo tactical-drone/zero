@@ -147,11 +147,11 @@ namespace zero.core.patterns.bushes
         public long parm_max_q_size = 500; //TODO
 
         /// <summary>
-        /// Time to wait for insert before complaining about it
+        /// Minimum useful uptime in seconds
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_ingress_timout = 5000;
+        public int parm_min_uptime = 10;
 
         /// <summary>
         /// Debug output rate
