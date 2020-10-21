@@ -17,11 +17,21 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
         /// <param name="lookup">Whether to perform a dns lookup on <see cref="Ip"/></param>
-        /// <param name="performValidation">Should validation be performed</param>
         public IoNodeAddress(string url, bool lookup = false)
         {
             _performDns = lookup;
             Init(url);
+            IpEndPoint = new IPEndPoint(IPAddress.Parse(Ip),Port);
+        }
+
+        /// <summary>
+        /// Constructor from endpoint
+        /// </summary>
+        /// <param name="url">The url</param>
+        /// <param name="endpoint">The endpoint</param>
+        private IoNodeAddress(string url, IPEndPoint endpoint):this(url)
+        {
+            IpEndPoint = endpoint;
         }
 
         /// <summary>
@@ -48,7 +58,7 @@ namespace zero.core.network.ip
         /// <see cref="IoNodeAddress"/> wrapped as <see cref="System.Net.IPEndPoint"/>
         /// </summary>
         [IgnoreDataMember]
-        public IPEndPoint IpEndPoint { get; protected set; }
+        public IPEndPoint IpEndPoint { get; private set; }
 
         [DataMember]
         public IPEndPoint ResolvedIpEndPoint { get; protected set; }
@@ -229,7 +239,6 @@ namespace zero.core.network.ip
             {
                 if (Ip == "0.0.0.0" || string.IsNullOrEmpty(Ip))
                 {
-                    IpEndPoint = new IPEndPoint(0, Port);
                     DnsResolutionChanged = false;
                     DnsValidated = true;
                     return;
@@ -242,13 +251,12 @@ namespace zero.core.network.ip
 
                 if (!_performDns)
                 {
-                    IpEndPoint = new IPEndPoint(IPAddress.Parse(Ip), Port);
                     DnsResolutionChanged = false;
                     DnsValidated = false;
                     return;
                 }
 
-                var resolvedIpAddress = Dns.GetHostAddresses(Ip)[0];
+                var resolvedIpAddress = Dns.GetHostAddresses(IpPort)[0];
                 if (!IpEndPoint?.Address.Equals(resolvedIpAddress) ?? false)
                 {
                     ResolvedIpEndPoint = IpEndPoint;
@@ -275,7 +283,7 @@ namespace zero.core.network.ip
             if (endpoint == null)
                 throw new ArgumentNullException(nameof(endpoint));
 
-            return new IoNodeAddress($"{protocol}://{endpoint.Address}:{endpoint.Port}") {IpEndPoint = endpoint};
+            return new IoNodeAddress($"{protocol}://{endpoint.Address}:{endpoint.Port}", endpoint);
         }
 
         public override bool Equals(object obj)

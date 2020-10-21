@@ -238,7 +238,7 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// The adjunctaddress
+        /// The adjunct address
         /// </summary>
         public IoNodeAddress RemoteAddress { get; protected set; }
 
@@ -251,18 +251,12 @@ namespace zero.cocoon.autopeer
         /// The our IP as seen by neighbor
         /// </summary>
         public IoNodeAddress ExtGossipAddress { get; protected set; }
-
-
+        
         /// <summary>
         /// The our discovery service IP as seen by neighbor
         /// </summary>
         public IoNodeAddress NATAddress { get; protected set; }
-
-        /// <summary>
-        /// Tcp Readahead
-        /// </summary>
-        public const int TcpReadAhead = 1;
-
+        
         /// <summary>
         /// The node identity
         /// </summary>
@@ -287,12 +281,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// inbound
         /// </summary>
-        public bool Inbound => Direction == Heading.Ingress && IsPeerConnected; //TODO
+        public bool Ingress => Direction == Heading.Ingress && IsPeerConnected;
 
         /// <summary>
         /// outbound
         /// </summary>
-        public bool Outbound => Direction == Heading.Egress && IsPeerConnected;
+        public bool Egress => Direction == Heading.Egress && IsPeerConnected;
 
         /// <summary>
         /// Who contacted who?
@@ -305,7 +299,7 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// The node that this adjunctbelongs to
+        /// The node that this adjunct belongs to
         /// </summary>
         public CcNode CcNode => Hub.CcNode;
 
@@ -368,7 +362,7 @@ namespace zero.cocoon.autopeer
         private IoZeroMatcher<ByteString> _peerRequest;
 
         /// <summary>
-        /// Holds unrouted ping requests
+        /// Holds un-routed ping requests
         /// </summary>
         private IoZeroMatcher<ByteString> _pingRequest;
 
@@ -385,8 +379,6 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Generates a new salt
         /// </summary>
-        //private ByteString GetSalt => _curSalt = ByteString.CopyFrom(CcIdentity.Sha256.ComputeHash(Encoding.ASCII.GetBytes((DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 120 * 60).ToString())), 0, parm_salt_length);
-
         private ByteString GetSalt
         {
             get
@@ -404,7 +396,7 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// heap
+        /// Message heap
         /// </summary>
         public ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> ArrayPoolProxy { get; protected set; }
 
@@ -474,14 +466,7 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_services = 3;
-
-        /// <summary>
-        /// Maximum number of services supported
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_max_time_error = 10;
-
+        
         /// <summary>
         /// Maximum connection retry on non responsive nodes 
         /// </summary>
@@ -508,6 +493,9 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private IoZeroSub _zeroSub;
 
+        /// <summary>
+        /// The service map
+        /// </summary>
         private ServiceMap _serviceMap;
         /// <summary>
         /// A service map helper
@@ -732,8 +720,8 @@ namespace zero.cocoon.autopeer
         /// <param name="msgArbiter">The arbiter</param>
         /// <param name="processCallback">The process callback</param>
         /// <param name="zeroClosure"></param>
-        /// <returns></returns>
-        private async Task ProcessMsgBatchAsync(IoSink<CcProtocolMessage> msg,
+        /// <returns>Task</returns>
+        private async ValueTask ProcessMsgBatchAsync(IoSink<CcProtocolMessage> msg,
             IoConduit<CcProtocolMessage> msgArbiter,
             Func<ValueTuple<IIoZero, IMessage, object, Packet>, IoConduit<CcProtocolMessage>, IIoZero, Task>
                 processCallback, IIoZero zeroClosure)
@@ -1503,9 +1491,11 @@ namespace zero.cocoon.autopeer
                 var fpcAddress =
                     Hub.Services.CcRecord.Endpoints[CcService.Keys.fpc];
             
+                
                 pong = new Pong
                 {
-                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    //ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(ping.ToByteArray())),
                     DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
                     Services =_serviceMapLocal = new ServiceMap
                     {
@@ -1531,14 +1521,15 @@ namespace zero.cocoon.autopeer
             {
                 pong = new Pong
                 {
-                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    //ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(ping.ToByteArray())),
                     DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
                     Services = _serviceMapLocal
                 };
             }
             
-
-            var toAddress = IoNodeAddress.Create($"udp://{remoteEp.Address}:{ping.SrcPort}");
+            
+            var toAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
             //PROCESS DMZ/SYNs
             if (!Proxy)
             {
@@ -1676,7 +1667,7 @@ namespace zero.cocoon.autopeer
             }
             else //sometimes drones we know prod us for connections
             {
-                if (Direction == Heading.Undefined && CcNode.TotalConnections < CcNode.MaxDrones)
+                if (Direction == Heading.Undefined && CcNode.TotalConnections < CcNode.MaxDrones && PeeringAttempts < parm_zombie_max_connection_attempts)
                 {
                     _logger.Trace(
                         $"<\\- {nameof(Pong)}(acksyn-fast): {(CcNode.EgressConnections < CcNode.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
@@ -1818,8 +1809,8 @@ namespace zero.cocoon.autopeer
                 }
 
                 //rate limit
-                // if (_lastScan.Elapsed() < CcNode.parm_mean_pat_delay / 3)
-                //     return false;
+                if (_lastScan.Elapsed() < parm_max_network_latency / 1000)
+                    return false;
 
                 _lastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
@@ -2014,7 +2005,6 @@ namespace zero.cocoon.autopeer
                 }, ValueTuple.Create(ccDrone, direction));
 
                 _logger.Trace($"{nameof(AttachPeerAsync)}: [WON] {_drone?.Description}");
-
                 
                 Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

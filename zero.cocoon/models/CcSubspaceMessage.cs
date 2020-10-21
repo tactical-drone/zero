@@ -46,7 +46,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new CcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 1);
+                    channelSource = new CcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
                     if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocolBuffer), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
@@ -60,7 +60,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new CcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
-                        Source.ConcurrencyLevel * 1, Source.ConcurrencyLevel * 1
+                        Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
                     );
 
                     //get reference to a central mem pool
@@ -68,14 +68,8 @@ namespace zero.cocoon.models
                 }
                 else
                 {
-#pragma warning disable VSTHRD110 // Observe result of async calls
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                     channelSource.ZeroAsync(this);
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-#pragma warning restore VSTHRD110 // Observe result of async calls
                 }
-
-                //});
             }
             else
             {
@@ -87,11 +81,6 @@ namespace zero.cocoon.models
         /// logger
         /// </summary>
         private readonly Logger _logger;
-
-        /// <summary>
-        /// The decoded tangle transaction
-        /// </summary>
-        //private static CcProtocolBuffer _protocolBuffer;
 
         /// <summary>
         /// The transaction broadcaster
@@ -114,18 +103,7 @@ namespace zero.cocoon.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting 
-
         
-        /// <summary>
-        /// The amount of items that can be ready for production before blocking
-        /// </summary>
-        [IoParameter] public int parm_prefetch_size = 0;
-        
-        /// <summary>
-        /// The amount of items that can be ready for production before blocking
-        /// </summary>
-        [IoParameter] public int parm_concurrency_level = 2;
-
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
@@ -155,12 +133,12 @@ namespace zero.cocoon.models
         public int parm_max_msg_batch_size = 64;//TODO
 
         /// <summary>
-        /// 
+        /// Message count 
         /// </summary>
         private int _msgCount = 0;
 
         /// <summary>
-        /// 
+        /// Message rate
         /// </summary>
         private long _msgRateCheckpoint = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -412,6 +390,7 @@ namespace zero.cocoon.models
             var stream = ByteStream;
             try
             {
+                //fail fast
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
 
@@ -471,7 +450,7 @@ namespace zero.cocoon.models
                         }
                     }
 
-                    //Sanity check the datas
+                    //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)
                     {
                         continue;
@@ -555,12 +534,7 @@ namespace zero.cocoon.models
                     State = IoJobMeta.JobState.ConsumeErr;
                 UpdateBufferMetaData();
             }
-
-            //if (_protocolMsgBatch.Count > 0)
-            //{
-            //    await ForwardToNeighborAsync(_protocolMsgBatch);
-            //}
-
+            
             return State;
         }
 
@@ -569,7 +543,13 @@ namespace zero.cocoon.models
         /// </summary>
         private volatile int _currBatch;
 
-        private async Task ProcessRequestAsync<T>(Packet packet)
+        /// <summary>
+        /// Processes a generic request
+        /// </summary>
+        /// <param name="packet">The packet</param>
+        /// <typeparam name="T">The expected type</typeparam>
+        /// <returns>The task</returns>
+        private async ValueTask ProcessRequestAsync<T>(Packet packet)
             where T : IMessage<T>, new()
         {
             try
@@ -603,7 +583,11 @@ namespace zero.cocoon.models
             }
         }
 
-        private async Task ForwardToNeighborAsync()
+        /// <summary>
+        /// Forward jobs to conduit
+        /// </summary>
+        /// <returns>Task</returns>
+        private async ValueTask ForwardToNeighborAsync()
         {
             try
             {

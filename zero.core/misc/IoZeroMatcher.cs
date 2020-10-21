@@ -110,11 +110,10 @@ namespace zero.core.misc
 
             return true;
         }
-
-        /// <summary>
-        /// Used internally
-        /// </summary>
-        private readonly SHA256 _sha256 = SHA256.Create();
+        
+        [ThreadStatic]
+        private static SHA256 _sha256;
+        public static SHA256 Sha256 => _sha256 ??= new SHA256Managed();
         
         /// <summary>
         /// The bucket capacity this matcher targets
@@ -142,7 +141,7 @@ namespace zero.core.misc
 
                         if (response.Hash == 0)
                         {
-                            var hash = _sha256.ComputeHash((response.Payload as ByteString)?.Memory.AsArray() ?? Array.Empty<byte>());
+                            var hash = Sha256.ComputeHash((response.Payload as ByteString)?.Memory.AsArray() ?? Array.Empty<byte>());
                             response.Payload = default;
                             response.Hash = MemoryMarshal.Read<long>(hash);
                         }

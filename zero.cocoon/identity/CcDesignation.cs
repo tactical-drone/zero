@@ -17,7 +17,7 @@ namespace zero.cocoon.identity
 
         [ThreadStatic]
         private static SHA256 _sha256;
-        public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
+        public static SHA256 Sha256 => _sha256 ??= new SHA256Managed();
         public byte[] Id { get; set; }
         public byte[] PublicKey { get; private set; }
         public byte[] SecretKey { get; set; }

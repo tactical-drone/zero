@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
@@ -118,6 +119,7 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async Task<bool> EnqueueAsync(ValueTuple<IIoZero, IMessage, object, Packet>[] item)
         {
             var backed = false;
@@ -149,6 +151,7 @@ namespace zero.cocoon.models.sources
         /// Dequeue item
         /// </summary>
         /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async Task<ValueTuple<IIoZero, IMessage, object, Packet>[]> DequeueAsync()
         {
             try
@@ -186,7 +189,8 @@ namespace zero.cocoon.models.sources
         /// <param name="barrier"></param>
         /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
-        /// <returns>The async task</returns>        
+        /// <returns>The async task</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override async ValueTask<bool> ProduceAsync(
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, Task<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)

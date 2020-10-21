@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
@@ -114,6 +115,7 @@ namespace zero.cocoon.models
         /// <returns>
         /// The state of the consumption
         /// </returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             //No work is needed, we just mark the job as consumed. 

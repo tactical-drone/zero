@@ -38,13 +38,16 @@ namespace zero.core.misc
             }
             catch
             {
+                Console.WriteLine("AsArray failed!");
                 return null;
             }
         }
 
-        public static SHA256 Sha256 = new SHA256CryptoServiceProvider();
+        
 
 #if DEBUG
+        public static SHA256 Sha256 = new SHA256CryptoServiceProvider();
+
         public static string PayloadSig(this byte[] payload)
         {
             return $"P({Convert.ToBase64String(Sha256.ComputeHash(payload)).Substring(0, 5)})";

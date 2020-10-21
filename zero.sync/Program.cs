@@ -72,7 +72,7 @@ namespace zero.sync
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
 
-                        await Task.Delay(rateLimit+=25 * 150).ConfigureAwait(false);
+                        await Task.Delay(rateLimit+=15 * 150).ConfigureAwait(false);
                     }
                 }
 
@@ -437,11 +437,11 @@ namespace zero.sync
                         {
                             break;
                         }
-                        catch (Exception e)
+                        catch
                         {
-                            
+                            // ignored
                         }
-                        
+
 
                         Interlocked.Increment(ref semPollCount);
                         ifps2.Tick();
@@ -544,7 +544,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 2,1);
+                0, 0, 1,1);
 
             _nodes.Add(cocoon);
 

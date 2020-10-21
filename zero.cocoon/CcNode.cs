@@ -310,17 +310,17 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Inbound) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
+        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Ingress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Outbound) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
+        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Egress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
 
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && ((CcDrone)kv).Adjunct.Inbound && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -832,6 +832,7 @@ namespace zero.cocoon
             _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
             if (BootstrapAddress != null)
             {
+                var c = 0;
                 foreach (var ioNodeAddress in BootstrapAddress)
                 {
                     if (!ioNodeAddress.Equals(_peerAddress))
@@ -839,6 +840,7 @@ namespace zero.cocoon
                         if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
                             continue;
 
+                        await Task.Delay(++c * 2000).ConfigureAwait(false);
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
                         if (!await Hub.Router.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
                         {

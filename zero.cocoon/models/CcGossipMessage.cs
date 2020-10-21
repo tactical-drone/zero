@@ -57,26 +57,7 @@ namespace zero.cocoon.models
         /// The node that this message belongs to
         /// </summary>
         protected CcNode CcNode => ((CcDrone)IoZero).Adjunct.CcNode;
-
-        /// <summary>
-        /// Used to control how long we wait for the source before we report it
-        /// </summary>
-        private readonly Stopwatch _producerStopwatch = new Stopwatch();
-
-        /// <summary>
-        /// The time a consumer will wait for a source to release it before aborting in ms
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        //public int parm_producer_wait_for_consumer_timeout = 10*60 * 1000; //TODO make this adapting    
-        public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting    
-
-        /// <summary>
-        /// The amount of items that can be ready for production before blocking
-        /// </summary>
-        [IoParameter]
-        public int parm_forward_queue_length = 4;
-
+        
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
@@ -90,12 +71,7 @@ namespace zero.cocoon.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_datum_size = 8;
-
-        /// <summary>
-        /// Userdata in the source
-        /// </summary>
-        protected volatile object ProducerUserData;
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -124,6 +100,12 @@ namespace zero.cocoon.models
             return sentTask.Result;
         }
 
+        /// <summary>
+        /// produce a gossip message
+        /// </summary>
+        /// <param name="barrier">Used to synchronize</param>
+        /// <param name="zeroClosure">Used to avoid variable captures</param>
+        /// <returns>State</returns>
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {
             try
@@ -134,14 +116,15 @@ namespace zero.cocoon.models
                 var produced = await Source.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var _this = (CcGossipMessage)ioJob;
-                    //----------------------------------------------------------------------------
-                    // BARRIER
-                    // We are only allowed to run ahead of the consumer by some configurable
-                    // amount of steps. Instead of say just filling up memory buffers.
-                    // This allows us some kind of (anti DOS?) congestion control
-                    //----------------------------------------------------------------------------
+                    
                     try
                     {
+                        //----------------------------------------------------------------------------
+                        // BARRIER
+                        // We are only allowed to run ahead of the consumer by some configurable
+                        // amount of steps. Instead of say just filling up memory buffers.
+                        // This allows us some kind of (anti DOS?) congestion control
+                        //----------------------------------------------------------------------------
                         if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
                             return false;
 
@@ -187,14 +170,14 @@ namespace zero.cocoon.models
                         }
                         return true;
                     }
-                    catch (NullReferenceException e){ _this._logger.Trace(e, Description); return false;}
-                    catch (TaskCanceledException e){ _this._logger.Trace(e, Description); return false; }
-                    catch (ObjectDisposedException e) { _this._logger.Trace(e, Description); return false; }
-                    catch (OperationCanceledException e) { _this._logger.Trace(e, Description); return false; }
+                    catch (NullReferenceException e){ _this._logger.Trace(e, _this.Description); return false;}
+                    catch (TaskCanceledException e){ _this._logger.Trace(e, _this.Description); return false; }
+                    catch (ObjectDisposedException e) { _this._logger.Trace(e, _this.Description); return false; }
+                    catch (OperationCanceledException e) { _this._logger.Trace(e, _this.Description); return false; }
                     catch (Exception e)
                     {
-                        if(!Zeroed() && !(e is SocketException))
-                            _logger.Debug(e,$"Error producing {_this.Description}");
+                        if(!_this.Zeroed() && !(e is SocketException))
+                            _this._logger.Debug(e,$"Error producing {_this.Description}");
                         
                         await Task.Delay(100).ConfigureAwait(false); //TODO
 
@@ -229,10 +212,10 @@ namespace zero.cocoon.models
             }
             return State;
         }
-
         
-        
-
+        /// <summary>
+        /// Transfers previous job bits to this one
+        /// </summary>
         private void TransferPreviousBits()
         {
             if (PreviousJob?.StillHasUnprocessedFragments ?? false)
@@ -265,6 +248,10 @@ namespace zero.cocoon.models
 
         }
 
+        /// <summary>
+        /// Process a gossip message
+        /// </summary>
+        /// <returns>The state</returns>
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             TransferPreviousBits();

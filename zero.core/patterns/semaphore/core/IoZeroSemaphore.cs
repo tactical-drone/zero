@@ -470,7 +470,6 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="releaseCount">The number of waiters to enter</param>
         /// <returns>The current count, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
-        /// <exception cref="TaskCanceledException">Thrown if a cancel was requested</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1)
         {
