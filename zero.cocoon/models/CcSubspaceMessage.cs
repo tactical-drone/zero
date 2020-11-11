@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
+using SimpleBase;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.sources;
@@ -579,7 +580,7 @@ namespace zero.cocoon.models
             catch (Exception e)
             {
                 _logger.Error(e,
-                    $"Unable to parse request type {typeof(T).Name} from {Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
+                    $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             }
         }
 

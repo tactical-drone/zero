@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using Base58Check;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
+using SimpleBase;
 
 namespace zero.cocoon.identity
 {
@@ -14,6 +15,9 @@ namespace zero.cocoon.identity
         {
             SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
         }
+
+        public const int PubKeySize = 256;
+        public const int PubKeyLen = PubKeySize / 8;
 
         [ThreadStatic]
         private static SHA256 _sha256;
@@ -27,12 +31,12 @@ namespace zero.cocoon.identity
 
         public string IdString()
         {
-            return Base58CheckEncoding.EncodePlain(Id.AsSpan().Slice(0, 8).ToArray());
+            return Base58.Bitcoin.Encode(Id.AsSpan().Slice(0, 8).ToArray());
         }
 
         public string PkString()
         {
-            return Base58CheckEncoding.EncodePlain(PublicKey);
+            return Base58.Bitcoin.Encode(PublicKey);
         }
 
         public static CcDesignation FromPubKey(ReadOnlySpan<byte> pk)
@@ -48,8 +52,7 @@ namespace zero.cocoon.identity
         private static readonly SecureRandom SecureRandom = SecureRandom.GetInstance("SHA256PRNG");
         public static CcDesignation Generate(bool devMode = false)
         {
-            //var skBuf = new byte[Ed25519.SecretKeySize];
-            var skBuf = Base58CheckEncoding.Decode(DevKey);
+            var skBuf = Base58.Bitcoin.Decode(DevKey).ToArray();
             var pkBuf = new byte[Ed25519.PublicKeySize];
             
             if(!devMode)
@@ -57,17 +60,12 @@ namespace zero.cocoon.identity
             
             Ed25519.GeneratePublicKey(skBuf, 0, pkBuf, 0);
 
-            //Console.WriteLine($"SK = {Base58CheckEncoding.Encode(skBuf)}");
-            //Console.WriteLine($"PK = {Base58CheckEncoding.EncodePlain(pkBuf)}");
-            //Console.WriteLine($"ID = {Base58CheckEncoding.EncodePlain(Sha256.ComputeHash(pkBuf).AsSpan().Slice(0,8).ToArray())}");
-
             return new CcDesignation
             {
                 PublicKey = pkBuf,
-                SecretKey = skBuf,
+                SecretKey = skBuf.ToArray(),
                 Id = Sha256.ComputeHash(pkBuf)
             };
-
         }
 
         public byte[] Sign(byte[] buffer, int offset, int len)

@@ -183,7 +183,8 @@ namespace zero.cocoon.models
 
                         _this.State = IoJobMeta.JobState.ProduceErr;
 
-                        await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
+                        if(_this.Source != null)
+                            await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
 
                         return false;
                     }

@@ -1110,7 +1110,7 @@ namespace zero.cocoon.autopeer
             }
             else if (!response.Status && Hub.Neighbors.Count < CcNode.MaxAdjuncts) //at least probe
             {
-                SendDiscoveryRequestAsync().ConfigureAwait(false);
+                var t = SendDiscoveryRequestAsync();
             }
         }
 
@@ -1336,7 +1336,7 @@ namespace zero.cocoon.autopeer
                         .OrderBy(n => ((CcAdjunct) n).Priority).FirstOrDefault();
                     
                     //try harder when this comes from a synack 
-                    if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(byte.MaxValue)] < byte.MaxValue/2)
+                    if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(0, CcDesignation.PubKeyLen) - 1] < byte.MaxValue/2)
                     {
                         var selection = q.ToList();
                         if(selection.Count > 0)
@@ -2031,7 +2031,7 @@ namespace zero.cocoon.autopeer
                     }
                 });
 
-                SendDiscoveryRequestAsync().ConfigureAwait(false);
+                var t = SendDiscoveryRequestAsync();
 
                 return true;
             }
