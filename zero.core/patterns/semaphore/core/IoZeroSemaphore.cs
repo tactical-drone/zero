@@ -124,19 +124,9 @@ namespace zero.core.patterns.semaphore.core
         private int _head;
 
         /// <summary>
-        /// The normalized head
-        /// </summary>
-        private int Head => _head % _maxCount; 
-        
-        /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
         private int _tail;
-
-        /// <summary>
-        /// The normalized tail
-        /// </summary>
-        private int Tail => _tail % _maxCount;
 
         /// <summary>
         /// Whether this semaphore has been cleared out
@@ -360,22 +350,21 @@ namespace zero.core.patterns.semaphore.core
             ZeroLock();
             
             //choose a head
-            var head = Head;
-            
+            var head = Interlocked.Increment(ref _head) % _maxCount;
+
             //Did we get it?
-            if(Interlocked.CompareExchange(ref _signalAwaiter[head], continuation, null) == null)
+            if ( Interlocked.CompareExchange(ref _signalAwaiter[head], continuation, null) == null)
             {
                 //set the state as well
                 _signalAwaiterState[head] = state;
-
-                //advance queue
-                Interlocked.Increment(ref _head);
 
                 //release lock
                 ZeroUnlock();
             }
             else //if(_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
             {
+                Interlocked.Decrement(ref _head);
+
                 //release lock
                 ZeroUnlock();
                 
@@ -500,8 +489,8 @@ namespace zero.core.patterns.semaphore.core
                 ZeroLock();
 
                 //choose a tail
-                var tail = Tail;
-                
+                var tail = Interlocked.Increment(ref _tail) % _maxCount;
+
                 //latch the chosen tail
                 var latchedWaiter = _signalAwaiter[tail];
 
@@ -521,9 +510,6 @@ namespace zero.core.patterns.semaphore.core
                     //grab the state
                     var state = _signalAwaiterState[tail];
                     
-                    //advance the tail
-                    Interlocked.Increment(ref _tail);
-
                     //release the lock
                     ZeroUnlock();
 
@@ -532,6 +518,11 @@ namespace zero.core.patterns.semaphore.core
 
                     //count the number of waiters released
                     released++;   
+                }
+                else
+                {
+                    //advance the tail
+                    Interlocked.Decrement(ref _tail);
                 }
             }
             
