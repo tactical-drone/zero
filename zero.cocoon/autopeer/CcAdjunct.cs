@@ -42,9 +42,9 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel, parm_max_network_latency, CcNode.parm_max_inbound);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel, parm_max_network_latency, CcNode.parm_max_inbound);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel, parm_max_network_latency, CcNode.parm_max_inbound);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2, parm_max_network_latency, CcNode.parm_max_inbound);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2, parm_max_network_latency, CcNode.parm_max_inbound);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2, parm_max_network_latency, CcNode.parm_max_inbound);
 
             if (extraData != null)
             {
@@ -594,7 +594,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Test mode
         /// </summary>
-        private static uint _dropOne = 1;
+        private static uint _dropOne = 0;
 
         /// <summary>
         /// Ensures that the peer is running
@@ -832,8 +832,17 @@ namespace zero.cocoon.autopeer
                                         {
                                             var routed = __this.Router._routingTable[((IPEndPoint) extraData).Port] != null;
 
-                                            var ccNeighbor = __this.Router._routingTable[((IPEndPoint) extraData).Port] ?? 
+                                            CcAdjunct ccNeighbor  = null;
+                                            try
+                                            {
+                                                ccNeighbor = __this.Router._routingTable[((IPEndPoint) extraData).Port] ?? 
                                                              (CcAdjunct) __this.Hub.Neighbors.Values.FirstOrDefault(n => ((IoNetClient<CcSubspaceMessage>)((CcAdjunct)n).Source).IoNetSocket.RemoteNodeAddress.Port == ((IPEndPoint)extraData).Port);
+                                            }
+                                            catch (Exception e)
+                                            {
+                                                _logger.Trace(e, Description);
+                                                return;
+                                            }                                 
                                             
                                             __this.Router._routingTable[((IPEndPoint) extraData).Port] ??= ccNeighbor;
                                             
@@ -1101,7 +1110,7 @@ namespace zero.cocoon.autopeer
             }
             else if (!response.Status && Hub.Neighbors.Count < CcNode.MaxAdjuncts) //at least probe
             {
-                await SendDiscoveryRequestAsync().ConfigureAwait(false);
+                SendDiscoveryRequestAsync().ConfigureAwait(false);
             }
         }
 
@@ -1796,6 +1805,10 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
+                //rate limit
+                if (_lastScan.Elapsed() < parm_max_network_latency / 1000)
+                    await Task.Delay(parm_max_network_latency + _random.Next(parm_max_network_latency * 10)).ConfigureAwait(false);
+                
                 var discoveryRequest = new DiscoveryRequest
                 {
                      Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
@@ -1807,10 +1820,6 @@ namespace zero.cocoon.autopeer
                 {
                     return false;
                 }
-
-                //rate limit
-                if (_lastScan.Elapsed() < parm_max_network_latency / 1000)
-                    return false;
 
                 _lastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
@@ -2022,7 +2031,7 @@ namespace zero.cocoon.autopeer
                     }
                 });
 
-                await SendDiscoveryRequestAsync().ConfigureAwait(false);
+                SendDiscoveryRequestAsync().ConfigureAwait(false);
 
                 return true;
             }

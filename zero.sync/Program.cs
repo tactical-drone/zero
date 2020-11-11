@@ -29,7 +29,7 @@ namespace zero.sync
         {
             //Test();
             LogManager.LoadConfiguration("nlog.config");
-            var portOffset = 3000;
+            var portOffset = -5000;
 
 #if DEBUG
             portOffset = 0;
@@ -37,7 +37,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 1999;
+            int total = 200;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<CcNode>>();
             
@@ -49,7 +49,8 @@ namespace zero.sync
             for (var i = 2; i < total; i++)
             {
                 //tasks.Add(CoCoonAsync(CcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15629 + portOffset + i - 2}", $"udp://127.0.0.1:{15629 + portOffset + (total - i + 2) % (total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + Math.Abs(total/2 - i + 2)%(total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + (total / 2 + i - 2) % (total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 2)}" }.ToList(), i));
+                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15629 + portOffset + i - 2}", $"udp://127.0.0.1:{15629 + portOffset + (total - i + 2) % (total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + Math.Abs(total/2 - i + 2)%(total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + (total / 2 + i - 2) % (total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 2)}" }.ToList(), i));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{14626}", $"udp://127.0.0.1:{14627}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(16)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(16)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}" }.ToList(), i));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
@@ -65,14 +66,14 @@ namespace zero.sync
                     c++;
                     if (c % 150 == 0)
                     {
-                        Console.WriteLine($"Provisioned {c}/{total}...");
-                        Console.WriteLine($"Provisioned {c}/{total}...");
-                        Console.WriteLine($"Provisioned {c}/{total}...");
-                        Console.WriteLine($"Provisioned {c}/{total}...");
-                        Console.WriteLine($"Provisioned {c}/{total}...");
-                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        await Task.Delay(rateLimit+=25 * 150).ConfigureAwait(false);
 
-                        await Task.Delay(rateLimit+=15 * 150).ConfigureAwait(false);
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
+                        Console.WriteLine($"Provisioned {c}/{total}...");
                     }
                 }
 

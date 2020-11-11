@@ -275,7 +275,7 @@ namespace zero.core.network.ip
             catch (SocketException e)
             {
 #if DEBUG
-                _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}");
+                _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
 #endif
                 _logger.Trace(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
                 ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).ConfigureAwait(false);

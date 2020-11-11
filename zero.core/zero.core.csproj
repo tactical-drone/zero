@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
-    <LangVersion>preview</LangVersion>    
+    <LangVersion>preview</LangVersion>
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>    
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -27,16 +28,16 @@
   </ItemGroup>
 
   <ItemGroup>    
-    <PackageReference Include="CassandraCSharpDriver" Version="3.16.0" />    
+    <PackageReference Include="CassandraCSharpDriver" Version="3.16.1" />    
     <PackageReference Include="Google.Protobuf" Version="3.13.0" />    
     <PackageReference Include="MathNet.Numerics" Version="4.12.0" />    
     <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />    
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />    
-    <PackageReference Include="Microsoft.Extensions.Primitives" Version="3.1.9" />    
-    <PackageReference Include="Microsoft.VisualStudio.Threading" Version="16.7.56" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="5.0.0" />    
+    <PackageReference Include="Microsoft.VisualStudio.Threading" Version="16.8.55" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="NLog" Version="4.7.5" />
-    <PackageReference Include="System.Reactive" Version="4.4.1" />
+    <PackageReference Include="System.Reactive" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>    
