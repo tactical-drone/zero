@@ -136,14 +136,13 @@ namespace zero.core.patterns.semaphore.core
         private volatile int _zeroed;
 
         /// <summary>
-        /// Max error tolerance, should be set > 1
+        /// Max error tolerance, should be set > 2
         /// </summary>
-        private const int MaxTolerance = 2;
+        private const int MaxTolerance = 3;
 
         /// <summary>
         /// Organic Manifold
         /// </summary>
-        /// <returns></returns>
         private volatile int _manifold; 
 
         #endregion
@@ -545,7 +544,7 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    //advance the tail
+                    //reset the tail
                     Interlocked.Decrement(ref _tail);
                 }
             }
