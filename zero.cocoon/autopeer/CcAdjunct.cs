@@ -768,7 +768,7 @@ namespace zero.cocoon.autopeer
         }
         
         /// <summary>
-        /// Processes a protocol message
+        /// Processes protocol messageS
         /// </summary>
         /// <returns></returns>
         private async Task ProcessAsync()

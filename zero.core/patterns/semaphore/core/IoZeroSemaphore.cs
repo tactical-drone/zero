@@ -43,6 +43,9 @@ namespace zero.core.patterns.semaphore.core
             _asyncToken = default;
             _asyncTokenReg = default;
             _enableAutoScale = enableAutoScale;
+            _enableAutoScaleRecovery = !enableAutoScale;
+        
+            _aquiredLock = false;
             
             if(_enableAutoScale)
                 _lock = new SpinLock(enableDeadlockDetection);
@@ -138,7 +141,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Max error tolerance, should be set > 2
         /// </summary>
-        private const int MaxTolerance = 3;
+        private const int MaxTolerance = 4;
 
         /// <summary>
         /// Organic Manifold
@@ -242,10 +245,8 @@ namespace zero.core.patterns.semaphore.core
             if(_enableAutoScale)
                 return;
             
-            var acquiredLock = false;
-
             //acquire lock
-            _lock.Enter(ref acquiredLock);
+            _lock.Enter(ref _aquiredLock);
         }
 
         /// <summary>
@@ -258,6 +259,7 @@ namespace zero.core.patterns.semaphore.core
             if(_enableAutoScale)
                 return;
             
+            _aquiredLock = false;
             _lock.Exit(_useMemoryBarrier);
         }
         
@@ -265,11 +267,21 @@ namespace zero.core.patterns.semaphore.core
         /// Used for locking internally; when <see cref="_enableAutoScale"/> is enabled
         /// </summary>
         private SpinLock _lock;
+
+        /// <summary>
+        /// True if the lock is held
+        /// </summary>
+        private bool _aquiredLock;
         
         /// <summary>
         /// if auto scaling is enabled 
         /// </summary>
-        private readonly bool _enableAutoScale;
+        private bool _enableAutoScale;
+
+        /// <summary>
+        /// Enables auto scale to enable in degraded mode
+        /// </summary>
+        private readonly bool _enableAutoScaleRecovery;
         
         /// <summary>
         /// A enter sentinel
@@ -371,9 +383,15 @@ namespace zero.core.patterns.semaphore.core
                 _signalAwaiterState[head] = state;
 
                 //reset scan range
-                if(_manifold == 0)
+                if (_manifold == 0)
+                {
+                    var _ = false;
+                    _lock.Enter(ref _);
+                    _enableAutoScale = false;
+                    _lock.Exit(_useMemoryBarrier);                        
                     _manifold = MaxTolerance;
-
+                }
+                
                 //release lock
                 ZeroUnlock();
             }
@@ -392,7 +410,12 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else if (Interlocked.Decrement(ref _manifold) > 0) //add organic manifold
                 {
-                    Thread.Yield();
+                    OnCompleted(continuation, state, token, flags);
+                }
+                else if (_enableAutoScaleRecovery)
+                {
+                    _enableAutoScale = true;
+                    ZeroScale();
                     OnCompleted(continuation, state, token, flags);
                 }
                 else
