@@ -44,9 +44,7 @@ namespace zero.core.patterns.semaphore.core
             _asyncTokenReg = default;
             _enableAutoScale = enableAutoScale;
             _enableAutoScaleRecovery = !enableAutoScale;
-        
-            _aquiredLock = false;
-            
+
             if(_enableAutoScale)
                 _lock = new SpinLock(enableDeadlockDetection);
             
@@ -246,7 +244,8 @@ namespace zero.core.patterns.semaphore.core
                 return;
             
             //acquire lock
-            _lock.Enter(ref _aquiredLock);
+            var acquireLock = false;
+            _lock.Enter(ref acquireLock);
         }
 
         /// <summary>
@@ -259,7 +258,6 @@ namespace zero.core.patterns.semaphore.core
             if(_enableAutoScale)
                 return;
             
-            _aquiredLock = false;
             _lock.Exit(_useMemoryBarrier);
         }
         
@@ -268,11 +266,6 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private SpinLock _lock;
 
-        /// <summary>
-        /// True if the lock is held
-        /// </summary>
-        private bool _aquiredLock;
-        
         /// <summary>
         /// if auto scaling is enabled 
         /// </summary>
