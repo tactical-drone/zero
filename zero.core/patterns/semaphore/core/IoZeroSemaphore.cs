@@ -407,7 +407,10 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else if (_enableAutoScaleRecovery)
                 {
+                    var _ = false;
+                    _lock.Enter(ref _);
                     _enableAutoScale = true;
+                    _lock.Exit(_useMemoryBarrier);
                     ZeroScale();
                     OnCompleted(continuation, state, token, flags);
                 }
