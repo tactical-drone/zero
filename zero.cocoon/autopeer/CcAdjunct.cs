@@ -44,7 +44,7 @@ namespace zero.cocoon.autopeer
 
             _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcNode.parm_max_inbound);
             _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcNode.parm_max_inbound);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcNode.MaxDrones, parm_max_network_latency, CcNode.parm_max_inbound);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcNode.MaxDrones * parm_max_discovery_peers + 1, parm_max_network_latency, CcNode.parm_max_inbound);
 
             if (extraData != null)
             {
