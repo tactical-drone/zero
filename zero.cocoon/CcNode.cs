@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -310,17 +311,17 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Ingress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
+        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && (((CcDrone)kv).Adjunct.Ingress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && (((CcDrone)kv).Adjunct.Egress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
+        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && (((CcDrone)kv).Adjunct.Egress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
 
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsPeerConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -420,6 +421,10 @@ namespace zero.cocoon
                     _logger.Info($"+ {peer.Description}");
                     
                     return true; 
+                }
+                else
+                {
+                    _logger.Debug($"| {peer.Description}");
                 }
 
                 return false;
@@ -525,11 +530,11 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            if (!await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet,
+                            //race for connection
+                            var won = !await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet,
                                     (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint)
-                                .ConfigureAwait(false))
-                                return false;
-                        
+                                .ConfigureAwait(false);
+
                             var packetData = packet.Data.Memory.AsArray();
                             
                             //verify the signature
@@ -540,7 +545,7 @@ namespace zero.cocoon
                                     packet!.Signature!.Memory.AsArray(), 0);
                             }
                             
-                            _this._logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {__peer.IoSource.Key}");
+                            _this._logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {__peer.IoSource.Key}");
                         
                             //Don't process unsigned or unknown messages
                             if (!verified)
@@ -576,7 +581,7 @@ namespace zero.cocoon
                                 //send response
                                 var handshakeResponse = new HandshakeResponse
                                 {
-                                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))
+                                    ReqHash = won? ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())): ByteString.CopyFrom(0)
                                 };
                                 
                                 var handshake = handshakeResponse.ToByteString();
@@ -585,12 +590,7 @@ namespace zero.cocoon
                                 
                                 var sent = await _this.SendMessageAsync(__peer, handshake, nameof(HandshakeResponse),
                                     _this.parm_handshake_timeout).ConfigureAwait(false);
-                                if (sent > 0)
-                                {
-                                    _this._logger.Trace(
-                                        $"Sent {sent} inbound handshake challange response, socket = {ioNetSocket.Description}");
-                                }
-                                else
+                                if (sent == 0)
                                 {
                                     _this._logger.Trace($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
                                     return false;
@@ -661,6 +661,7 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
+                            //race for connection
                             if (!await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Egress, __peer, packet,
                                     (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                                 .ConfigureAwait(false))
@@ -690,18 +691,25 @@ namespace zero.cocoon
                         
                             if (handshakeResponse != null)
                             {
-                                if (!CcDesignation.Sha256
-                                    .ComputeHash(handshake.Memory.AsArray())
-                                    .SequenceEqual(handshakeResponse.ReqHash))
+                                if (handshakeResponse.ReqHash.Length == 32)
                                 {
-                                    _this._logger.Error($"Invalid handshake response! Closing {ioNetSocket.Key}");
-                                    return false;
+                                    if (!CcDesignation.Sha256
+                                        .ComputeHash(handshake.Memory.AsArray())
+                                        .SequenceEqual(handshakeResponse.ReqHash))
+                                    {
+                                        _this._logger.Error($"Invalid handshake response! Closing {ioNetSocket.Key}");
+                                        return false;
+                                    }
                                 }
                             }
                         
                             return true;
                         }
                     }
+                }
+                catch (NullReferenceException e)
+                {
+                    _this._logger.Trace(e, _this.Description);
                 }
                 catch (TaskCanceledException e)
                 {
@@ -737,18 +745,18 @@ namespace zero.cocoon
             //Race for connection...
             var id = CcAdjunct.MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
 
-            var neighbor = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
-            if (neighbor != null)
+            var adjunct = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
+            if (adjunct != null)
             {
-                var ccNeighbor = (CcAdjunct) neighbor;
-                if (ccNeighbor.Assimilating && !ccNeighbor.IsPeerAttached)
+                var ccAdjunct = (CcAdjunct) adjunct;
+                if (ccAdjunct.Assimilating && !ccAdjunct.IsDroneAttached)
                 {
                     //did we win?
-                    return await drone.AttachNeighborAsync((CcAdjunct) neighbor, direction).ConfigureAwait(false);
+                    return await drone.AttachNeighborAsync((CcAdjunct) adjunct, direction).ConfigureAwait(false);
                 }
                 else
                 {
-                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccNeighbor.State}, a = {ccNeighbor.Assimilating}, p = {ccNeighbor.IsPeerConnected}, pa = {ccNeighbor.IsPeerAttached}, ut = {ccNeighbor.Uptime.TickSec()}");
+                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccAdjunct.State}, a = {ccAdjunct.Assimilating}, p = {ccAdjunct.IsDroneConnected}, pa = {ccAdjunct.IsDroneAttached}, ut = {ccAdjunct.Uptime.TickSec()}");
                     return false;
                 }
             }
@@ -763,42 +771,43 @@ namespace zero.cocoon
         /// Opens an <see cref="CcAdjunct.Heading.Egress"/> connection to a gossip peer
         /// </summary>
         /// <param name="adjunct">The verified neighbor associated with this connection</param>
-        public async ValueTask<bool> ConnectToPeerAsync(CcAdjunct adjunct)
+        public async ValueTask<bool> ConnectToDroneAsync(CcAdjunct adjunct)
         {
             //Validate
             if (
                     !Zeroed() && 
                     adjunct.Assimilating &&
-                    !adjunct.IsPeerConnected &&
+                    !adjunct.IsDroneConnected &&
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc &&
                     adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)
                 )
             {
-                var peer = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
-                if (Zeroed() || peer == null)
+                var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
+                if (Zeroed() || drone == null)
                 {
-                    if (peer != null) await peer.ZeroAsync(this).ConfigureAwait(false);
-                    _logger.Debug($"{nameof(ConnectToPeerAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
+                    if (drone != null) await drone.ZeroAsync(this).ConfigureAwait(false);
+                    _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                     return false;
                 }
                 
                 //Race for a connection
-                if (await HandshakeAsync((CcDrone)peer).ConfigureAwait(false))
+                if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
                 {
-                    _logger.Info($"+ {peer.Description}");
-                    NeighborTasks.Add(peer.AssimilateAsync());
+                    _logger.Info($"+ {drone.Description}");
+                    NeighborTasks.Add(drone.AssimilateAsync());
                     return true;
                 }
                 else
                 {
-                    await peer.ZeroAsync(this).ConfigureAwait(false);
+                    await drone.ZeroAsync(this).ConfigureAwait(false);
+                    _logger.Debug($"| {drone.Description}");
                     return false;
                 }
             }
             else
             {
-                _logger.Trace($"{nameof(ConnectToPeerAsync)}: Connect skipped: {adjunct.Description}");
+                _logger.Trace($"{nameof(ConnectToDroneAsync)}: Connect skipped: {adjunct.Description}");
                 return false;
             }
         }

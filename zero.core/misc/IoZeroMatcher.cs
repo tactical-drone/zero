@@ -29,7 +29,7 @@ namespace zero.core.misc
             _capacity = capacity;
             _description = description??"";
             _ttlMs = ttlMs;
-            _matcherMutex = new IoZeroSemaphore(nameof(_matcherMutex), concurrencyLevel, 1);
+            _matcherMutex = new IoZeroSemaphore($"{nameof(_matcherMutex)}[{_description}]", concurrencyLevel, 1);
             _matcherMutex.ZeroRef(ref _matcherMutex, AsyncTasks.Token);
         }
 
@@ -101,11 +101,22 @@ namespace zero.core.misc
             }
             finally
             {
-                if (_challenge.Count > _capacity)
+
+                try
                 {
-                    _challenge = _challenge.Where(c => !c.Collected).ToList();
+                    if (_challenge.Count > _capacity)
+                    {
+                        _challenge = _challenge.Where(c => !c.Collected).ToList();
+                    }
                 }
-                _matcherMutex.Release();
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+                finally
+                {
+                    _matcherMutex.Release();    
+                }
             }
 
             return true;
@@ -163,17 +174,27 @@ namespace zero.core.misc
             }
             finally
             {
-                foreach (var temporalValue in _challenge)
+                try
                 {
-                    if (temporalValue.TimestampMs.ElapsedMs() > _ttlMs)
-                        temporalValue.Collected = true;
-                    else if (response?.Key != null && response.Key == temporalValue.Key && temporalValue.TimestampMs < response.TimestampMs)
-                         temporalValue.Collected = true;
-                    
-                    temporalValue.Scanned = false;
+                    foreach (var temporalValue in _challenge)
+                    {
+                        if (temporalValue.TimestampMs.ElapsedMs() > _ttlMs)
+                            temporalValue.Collected = true;
+                        else if (response?.Key != null && response.Key == temporalValue.Key &&
+                                 temporalValue.TimestampMs < response.TimestampMs)
+                            temporalValue.Collected = true;
+
+                        temporalValue.Scanned = false;
+                    }
                 }
-                
-                _matcherMutex.Release();
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+                finally
+                {
+                    _matcherMutex.Release();    
+                }
             }
             return default;
         }

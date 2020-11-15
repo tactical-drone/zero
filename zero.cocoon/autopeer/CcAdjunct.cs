@@ -42,9 +42,9 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2, parm_max_network_latency, CcNode.parm_max_inbound);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2, parm_max_network_latency, CcNode.parm_max_inbound);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2, parm_max_network_latency, CcNode.parm_max_inbound);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcNode.parm_max_inbound);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcNode.parm_max_inbound);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcNode.MaxDrones, parm_max_network_latency, CcNode.parm_max_inbound);
 
             if (extraData != null)
             {
@@ -145,7 +145,7 @@ namespace zero.cocoon.autopeer
         /// return extra information about the state
         /// </summary>
         public string MetaDesc =>
-            $"(d = {Direction}, s = {State}, v = {Verified}, a = {Assimilating}, att = {IsPeerAttached}, c = {IsPeerConnected}, r = {PeeringAttempts}, g = {IsGossiping}, arb = {IsArbitrating}, o = {MessageService.IsOperational}, w = {TotalPats})";
+            $"(d = {Direction}, s = {State}, v = {Verified}, a = {Assimilating}, att = {IsDroneAttached}, c = {IsDroneConnected}, r = {PeeringAttempts}, g = {IsGossiping}, arb = {IsArbitrating}, o = {MessageService.IsOperational}, w = {TotalPats})";
 
         /// <summary>
         /// Random number generator
@@ -180,12 +180,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether The peer is attached
         /// </summary>
-        public bool IsPeerAttached => _drone != null;
+        public bool IsDroneAttached => _drone != null;
 
         /// <summary>
         /// Whether the peer is nominal
         /// </summary>
-        public bool IsPeerConnected => IsPeerAttached && (_drone?.IoSource?.IsOperational ?? false) && State == AdjunctState.Connected;
+        public bool IsDroneConnected => IsDroneAttached && (_drone?.IoSource?.IsOperational ?? false) && State == AdjunctState.Connected;
 
         /// <summary>
         /// Is this the local listener
@@ -200,12 +200,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether the node, peer and adjunct are nominal
         /// </summary>
-        public bool IsGossiping => Assimilating && IsPeerConnected;
+        public bool IsGossiping => Assimilating && IsDroneConnected;
 
         /// <summary>
         /// Looks for a zombie peer
         /// </summary>
-        public bool PolledZombie => Direction != Heading.Undefined && !(Assimilating && IsPeerConnected);
+        public bool PolledZombie => Direction != Heading.Undefined && !(Assimilating && IsDroneConnected);
 
         /// <summary>
         /// Indicates whether we have extracted information from this drone
@@ -281,12 +281,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// inbound
         /// </summary>
-        public bool Ingress => Direction == Heading.Ingress && IsPeerConnected;
+        public bool Ingress => Direction == Heading.Ingress && IsDroneConnected;
 
         /// <summary>
         /// outbound
         /// </summary>
-        public bool Egress => Direction == Heading.Egress && IsPeerConnected;
+        public bool Egress => Direction == Heading.Egress && IsDroneConnected;
 
         /// <summary>
         /// Who contacted who?
@@ -689,10 +689,10 @@ namespace zero.cocoon.autopeer
         protected async ValueTask<bool> ConnectAsync()
         {
             //Validate request
-            if (!Assimilating && !IsPeerAttached)
+            if (!Assimilating && !IsDroneAttached)
             {
 #if DEBUG
-                if (IsPeerAttached || State < AdjunctState.Disconnected)
+                if (IsDroneAttached || State < AdjunctState.Disconnected)
                     _logger.Fatal($"Incorrect state, {MetaDesc}, {Description}");
 #endif
 
@@ -703,13 +703,13 @@ namespace zero.cocoon.autopeer
             State = Assimilated ? AdjunctState.Reconnecting : AdjunctState.Connecting;
 
             //Attempt the connection, race to win
-            if (await CcNode.ConnectToPeerAsync(this).ConfigureAwait(false))
+            if (await CcNode.ConnectToDroneAsync(this).ConfigureAwait(false))
             {
                 _logger.Trace($"Connected to {Description}");
                 return true;
             }
 
-            _logger.Trace($"{nameof(CcNode.ConnectToPeerAsync)}: [LOST], {Description}, {MetaDesc}");
+            _logger.Trace($"{nameof(CcNode.ConnectToDroneAsync)}: [LOST], {Description}, {MetaDesc}");
             return false;
         }
 
@@ -1575,7 +1575,7 @@ namespace zero.cocoon.autopeer
             {
                 if (await SendMessageAsync(data: pong.ToByteString(), type: CcSubspaceMessage.MessageTypes.Pong).ConfigureAwait(false) > 0)
                 {
-                    if (IsPeerConnected)
+                    if (IsDroneConnected)
                         _logger.Trace($"-/> {nameof(Pong)}: Sent KEEPALIVE, to = {Description}");
                     else
                         _logger.Trace($"-/> {nameof(Pong)}: Sent ACK SYN, to = {Description}");
@@ -1871,11 +1871,11 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilating || IsPeerConnected)
+                if (!Assimilating || IsDroneConnected)
                 {
                     if (Collected)
                         _logger.Warn(
-                            $"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsPeerConnected}");
+                            $"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}");
                     return false;
                 }
 
@@ -1978,7 +1978,7 @@ namespace zero.cocoon.autopeer
             {
                 if (Collected)
                     _logger.Debug(e,
-                        $"{nameof(SendPeerDropAsync)}: [ERROR], {Description}, s = {State}, a = {Assimilating}, p = {IsPeerConnected}, d = {dest}, s = {MessageService}");
+                        $"{nameof(SendPeerDropAsync)}: [ERROR], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}, d = {dest}, s = {MessageService}");
             }
         }
 
@@ -2076,7 +2076,7 @@ namespace zero.cocoon.autopeer
             //send drop request
             await SendPeerDropAsync().ConfigureAwait(false);
             
-            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsPeerConnected}, {peer?.Description ?? Description}");
+            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {peer?.Description ?? Description}");
 
             //Detach zeroed
             Unsubscribe(_zeroSub);

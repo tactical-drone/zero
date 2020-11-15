@@ -44,7 +44,7 @@ namespace zero.core.patterns.misc
             enableDeadlockDetection = false;
 #endif
 
-            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 100, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
+            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 1000, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 

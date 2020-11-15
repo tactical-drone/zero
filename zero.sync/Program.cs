@@ -141,7 +141,7 @@ namespace zero.sync
                         uptimeCount = 1;
                         foreach (var ioCcNode in _nodes)
                         {
-                            opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsPeerConnected??false);
+                            opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsDroneConnected??false);
                             var e = ioCcNode.EgressConnections;
                             var i = ioCcNode.IngressConnections;
                             minOut = Math.Min(minOut, e);
@@ -160,7 +160,7 @@ namespace zero.sync
                             if (ioCcNode.Hub.Neighbors.Count > 0)
                                 uptime += (long)(ioCcNode.Hub.Neighbors.Values.Select(n =>
                                 {
-                                    if (((CcAdjunct)n).IsPeerConnected && ((CcAdjunct)n).AttachTimestamp > 0)
+                                    if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
                                     {
                                         uptimeCount++;
                                         return ((CcAdjunct)n).AttachTimestamp.Elapsed();
