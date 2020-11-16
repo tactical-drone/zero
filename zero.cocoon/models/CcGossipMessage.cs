@@ -269,7 +269,7 @@ namespace zero.cocoon.models
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        await Task.Delay(500, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
 
                         var sentTask = await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
                         

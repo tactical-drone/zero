@@ -153,6 +153,8 @@ namespace zero.sync
                             if (ioCcNode.IngressConnections == 0)
                                 minInC++;
                             
+                            if(ioCcNode.TotalConnections > ioCcNode.MaxDrones)
+                                throw new ApplicationException($"{nameof(ioCcNode.TotalConnections)} > {ioCcNode.MaxDrones}");
                             
                             ooutBound += e;
                             oinBound += i;
@@ -242,16 +244,16 @@ namespace zero.sync
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
             
-            var capacity = 50000;
+            var capacity = 1000;
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, false, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
-            var releaseCount = 2;
+            var releaseCount = 1;
             var enableThrottle = true;
             var twoWaiters = true;
             var twoReleasers = 2;
             var targetSleep = (long) 0;
-            var logSpam = 50000;
+            var logSpam = 30000;
             var targetSleepMult = twoWaiters ? 2 : 1;
             var sw = new Stopwatch();    
             var sw2 = new Stopwatch();

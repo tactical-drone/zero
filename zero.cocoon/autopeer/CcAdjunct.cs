@@ -124,7 +124,7 @@ namespace zero.cocoon.autopeer
         {
             get
             {
-                if (_lastDescGen.ElapsedMsDelta() > 10000 && _description != null)
+                if (_lastDescGen.ElapsedMsDelta() > 100 && _description != null)
                     return _description;
 
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -1996,7 +1996,7 @@ namespace zero.cocoon.autopeer
                 {
                     var _this = (CcAdjunct) s;
                     var t = (ValueTuple<CcDrone, Heading>) u;
-                    var __ioCcPeer = t.Item1;
+                    var __ioCcDrone = t.Item1;
                     var __direciton = t.Item2;
 
                     //Race for direction
@@ -2004,11 +2004,11 @@ namespace zero.cocoon.autopeer
                         (int) Heading.Undefined)
                     {
                         _this._logger.Warn(
-                            $"oz: race for {__direciton} lost {__ioCcPeer.Description}, current = {_this.Direction}, {_this._drone?.Description}");
+                            $"oz: race for {__direciton} lost {__ioCcDrone.Description}, current = {_this.Direction}, {_this._drone?.Description}");
                         return ValueTask.FromResult(false);
                     }
 
-                    _this._drone = __ioCcPeer ?? throw new ArgumentNullException($"{nameof(__ioCcPeer)}");
+                    _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
                     _this.State = AdjunctState.Connected;
                     return ValueTask.FromResult(true);
                 }, ValueTuple.Create(ccDrone, direction));
@@ -2068,24 +2068,23 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            var peer = parms.Item1;
+            var drone = parms.Item1;
 
-            if (peer != dc)
+            if (drone != dc)
                 throw new ApplicationException("peer == dc");
             
             //send drop request
             await SendPeerDropAsync().ConfigureAwait(false);
             
-            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {peer?.Description ?? Description}");
+            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {drone?.Description ?? Description}");
 
             //Detach zeroed
             Unsubscribe(_zeroSub);
             _zeroSub = default;
 
-            if (peer != null)
+            if (drone != null)
             {
-                await peer.DetachNeighborAsync().ConfigureAwait(false);
-                await peer.ZeroAsync(this).ConfigureAwait(false);
+                await drone.ZeroAsync(this).ConfigureAwait(false);
             }
 
             Interlocked.Exchange(ref _direction, 0);
@@ -2094,8 +2093,12 @@ namespace zero.cocoon.autopeer
             PeeringAttempts = 0;
             State = AdjunctState.Disconnected;
 
-            //Try to re-establish a link
-            await SendPingAsync().ConfigureAwait(false);
+            //back off for a while... Try to re-establish a link 
+            var t = Task.Run(async () =>
+            {
+                await Task.Delay(parm_max_network_latency).ConfigureAwait(false);
+                await SendPingAsync().ConfigureAwait(false);
+            });
         }
 
 

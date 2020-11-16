@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
 using zero.cocoon.autopeer;
@@ -408,23 +409,24 @@ namespace zero.cocoon
 
             
             //start node listener
-            await base.SpawnListenerAsync(async peer =>
+            await base.SpawnListenerAsync(async drone =>
             {
                 //limit connects
-                if (Zeroed() || IngressConnections >= parm_max_inbound || peer == null)
+                if (Zeroed() || IngressConnections >= parm_max_inbound || drone == null)
                     return false;
 
                 //Handshake
-                if (await HandshakeAsync((CcDrone)peer).ConfigureAwait(false))
+                if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
                 {
                     //ACCEPT
-                    _logger.Info($"+ {peer.Description}");
+                    _logger.Info($"+ {drone.Description}");
                     
                     return true; 
                 }
                 else
                 {
-                    _logger.Debug($"| {peer.Description}");
+                    await Task.Yield().ConfigureAwait(false);
+                    _logger.Debug($"| {drone.Description}");
                 }
 
                 return false;
@@ -600,7 +602,7 @@ namespace zero.cocoon
                             //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                             //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                             //    .ConfigureAwait(false);
-                            return true;
+                            return !Zeroed() && drone.Adjunct != null;
                         
                         }
                     }
@@ -703,7 +705,7 @@ namespace zero.cocoon
                                 }
                             }
                         
-                            return true;
+                            return !Zeroed() && drone.Adjunct != null;
                         }
                     }
                 }
@@ -801,6 +803,7 @@ namespace zero.cocoon
                 else
                 {
                     await drone.ZeroAsync(this).ConfigureAwait(false);
+                    await Task.Yield().ConfigureAwait(false); //yield on opposite sides of this coin
                     _logger.Debug($"| {drone.Description}");
                     return false;
                 }

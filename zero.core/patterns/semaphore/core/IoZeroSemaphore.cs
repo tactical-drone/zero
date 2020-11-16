@@ -46,6 +46,8 @@ namespace zero.core.patterns.semaphore.core
             
             if(_enableAutoScale)
                 _lock = new SpinLock(enableDeadlockDetection);
+
+            _latched = o => { };
             
             _signalAwaiter = new Action<object>[_maxCount];
             _signalAwaiterState = new object[_maxCount];
@@ -279,7 +281,12 @@ namespace zero.core.patterns.semaphore.core
         /// A wait sentinel
         /// </summary>
         private ValueTask<bool> _zeroWait;
-        
+
+        /// <summary>
+        /// Used for latching 
+        /// </summary>
+        private Action<object> _latched;
+
         #endregion
 
         /// <summary>
@@ -363,20 +370,22 @@ namespace zero.core.patterns.semaphore.core
             //choose a head
             var head = (Interlocked.Increment(ref _head) - 1) % _maxCount;
             var c = 0;
-            while (Interlocked.CompareExchange(ref _signalAwaiter[head], continuation, null) != null && c++ < _maxCount)
+            while (Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null && c++ < _maxCount)
             {
                 head = (Interlocked.Increment(ref _head) - 1) % _maxCount;
             }
             
             //Did we get it?
             if (c < _maxCount)
+            //if(Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null)
             {
                 //set the state as well
                 _signalAwaiterState[head] = state;
+                Interlocked.Exchange(ref _signalAwaiter[head], continuation);
 
-                // //adapt to meta race conditions
-                // if (_manifold < MaxTolerance)
-                //     Interlocked.Increment(ref _manifold);
+                 //adapt to meta race conditions
+                 // if (_manifold < MaxTolerance)
+                 //     Interlocked.Increment(ref _manifold);
                 
                 //release lock
                 ZeroUnlock();
@@ -514,42 +523,53 @@ namespace zero.core.patterns.semaphore.core
                 //Lock
                 ZeroLock();
 
-                //choose a tail
+                //choose a tail index
                 var tail = (Interlocked.Increment(ref _tail) - 1) % _maxCount;
 
-                //latch the chosen tail
-                var latchedWaiter = _signalAwaiter[tail];
-
-                //did we get a waiter to latch on?
-                if (latchedWaiter == null)
+                //target a chosen tail
+                var targetWaiter = _signalAwaiter[tail];
+                
+                //did we get a potential target to latch on to?
+                if (targetWaiter == null || targetWaiter == _latched)
                 {
+                    //reset the tail
+                    Interlocked.Decrement(ref _tail);
+                    
                     ZeroUnlock();
                     
                     //try again
                     continue;
                 }
                 
-                //latch onto the waiter
-                Action<object> waiter;
-                if ((waiter = Interlocked.CompareExchange(ref _signalAwaiter[tail], null, latchedWaiter)) == latchedWaiter)
+                //attempt to latch onto the waiter
+                Action<object> latchedWaiter;
+                if ((latchedWaiter = Interlocked.CompareExchange(ref _signalAwaiter[tail], _latched, targetWaiter)) == targetWaiter)
                 {
                     //grab the state
                     var state = _signalAwaiterState[tail];
                     
                     //free the state
-                    _signalAwaiterState[tail] = null;
+                    Interlocked.Exchange(ref _signalAwaiterState[tail], null);
+                    
+                    //unlatch
+                    Interlocked.Exchange(ref _signalAwaiter[tail], null);
+                    
+                    //validate
+                    if(state == null)
+                        throw new ArgumentNullException($"-> {nameof(state)}");
                     
                     //release the lock
                     ZeroUnlock();
 
                     //release a waiter
-                    waiter(state);
+                    latchedWaiter(state);
 
                     //count the number of waiters released
-                    released++;   
+                    released++;
                 }
                 else
                 {
+                    count--;
                     //reset the tail
                     Interlocked.Decrement(ref _tail);
                 }

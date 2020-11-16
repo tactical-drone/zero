@@ -70,7 +70,7 @@ namespace zero.cocoon
         {
             get
             {
-                if (_lastDescGen.ElapsedMsDelta() > 10000 && _description != null)
+                if (_lastDescGen.ElapsedMsDelta() > 100 && _description != null)
                     return _description;
                 
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -151,7 +151,7 @@ namespace zero.cocoon
         {
             if((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
                 _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
-
+            
             await DetachNeighborAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
@@ -172,10 +172,8 @@ namespace zero.cocoon
             if (attached)
             {
                 _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {adjunct.Description}");
-
-#pragma warning disable 4014
-                StartTestModeAsync();
-#pragma warning restore 4014
+                
+                var t = StartTestModeAsync();
             }
             else
             {
@@ -203,6 +201,9 @@ namespace zero.cocoon
 
             if(adjunct != null)
                 await adjunct.DetachPeerAsync(this).ConfigureAwait(false);
+            // {
+            //     throw new NullReferenceException($"{nameof(adjunct)}");
+            // }
         }
 
         /// <summary>
