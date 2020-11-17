@@ -554,9 +554,11 @@ namespace zero.core.patterns.semaphore.core
                     //unlatch
                     Interlocked.Exchange(ref _signalAwaiter[tail], null);
                     
+#if DEBUG
                     //validate
                     if(state == null)
                         throw new ArgumentNullException($"-> {nameof(state)}");
+#endif
                     
                     //release the lock
                     ZeroUnlock();
