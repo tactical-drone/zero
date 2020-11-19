@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
+using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
 using zero.cocoon.models.services;
@@ -42,9 +43,9 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcNode.parm_max_inbound);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcNode.parm_max_inbound);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcNode.MaxDrones * parm_max_discovery_peers + 1, parm_max_network_latency, CcNode.parm_max_inbound);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcCollective.MaxDrones * parm_max_discovery_peers + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
 
             if (extraData != null)
             {
@@ -56,9 +57,9 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                Designation = CcNode.CcId;
+                Designation = CcCollective.CcId;
                 Services = services ?? node.Services;
-                Key = MakeId(Designation, CcNode.ExtAddress);
+                Key = MakeId(Designation, CcCollective.ExtAddress);
             }
 
             if (Proxy)
@@ -69,7 +70,7 @@ namespace zero.cocoon.autopeer
                     while (!Zeroed())
                     {
                         await WatchdogAsync().ConfigureAwait(false);
-                        await Task.Delay(_random.Next(CcNode.parm_mean_pat_delay / 2) * 1000 + CcNode.parm_mean_pat_delay / 4 * 1000,AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(CcCollective.parm_mean_pat_delay / 2) * 1000 + CcCollective.parm_mean_pat_delay / 4 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
@@ -301,7 +302,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The node that this adjunct belongs to
         /// </summary>
-        public CcNode CcNode => Hub.CcNode;
+        public CcCollective CcCollective => Hub.CcCollective;
 
         /// <summary>
         /// The router
@@ -616,12 +617,12 @@ namespace zero.cocoon.autopeer
             //Are we limping?
             if (!Proxy && Hub.Neighbors.Count <= 3)
             {
-                await CcNode.BootAsync().ConfigureAwait(false);
+                await CcCollective.BootAsync().ConfigureAwait(false);
             }
 
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
-            if (SecondsSincePat > CcNode.parm_mean_pat_delay * 8 || _dropOne == 0)
+            if (SecondsSincePat > CcCollective.parm_mean_pat_delay * 8 || _dropOne == 0)
             {
                 _dropOne = 1;
                 var reconnect = this.Direction == Heading.Egress;
@@ -630,7 +631,7 @@ namespace zero.cocoon.autopeer
                 if (TotalPats > 1)
                     _logger.Debug($"w {Description}");
                 else
-                    _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {CcNode.parm_mean_pat_delay * 4}, {MetaDesc}");
+                    _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay * 4}, {MetaDesc}");
                 
                 await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago...")).ConfigureAwait(false);
                 
@@ -703,13 +704,13 @@ namespace zero.cocoon.autopeer
             State = Assimilated ? AdjunctState.Reconnecting : AdjunctState.Connecting;
 
             //Attempt the connection, race to win
-            if (await CcNode.ConnectToDroneAsync(this).ConfigureAwait(false))
+            if (await CcCollective.ConnectToDroneAsync(this).ConfigureAwait(false))
             {
                 _logger.Trace($"Connected to {Description}");
                 return true;
             }
 
-            _logger.Trace($"{nameof(CcNode.ConnectToDroneAsync)}: [LOST], {Description}, {MetaDesc}");
+            _logger.Trace($"{nameof(CcCollective.ConnectToDroneAsync)}: [LOST], {Description}, {MetaDesc}");
             return false;
         }
 
@@ -1039,7 +1040,7 @@ namespace zero.cocoon.autopeer
             PeeringResponse peeringResponse = peeringResponse = new PeeringResponse
             {
                 ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
-                Status = CcNode.IngressConnections < CcNode.parm_max_inbound & _direction == 0
+                Status = CcCollective.IngressConnections < CcCollective.parm_max_inbound & _direction == 0
             };
             
             if (await SendMessageAsync(data: peeringResponse.ToByteString(),
@@ -1108,7 +1109,7 @@ namespace zero.cocoon.autopeer
                     }).ConfigureAwait(false);
                 }
             }
-            else if (!response.Status && Hub.Neighbors.Count < CcNode.MaxAdjuncts) //at least probe
+            else if (!response.Status && Hub.Neighbors.Count < CcCollective.MaxAdjuncts) //at least probe
             {
                 var t = SendDiscoveryRequestAsync();
             }
@@ -1141,12 +1142,12 @@ namespace zero.cocoon.autopeer
                 var packet = new Packet
                 {
                     Data = data,
-                    PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey),
+                    PublicKey = ByteString.CopyFrom(CcCollective.CcId.PublicKey),
                     Type = (uint) type
                 };
 
                 packet.Signature =
-                    ByteString.CopyFrom(CcNode.CcId.Sign(packet.Data!.Memory.AsArray(), 0, packet.Data.Length));
+                    ByteString.CopyFrom(CcCollective.CcId.Sign(packet.Data!.Memory.AsArray(), 0, packet.Data.Length));
                 var msgRaw = packet.ToByteArray();
 
 
@@ -1238,7 +1239,7 @@ namespace zero.cocoon.autopeer
 
             foreach (var responsePeer in response.Peers)
             {
-                if (Hub.Neighbors.Count > CcNode.MaxDrones && count > parm_min_spare_bays)
+                if (Hub.Neighbors.Count > CcCollective.MaxDrones && count > parm_min_spare_bays)
                     break;
 
                 //Any services attached?
@@ -1255,12 +1256,12 @@ namespace zero.cocoon.autopeer
 
                 //Never add ourselves (by NAT)
                 if (responsePeer.Services.Map.ContainsKey(CcService.Keys.peering.ToString()) &&
-                    responsePeer.Ip == CcNode.ExtAddress.Ip &&
-                    CcNode.ExtAddress.Port == responsePeer.Services.Map[CcService.Keys.peering.ToString()].Port)
+                    responsePeer.Ip == CcCollective.ExtAddress.Ip &&
+                    CcCollective.ExtAddress.Port == responsePeer.Services.Map[CcService.Keys.peering.ToString()].Port)
                     continue;
 
                 //Never add ourselves (by ID)
-                if (responsePeer.PublicKey.SequenceEqual(CcNode.CcId.PublicKey))
+                if (responsePeer.PublicKey.SequenceEqual(CcCollective.CcId.PublicKey))
                     continue;
 
                 //Don't add already known neighbors
@@ -1320,7 +1321,7 @@ namespace zero.cocoon.autopeer
                 var __newNeighbor = t.Item2;
                 var __synAck = t.Item3;
 
-                if (_this.Hub.Neighbors.Count > _this.CcNode.MaxDrones)
+                if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxDrones)
                 {
                     //drop something
                     var q = _this.Hub.Neighbors.Values.Where(n =>
@@ -1357,7 +1358,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 //Transfer?
-                if (_this.Hub.Neighbors.Count <= _this.CcNode.MaxDrones)
+                if (_this.Hub.Neighbors.Count <= _this.CcCollective.MaxDrones)
                     return _this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor);
                 else
                     return false;
@@ -1399,6 +1400,14 @@ namespace zero.cocoon.autopeer
                 }
                 
                 _logger.Debug($"# {newAdjunct.Description}");
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.AddAdjunct,
+                    Adjunct = new Adjunct
+                    {
+                        Id = newAdjunct.Designation.IdString(), CollectiveId = CcCollective.Hub.Router.Designation.IdString()
+                    }
+                });
                 return await newAdjunct.SendPingAsync().ConfigureAwait(false);
             }
             else
@@ -1544,7 +1553,7 @@ namespace zero.cocoon.autopeer
             {
                 IoNodeAddress toProxyAddress = null;
 
-                if (CcNode.UdpTunnelSupport)
+                if (CcCollective.UdpTunnelSupport)
                 {
                     if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)
                     {
@@ -1567,7 +1576,7 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"-/> {nameof(Pong)}: Sent SYN-ACK, to = {toAddress}");
                 }
 
-                if (CcNode.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
+                if (CcCollective.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
                     await SendMessageAsync(pong.ToByteString(), toAddress, CcSubspaceMessage.MessageTypes.Pong)
                         .ConfigureAwait(false);
             }
@@ -1657,11 +1666,11 @@ namespace zero.cocoon.autopeer
                 //set ext address as seen by neighbor
                 ExtGossipAddress =
                     IoNodeAddress.Create(
-                        $"tcp://{pong.DstAddr}:{CcNode.Services.CcRecord.Endpoints[CcService.Keys.gossip].Port}");
+                        $"tcp://{pong.DstAddr}:{CcCollective.Services.CcRecord.Endpoints[CcService.Keys.gossip].Port}");
 
                 NATAddress =
                     IoNodeAddress.Create(
-                        $"udp://{pong.DstAddr}:{CcNode.Services.CcRecord.Endpoints[CcService.Keys.peering].Port}");
+                        $"udp://{pong.DstAddr}:{CcCollective.Services.CcRecord.Endpoints[CcService.Keys.peering].Port}");
 
                 Verified = true;
 
@@ -1670,16 +1679,16 @@ namespace zero.cocoon.autopeer
                 //if (CcNode.EgressConnections < CcNode.parm_max_outbound)
                 {
                     _logger.Trace(
-                        $"{(Proxy ? "V>" : "X>")}(acksyn): {(CcNode.EgressConnections < CcNode.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
+                        $"{(Proxy ? "V>" : "X>")}(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
                     await SendPeerRequestAsync().ConfigureAwait(false);
                 }
             }
             else //sometimes drones we know prod us for connections
             {
-                if (Direction == Heading.Undefined && CcNode.TotalConnections < CcNode.MaxDrones && PeeringAttempts < parm_zombie_max_connection_attempts)
+                if (Direction == Heading.Undefined && CcCollective.TotalConnections < CcCollective.MaxDrones && PeeringAttempts < parm_zombie_max_connection_attempts)
                 {
                     _logger.Trace(
-                        $"<\\- {nameof(Pong)}(acksyn-fast): {(CcNode.EgressConnections < CcNode.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
+                        $"<\\- {nameof(Pong)}(acksyn-fast): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
                     await SendPeerRequestAsync().ConfigureAwait(false);
                 }
                 else
@@ -1711,7 +1720,7 @@ namespace zero.cocoon.autopeer
                     NetworkId = 8,
                     Version = 0,
                     SrcAddr = "0.0.0.0",
-                    SrcPort = (uint) CcNode.Services.CcRecord.Endpoints[CcService.Keys.peering].Port,
+                    SrcPort = (uint) CcCollective.Services.CcRecord.Endpoints[CcService.Keys.peering].Port,
                     // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
                     //     parm_max_time_error + parm_max_time_error / 2
                      Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
@@ -2057,8 +2066,7 @@ namespace zero.cocoon.autopeer
 
                 if (_this._drone != t.Item1)
                     return ValueTask.FromResult(false);
-
-                //peer = _this._peer;
+                
                 t.Item1 = _this._drone;
 
                 _this._drone = null;

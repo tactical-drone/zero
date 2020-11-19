@@ -11,23 +11,23 @@ using zero.core.network.ip;
 namespace zero.cocoon.autopeer
 {
     /// <summary>
-    /// Used by <see cref="CcNode"/> to discover other nodes
+    /// Used by <see cref="CcCollective"/> to discover other nodes
     /// </summary>
     public class CcHub : IoNode<CcSubspaceMessage>
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="ccNode">The node this service belongs to</param>
+        /// <param name="ccCollective">The node this service belongs to</param>
         /// <param name="address">The listening address of this service</param>
         /// <param name="mallocNeighbor">Allocates neighbors on connection</param>
         /// <param name="prefetch">TCP job read ahead</param>
         /// <param name="concurrencyLevel">Nr of consumers that run concurrently</param>
-        public CcHub(CcNode ccNode, IoNodeAddress address,
+        public CcHub(CcCollective ccCollective, IoNodeAddress address,
             Func<IoNode<CcSubspaceMessage>, IoNetClient<CcSubspaceMessage>, object, IoNeighbor<CcSubspaceMessage>> mallocNeighbor, int prefetch, int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            CcNode = ccNode;
+            CcCollective = ccCollective;
         }
 
         /// <summary>
@@ -43,12 +43,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The cocoon node this discovery service belongs to 
         /// </summary>
-        public CcNode CcNode;
+        public CcCollective CcCollective;
 
         /// <summary>
         /// Services Proxy request helper
         /// </summary>
-        public CcService Services => CcNode.Services;
+        public CcService Services => CcCollective.Services;
         
         /// <summary>
         /// The router
@@ -62,7 +62,7 @@ namespace zero.cocoon.autopeer
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            CcNode = null;
+            CcCollective = null;
             Router = null;
 #endif
         }

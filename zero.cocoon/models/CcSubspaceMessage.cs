@@ -375,12 +375,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// CC Node
         /// </summary>
-        protected CcNode CcNode => ((CcAdjunct) IoZero)?.CcNode;
+        protected CcCollective CcCollective => ((CcAdjunct) IoZero)?.CcCollective;
 
         /// <summary>
         /// Cc Identity
         /// </summary>
-        public CcDesignation CcId => CcNode.CcId;
+        public CcDesignation CcId => CcCollective.CcId;
 
         /// <summary>
         /// Message sink

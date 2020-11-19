@@ -1,0 +1,46 @@
+﻿syntax = "proto3";
+
+
+
+service autopeering {
+	rpc Next(NullMsg) returns (EventResponse);		
+}
+
+message NullMsg{
+
+}
+
+enum AutoPeerEventType{
+	AddCollective = 0;
+	AddAdjunct = 1;
+	AddDrone = 2;
+} 
+
+message AutoPeerEvent{
+	AutoPeerEventType eventType = 1;
+	oneof event {
+		Collective collective = 2;
+		Adjunct adjunct = 3;
+		Drone drone = 4;
+	};
+}
+
+message EventResponse{	
+	repeated AutoPeerEvent events = 1;
+}
+
+message Collective{	
+	string id = 1;
+	string ip = 2;	
+}
+
+message Adjunct {	
+	string id = 1;		
+	string collectiveId = 2;		
+}
+
+message Drone {		
+	string ingress = 1;
+	string egress = 2;
+	string direction = 3;
+}

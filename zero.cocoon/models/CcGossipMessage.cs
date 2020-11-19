@@ -56,7 +56,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The node that this message belongs to
         /// </summary>
-        protected CcNode CcNode => ((CcDrone)IoZero).Adjunct.CcNode;
+        protected CcCollective CcCollective => ((CcDrone)IoZero).Adjunct.CcCollective;
         
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -82,12 +82,12 @@ namespace zero.cocoon.models
             var responsePacket = new Packet
             {
                 Data = data,
-                PublicKey = ByteString.CopyFrom(CcNode.CcId.PublicKey),
+                PublicKey = ByteString.CopyFrom(CcCollective.CcId.PublicKey),
                 Type = 0
             };
 
             responsePacket.Signature =
-                ByteString.CopyFrom(CcNode.CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
+                ByteString.CopyFrom(CcCollective.CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
 
             var msgRaw = responsePacket.ToByteArray();
             
@@ -269,7 +269,7 @@ namespace zero.cocoon.models
                         MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        //await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
 
                         var sentTask = await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
                         

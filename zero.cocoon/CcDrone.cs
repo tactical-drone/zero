@@ -213,7 +213,7 @@ namespace zero.cocoon
         {
             try
             {
-                if (Interlocked.Read(ref ((CcNode) Node).Testing) == 0)
+                if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
                 if (Interlocked.Read(ref _isTesting) > 0)

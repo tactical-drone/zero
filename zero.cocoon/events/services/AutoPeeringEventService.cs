@@ -1,0 +1,51 @@
+﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using Grpc.Core;
+using Microsoft.Extensions.Logging;
+
+
+namespace zero.cocoon.events.services
+{
+    public class AutoPeeringEventService: autopeering.autopeeringBase
+    {
+        public AutoPeeringEventService(ILogger<AutoPeeringEventService> logger)
+        {
+            _logger = logger;
+        }
+
+        private readonly ILogger<AutoPeeringEventService> _logger;
+        private static readonly ConcurrentQueue<AutoPeerEvent> QueuedEvents = new ConcurrentQueue<AutoPeerEvent>();
+        private static volatile int Operational = 0;
+        private const int EventBatchSize = 10000;
+
+        public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)
+        {
+            if(Operational == 0)
+                Operational = 1;
+
+            var response = new EventResponse();
+            var c = 0;
+            var events = new List<AutoPeerEvent>();
+            while (c++ < EventBatchSize && QueuedEvents.TryDequeue(out var netEvent))
+            {
+                events.Add(netEvent);
+            }
+
+            response.Events.AddRange(events);
+            
+            if (response.Events.Count == 0)
+                await Task.Delay(500).ConfigureAwait(false);
+            return response;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void AddEvent(AutoPeerEvent newAutoPeerEvent)
+        {
+            if(Operational > 0 || QueuedEvents.Count < int.MaxValue / 10)
+                QueuedEvents.Enqueue(newAutoPeerEvent);
+        }
+    }
+}

@@ -2,10 +2,16 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NLog;
+using NLog.Web;
 using zero.cocoon;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
@@ -16,14 +22,34 @@ using zero.core.patterns.semaphore;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace zero.sync
 {
     class Program
     {
 
-        private static ConcurrentBag<CcNode> _nodes = new ConcurrentBag<CcNode>();
+        private static ConcurrentBag<CcCollective> _nodes = new ConcurrentBag<CcCollective>();
         private static volatile bool _running;
+
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
+            Host.CreateDefaultBuilder(args)
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    webBuilder
+                        .ConfigureKestrel(options =>
+                        {
+                            options.ListenAnyIP(27021,
+                                listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
+                        })
+                        .UseStartup<StartServices>()
+                        .ConfigureLogging(builder =>
+                        {
+                            builder.ClearProviders();
+                            builder.SetMinimumLevel(LogLevel.None);
+                        })
+                        .UseNLog();
+                });
 
         static void Main(string[] args)
         {
@@ -34,13 +60,20 @@ namespace zero.sync
 #if DEBUG
             portOffset = 0;
 #endif
+            IHost host = null;
+            var grpc = Task.Factory.StartNew(() =>
+            {
+                host = CreateHostBuilder(args).Build();
+                host.Run();
+            }, TaskCreationOptions.LongRunning);
+
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
             int total = 2000;
             var maxNeighbors = 8;
-            var tasks = new ConcurrentBag<Task<CcNode>>();
-            
+            var tasks = new ConcurrentBag<Task<CcCollective>>();
+
             //tasks.Add(CoCoonAsync(CcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}", $"udp://127.0.0.1:{14626}" }.ToList(), 0));
             tasks.Add(CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{14627}", $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{14627}", new[] { $"udp://127.0.0.1:{14626}" }.ToList(), 0));
 
@@ -55,7 +88,7 @@ namespace zero.sync
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
 
-            var task = Task.Run(async () =>    
+            var task = Task.Run(async () =>
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 0;
@@ -66,7 +99,7 @@ namespace zero.sync
                     c++;
                     if (c % 150 == 0)
                     {
-                        await Task.Delay(rateLimit+=25 * 150).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 25 * 150).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -141,7 +174,7 @@ namespace zero.sync
                         uptimeCount = 1;
                         foreach (var ioCcNode in _nodes)
                         {
-                            opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsDroneConnected??false);
+                            opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsDroneConnected ?? false);
                             var e = ioCcNode.EgressConnections;
                             var i = ioCcNode.IngressConnections;
                             minOut = Math.Min(minOut, e);
@@ -152,10 +185,10 @@ namespace zero.sync
                                 minOutC++;
                             if (ioCcNode.IngressConnections == 0)
                                 minInC++;
-                            
-                            if(ioCcNode.TotalConnections > ioCcNode.MaxDrones)
+
+                            if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)
                                 throw new ApplicationException($"{nameof(ioCcNode.TotalConnections)} > {ioCcNode.MaxDrones}");
-                            
+
                             ooutBound += e;
                             oinBound += i;
                             oavailable += ioCcNode.Hub.Neighbors.Values.Count(n => ((CcAdjunct)n).Proxy);
@@ -179,7 +212,7 @@ namespace zero.sync
                             inBound = oinBound;
                             peers = opeers;
                             available = oavailable;
-                        
+
                             ThreadPool.GetAvailableThreads(out var wt, out var cpt);
                             ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
@@ -235,15 +268,16 @@ namespace zero.sync
 
             GC.Collect(GC.MaxGeneration);
 
+            var s = host.StopAsync();
             Console.WriteLine("##");
 
             Console.ReadLine();
         }
-        
+
         private static void Test()
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
-            
+
             var capacity = 1000;
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, false, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
@@ -252,121 +286,121 @@ namespace zero.sync
             var enableThrottle = true;
             var twoWaiters = true;
             var twoReleasers = 2;
-            var targetSleep = (long) 0;
+            var targetSleep = (long)0;
             var logSpam = 30000;
             var targetSleepMult = twoWaiters ? 2 : 1;
-            var sw = new Stopwatch();    
+            var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
             long semCount = 0;
             long semPollCount = 0;
-            IoFpsCounter wfps1 = new IoFpsCounter(1000,10000);
-            IoFpsCounter wfps2 = new IoFpsCounter(1000,10000);
-            IoFpsCounter ifps1 = new IoFpsCounter(1000,10000);
-            IoFpsCounter ifps2 = new IoFpsCounter(1000,10000);
+            IoFpsCounter wfps1 = new IoFpsCounter(1000, 10000);
+            IoFpsCounter wfps2 = new IoFpsCounter(1000, 10000);
+            IoFpsCounter ifps1 = new IoFpsCounter(1000, 10000);
+            IoFpsCounter ifps2 = new IoFpsCounter(1000, 10000);
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             TaskCreationOptions options = TaskCreationOptions.None;
-            
-            
-            var t1= Task.Factory.StartNew(async o =>
-            {
-                try
-                {
-                    while (true)
-                    {
+
+
+            var t1 = Task.Factory.StartNew(async o =>
+             {
+                 try
+                 {
+                     while (true)
+                     {
                         // var block = sem.WaitAsync();
                         // await block.OverBoostAsync().ConfigureAwait(false);
                         // if(!block.Result)
                         //     break;
 
                         sw.Restart();
-                        if (await mutex.WaitAsync().ConfigureAwait(false))
-                        {
-                            var tt = sw.ElapsedMilliseconds;
-                            wfps1.Tick();
-                            
-                            Action a = (tt - targetSleep * targetSleepMult) switch
-                            {
-                                >5 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
-                                <-5 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
-                                _ => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
-                            };
-                            a();
+                         if (await mutex.WaitAsync().ConfigureAwait(false))
+                         {
+                             var tt = sw.ElapsedMilliseconds;
+                             wfps1.Tick();
+
+                             Action a = (tt - targetSleep * targetSleepMult) switch
+                             {
+                                 > 5 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                                 < -5 => () => Console.ForegroundColor = ConsoleColor.DarkRed,
+                                 _ => () => Console.ForegroundColor = ConsoleColor.DarkGreen,
+                             };
+                             a();
                             //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                                Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount/(double)semPollCount:0.0}, S = {mutex.CurrentCount}");
-                            Console.ResetColor();
-                        }
-                        else
-                        {
-                            break;
-                            var tt = sw.ElapsedMilliseconds;
-                            wfps1.Tick();
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F1:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount/(double)semPollCount:0.0},  S = {mutex.CurrentCount}");
-                            Console.ResetColor();
-                            await Task.Delay(500).ConfigureAwait(false);
-                        }
-                            
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[[1]]:{e}");
-                    throw;
-                }
-            }, null, options);
+                                 Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0}, S = {mutex.CurrentCount}");
+                             Console.ResetColor();
+                         }
+                         else
+                         {
+                             break;
+                             var tt = sw.ElapsedMilliseconds;
+                             wfps1.Tick();
+                             Console.ForegroundColor = ConsoleColor.Yellow;
+                             Console.WriteLine($"F1:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0},  S = {mutex.CurrentCount}");
+                             Console.ResetColor();
+                             await Task.Delay(500).ConfigureAwait(false);
+                         }
 
-            var t2  = Task.Factory.StartNew(async o =>
-            {
-                try
-                {
-                    while (twoWaiters)
-                    {
+                     }
+                 }
+                 catch (Exception e)
+                 {
+                     Console.WriteLine($"[[1]]:{e}");
+                     throw;
+                 }
+             }, null, options);
+
+            var t2 = Task.Factory.StartNew(async o =>
+           {
+               try
+               {
+                   while (twoWaiters)
+                   {
                         // var block = sem.WaitAsync();
                         // await block.OverBoostAsync().ConfigureAwait(false);
                         // if(!block.Result)
                         //     break;
 
                         sw2.Restart();
-                        if (await mutex.WaitAsync().ConfigureAwait(false))
-                        {
-                            var tt = sw2.ElapsedMilliseconds;
-                            wfps2.Tick();
+                       if (await mutex.WaitAsync().ConfigureAwait(false))
+                       {
+                           var tt = sw2.ElapsedMilliseconds;
+                           wfps2.Tick();
 
-                            Action a = (tt - targetSleep * targetSleepMult) switch
-                            {
-                                > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
-                                < -5 => () => Console.ForegroundColor = ConsoleColor.Red,
-                                _ => () => Console.ForegroundColor = ConsoleColor.Green,
-                            };
-                            a();
+                           Action a = (tt - targetSleep * targetSleepMult) switch
+                           {
+                               > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
+                               < -5 => () => Console.ForegroundColor = ConsoleColor.Red,
+                               _ => () => Console.ForegroundColor = ConsoleColor.Green,
+                           };
+                           a();
                             //Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount/(double)semPollCount:0.0}, S = {mutex.CurrentCount}");
-                            Console.ResetColor();
-                        }
-                        else
-                        {
-                            break;
-                            var tt = sw.ElapsedMilliseconds;
-                            wfps2.Tick();
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"F2:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount/(double)semPollCount:0.0}, S = {mutex.CurrentCount}");
-                            Console.ResetColor();
-                            await Task.Delay(500).ConfigureAwait(false);
-                        }
+                               Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0}, S = {mutex.CurrentCount}");
+                           Console.ResetColor();
+                       }
+                       else
+                       {
+                           break;
+                           var tt = sw.ElapsedMilliseconds;
+                           wfps2.Tick();
+                           Console.ForegroundColor = ConsoleColor.Yellow;
+                           Console.WriteLine($"F2:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0}, S = {mutex.CurrentCount}");
+                           Console.ResetColor();
+                           await Task.Delay(500).ConfigureAwait(false);
+                       }
 
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[[2]]:{e}");
-                    throw;
-                }
-            }, null, options);
+                   }
+               }
+               catch (Exception e)
+               {
+                   Console.WriteLine($"[[2]]:{e}");
+                   throw;
+               }
+           }, null, options);
 
-            var t3 = Task.Factory.StartNew(async o=>
+            var t3 = Task.Factory.StartNew(async o =>
             {
 
                 try
@@ -375,7 +409,7 @@ namespace zero.sync
                     while (twoReleasers > 0)
                     {
                         if (targetSleep > 0)
-                            await Task.Delay((int) targetSleep).ConfigureAwait(false);
+                            await Task.Delay((int)targetSleep).ConfigureAwait(false);
                         try
                         {
                             Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
@@ -383,14 +417,14 @@ namespace zero.sync
                         catch (SemaphoreFullException)
                         {
                             var f = wfps1.Fps() + wfps2.Fps() + 1;
-                            
+
                             var d = mutex.CurrentCount / (f) * 1000.0;
-                            var val = (int) d;
-                            
+                            var val = (int)d;
+
                             Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.CurrentCount}");
-                            await Task.Delay(Math.Max(1,val), asyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
                         }
-                        catch (TaskCanceledException )
+                        catch (TaskCanceledException)
                         {
                             break;
                         }
@@ -410,17 +444,17 @@ namespace zero.sync
                 }
             }, asyncTasks.Token, options);
 
-            var t4 = Task.Factory.StartNew(async o=>
+            var t4 = Task.Factory.StartNew(async o =>
             {
 
                 try
                 {
                     var curCount = 1;
-                    
+
                     while (twoReleasers > 1)
                     {
                         if (targetSleep > 0)
-                            await Task.Delay((int) targetSleep).ConfigureAwait(false);
+                            await Task.Delay((int)targetSleep).ConfigureAwait(false);
 
                         try
                         {
@@ -431,7 +465,7 @@ namespace zero.sync
                             var f = wfps1.Fps() + wfps2.Fps() + 1;
 
                             var d = mutex.CurrentCount / (f) * 1000.0;
-                            var val = (int) d;
+                            var val = (int)d;
 
                             Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.CurrentCount}");
                             await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
@@ -456,8 +490,8 @@ namespace zero.sync
                     throw;
                 }
             }, asyncTasks.Token, options);
-            
-            
+
+
 
             Console.ReadLine();
             Console.WriteLine("TEARDOWN");
@@ -493,9 +527,9 @@ namespace zero.sync
                             $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
                     }
                 }
-                catch 
+                catch
                 {
-                    
+
                 }
             });
 
@@ -537,17 +571,17 @@ namespace zero.sync
             }
         }
 
-        private static Task<CcNode> CoCoonAsync(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
+        private static Task<CcCollective> CoCoonAsync(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
             string fpcAddress, string extAddress, List<string> bootStrapAddress, int total)
         {
 
-            var cocoon = new CcNode(ccDesignation,
+            var cocoon = new CcCollective(ccDesignation,
                 IoNodeAddress.Create(gossipAddress),
                 IoNodeAddress.Create(peerAddress),
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 1,1);
+                0, 0, 1, 1);
 
             _nodes.Add(cocoon);
 
@@ -573,7 +607,7 @@ namespace zero.sync
 
             //return tangleNodeTask.Unwrap();
 
-            return new Task<CcNode>(() =>
+            return new Task<CcCollective>(() =>
             {
                 cocoon.StartAsync().ConfigureAwait(false);
                 return cocoon;

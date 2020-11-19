@@ -7,10 +7,12 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Grpc.Core.Utils;
 using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
 using zero.cocoon.autopeer;
+using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
 using zero.cocoon.models.services;
@@ -25,11 +27,11 @@ namespace zero.cocoon
     /// <summary>
     /// Connects to cocoon
     /// </summary>
-    public class CcNode : IoNode<CcGossipMessage>
+    public class CcCollective : IoNode<CcGossipMessage>
     {
-        public CcNode(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
+        public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcNode)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
+            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -209,6 +211,16 @@ namespace zero.cocoon
                     }
                 }
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
+
+            //Emit collective event
+            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+            {
+                EventType = AutoPeerEventType.AddCollective,
+                Collective = new Collective
+                {
+                    Id = CcId.IdString(), Ip = ExtAddress.Url
+                }
+            });
         }
 
         /// <summary>
@@ -258,6 +270,7 @@ namespace zero.cocoon
         }
 
         private IoNode<CcSubspaceMessage> _autoPeering;
+        
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
         private readonly IoNodeAddress _fpcAddress;
@@ -420,7 +433,32 @@ namespace zero.cocoon
                 {
                     //ACCEPT
                     _logger.Info($"+ {drone.Description}");
-                    
+
+                    string egress, ingress;
+
+                    if (((IoUdpClient<CcSubspaceMessage>)((CcDrone)drone).Adjunct.Source).IoNetSocket.Kind ==
+                        IoSocket.Connection.Ingress)
+                    {
+                        egress = ((CcDrone)drone).Adjunct.Designation.IdString();
+                        ingress = CcId.IdString();
+                    }
+                    else
+                    {
+                        egress = CcId.IdString();
+                        ingress = ((CcDrone)drone).Adjunct.Designation.IdString();
+                    }
+
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.AddDrone,
+                        Drone = new Drone
+                        {
+                            Direction = ((CcDrone)drone).Adjunct.Direction.ToString(),
+                            Egress = egress,
+                            Ingress = ingress
+                        }
+                    });
+
                     return true; 
                 }
                 else
@@ -483,7 +521,7 @@ namespace zero.cocoon
         {
             return await ZeroAtomicAsync(async (s, u, d) =>
             {
-                var _this = (CcNode)s;
+                var _this = (CcCollective)s;
                 var __peer = (CcDrone) u;
                 var bytesRead = 0;
                 if (_this.Zeroed()) return false;
@@ -798,6 +836,30 @@ namespace zero.cocoon
                 {
                     _logger.Info($"+ {drone.Description}");
                     NeighborTasks.Add(drone.AssimilateAsync());
+                    string ingress, egress;
+                    
+                    if (((IoUdpClient<CcSubspaceMessage>) ((CcDrone) drone).Adjunct.Source).IoNetSocket.Kind ==
+                        IoSocket.Connection.Ingress)
+                    {
+                        egress = ((CcDrone) drone).Adjunct.Designation.IdString();
+                        ingress = CcId.IdString();
+                    }
+                    else
+                    {
+                        egress =CcId.IdString();
+                        ingress = ((CcDrone) drone).Adjunct.Designation.IdString();
+                    }
+                     
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.AddDrone,
+                        Drone = new Drone
+                        {
+                            Direction = ((CcDrone)drone).Adjunct.Direction.ToString(),
+                            Egress = egress,
+                            Ingress = ingress
+                        }
+                    });
                     return true;
                 }
                 else
