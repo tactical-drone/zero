@@ -569,6 +569,16 @@ namespace zero.cocoon.autopeer
                 }
 
                 await Router.SendPeerDropAsync(RemoteAddress).ConfigureAwait(false);
+
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.RemoveAdjunct,
+                    Adjunct = new Adjunct()
+                    {
+                        CollectiveId = CcCollective.CcId.IdString(),
+                        Id = Designation.IdString(),
+                    }
+                });
             }
             else
             {

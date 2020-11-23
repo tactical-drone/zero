@@ -12,16 +12,21 @@ message NullMsg{
 
 enum AutoPeerEventType{
 	AddCollective = 0;
-	AddAdjunct = 1;
-	AddDrone = 2;
+	RemoveCollective = 1;
+	AddAdjunct = 2;
+	RemoveAdjunct = 3;
+	AddDrone = 4;
+	RemoveDrone = 5;
 } 
 
 message AutoPeerEvent{
-	AutoPeerEventType eventType = 1;
+	AutoPeerEventType eventType = 1;	
+	int64 seq = 2;
+	int32 re = 3;
 	oneof event {
-		Collective collective = 2;
-		Adjunct adjunct = 3;
-		Drone drone = 4;
+		Collective collective = 4;
+		Adjunct adjunct = 5;
+		Drone drone = 6;
 	};
 }
 
@@ -40,7 +45,7 @@ message Adjunct {
 }
 
 message Drone {		
-	string ingress = 1;
-	string egress = 2;
-	string direction = 3;
+	string id = 1;
+	string adjunct = 2;
+	string direction = 3;			
 }

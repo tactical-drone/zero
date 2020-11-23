@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.cocoon.autopeer;
+using zero.cocoon.events.services;
 using zero.cocoon.models;
 using zero.core.core;
 using zero.core.misc;
@@ -151,9 +152,23 @@ namespace zero.cocoon
         {
             if((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
                 _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
-            
+
+            var ccid = Adjunct?.CcCollective.CcId.IdString();
             await DetachNeighborAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
+
+            if (!string.IsNullOrEmpty(ccid))
+            {
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.RemoveDrone,
+                    Drone = new Drone
+                    {
+                        Id = ccid,
+                        Adjunct = Adjunct.Designation.IdString()
+                    }
+                });
+            }
         }
 
         /// <summary>

@@ -99,7 +99,7 @@ namespace zero.sync
                     c++;
                     if (c % 150 == 0)
                     {
-                        await Task.Delay(rateLimit += 25 * 150).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 10 * 150).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
