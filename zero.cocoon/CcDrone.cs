@@ -71,10 +71,10 @@ namespace zero.cocoon
         {
             get
             {
-                if (_lastDescGen.ElapsedMsDelta() > 100 && _description != null)
-                    return _description;
+                //if (_lastDescGen.ElapsedMsDelta() > 100 && _description != null)
+                //    return _description;
                 
-                _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
                     return _description = $"`drone({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Ingress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Designation.IdString()}]'";
@@ -156,19 +156,6 @@ namespace zero.cocoon
             var ccid = Adjunct?.CcCollective.CcId.IdString();
             await DetachNeighborAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
-
-            if (!string.IsNullOrEmpty(ccid))
-            {
-                AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.RemoveDrone,
-                    Drone = new Drone
-                    {
-                        Id = ccid,
-                        Adjunct = Adjunct.Designation.IdString()
-                    }
-                });
-            }
         }
 
         /// <summary>

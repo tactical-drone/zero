@@ -22,11 +22,11 @@ enum AutoPeerEventType{
 message AutoPeerEvent{
 	AutoPeerEventType eventType = 1;	
 	int64 seq = 2;
-	int32 re = 3;
+	int32 re = 3;	
 	oneof event {
-		Collective collective = 4;
-		Adjunct adjunct = 5;
-		Drone drone = 6;
+		Collective collective = 5;
+		Adjunct adjunct = 6;
+		Drone drone = 7;
 	};
 }
 
@@ -40,12 +40,12 @@ message Collective{
 }
 
 message Adjunct {	
-	string id = 1;		
-	string collectiveId = 2;		
+	string collectiveId = 1;		
+	string id = 2;			
 }
 
 message Drone {		
-	string id = 1;
+	string collectiveId = 1;
 	string adjunct = 2;
 	string direction = 3;			
 }

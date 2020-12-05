@@ -45,7 +45,7 @@ namespace zero.cocoon.autopeer
 
             _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
             _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ConcurrencyLevel * 2 + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcCollective.MaxDrones * parm_max_discovery_peers + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), Source.ConcurrencyLevel * 2 + CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1, parm_max_network_latency, CcCollective.parm_max_inbound);
 
             if (extraData != null)
             {
@@ -569,16 +569,6 @@ namespace zero.cocoon.autopeer
                 }
 
                 await Router.SendPeerDropAsync(RemoteAddress).ConfigureAwait(false);
-
-                AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.RemoveAdjunct,
-                    Adjunct = new Adjunct()
-                    {
-                        CollectiveId = CcCollective.CcId.IdString(),
-                        Id = Designation.IdString(),
-                    }
-                });
             }
             else
             {
@@ -600,6 +590,20 @@ namespace zero.cocoon.autopeer
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
 #endif
             await base.ZeroManagedAsync().ConfigureAwait(false);
+
+            //if (Proxy)
+            //{
+            //    //emit event
+            //    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+            //    {
+            //        EventType = AutoPeerEventType.RemoveAdjunct,
+            //        Adjunct = new Adjunct()
+            //        {
+            //            CollectiveId = CcCollective.CcId.IdString(),
+            //            Id = Designation.IdString(),
+            //        }
+            //    });
+            //}
         }
 
         /// <summary>
@@ -1249,7 +1253,7 @@ namespace zero.cocoon.autopeer
 
             foreach (var responsePeer in response.Peers)
             {
-                if (Hub.Neighbors.Count > CcCollective.MaxDrones && count > parm_min_spare_bays)
+                if (Hub.Neighbors.Count > CcCollective.MaxAdjuncts && count > parm_min_spare_bays)
                     break;
 
                 //Any services attached?
@@ -1331,7 +1335,7 @@ namespace zero.cocoon.autopeer
                 var __newNeighbor = t.Item2;
                 var __synAck = t.Item3;
 
-                if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxDrones)
+                if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxAdjuncts)
                 {
                     //drop something
                     var q = _this.Hub.Neighbors.Values.Where(n =>
@@ -1368,29 +1372,65 @@ namespace zero.cocoon.autopeer
                 }
 
                 //Transfer?
-                if (_this.Hub.Neighbors.Count <= _this.CcCollective.MaxDrones)
-                    return _this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor);
+                if (_this.Hub.Neighbors.Count <= _this.CcCollective.MaxAdjuncts)
+                {
+                    if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
+                    {
+                        //avoid races
+                        if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
+                        {
+                            Hub.ZeroOnCascade(newAdjunct);
+                            return true;
+                        }
+
+                        //we raced
+                        _this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out _);
+                    }
+
+                    return false;
+                }
                 else
                     return false;
             }, ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
             {
+                //emit event
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.AddAdjunct,
+                    Adjunct = new Adjunct
+                    {
+                        Id = newAdjunct.Designation.IdString(),
+                        CollectiveId = CcCollective.Hub.Router.Designation.IdString()
+                    }
+                });
+
+
                 //setup conduits to messages
-                newAdjunct.MessageService.SetConduit(nameof(CcAdjunct),
-                    MessageService.GetConduit<CcProtocolMessage>(nameof(CcAdjunct)));
+                newAdjunct.MessageService.SetConduit(nameof(CcAdjunct), MessageService.GetConduit<CcProtocolMessage>(nameof(CcAdjunct)));
                 newAdjunct.ExtGossipAddress = ExtGossipAddress; 
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;
 
-                Hub.ZeroOnCascade(newAdjunct);
-                
                 var sub = newAdjunct.ZeroEvent(_ =>
                 {
                     try
                     {
                         if (Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
-                            if(((CcAdjunct)n).Assimilated)
-                                _logger.Info( $"% {Description}");
+                            if (((CcAdjunct) n).Assimilated)
+                            {
+                                _logger.Info($"% {Description}");
+                            }
+
+                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                            {
+                                EventType = AutoPeerEventType.RemoveAdjunct,
+                                Adjunct = new Adjunct()
+                                {
+                                    CollectiveId = CcCollective.CcId.IdString(),
+                                    Id = Designation.IdString(),
+                                }
+                            });
                         }
 
                         //MessageService.WhiteList(__newNeighbor.RemoteAddress.Port);
@@ -1410,14 +1450,7 @@ namespace zero.cocoon.autopeer
                 }
                 
                 _logger.Debug($"# {newAdjunct.Description}");
-                AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.AddAdjunct,
-                    Adjunct = new Adjunct
-                    {
-                        Id = newAdjunct.Designation.IdString(), CollectiveId = CcCollective.Hub.Router.Designation.IdString()
-                    }
-                });
+
                 return await newAdjunct.SendPingAsync().ConfigureAwait(false);
             }
             else
@@ -2016,16 +2049,24 @@ namespace zero.cocoon.autopeer
                     var _this = (CcAdjunct) s;
                     var t = (ValueTuple<CcDrone, Heading>) u;
                     var __ioCcDrone = t.Item1;
-                    var __direciton = t.Item2;
+                    var __direction = t.Item2;
 
                     //Race for direction
-                    if (Interlocked.CompareExchange(ref _this._direction, (int) __direciton, (int) Heading.Undefined) !=
+                    if (Interlocked.CompareExchange(ref _this._direction, (int) __direction, (int) Heading.Undefined) !=
                         (int) Heading.Undefined)
                     {
                         _this._logger.Warn(
-                            $"oz: race for {__direciton} lost {__ioCcDrone.Description}, current = {_this.Direction}, {_this._drone?.Description}");
+                            $"oz: race for {__direction} lost {__ioCcDrone.Description}, current = {_this.Direction}, {_this._drone?.Description}");
                         return ValueTask.FromResult(false);
                     }
+
+                    //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
+                    if (__ioCcDrone.Adjunct.CcCollective.TotalConnections >= __ioCcDrone.Adjunct.CcCollective.MaxDrones)
+                    {
+                        Interlocked.Exchange(ref _direction, (int)Heading.Undefined);
+                        return ValueTask.FromResult(false);
+                    }
+                        
 
                     _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
                     _this.State = AdjunctState.Connected;
@@ -2047,6 +2088,18 @@ namespace zero.cocoon.autopeer
                     catch
                     {
                         // ignored
+                    }
+                });
+
+                //emit event
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.AddDrone,
+                    Drone = new Drone
+                    {
+                        CollectiveId = CcCollective.CcId.IdString(),
+                        Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                        Direction = ccDrone.Adjunct.Direction.ToString(),
                     }
                 });
 
@@ -2116,6 +2169,18 @@ namespace zero.cocoon.autopeer
             {
                 await Task.Delay(parm_max_network_latency).ConfigureAwait(false);
                 await SendPingAsync().ConfigureAwait(false);
+            });
+
+            //emit event
+            
+            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+            {
+                EventType = AutoPeerEventType.RemoveDrone,
+                Drone = new Drone
+                {
+                    CollectiveId = CcCollective.CcId.IdString(),
+                    Adjunct = Designation.IdString()
+                }
             });
         }
 

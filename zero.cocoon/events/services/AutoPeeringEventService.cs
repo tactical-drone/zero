@@ -21,9 +21,9 @@ namespace zero.cocoon.events.services
         private static readonly ConcurrentQueue<AutoPeerEvent> QueuedEvents = new ConcurrentQueue<AutoPeerEvent>();
         private static volatile int _operational;
         private static long _seq;
-        private const int EventBatchSize = 10000;
+        private const int EventBatchSize = 100;
 
-        public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)
+        public override Task<EventResponse> Next(NullMsg request, ServerCallContext context)
         {
             if(_operational == 0)
                 _operational = 1;
@@ -38,9 +38,9 @@ namespace zero.cocoon.events.services
 
             response.Events.AddRange(events);
             
-            if (response.Events.Count == 0)
-                await Task.Delay(500).ConfigureAwait(false);
-            return response;
+            //if (response.Events.Count == 0)
+            //    await Task.Delay(500).ConfigureAwait(false);
+            return Task.FromResult(response);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

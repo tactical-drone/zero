@@ -102,17 +102,17 @@ namespace zero.cocoon
 
                     try
                     {
-                        var totalAdjuncts = TotalConnections;
+                        var totalConnections = TotalConnections;
                         double scanRatio = 1;
                         double peerAttempts = 0;
                         CcAdjunct susceptible = null;
                         
                         //Attempt to peer with standbys
-                        if (totalAdjuncts < MaxAdjuncts * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay - (MaxAdjuncts - totalAdjuncts)/(double)MaxAdjuncts * parm_mean_pat_delay * 3/4)
+                        if (totalConnections < MaxDrones * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay - (MaxDrones - totalConnections)/(double)MaxDrones * parm_mean_pat_delay * 3/4)
                         {
                             if (Neighbors.Count > 1)
                             {
-                                _logger.Trace($"Scanning {Neighbors.Count} < {MaxAdjuncts * scanRatio:0}, {Description}");
+                                _logger.Trace($"Scanning {Neighbors.Count} < {MaxDrones * scanRatio:0}, {Description}");
 
                                 //Send peer requests
                                 foreach (var adjunct in _autoPeering.Neighbors.Values.Where(n =>
@@ -149,7 +149,7 @@ namespace zero.cocoon
                                 }
 
                                 //if we are not able to peer, use long range scanners
-                                if (susceptible != null && peerAttempts == 0 && totalAdjuncts == TotalConnections)
+                                if (susceptible != null && peerAttempts == 0 && totalConnections == TotalConnections)
                                 {
                                     if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
                                     {
@@ -334,12 +334,12 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && (((CcDrone)kv).Adjunct.Ingress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
+        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached && (((CcDrone)kv).Adjunct.Ingress));
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && (((CcDrone)kv).Adjunct.Egress) && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected);
+        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached && (((CcDrone)kv).Adjunct.Egress));
 
         /// <summary>
         /// Connected nodes
@@ -386,7 +386,7 @@ namespace zero.cocoon
 
 
         /// <summary>
-        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="MaxAdjuncts"/>
+        /// Time between trying to re-aquire new neighbors using a discovery requests, if the node lacks <see cref="MaxDrones"/>
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -401,13 +401,13 @@ namespace zero.cocoon
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
-        public int MaxAdjuncts => parm_max_outbound + parm_max_inbound;
+        public int MaxDrones => parm_max_outbound + parm_max_inbound;
 
 
         /// <summary>
         /// Maximum number of allowed drones
         /// </summary>
-        public int MaxDrones => MaxAdjuncts * parm_client_to_neighbor_ratio;
+        public int MaxAdjuncts => MaxDrones * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id
@@ -442,19 +442,7 @@ namespace zero.cocoon
                 {
                     //ACCEPT
                     _logger.Info($"+ {drone.Description}");
-
-                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.AddDrone,
-                        Drone = new Drone
-                        {
-                            Id = CcId.IdString(),
-                            Adjunct = ((CcDrone)drone).Adjunct.Designation.IdString(),
-                            Direction = ((CcDrone)drone).Adjunct.Direction.ToString(),
-                        }
-                    });
-
-                    return true; 
+                    return true;
                 }
                 else
                 {
@@ -566,10 +554,8 @@ namespace zero.cocoon
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
                             //race for connection
-                            var won = !await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet,
-                                    (IPEndPoint) ioNetSocket.NativeSocket.RemoteEndPoint)
-                                .ConfigureAwait(false);
-
+                            var won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ConfigureAwait(false);
+                            
                             var packetData = packet.Data.Memory.AsArray();
                             
                             //verify the signature
@@ -635,7 +621,7 @@ namespace zero.cocoon
                             //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                             //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                             //    .ConfigureAwait(false);
-                            return !Zeroed() && drone.Adjunct != null;
+                            return !Zeroed() && drone.Adjunct != null && won;
                         
                         }
                     }
@@ -814,7 +800,7 @@ namespace zero.cocoon
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
                     EgressConnections < parm_max_outbound &&
-                    //TODO add distance calc &&
+                    //TODO add distance calc
                     adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)
                 )
             {
@@ -831,17 +817,6 @@ namespace zero.cocoon
                 {
                     _logger.Info($"+ {drone.Description}");
                     NeighborTasks.Add(drone.AssimilateAsync());
-                    
-                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.AddDrone,
-                        Drone = new Drone
-                        {
-                            Id = CcId.IdString(),
-                            Adjunct = ((CcDrone)drone).Adjunct.Designation.IdString(),
-                            Direction = ((CcDrone)drone).Adjunct.Direction.ToString()
-                        }
-                    });
                     return true;
                 }
                 else
