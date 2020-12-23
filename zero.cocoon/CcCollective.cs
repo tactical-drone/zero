@@ -218,7 +218,8 @@ namespace zero.cocoon
                 EventType = AutoPeerEventType.AddCollective,
                 Collective = new Collective
                 {
-                    Id = CcId.IdString(), Ip = ExtAddress.Url
+                    Id = CcId.IdString(), 
+                    Ip = ExtAddress.Url
                 }
             });
         }
@@ -447,7 +448,7 @@ namespace zero.cocoon
                 else
                 {
                     await Task.Yield().ConfigureAwait(false);
-                    _logger.Debug($"| {drone.Description}");
+                    _logger.Debug($">|{drone.Description}");
                 }
 
                 return false;
@@ -602,7 +603,7 @@ namespace zero.cocoon
                                 //send response
                                 var handshakeResponse = new HandshakeResponse
                                 {
-                                    ReqHash = won? ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())): ByteString.CopyFrom(0)
+                                    ReqHash = won? ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())): ByteString.Empty
                                 };
                                 
                                 var handshake = handshakeResponse.ToByteString();
@@ -621,7 +622,7 @@ namespace zero.cocoon
                             //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                             //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                             //    .ConfigureAwait(false);
-                            return !Zeroed() && drone.Adjunct != null && won;
+                            return !Zeroed() && drone.Adjunct != null && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress;
                         
                         }
                     }
@@ -722,9 +723,13 @@ namespace zero.cocoon
                                         return false;
                                     }
                                 }
+                                else
+                                {
+                                    return false;
+                                }
                             }
                         
-                            return !Zeroed() && drone.Adjunct != null;
+                            return !Zeroed() && drone.Adjunct != null && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress;
                         }
                     }
                 }
@@ -823,7 +828,7 @@ namespace zero.cocoon
                 {
                     await drone.ZeroAsync(this).ConfigureAwait(false);
                     await Task.Yield().ConfigureAwait(false); //yield on opposite sides of this coin
-                    _logger.Debug($"| {drone.Description}");
+                    _logger.Debug($"|>{drone.Description}");
                     return false;
                 }
             }

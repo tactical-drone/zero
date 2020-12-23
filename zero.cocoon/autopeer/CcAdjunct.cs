@@ -1,6 +1,7 @@
 ﻿//#define LOSS
 using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
@@ -1108,26 +1109,37 @@ namespace zero.cocoon.autopeer
             //Race for 
             if (response.Status && _direction == 0)
             {
-                if (!await ConnectAsync().ConfigureAwait(false))
+                var backoffTask = Task.Factory.StartNew(async () =>
                 {
-                    _logger.Trace($"<\\- {nameof(PeeringResponse)}: [LOST] Connect to {Description}, {MetaDesc}");
-                }
-                else
-                {
-                    await ZeroAtomicAsync((s, u, d) =>
+                    await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
+                    var connectionTime = Stopwatch.StartNew();
+                    if (!await ConnectAsync().ConfigureAwait(false))
                     {
-                        var _this = (CcAdjunct) s;
-                        if (_this.State == AdjunctState.Peering)
-                            _this.State = AdjunctState.Standby;
-                        return ValueTask.FromResult(true);
-                    }).ConfigureAwait(false);
-                }
+                        _logger.Trace($"<\\- {nameof(PeeringResponse)}: [LOST] Connect to {Description}, {MetaDesc}");
+                    }
+                    else
+                    {
+                        await ZeroAtomicAsync((s, u, d) =>
+                        {
+                            var _this = (CcAdjunct)s;
+                            if (_this.State == AdjunctState.Peering)
+                                _this.State = AdjunctState.Standby;
+                            return ValueTask.FromResult(true);
+                        }).ConfigureAwait(false);
+                    }
+
+                    Interlocked.Add(ref ConnectionTime, connectionTime.ElapsedMilliseconds);
+                    Interlocked.Increment(ref ConnectionCount);
+                }, TaskCreationOptions.LongRunning);
             }
             else if (!response.Status && Hub.Neighbors.Count < CcCollective.MaxAdjuncts) //at least probe
             {
                 var t = SendDiscoveryRequestAsync();
             }
         }
+
+        public static long ConnectionTime;
+        public static long ConnectionCount;
 
         /// <summary>
         /// Sends a message to the neighbor
@@ -1372,19 +1384,19 @@ namespace zero.cocoon.autopeer
                 }
 
                 //Transfer?
-                if (_this.Hub.Neighbors.Count <= _this.CcCollective.MaxAdjuncts)
+                if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
                 {
                     if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
                     {
                         //avoid races
-                        if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
+                        //if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
                         {
                             Hub.ZeroOnCascade(newAdjunct);
                             return true;
                         }
 
                         //we raced
-                        _this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out _);
+                        //_this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out _);
                     }
 
                     return false;
@@ -1393,18 +1405,6 @@ namespace zero.cocoon.autopeer
                     return false;
             }, ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
             {
-                //emit event
-                AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.AddAdjunct,
-                    Adjunct = new Adjunct
-                    {
-                        Id = newAdjunct.Designation.IdString(),
-                        CollectiveId = CcCollective.Hub.Router.Designation.IdString()
-                    }
-                });
-
-
                 //setup conduits to messages
                 newAdjunct.MessageService.SetConduit(nameof(CcAdjunct), MessageService.GetConduit<CcProtocolMessage>(nameof(CcAdjunct)));
                 newAdjunct.ExtGossipAddress = ExtGossipAddress; 
@@ -1417,20 +1417,20 @@ namespace zero.cocoon.autopeer
                     {
                         if (Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
-                            if (((CcAdjunct) n).Assimilated)
-                            {
-                                _logger.Info($"% {Description}");
-                            }
-
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.RemoveAdjunct,
                                 Adjunct = new Adjunct()
                                 {
-                                    CollectiveId = CcCollective.CcId.IdString(),
+                                    CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
                                     Id = Designation.IdString(),
                                 }
                             });
+
+                            if (((CcAdjunct) n).Assimilated)
+                            {
+                                _logger.Info($"% {Description}");
+                            }
                         }
 
                         //MessageService.WhiteList(__newNeighbor.RemoteAddress.Port);
@@ -1450,6 +1450,17 @@ namespace zero.cocoon.autopeer
                 }
                 
                 _logger.Debug($"# {newAdjunct.Description}");
+
+                //emit event
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.AddAdjunct,
+                    Adjunct = new Adjunct
+                    {
+                        Id = newAdjunct.Designation.IdString(),
+                        CollectiveId = CcCollective.Hub.Router.Designation.IdString()
+                    }
+                });
 
                 return await newAdjunct.SendPingAsync().ConfigureAwait(false);
             }
@@ -1719,10 +1730,11 @@ namespace zero.cocoon.autopeer
 
                 _logger.Trace($"<\\- {nameof(Pong)}: ACK SYN: {Description}");
 
-                //if (CcNode.EgressConnections < CcNode.parm_max_outbound)
+
+                //we need this peer request even if we are full. Verification needs this signal
+                //if (CcCollective.EgressConnections < CcCollective.parm_max_outbound)
                 {
-                    _logger.Trace(
-                        $"{(Proxy ? "V>" : "X>")}(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
+                    _logger.Trace($"{(Proxy ? "V>" : "X>")}(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
                     await SendPeerRequestAsync().ConfigureAwait(false);
                 }
             }
@@ -2044,12 +2056,18 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                await ZeroAtomicAsync((s, u, d) =>
+                if (!await ZeroAtomicAsync((s, u, d) =>
                 {
                     var _this = (CcAdjunct) s;
                     var t = (ValueTuple<CcDrone, Heading>) u;
                     var __ioCcDrone = t.Item1;
                     var __direction = t.Item2;
+
+                    //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
+                    if (__ioCcDrone.Adjunct.CcCollective.TotalConnections >= __ioCcDrone.Adjunct.CcCollective.MaxDrones)
+                    {
+                        return ValueTask.FromResult(false);
+                    }
 
                     //Race for direction
                     if (Interlocked.CompareExchange(ref _this._direction, (int) __direction, (int) Heading.Undefined) !=
@@ -2060,18 +2078,14 @@ namespace zero.cocoon.autopeer
                         return ValueTask.FromResult(false);
                     }
 
-                    //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
-                    if (__ioCcDrone.Adjunct.CcCollective.TotalConnections >= __ioCcDrone.Adjunct.CcCollective.MaxDrones)
-                    {
-                        Interlocked.Exchange(ref _direction, (int)Heading.Undefined);
-                        return ValueTask.FromResult(false);
-                    }
-                        
 
                     _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
                     _this.State = AdjunctState.Connected;
                     return ValueTask.FromResult(true);
-                }, ValueTuple.Create(ccDrone, direction));
+                }, ValueTuple.Create(ccDrone, direction)))
+                {
+                    return false;
+                }
 
                 _logger.Trace($"{nameof(AttachPeerAsync)}: [WON] {_drone?.Description}");
                 
