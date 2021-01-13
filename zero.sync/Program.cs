@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 17;
+            int total = 50;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<CcCollective>>();
 

@@ -5,6 +5,7 @@ using NLog;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.models;
+using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
 using zero.core.network.ip;
@@ -41,7 +42,7 @@ namespace zero.cocoon
             {
                 while (!Zeroed())
                 {
-                    await Task.Delay(60000, AsyncTasks.Token);
+                    await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token);
                     if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Connected)
                     {
                         _logger.Fatal($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}");
@@ -132,6 +133,13 @@ namespace zero.cocoon
         /// 
         /// </summary>
         private long _isTesting = 0;
+
+        /// <summary>
+        /// The time a source will wait for a consumer to release it before aborting in ms
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_insane_checks_delay = 5;
 
         /// <summary>
         /// zero unmanaged

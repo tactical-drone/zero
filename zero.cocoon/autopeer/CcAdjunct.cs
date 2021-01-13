@@ -726,6 +726,7 @@ namespace zero.cocoon.autopeer
             }
 
             _logger.Trace($"{nameof(CcCollective.ConnectToDroneAsync)}: [LOST], {Description}, {MetaDesc}");
+            State = AdjunctState.Standby;
             return false;
         }
 
@@ -1097,14 +1098,6 @@ namespace zero.cocoon.autopeer
 
             //Validated
             _logger.Trace($"<\\- {nameof(PeeringResponse)}: Accepted = {response.Status}, {Description}");
-
-            await ZeroAtomicAsync((s, u, d) =>
-            {
-                var _this = (CcAdjunct) s;
-                if (_this.State == AdjunctState.Peering)
-                    _this.State = AdjunctState.Standby;
-                return ValueTask.FromResult(true);
-            }).ConfigureAwait(false);
 
             //Race for 
             if (response.Status && _direction == 0)
