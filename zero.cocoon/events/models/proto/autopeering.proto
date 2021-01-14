@@ -17,6 +17,7 @@ enum AutoPeerEventType{
 	RemoveAdjunct = 3;
 	AddDrone = 4;
 	RemoveDrone = 5;
+	SendProtoMsg = 6;
 } 
 
 message AutoPeerEvent{
@@ -27,6 +28,7 @@ message AutoPeerEvent{
 		Collective collective = 5;
 		Adjunct adjunct = 6;
 		Drone drone = 7;
+		ProtoMsg msg = 8;
 	};
 }
 
@@ -41,7 +43,13 @@ message Collective{
 
 message Adjunct {	
 	string collectiveId = 1;		
-	string id = 2;			
+	string id = 2;		
+}
+
+message ProtoMsg {	
+	string type = 1;
+	string collectiveId = 2;		
+	string id = 3;			
 }
 
 message Drone {		

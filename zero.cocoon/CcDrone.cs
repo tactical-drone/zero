@@ -45,8 +45,8 @@ namespace zero.cocoon
                     await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token);
                     if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Connected)
                     {
-                        _logger.Fatal($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}");
-                        await ZeroAsync(this);
+                        _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}");
+                        await ZeroAsync(this).ConfigureAwait(false);
                     }
                 }
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
@@ -135,7 +135,7 @@ namespace zero.cocoon
         private long _isTesting = 0;
 
         /// <summary>
-        /// The time a source will wait for a consumer to release it before aborting in ms
+        /// Grace time for sanity checks
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming

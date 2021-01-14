@@ -1416,7 +1416,7 @@ namespace zero.cocoon.autopeer
                                 Adjunct = new Adjunct()
                                 {
                                     CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                                    Id = Designation.IdString(),
+                                    Id = newAdjunct.Designation.IdString(),
                                 }
                             });
 
@@ -1514,6 +1514,18 @@ namespace zero.cocoon.autopeer
                 .ConfigureAwait(false) > 0)
             {
                 _logger.Trace($"-/> {nameof(DiscoveryResponse)}: Sent {count} discoveries to {Description}");
+
+                //Emit message event
+                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.SendProtoMsg,
+                    Msg = new ProtoMsg
+                    {
+                        CollectiveId = Hub.Router.Designation.IdString(),
+                        Id = Designation.IdString(),
+                        Type = "discovery response"
+                    }
+                });
             }
             else
             {
@@ -1886,6 +1898,19 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Trace(
                         $"-/> {nameof(SendDiscoveryRequestAsync)}{reqBuf.Memory.PayloadSig()}: Sent {sent}, {Description}");
+
+                    //Emit message event
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.SendProtoMsg,
+                        Msg = new ProtoMsg
+                        {
+                            CollectiveId = Hub.Router.Designation.IdString(),
+                            Id = Designation.IdString(),
+                            Type = "discovery request"
+                        }
+                    });
+
                     return true;
                 }
                 else
@@ -2104,7 +2129,7 @@ namespace zero.cocoon.autopeer
                     EventType = AutoPeerEventType.AddDrone,
                     Drone = new Drone
                     {
-                        CollectiveId = CcCollective.CcId.IdString(),
+                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
                         Adjunct = ccDrone.Adjunct.Designation.IdString(),
                         Direction = ccDrone.Adjunct.Direction.ToString(),
                     }
@@ -2184,9 +2209,9 @@ namespace zero.cocoon.autopeer
             {
                 EventType = AutoPeerEventType.RemoveDrone,
                 Drone = new Drone
-                {
-                    CollectiveId = CcCollective.CcId.IdString(),
-                    Adjunct = Designation.IdString()
+                {   
+                    CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                    Adjunct = drone.Adjunct.Designation.IdString()
                 }
             });
         }

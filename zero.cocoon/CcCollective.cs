@@ -261,7 +261,7 @@ namespace zero.cocoon
                 EventType = AutoPeerEventType.RemoveCollective,
                 Collective = new Collective()
                 {
-                    Id = CcId.IdString()
+                    Id = Hub.Router.Designation.IdString()
                 }
             });
         }
