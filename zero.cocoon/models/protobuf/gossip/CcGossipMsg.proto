@@ -1,0 +1,11 @@
+﻿syntax = "proto3";
+
+package proto;
+
+message Message {
+    bytes data = 1;
+}
+
+message MessageRequest {
+    bytes id = 1;
+}

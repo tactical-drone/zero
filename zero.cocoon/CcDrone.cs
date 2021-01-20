@@ -13,7 +13,7 @@ using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
-    public class CcDrone : IoNeighbor<CcGossipMessage>
+    public class CcDrone : IoNeighbor<CcProtocMessage>
     {
         /// <summary>
         /// Ctor
@@ -21,10 +21,10 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcDrone(IoNode<CcGossipMessage> node, CcAdjunct adjunct,
-            IoNetClient<CcGossipMessage> ioNetClient)
+        public CcDrone(IoNode<CcProtocMessage> node, CcAdjunct adjunct,
+            IoNetClient<CcProtocMessage> ioNetClient)
             : base(node, ioNetClient,
-                userData => new CcGossipMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
+                userData => new CcProtocMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
                     ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -107,7 +107,7 @@ namespace zero.cocoon
         /// <summary>
         /// The source
         /// </summary>
-        public new IoNetClient<CcGossipMessage> IoSource => (IoNetClient<CcGossipMessage>) Source;
+        public new IoNetClient<CcProtocMessage> IoSource => (IoNetClient<CcProtocMessage>) Source;
 
         /// <summary>
         /// The attached neighbor
@@ -127,7 +127,7 @@ namespace zero.cocoon
         /// <summary>
         /// Helper
         /// </summary>
-        protected IoNetClient<CcGossipMessage> IoNetClient;
+        protected IoNetClient<CcProtocMessage> IoNetClient;
 
         /// <summary>
         /// 
@@ -240,7 +240,7 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if (await((IoNetClient<CcGossipMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                        if (await((IoNetClient<CcProtocMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
                         {
                             Interlocked.Increment(ref AccountingBit);
                         }

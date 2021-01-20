@@ -91,7 +91,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Base source
         /// </summary>
-        protected IoUdpClient<CcProtocMessage> MessageService => (IoUdpClient<CcProtocMessage>)Source;
+        protected IoNetClient<CcProtocMessage> MessageService => (IoNetClient<CcProtocMessage>)Source;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -213,7 +213,7 @@ namespace zero.cocoon.models
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational)
                         {
-                            int rx = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize, _this._remoteEp, _this.MessageService.BlackList).ConfigureAwait(false);
+                            int rx = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize, _this._remoteEp).ConfigureAwait(false);
 
                             //var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
                             //await readTask.OverBoostAsync().ConfigureAwait(false);

@@ -27,7 +27,7 @@ namespace zero.cocoon
     /// <summary>
     /// Connects to cocoon
     /// </summary>
-    public class CcCollective : IoNode<CcGossipMessage>
+    public class CcCollective : IoNode<CcProtocMessage>
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
@@ -345,7 +345,7 @@ namespace zero.cocoon
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcGossipMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        private List<IoNeighbor<CcProtocMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -421,7 +421,7 @@ namespace zero.cocoon
         /// <param name="acceptConnection"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcGossipMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             _autoPeeringTask = Task.Factory.StartNew(async () =>
             {
