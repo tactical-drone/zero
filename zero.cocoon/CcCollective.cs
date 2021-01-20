@@ -59,7 +59,7 @@ namespace zero.cocoon
             {
                 Data = handshakeRequest.ToByteString(),
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcSubspaceMessage.MessageTypes.Handshake
+                Type = (uint)CcProtocMessage.MessageTypes.Handshake
             };
             protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length));
 
@@ -74,7 +74,7 @@ namespace zero.cocoon
             {
                 Data = handshakeResponse.ToByteString(),
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcSubspaceMessage.MessageTypes.Handshake
+                Type = (uint)CcProtocMessage.MessageTypes.Handshake
             };
             protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length));
 
@@ -279,7 +279,7 @@ namespace zero.cocoon
             }
         }
 
-        private IoNode<CcSubspaceMessage> _autoPeering;
+        private IoNode<CcProtocMessage> _autoPeering;
         
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
@@ -468,7 +468,7 @@ namespace zero.cocoon
             {
                 Data = msg,
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcSubspaceMessage.MessageTypes.Handshake
+                Type = (uint)CcProtocMessage.MessageTypes.Handshake
             };
 
             responsePacket.Signature = ByteString.CopyFrom(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
@@ -479,7 +479,7 @@ namespace zero.cocoon
 
             if (sent == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcProtocMessage.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else
@@ -778,7 +778,7 @@ namespace zero.cocoon
                 if (ccAdjunct.Assimilating && !ccAdjunct.IsDroneAttached)
                 {
                     //did we win?
-                    return await drone.AttachNeighborAsync((CcAdjunct) adjunct, direction).ConfigureAwait(false);
+                    return await drone.AttachNeighborAsync((CcAdjunct) adjunct, direction).ConfigureAwait(false) && TotalConnections <= MaxDrones;
                 }
                 else
                 {
@@ -844,7 +844,7 @@ namespace zero.cocoon
         /// </summary>
         public async Task BootAsync()
         {
-            Interlocked.Exchange(ref Testing, 1);
+            Interlocked.Exchange(ref Testing, 0);
             
             foreach (var ioNeighbor in Neighbors.Values)
             {
@@ -878,7 +878,7 @@ namespace zero.cocoon
 
                         await Task.Delay(++c * 2000).ConfigureAwait(false);
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                        if (!await Hub.Router.SendPingAsync(ioNodeAddress).ConfigureAwait(false))
+                        if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).ConfigureAwait(false))
                         {
                             if(!Hub.Router.Zeroed())
                                 _logger.Trace($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");

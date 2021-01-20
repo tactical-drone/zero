@@ -12,7 +12,7 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.cocoon.models
 {
     /// <summary>
-    /// <see cref="CcProtocolBuffer"/> produces these <see cref="IIoJob"/>s
+    /// <see cref="CcProtocSource"/> produces these <see cref="IIoJob"/>s
     ///
     /// These jobs contain a <see cref="Batch"/> of messages that were packed
     /// from <see cref="CcSubspaceMessage"/>s processed by <see cref="CcAdjunct"/>s from here: <see cref="CcAdjunct.ProcessAsync()"/>
@@ -24,20 +24,20 @@ namespace zero.cocoon.models
     /// resources, concurrency, many small events into larger ones etc. Also in the case of how UDP sockets work,
     /// this pattern fits perfectly with the strategy of doing the least amount of work (just buffering) on the edges:
     ///
-    /// <see cref="CcAdjunct"/> -> <see cref="CcSubspaceMessage"/>     -> <see cref="CcProtocolBuffer"/> -> <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> -> <see cref="CcSubspaceMessage"/>     -> <see cref="CcProtocSource"/> -> <see cref="IoConduit{TJob}"/>
     /// <see cref="BlockingCollection{T}"/> -                 instead of this we use                     <see cref="IoConduit{TJob}"/>
-    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocolMessage"/> <- <see cref="CcProtocolBuffer"/> <- <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch"/> <- <see cref="CcProtocSource"/> <- <see cref="IoConduit{TJob}"/>
     /// </summary>
-    public class CcProtocolMessage : IoSink<CcProtocolMessage>
+    public class CcProtocBatch : IoSink<CcProtocBatch>
     {
         
         /// <summary>
         /// ctor
         /// </summary>
-        /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocolBuffer"/></param>
+        /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocSource"/></param>
         /// <param name="waitForConsumerTimeout"></param>
-        public CcProtocolMessage(IoSource<CcProtocolMessage> originatingSource, int waitForConsumerTimeout = -1)
-            : base("conduit", $"{nameof(CcProtocolMessage)}", originatingSource)
+        public CcProtocBatch(IoSource<CcProtocBatch> originatingSource, int waitForConsumerTimeout = -1)
+            : base("conduit", $"{nameof(CcProtocBatch)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
             _logger = LogManager.GetCurrentClassLogger();
@@ -83,14 +83,14 @@ namespace zero.cocoon.models
         {
             if (!await Source.ProduceAsync(async (producer, backPressure, ioZero, ioJob )=>
             {
-                var _this = (CcProtocolMessage)ioJob;
+                var _this = (CcProtocBatch)ioJob;
                 
                 if (!await backPressure(ioJob, ioZero).ConfigureAwait(false))
                     return false;
 
                 try
                 {
-                    _this.Batch = await ((CcProtocolBuffer) _this.Source).DequeueAsync().ConfigureAwait(false);
+                    _this.Batch = await ((CcProtocSource) _this.Source).DequeueAsync().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
@@ -118,7 +118,7 @@ namespace zero.cocoon.models
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            //No work is needed, we just mark the job as consumed. 
+            //No work is needed, we just mark the job as consumed (Batched and forwarded).
             State = IoJobMeta.JobState.ConInlined;
             return ValueTask.FromResult(State);
         }

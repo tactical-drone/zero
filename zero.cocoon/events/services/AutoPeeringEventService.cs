@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -48,6 +49,7 @@ namespace zero.cocoon.events.services
         {
             if (_operational > 0 || QueuedEvents.Count < int.MaxValue / 10)
             {
+                newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
                 QueuedEvents.Enqueue(newAutoPeerEvent);
             }

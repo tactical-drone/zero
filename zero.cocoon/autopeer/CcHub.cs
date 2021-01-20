@@ -13,7 +13,7 @@ namespace zero.cocoon.autopeer
     /// <summary>
     /// Used by <see cref="CcCollective"/> to discover other nodes
     /// </summary>
-    public class CcHub : IoNode<CcSubspaceMessage>
+    public class CcHub : IoNode<CcProtocMessage>
     {
         /// <summary>
         /// Constructor
@@ -24,7 +24,7 @@ namespace zero.cocoon.autopeer
         /// <param name="prefetch">TCP job read ahead</param>
         /// <param name="concurrencyLevel">Nr of consumers that run concurrently</param>
         public CcHub(CcCollective ccCollective, IoNodeAddress address,
-            Func<IoNode<CcSubspaceMessage>, IoNetClient<CcSubspaceMessage>, object, IoNeighbor<CcSubspaceMessage>> mallocNeighbor, int prefetch, int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel)
+            Func<IoNode<CcProtocMessage>, IoNetClient<CcProtocMessage>, object, IoNeighbor<CcProtocMessage>> mallocNeighbor, int prefetch, int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             CcCollective = ccCollective;
@@ -75,7 +75,7 @@ namespace zero.cocoon.autopeer
             return base.ZeroManagedAsync();
         }
 
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcSubspaceMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             await base.SpawnListenerAsync(async neighbor =>
             {

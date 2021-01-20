@@ -16,7 +16,7 @@ namespace zero.cocoon.models.sources
     /// <summary>
     /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/> for <see cref="CcAdjunct"/>
     /// </summary>
-    public class CcProtocolBuffer : IoSource<CcProtocolMessage>
+    public class CcProtocSource : IoSource<CcProtocBatch>
     {
         /// <summary>
         /// ctor
@@ -25,7 +25,7 @@ namespace zero.cocoon.models.sources
         /// <param name="arrayPool">Used to establish a pool</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel">The level of concurrency when producing and consuming on this source</param>
-        public CcProtocolBuffer(IIoSource ioSource,ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
+        public CcProtocSource(IIoSource ioSource,ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
             : base(prefetchSize, concurrencyLevel)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -73,7 +73,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => $"{nameof(CcProtocolBuffer)}({Upstream.Key})";
+        public override string Key => $"{nameof(CcProtocSource)}({Upstream.Key})";
         
         /// <summary>
         /// A description

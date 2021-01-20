@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -20,12 +23,9 @@ using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
-    /// <summary>
-    /// The model for translating <see cref="CcHub"/> messages
-    /// </summary>
-    public class CcSubspaceMessage : IoMessage<CcSubspaceMessage>
+    public class CcProtocMessage : IoMessage<CcProtocMessage>
     {
-        public CcSubspaceMessage(string sinkDesc, string jobDesc, IoSource<CcSubspaceMessage> source) 
+        public CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage> source)
             : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -40,15 +40,15 @@ namespace zero.cocoon.models
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             ByteSegment = ByteBuffer;
 
-            if (!MessageService.ObjectStorage.ContainsKey(nameof(CcProtocolBuffer)))
+            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage)}.Discovery"))
             {
-                CcProtocolBuffer channelSource = null;
+                CcProtocSource channelSource = null;
 
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new CcProtocolBuffer(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocolBuffer), channelSource))
+                    channelSource = new CcProtocSource(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocSource), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
@@ -60,21 +60,21 @@ namespace zero.cocoon.models
                         nameof(CcAdjunct),
                         true,
                         channelSource,
-                        userData => new CcProtocolMessage(channelSource, -1 /*We block to control congestion*/),
+                        userData => new CcProtocBatch(channelSource, -1 /*We block to control congestion*/),
                         Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((CcProtocolBuffer) ProtocolConduit.Source).ArrayPool;
+                    _arrayPool = ((CcProtocSource)ProtocolConduit.Source).ArrayPool;
                 }
                 else
                 {
-                    channelSource.ZeroAsync(this);
+                    var t = channelSource.ZeroAsync(this);
                 }
             }
             else
             {
-                ProtocolConduit = MessageService.AttachConduit<CcProtocolMessage>(nameof(CcAdjunct));
+                ProtocolConduit = MessageService.AttachConduit<CcProtocBatch>(nameof(CcAdjunct));
             }
         }
 
@@ -86,12 +86,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction broadcaster
         /// </summary>
-        public IoConduit<CcProtocolMessage> ProtocolConduit;
+        public IoConduit<CcProtocBatch> ProtocolConduit;
 
         /// <summary>
         /// Base source
         /// </summary>
-        protected IoUdpClient<CcSubspaceMessage> MessageService => (IoUdpClient<CcSubspaceMessage>) Source;
+        protected IoUdpClient<CcProtocMessage> MessageService => (IoUdpClient<CcProtocMessage>)Source;
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -104,7 +104,7 @@ namespace zero.cocoon.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_producer_wait_for_consumer_timeout = 5000; //TODO make this adapting 
-        
+
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
@@ -146,7 +146,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Userdata in the source
         /// </summary>
-        protected volatile object ProducerExtraData = new IPEndPoint(0,0);
+        protected volatile object ProducerExtraData = new IPEndPoint(0, 0);
 
         public enum MessageTypes
         {
@@ -199,7 +199,7 @@ namespace zero.cocoon.models
             {
                 await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (CcSubspaceMessage)ioJob;
+                    var _this = (CcProtocMessage)ioJob;
                     //----------------------------------------------------------------------------
                     // BARRIER
                     // We are only allowed to run ahead of the consumer by some configurable
@@ -219,12 +219,12 @@ namespace zero.cocoon.models
                             //await readTask.OverBoostAsync().ConfigureAwait(false);
 
                             //rx = readTask.Result;
-                            
+
                             //Success
                             //UDP signals source ip
-                            
-                            ((IPEndPoint) _this.ProducerExtraData).Address = _this._remoteEp.Address;
-                            ((IPEndPoint) _this.ProducerExtraData).Port = _this._remoteEp.Port;
+
+                            ((IPEndPoint)_this.ProducerExtraData).Address = _this._remoteEp.Address;
+                            ((IPEndPoint)_this.ProducerExtraData).Port = _this._remoteEp.Port;
 
                             //Drop zero reads
                             if (rx == 0)
@@ -239,7 +239,7 @@ namespace zero.cocoon.models
                             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             var delta = now - _this._msgRateCheckpoint;
                             if (_this._msgCount > _this.parm_ave_sec_ms &&
-                                (double) _this._msgCount * 1000 / delta > _this.parm_ave_sec_ms)
+                                (double)_this._msgCount * 1000 / delta > _this.parm_ave_sec_ms)
                             {
                                 _this.BytesRead = 0;
                                 _this.State = IoJobMeta.JobState.ProduceTo;
@@ -347,7 +347,7 @@ namespace zero.cocoon.models
         {
             if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
-            var p = (IoMessage<CcSubspaceMessage>) PreviousJob;
+            var p = (IoMessage<CcProtocMessage>)PreviousJob;
             try
             {
                 var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
@@ -375,7 +375,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// CC Node
         /// </summary>
-        protected CcCollective CcCollective => ((CcAdjunct) IoZero)?.CcCollective;
+        protected CcCollective CcCollective => ((CcAdjunct)IoZero)?.CcCollective;
 
         /// <summary>
         /// Cc Identity
@@ -416,8 +416,8 @@ namespace zero.cocoon.models
                         var tmpBufferOffset = BufferOffset;
                         Interlocked.Add(ref BufferOffset, (int)read);
 
-                        if(!Zeroed() && !MessageService.Zeroed())
-                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset -2 , 32).ToArray().HashSig()}, {Description}");
+                        if (!Zeroed() && !MessageService.Zeroed())
+                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
 
                         if (read > 0)
                         {
@@ -430,7 +430,7 @@ namespace zero.cocoon.models
                     //did we get anything?
                     read = stream.Position - read;
 
-                    Interlocked.Add(ref BufferOffset, (int) read);
+                    Interlocked.Add(ref BufferOffset, (int)read);
 
 #if !DEBUG
                     if (read == 0)
@@ -445,7 +445,7 @@ namespace zero.cocoon.models
                         {
                             _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}, d = {read}, l = {BytesLeftToProcess}>>");
                         }
-                        if (i == 1 ) //&& read > 0)
+                        if (i == 1) //&& read > 0)
                         {
                             _logger.Debug($"MULTI - READ <<D = {DatumCount}, r = {BytesRead}, d = {read}, l = {BytesLeftToProcess}>>");
                         }
@@ -457,12 +457,12 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    var packetMsgRaw = packet.Data.Memory.AsArray(); 
+                    var packetMsgRaw = packet.Data.Memory.AsArray();
                     if (packet.Signature != null && !packet.Signature.IsEmpty)
                     {
                         verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
                                 0, packet.Signature.Memory.AsArray(), 0);
-                        
+
                     }
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
@@ -535,7 +535,7 @@ namespace zero.cocoon.models
                     State = IoJobMeta.JobState.ConsumeErr;
                 UpdateBufferMetaData();
             }
-            
+
             return State;
         }
 
@@ -568,7 +568,7 @@ namespace zero.cocoon.models
                     if (_currBatch >= parm_max_msg_batch_size)
                         await ForwardToNeighborAsync().ConfigureAwait(false);
 
-                    var remoteEp = new IPEndPoint(((IPEndPoint) ProducerExtraData).Address, ((IPEndPoint) ProducerExtraData).Port);
+                    var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
                     _protocolMsgBatch[_currBatch] = ValueTuple.Create(zero, (IMessage)request, remoteEp, packet);
                     Interlocked.Increment(ref _currBatch);
                 }
@@ -599,15 +599,15 @@ namespace zero.cocoon.models
                 {
                     _protocolMsgBatch[_currBatch] = default;
                 }
-                
+
                 //cog the source
                 var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
                 {
-                    var _this = (CcSubspaceMessage) ioJob;
+                    var _this = (CcProtocMessage)ioJob;
 
-                    if (!await ((CcProtocolBuffer) source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+                    if (!await ((CcProtocSource)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
-                        if(!((CcProtocolBuffer) source).Zeroed())
+                        if (!((CcProtocSource)source).Zeroed())
                             _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }
@@ -619,7 +619,7 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _this._logger.Fatal(e,$"Unable to rent from mempool: {_this.Description}");
+                        _this._logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
                         return false;
                     }
 
@@ -669,5 +669,6 @@ namespace zero.cocoon.models
         /// </summary>
         private ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> _arrayPool =
             ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>>.Create();
+
     }
 }

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
+using zero.cocoon.events.services;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.models;
@@ -95,8 +96,21 @@ namespace zero.cocoon.models
 
             if (!sentTask.IsCompletedSuccessfully)
                 await sentTask.ConfigureAwait(false);
-            
-            _logger.Debug($"{nameof(CcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<CcGossipMessage>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
+
+            //AutoPeeringEventService.AddEvent(new AutoPeerEvent
+            //{
+            //    EventType = AutoPeerEventType.SendProtoMsg,
+            //    Msg = new ProtoMsg
+            //    {
+            //        CollectiveId =  Hub.Router.Designation.IdString(),
+            //        Id = Designation.IdString(),
+            //        Type = "ping"
+            //    }
+            //});
+
+
+            //_logger.Debug($"{nameof(CcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<CcGossipMessage>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
+
             return sentTask.Result;
         }
 
