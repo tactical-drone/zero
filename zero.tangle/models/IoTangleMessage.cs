@@ -296,7 +296,7 @@ namespace zero.tangle.models
             await _nodeServicesProxy.ProduceAsync((source, _,__, ___) =>
             {                
                 ((IoTangleTransactionSource<TKey>) source).TxQueue.TryAdd(newInteropTransactions);
-                return Task.FromResult(true);
+                return new ValueTask<bool>(true);
             });
 
             //forward transactions
@@ -309,7 +309,7 @@ namespace zero.tangle.models
         private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _neighborProducer.ProduceAsync((source,_, __, ___) => Task.FromResult(true));
+            await _neighborProducer.ProduceAsync((source,_, __, ___) => ValueTask.FromResult(true));
 
             //forward transactions
             if (!await NeighborServicesArbiter.ProduceAsync())

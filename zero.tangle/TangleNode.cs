@@ -82,38 +82,28 @@ namespace zero.tangle
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
             {
-                await ConnectAsync(connectBackAddress).ContinueWith(async newNeighbor =>
+                var newNeighbor = await ConnectAsync(connectBackAddress).ConfigureAwait(false);
+                if (newNeighbor!= null)
                 {
-                    if (newNeighbor.Status == TaskStatus.RanToCompletion)
-                    {
-                        if (newNeighbor.Result != null)
-                        {
-                            ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent(async s => await newNeighbor.Result.ZeroAsync(this).ConfigureAwait(false));
+                    ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent(async s => await newNeighbor.ZeroAsync(this).ConfigureAwait(false));
 
-                            if (newNeighbor.Result.Source.IsOperational)
-
-                                await newNeighbor.Result.Source.ProduceAsync((client,_, __, ___) =>
-                                {
-                                    //TODO
-                                    ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
-                                        Encoding.ASCII.GetBytes("0000015600").Length);
-                                    return Task.FromResult(true);
-                                });
-                        }
-                        else
+                    if (newNeighbor.Source.IsOperational)
+                        await newNeighbor.Source.ProduceAsync((client,_, __, ___) =>
                         {
-                            _logger.Error($"Unable to connect back to `{connectBackAddress}'");
-                        }
-                    }
-                    else
-                    {
-                        _logger.Error(newNeighbor.Exception,
-                            $"Connect back to neighbor `{connectBackAddress}' returned with errors:");
-                    }
-                });
+                            //TODO
+                            ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
+                                Encoding.ASCII.GetBytes("0000015600").Length);
+                            return new ValueTask<bool>(true);
+                        });
+                }
+                else
+                {
+                    _logger.Error($"Unable to connect back to `{connectBackAddress}'");
+                }
             }
             else
             {
+
             }
 #pragma warning restore 4014
         }

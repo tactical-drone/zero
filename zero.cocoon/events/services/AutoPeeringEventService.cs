@@ -22,7 +22,7 @@ namespace zero.cocoon.events.services
         private static readonly ConcurrentQueue<AutoPeerEvent> QueuedEvents = new ConcurrentQueue<AutoPeerEvent>();
         private static volatile int _operational;
         private static long _seq;
-        private const int EventBatchSize = 100;
+        private const int EventBatchSize = 10000;
 
         public override Task<EventResponse> Next(NullMsg request, ServerCallContext context)
         {

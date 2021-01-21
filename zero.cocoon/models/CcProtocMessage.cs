@@ -307,6 +307,10 @@ namespace zero.cocoon.models
                         return false;
                     }
                 }, barrier, zeroClosure, this).ConfigureAwait(false);
+                await Source.ProduceAsync((source, func, arg3, arg4) =>
+                {
+                    return new ValueTask<bool>();
+                });
             }
             catch (TaskCanceledException e)
             {

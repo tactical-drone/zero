@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 50;
+            int total = 500;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<CcCollective>>();
 
@@ -96,7 +96,7 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
-                var rateLimit = 5000;
+                var rateLimit = 2000;
                 foreach (var task in tasks)
                 {
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
