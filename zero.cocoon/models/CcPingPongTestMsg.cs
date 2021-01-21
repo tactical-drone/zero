@@ -23,7 +23,7 @@ namespace zero.cocoon.models
     /// <summary>
     /// Process gossip messages
     /// </summary>
-    public class CcGossipMessage : IoMessage<CcGossipMessage>
+    public class CcPingPongTestMsg : IoMessage<CcPingPongTestMsg>
     {
         /// <summary>
         /// Constructor
@@ -32,7 +32,7 @@ namespace zero.cocoon.models
         /// <param name="sinkDesc">Describe the sink</param>
         /// <param name="originatingSource">The source of the work</param>
         /// <param name="zeroOnCascade">If false, don't allocate resources they will leak</param>
-        public CcGossipMessage(string jobDesc, string sinkDesc, IoSource<CcGossipMessage> originatingSource, bool zeroOnCascade = true) : base(sinkDesc, jobDesc, originatingSource)
+        public CcPingPongTestMsg(string jobDesc, string sinkDesc, IoSource<CcPingPongTestMsg> originatingSource, bool zeroOnCascade = true) : base(sinkDesc, jobDesc, originatingSource)
         {
             if (zeroOnCascade)
             {
@@ -92,7 +92,7 @@ namespace zero.cocoon.models
 
             var msgRaw = responsePacket.ToByteArray();
             
-            var sentTask =  ((IoTcpClient<CcGossipMessage>)Source).IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length);
+            var sentTask =  ((IoTcpClient<CcPingPongTestMsg>)Source).IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length);
 
             if (!sentTask.IsCompletedSuccessfully)
                 await sentTask.ConfigureAwait(false);
@@ -109,7 +109,7 @@ namespace zero.cocoon.models
             //});
 
 
-            //_logger.Debug($"{nameof(CcGossipMessage)}: Sent {sentTask.Result} bytes to {((IoTcpClient<CcGossipMessage>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
+            //_logger.Debug($"{nameof(CcPingPongTestMsg)}: Sent {sentTask.Result} bytes to {((IoTcpClient<CcPingPongTestMsg>)Source).IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcSubspaceMessage.MessageTypes), responsePacket.Type)})");
 
             return sentTask.Result;
         }
@@ -129,7 +129,7 @@ namespace zero.cocoon.models
 
                 var produced = await Source.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (CcGossipMessage)ioJob;
+                    var _this = (CcPingPongTestMsg)ioJob;
                     
                     try
                     {
@@ -235,7 +235,7 @@ namespace zero.cocoon.models
         {
             if (PreviousJob?.StillHasUnprocessedFragments ?? false)
             {
-                var previousJobFragment = (IoMessage<CcGossipMessage>)PreviousJob;
+                var previousJobFragment = (IoMessage<CcPingPongTestMsg>)PreviousJob;
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
@@ -285,7 +285,7 @@ namespace zero.cocoon.models
                         //if (Id % 10 == 0)
                         await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
 
-                        var sentTask = await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
+                        var sentTask = await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
                         
                         if (sentTask > 0)
                         {
@@ -302,7 +302,7 @@ namespace zero.cocoon.models
                             req = 1;
 
                             MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
-                            if (await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket
+                            if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
                                 .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 2);
@@ -314,7 +314,7 @@ namespace zero.cocoon.models
 
                             req = 0;
                             MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
-                            if (await ((IoNetClient<CcGossipMessage>) Source).IoNetSocket
+                            if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
                                 .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 1);

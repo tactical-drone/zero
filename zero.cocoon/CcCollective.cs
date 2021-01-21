@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Google.Protobuf.Reflection;
 using Grpc.Core.Utils;
 using Microsoft.VisualStudio.Threading;
 using NLog;
@@ -15,10 +16,12 @@ using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
+using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
+using zero.core.models.protobuffer;
 using zero.core.network.ip;
 using Packet = Proto.Packet;
 
@@ -27,7 +30,7 @@ namespace zero.cocoon
     /// <summary>
     /// Connects to cocoon
     /// </summary>
-    public class CcCollective : IoNode<CcProtocMessage>
+    public class CcCollective : IoNode<CcProtocMessage<CcGossipMsg, CcGossipBatch>>
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
@@ -59,7 +62,7 @@ namespace zero.cocoon
             {
                 Data = handshakeRequest.ToByteString(),
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcProtocMessage.MessageTypes.Handshake
+                Type = (uint)CcProtocMessage<CcGossipMsg, CcGossipBatch>.MessageTypes.Handshake
             };
             protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length));
 
@@ -74,7 +77,7 @@ namespace zero.cocoon
             {
                 Data = handshakeResponse.ToByteString(),
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcProtocMessage.MessageTypes.Handshake
+                Type = (uint)CcProtocMessage<CcGossipMsg, CcGossipBatch>.MessageTypes.Handshake
             };
             protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length));
 
@@ -279,7 +282,7 @@ namespace zero.cocoon
             }
         }
 
-        private IoNode<CcProtocMessage> _autoPeering;
+        private IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>> _autoPeering;
         
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
@@ -345,7 +348,7 @@ namespace zero.cocoon
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcProtocMessage>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        private List<IoNeighbor<CcProtocMessage<CcGossipMsg, CcGossipBatch>>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -421,7 +424,7 @@ namespace zero.cocoon
         /// <param name="acceptConnection"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcGossipMsg, CcGossipBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             _autoPeeringTask = Task.Factory.StartNew(async () =>
             {
@@ -468,7 +471,7 @@ namespace zero.cocoon
             {
                 Data = msg,
                 PublicKey = ByteString.CopyFrom(CcId.PublicKey),
-                Type = (uint)CcProtocMessage.MessageTypes.Handshake
+                Type = (uint)CcProtocMessage<CcGossipMsg, CcGossipBatch>.MessageTypes.Handshake
             };
 
             responsePacket.Signature = ByteString.CopyFrom(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
@@ -479,7 +482,7 @@ namespace zero.cocoon
 
             if (sent == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcProtocMessage.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcProtocMessage<CcGossipMsg, CcGossipBatch>.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else

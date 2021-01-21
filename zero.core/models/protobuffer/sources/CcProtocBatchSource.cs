@@ -5,18 +5,17 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
-using Proto;
-using zero.cocoon.autopeer;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.semaphore;
 
-namespace zero.cocoon.models.sources
+namespace zero.core.models.protobuffer.sources
 {
     /// <summary>
     /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/> for <see cref="CcAdjunct"/>
     /// </summary>
-    public class CcProtocBatchSource : IoSource<CcProtocBatch>
+    public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatch<TModel, TBatch>>
+    where TModel : IMessage
     {
         /// <summary>
         /// ctor
@@ -25,7 +24,7 @@ namespace zero.cocoon.models.sources
         /// <param name="arrayPool">Used to establish a pool</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel">The level of concurrency when producing and consuming on this source</param>
-        public CcProtocBatchSource(IIoSource ioSource,ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> arrayPool, int prefetchSize, int concurrencyLevel) 
+        public CcProtocBatchSource(IIoSource ioSource,ArrayPool<TBatch> arrayPool, int prefetchSize, int concurrencyLevel) 
             : base(prefetchSize, concurrencyLevel)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -33,7 +32,7 @@ namespace zero.cocoon.models.sources
             Upstream = ioSource;
             ArrayPool = arrayPool;
 
-            MessageQueue = new ConcurrentQueue<ValueTuple<IIoZero, IMessage, object, Packet>[]>();
+            MessageQueue = new ConcurrentQueue<TBatch[]>();
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -53,12 +52,12 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Shared heap
         /// </summary>
-        public ArrayPool<ValueTuple<IIoZero, IMessage, object, Packet>> ArrayPool { get; protected set; }
+        public ArrayPool<TBatch> ArrayPool { get; protected set; }
 
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected ConcurrentQueue<ValueTuple<IIoZero, IMessage, object, Packet>[]> MessageQueue;
+        protected ConcurrentQueue<TBatch[]> MessageQueue;
 
         /// <summary>
         /// Sync used to access the Q
@@ -73,7 +72,7 @@ namespace zero.cocoon.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => $"{nameof(CcProtocBatchSource)}({Upstream.Key})";
+        public override string Key => $"{nameof(CcProtocBatchSource<TModel, TBatch>)}({Upstream.Key})";
         
         /// <summary>
         /// A description
@@ -120,7 +119,7 @@ namespace zero.cocoon.models.sources
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async Task<bool> EnqueueAsync(ValueTuple<IIoZero, IMessage, object, Packet>[] item)
+        public async Task<bool> EnqueueAsync(TBatch[] item)
         {
             var backed = false;
             try
@@ -152,11 +151,11 @@ namespace zero.cocoon.models.sources
         /// </summary>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async Task<ValueTuple<IIoZero, IMessage, object, Packet>[]> DequeueAsync()
+        public async Task<TBatch[]> DequeueAsync()
         {
             try
             {
-                ValueTuple<IIoZero, IMessage, object, Packet>[] batch = null;
+                var batch = default(TBatch[]);
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
                     var checkQ = await _queuePressure.WaitAsync().ConfigureAwait(false);
@@ -170,7 +169,7 @@ namespace zero.cocoon.models.sources
                 _logger.Trace(e,$"{Description}");
             }
 
-            return null;
+            return default(TBatch[]);
         }
 
         /// <summary>

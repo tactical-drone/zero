@@ -2,10 +2,10 @@
 
 package proto;
 
-message Message {
+message CcGossipMsg {
     bytes data = 1;
 }
 
-message MessageRequest {
+message CcGossipReq {
     bytes id = 1;
 }

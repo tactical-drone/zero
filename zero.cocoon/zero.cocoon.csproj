@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="models\protobuf\gossip\CcGossipMsg.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
   </ItemGroup>
 
@@ -32,6 +36,7 @@
 
 	<ItemGroup>
 		<Protobuf Include="events\models\proto\autopeering.proto" GrpcServices="Both" />
+		<Protobuf Include="models\protobuf\gossip\CcGossipMsg.proto" />
 	</ItemGroup>
 
   <ItemGroup>

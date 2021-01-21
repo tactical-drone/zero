@@ -2,18 +2,21 @@
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.models;
+using zero.cocoon.models.batches;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
+using zero.core.models.protobuffer;
 using zero.core.network.ip;
 using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
-    public class CcDrone : IoNeighbor<CcProtocMessage>
+    public class CcDrone : IoNeighbor<CcProtocMessage<CcGossipMsg, CcGossipBatch>>
     {
         /// <summary>
         /// Ctor
@@ -21,10 +24,10 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcDrone(IoNode<CcProtocMessage> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage> ioNetClient)
+        public CcDrone(IoNode<CcProtocMessage<CcGossipMsg, CcGossipBatch>> node, CcAdjunct adjunct,
+            IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> ioNetClient)
             : base(node, ioNetClient,
-                userData => new CcProtocMessage("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
+                userData => new CcGossipMsgProto("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
                     ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -107,7 +110,7 @@ namespace zero.cocoon
         /// <summary>
         /// The source
         /// </summary>
-        public new IoNetClient<CcProtocMessage> IoSource => (IoNetClient<CcProtocMessage>) Source;
+        public new IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>>) Source;
 
         /// <summary>
         /// The attached neighbor
@@ -127,7 +130,7 @@ namespace zero.cocoon
         /// <summary>
         /// Helper
         /// </summary>
-        protected IoNetClient<CcProtocMessage> IoNetClient;
+        protected IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> IoNetClient;
 
         /// <summary>
         /// 
@@ -240,7 +243,7 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if (await((IoNetClient<CcProtocMessage>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                        if (await((IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
                         {
                             Interlocked.Increment(ref AccountingBit);
                         }

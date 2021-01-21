@@ -4,31 +4,31 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
-using zero.cocoon.autopeer;
-using zero.cocoon.models.sources;
+using zero.core.core;
+using zero.core.models.protobuffer.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
-namespace zero.cocoon.models
+namespace zero.core.models.protobuffer
 {
     /// <summary>
-    /// <see cref="CcProtocBatchSource"/> produces these <see cref="IIoJob"/>s
+    /// <see cref="CcProtocBatchSource{TModel,TBatch}"/> produces these <see cref="IIoJob"/>s
     ///
     /// These jobs contain a <see cref="Batch"/> of messages that were packed
-    /// from <see cref="CcSubspaceMessage"/>s processed by <see cref="CcAdjunct"/>s from here: <see cref="CcAdjunct.ProcessAsync()"/>
+    /// from <see cref="CcProtocMessage{TModel,TBatch}"/>s processed by <see cref="CcAdjunct"/>s from here: <see cref="CcAdjunct.ProcessAsync()"/>
     ///
-    /// So, why not just put a <see cref="BlockingCollection{T}"/> on <see cref="CcAdjunct"/>
-    /// and send the messages straight from <see cref="CcSubspaceMessage"/> to that Q?
-    ///
-    /// Ans: We need the telemetry provided by <see cref="IoZero{TJob}"/> to see what is going on. We also control
+    /// So, why not just put a <see cref="BlockingCollection{T}"/> on <see cref="IoNeighbor{TJob}"/>
+    /// and send the messages straight from <see cref="CcProtocMessage{TModel,TBatch}"/> to that Q? We
+    /// need the telemetry provided by <see cref="IoZero{TJob}"/> to see what is going on. We also control
     /// resources, concurrency, many small events into larger ones etc. Also in the case of how UDP sockets work,
     /// this pattern fits perfectly with the strategy of doing the least amount of work (just buffering) on the edges:
     ///
-    /// <see cref="CcAdjunct"/> -> <see cref="CcSubspaceMessage"/>     -> <see cref="CcProtocBatchSource"/> -> <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> -> <see cref="CcProtocMessage{TModel,TBatch}"/>     -> <see cref="CcProtocBatchSource"/> -> <see cref="IoConduit{TJob}"/>
     /// <see cref="BlockingCollection{T}"/> -                 instead of this we use                     <see cref="IoConduit{TJob}"/>
-    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch"/> <- <see cref="CcProtocBatchSource"/> <- <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch{TModel,TBatch}"/> <- <see cref="CcProtocBatchSource{TModel,TBatch}"/> <- <see cref="IoConduit{TJob}"/>
     /// </summary>
-    public class CcProtocBatch : IoSink<CcProtocBatch>
+    public class CcProtocBatch<TModel, TBatch> : IoSink<CcProtocBatch<TModel, TBatch>>
+    where TModel:IMessage
     {
         
         /// <summary>
@@ -36,8 +36,8 @@ namespace zero.cocoon.models
         /// </summary>
         /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource"/></param>
         /// <param name="waitForConsumerTimeout"></param>
-        public CcProtocBatch(IoSource<CcProtocBatch> originatingSource, int waitForConsumerTimeout = -1)
-            : base("conduit", $"{nameof(CcProtocBatch)}", originatingSource)
+        public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource, int waitForConsumerTimeout = -1)
+            : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
             _logger = LogManager.GetCurrentClassLogger();
@@ -53,7 +53,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public volatile ValueTuple<IIoZero, IMessage,object, Proto.Packet>[] Batch;
+        public volatile TBatch[] Batch;
 
         /// <summary>
         /// zero unmanaged
@@ -83,14 +83,14 @@ namespace zero.cocoon.models
         {
             if (!await Source.ProduceAsync(async (producer, backPressure, ioZero, ioJob )=>
             {
-                var _this = (CcProtocBatch)ioJob;
+                var _this = (CcProtocBatch<TModel, TBatch>)ioJob;
                 
                 if (!await backPressure(ioJob, ioZero).ConfigureAwait(false))
                     return false;
 
                 try
                 {
-                    _this.Batch = await ((CcProtocBatchSource) _this.Source).DequeueAsync().ConfigureAwait(false);
+                    _this.Batch = await ((CcProtocBatchSource<TModel, TBatch>) _this.Source).DequeueAsync().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
