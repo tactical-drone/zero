@@ -807,7 +807,7 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"Waiting for {Description} stream to spin up...");
                         _protocolConduit = MessageService.AttachConduit<CcProtocBatch>(nameof(CcAdjunct));
                         if (_protocolConduit != null)
-                            ArrayPoolProxy = ((CcProtocSource) _protocolConduit.Source).ArrayPool;
+                            ArrayPoolProxy = ((CcProtocBatchSource) _protocolConduit.Source).ArrayPool;
                         else
                         {
                             await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false); //TODO config

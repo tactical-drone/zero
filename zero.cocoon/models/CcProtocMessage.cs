@@ -42,13 +42,13 @@ namespace zero.cocoon.models
 
             if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage)}.Discovery"))
             {
-                CcProtocSource channelSource = null;
+                CcProtocBatchSource channelSource = null;
 
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new CcProtocSource(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocSource), channelSource))
+                    channelSource = new CcProtocBatchSource(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
@@ -65,7 +65,7 @@ namespace zero.cocoon.models
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((CcProtocSource)ProtocolConduit.Source).ArrayPool;
+                    _arrayPool = ((CcProtocBatchSource)ProtocolConduit.Source).ArrayPool;
                 }
                 else
                 {
@@ -609,9 +609,9 @@ namespace zero.cocoon.models
                 {
                     var _this = (CcProtocMessage)ioJob;
 
-                    if (!await ((CcProtocSource)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+                    if (!await ((CcProtocBatchSource)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
-                        if (!((CcProtocSource)source).Zeroed())
+                        if (!((CcProtocBatchSource)source).Zeroed())
                             _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }

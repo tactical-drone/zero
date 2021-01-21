@@ -12,7 +12,7 @@ using zero.core.patterns.bushes.contracts;
 namespace zero.cocoon.models
 {
     /// <summary>
-    /// <see cref="CcProtocSource"/> produces these <see cref="IIoJob"/>s
+    /// <see cref="CcProtocBatchSource"/> produces these <see cref="IIoJob"/>s
     ///
     /// These jobs contain a <see cref="Batch"/> of messages that were packed
     /// from <see cref="CcSubspaceMessage"/>s processed by <see cref="CcAdjunct"/>s from here: <see cref="CcAdjunct.ProcessAsync()"/>
@@ -24,9 +24,9 @@ namespace zero.cocoon.models
     /// resources, concurrency, many small events into larger ones etc. Also in the case of how UDP sockets work,
     /// this pattern fits perfectly with the strategy of doing the least amount of work (just buffering) on the edges:
     ///
-    /// <see cref="CcAdjunct"/> -> <see cref="CcSubspaceMessage"/>     -> <see cref="CcProtocSource"/> -> <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> -> <see cref="CcSubspaceMessage"/>     -> <see cref="CcProtocBatchSource"/> -> <see cref="IoConduit{TJob}"/>
     /// <see cref="BlockingCollection{T}"/> -                 instead of this we use                     <see cref="IoConduit{TJob}"/>
-    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch"/> <- <see cref="CcProtocSource"/> <- <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch"/> <- <see cref="CcProtocBatchSource"/> <- <see cref="IoConduit{TJob}"/>
     /// </summary>
     public class CcProtocBatch : IoSink<CcProtocBatch>
     {
@@ -34,7 +34,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// ctor
         /// </summary>
-        /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocSource"/></param>
+        /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource"/></param>
         /// <param name="waitForConsumerTimeout"></param>
         public CcProtocBatch(IoSource<CcProtocBatch> originatingSource, int waitForConsumerTimeout = -1)
             : base("conduit", $"{nameof(CcProtocBatch)}", originatingSource)
@@ -90,7 +90,7 @@ namespace zero.cocoon.models
 
                 try
                 {
-                    _this.Batch = await ((CcProtocSource) _this.Source).DequeueAsync().ConfigureAwait(false);
+                    _this.Batch = await ((CcProtocBatchSource) _this.Source).DequeueAsync().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
