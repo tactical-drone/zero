@@ -114,7 +114,7 @@ namespace zero.tangle.api.controllers.generic
                 var task = Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
                     .ForEachAsync(async n =>
                     {
-                        var relaySource = n.Source.AttachConduit<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>));
+                        var relaySource = await n.Source.AttachConduitAsync<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>)).ConfigureAwait(false);
 
                         if (relaySource != null)
                         {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Data;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -22,7 +23,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1) : base()
+        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1) : base($"{nameof(IoSource<TJob>)}")
         {
             PrefetchSize = prefetchSize;
             ConcurrencyLevel = concurrencyLevel;
@@ -210,10 +211,12 @@ namespace zero.core.patterns.bushes
         /// <param name="cascade">ZeroOnCascade close events</param>
         /// <param name="channelSource">The source of this conduit, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
-        /// /// <param name="producers">Nr of concurrent producers</param>
+        /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
+        /// ///
         /// <returns></returns>
-        public IoConduit<TFJob> AttachConduit<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null,
+        public async Task<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
+            IoSource<TFJob> channelSource = null,
             Func<object, IoSink<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
         where TFJob : IIoJob
         {
@@ -225,19 +228,58 @@ namespace zero.core.patterns.bushes
                     return null;
                 }
 
-                lock (this)
+                if (!await ZeroAtomicAsync(async (nanite, u, disposed) =>
                 {
-                    var newChannel = new IoConduit<TFJob>($"`conduit({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'", channelSource, jobMalloc, producers, consumers);
+                    var newChannel =
+                        new IoConduit<TFJob>($"`conduit({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'",
+                            channelSource, jobMalloc, producers, consumers);
 
-                    ZeroAtomicAsync((s, u, d) =>
+                    if (!IoConduits.TryAdd(id, newChannel))
                     {
-                        if (!IoConduits.TryAdd(id, newChannel)) return ValueTask.FromResult(false);
-                        return ValueTask.FromResult(ZeroOnCascade(newChannel, cascade).success);
-                    }).ConfigureAwait(false).GetAwaiter().GetResult();
+                        await newChannel.ZeroAsync(new IoNanoprobe("lost race")).ConfigureAwait(false);
+                        _logger.Trace($"Could not add {id}, already exists = {IoConduits.ContainsKey(id)}");
+                        return false;
+                    }
+
+                    if (!ZeroOnCascade(newChannel, cascade).success)
+                    {
+                        _logger.Trace($"Failed to set cascade on newly formed channel {id}");
+                        return false;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                }).ConfigureAwait(false))
+                {
+                    if (!Zeroed())
+                    {
+                        try
+                        {
+                            return (IoConduit<TFJob>)IoConduits[id];
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Trace(e, $"Conduit {id} after race, not found");
+                            throw;
+                        }
+                    }
+                    else
+                    {
+                        return null;
+                    }
                 }
             }
 
-            return (IoConduit<TFJob>)IoConduits[id];
+            try
+            {
+                return (IoConduit<TFJob>)IoConduits[id];
+            }
+            catch (Exception e)
+            {
+                _logger.Fatal(e, $"Conduit {id} after race, not found");
+                throw;
+            }
         }
 
         /// <summary>

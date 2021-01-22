@@ -21,7 +21,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socketType">The socket type</param>
         /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
-        protected IoSocket(SocketType socketType, ProtocolType protocolType) : base()
+        protected IoSocket(SocketType socketType, ProtocolType protocolType) : base($"{nameof(IoSocket)}")
         {
             _logger = LogManager.GetCurrentClassLogger();
             NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
@@ -33,7 +33,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="nativeSocket">The socket</param>
         /// <param name="remoteEndPoint">The remote endpoint of this connection in the case of a UDP. TCP unused.</param>
-        protected IoSocket(Socket nativeSocket, IPEndPoint remoteEndPoint = null) : base()
+        protected IoSocket(Socket nativeSocket, IPEndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}")
         {
             NativeSocket = nativeSocket ?? throw new ArgumentNullException($"{nameof(nativeSocket)}");
             LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)NativeSocket.LocalEndPoint);

@@ -16,7 +16,7 @@ namespace zero.core.patterns.heap
     /// </summary>
     /// <typeparam name="T">The type of item managed</typeparam>
     public class IoHeap<T>
-        where T:class
+        where T : class
     {
         /// <summary>
         /// ctor
@@ -103,7 +103,7 @@ namespace zero.core.patterns.heap
 
         /// <summary>
         /// zero unmanaged
-        /// </summary>
+        /// </summary>  
         public void ZeroUnmanaged()
         {
 #if SAFE_RELEASE
@@ -138,13 +138,13 @@ namespace zero.core.patterns.heap
         /// Checks the heap for a free item and returns it. If no free items exists make a new one if we have capacity for it.
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
-        /// <returns>The next initialized item from the heap.<see cref="T"/></returns>
-        public T Take(object userData = null)
+        /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="T"/></returns>
+        public bool Take(out T item, object userData = null)
         {
             try
             {
                 //If the heap is empty
-                if (!_buffer.TryTake(out var item))
+                if (!_buffer.TryTake(out var newItem))
                 {
                     //And we can allocate more heap space
                     if (Interlocked.Read(ref CurrentHeapSize) < _maxSize)
@@ -152,17 +152,20 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref CurrentHeapSize);
                         Interlocked.Increment(ref ReferenceCount);
-                        return Make(userData);
+                        item = Make(userData);
+                        return true;
                     }
                     else //we have run out of capacity
                     {
-                        return null;
+                        item = null;
+                        return false;
                     }
                 }
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref ReferenceCount);
-                    return item;
+                    item = newItem; 
+                    return false;
                 }
             }
             catch (NullReferenceException) { }
@@ -171,7 +174,8 @@ namespace zero.core.patterns.heap
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
             }
 
-            return null;
+            item = null;
+            return false;
         }
 
         private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) default);

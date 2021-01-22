@@ -30,5 +30,9 @@ namespace zero.core.patterns.bushes.contracts
         {
             throw new NotImplementedException();
         }
+
+        public IoJobStub(string description) : base(description)
+        {
+        }
     }
 }

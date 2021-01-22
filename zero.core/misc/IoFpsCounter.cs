@@ -9,7 +9,7 @@ namespace zero.core.misc
     public struct IoFpsCounter
     {
         /// <summary>
-        /// Construct
+        /// ConstructAsync
         /// </summary>
         /// <param name="range">The initial range hysteresis</param>
         /// <param name="time">The time in ms hysteresis</param>

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,7 +24,7 @@ namespace zero.core.patterns.misc
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        public IoNanoprobe(string description = null)
+        public IoNanoprobe(string description)
         {
             Description = description ?? GetType().Name;
 
@@ -53,6 +52,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoNanoprobe()
         {
+            ZeroedFrom = new IoNanoprobe("Destructor");
             ZeroAsync(false).ConfigureAwait(false); //.GetAwaiter().GetResult();
         }
 
@@ -126,10 +126,16 @@ namespace zero.core.patterns.misc
         private ConcurrentStack<IoZeroSub> _zeroSubs;
 
         /// <summary>
+        /// A secondary constructor for async stuff
+        /// </summary>
+        public virtual ValueTask<bool> ConstructAsync() {return new ValueTask<bool>(true);}
+
+        /// <summary>
         /// ZeroAsync pattern
         /// </summary>
         public void Dispose()
         {
+            ZeroedFrom = new IoNanoprobe("Dispose");
             ZeroAsync(true).ConfigureAwait(false); //.GetAwaiter().GetResult();
             GC.SuppressFinalize(this);
         }
@@ -137,19 +143,20 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask ZeroAsync(IIoNanite from)
         {
 #if DEBUG
             if (from == null)
+            {
                 throw new NullReferenceException(nameof(from));
+            }
 #endif
+            ZeroedFrom ??= !@from.Equals(this) ? @from : new IoNanoprobe("self");
 
             if (_zeroed > 0)
                 return;
 
-            if (!from.Equals(this))
-                ZeroedFrom = from;
+            //ZeroedFrom = !@from.Equals(this) ? @from : new IoNanoprobe("self");
 
             await ZeroAsync(true).ConfigureAwait(false);
             GC.SuppressFinalize(this);
@@ -285,7 +292,7 @@ namespace zero.core.patterns.misc
 
                 @this.TearDownTime = DateTime.Now.Ticks;
 
-                var subs = new IoZeroSub[10];
+                var subs = new IoZeroSub[1000];
                 var popped = 0;
                 //emit zero event
                 while ((popped = @this._zeroSubs.TryPopRange(subs)) > 0)
@@ -334,7 +341,7 @@ namespace zero.core.patterns.misc
                         @this.ZeroUnmanaged();
 
                         @this.AsyncTasks = null;
-                        @this.ZeroedFrom = null;
+                        //@this.ZeroedFrom = null;
                         @this._zeroSubs = null;
                     }
                     catch (NullReferenceException)

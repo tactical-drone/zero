@@ -186,7 +186,7 @@ namespace zero.cocoon
             {
                 _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {adjunct.Description}");
                 
-                var t = StartTestModeAsync();
+                //var t = StartTestModeAsync();
             }
             else
             {

@@ -12,6 +12,7 @@ using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.heap;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.mock;
@@ -50,6 +51,11 @@ namespace zero.tangle.models
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             ByteSegment = ByteBuffer;
 
+            
+        }
+
+        public override async ValueTask<bool> ConstructAsync()
+        {
             //forward to node services
             if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))
             {
@@ -60,10 +66,9 @@ namespace zero.tangle.models
                 }
             }
 
-            NodeServicesArbiter = Source.AttachConduit(nameof(IoNodeServices<TKey>), false, _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy));            
+            NodeServicesArbiter = await Source.AttachConduitAsync(nameof(IoNodeServices<TKey>), false, _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy)).ConfigureAwait(false);
 
-
-            NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0; 
+            NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0;
             NodeServicesArbiter.parm_producer_start_retry_time = 0;
 
             //forward to neighbor
@@ -76,11 +81,13 @@ namespace zero.tangle.models
                 }
             }
 
-            NeighborServicesArbiter = Source.AttachConduit(nameof(TanglePeer<IoTangleTransaction<TKey>>), false, _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/));                        
+            NeighborServicesArbiter = await Source.AttachConduitAsync(nameof(TanglePeer<IoTangleTransaction<TKey>>), false, _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/)).ConfigureAwait(false);
             NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborServicesArbiter.parm_producer_start_retry_time = 0;
+
+            return await base.ConstructAsync().ConfigureAwait(false);
         }
-        
+
         /// <summary>
         /// logger
         /// </summary>

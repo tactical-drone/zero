@@ -20,6 +20,8 @@ using zero.core.models.protobuffer.sources;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.cocoon.models
 {
@@ -28,43 +30,53 @@ namespace zero.cocoon.models
         public CcWispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
+        }
 
+        public override async ValueTask<bool> ConstructAsync()
+        {
             if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery"))
             {
                 CcProtocBatchSource<CcWisperMsg, CcGossipBatch> channelSource = null;
 
                 //Transfer ownership
-                if (MessageService.ZeroAtomicAsync((s, u, d) =>
+                if (await MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
                     channelSource = new CcProtocBatchSource<CcWisperMsg, CcGossipBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<CcWisperMsg, ValueTuple<IIoZero, IMessage, object, CcWisperMsg>[]>), channelSource))
+                    if (MessageService.ObjectStorage.TryAdd($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery", channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
 
                     return ValueTask.FromResult(false);
-                }).GetAwaiter().GetResult())
+                }).ConfigureAwait(false))
                 {
-                    ProtocolConduit = MessageService.AttachConduit(
+                    ProtocolConduit = await MessageService.AttachConduitAsync(
                         nameof(CcAdjunct),
                         true,
                         channelSource,
                         userData => new CcProtocBatch<CcWisperMsg, CcGossipBatch>(channelSource, -1 /*We block to control congestion*/),
                         Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
-                    );
+                    ).ConfigureAwait(false);
 
                     //get reference to a central mem pool
-                    _arrayPool = ((CcProtocBatchSource<CcWisperMsg, CcGossipBatch>)ProtocolConduit.Source).ArrayPool;
+                    if (ProtocolConduit != null)
+                        _arrayPool = ((CcProtocBatchSource<CcWisperMsg, CcGossipBatch>)ProtocolConduit.Source).ArrayPool;
+                    else
+                        return false;
                 }
                 else
                 {
-                    var t = channelSource.ZeroAsync(this);
+                    var t = channelSource.ZeroAsync(new IoNanoprobe("Lost race on creation"));
+                    ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcAdjunct)).ConfigureAwait(false);
                 }
             }
             else
             {
-                ProtocolConduit = MessageService.AttachConduit<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcAdjunct));
+                ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcAdjunct)).ConfigureAwait(false);
+                return ProtocolConduit != null;
             }
+
+            return await base.ConstructAsync().ConfigureAwait(false);
         }
 
         /// <summary>

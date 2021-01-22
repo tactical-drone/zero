@@ -16,7 +16,7 @@ namespace zero.core.core
     where TJob : IIoJob
     {
         /// <summary>
-        /// Construct
+        /// ConstructAsync
         /// </summary>        
         /// <param name="node">The node this neighbor is connected to</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>

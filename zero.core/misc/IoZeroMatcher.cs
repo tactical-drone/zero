@@ -24,10 +24,10 @@ namespace zero.core.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base()
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}")
         {
             _capacity = capacity;
-            _description = description??"";
+            _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
             _matcherMutex = new IoZeroSemaphore($"{nameof(_matcherMutex)}[{_description}]", concurrencyLevel, 1);
             _matcherMutex.ZeroRef(ref _matcherMutex, AsyncTasks.Token);

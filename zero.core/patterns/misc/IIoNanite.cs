@@ -7,6 +7,12 @@ namespace zero.core.patterns.misc
     public interface IIoNanite : IEquatable<IIoNanite>
     {
         /// <summary>
+        /// Async construction
+        /// </summary>
+        /// <returns></returns>
+        ValueTask<bool> ConstructAsync();
+
+        /// <summary>
         /// returns an identity
         /// </summary>
         ulong NpId { get; }

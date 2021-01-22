@@ -31,7 +31,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoJob(string desc, IoSource<TJob> source)
+        protected IoJob(string desc, IoSource<TJob> source) : base($"{nameof(IoJob<TJob>)}")
         {
             //source.ZeroOnCascade(Nanoprobe);
             Source = source;
@@ -115,6 +115,7 @@ namespace zero.core.patterns.bushes
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
+        
         public virtual ValueTask<IIoHeapItem> ConstructorAsync()
         {
 #if DEBUG

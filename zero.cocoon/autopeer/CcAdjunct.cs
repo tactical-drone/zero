@@ -807,7 +807,7 @@ namespace zero.cocoon.autopeer
                     if (_protocolConduit == null)
                     {
                         _logger.Trace($"Waiting for {Description} stream to spin up...");
-                        _protocolConduit = MessageService.AttachConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
+                        _protocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct)).ConfigureAwait(false);
                         if (_protocolConduit != null)
                             ArrayPoolProxy = ((CcProtocBatchSource<Packet,CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
                         else
@@ -1384,7 +1384,7 @@ namespace zero.cocoon.autopeer
                     {
                         //Drop assimilated neighbors
                         _this._logger.Debug($"~ {assimilated.Description}");
-                        await ((CcAdjunct) assimilated).ZeroAsync(new IoNanoprobe("Assimilated")).ConfigureAwait(false);
+                        await ((CcAdjunct) assimilated).ZeroAsync(new IoNanoprobe("Assimilated!")).ConfigureAwait(false);
                     }
                     else if(__synAck)
                     {
@@ -1421,7 +1421,7 @@ namespace zero.cocoon.autopeer
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;
 
-                var sub = newAdjunct.ZeroEvent(_ =>
+                var sub = newAdjunct.ZeroEvent(from =>
                 {
                     try
                     {
@@ -1437,9 +1437,10 @@ namespace zero.cocoon.autopeer
                                 }
                             });
 
+                            //n.ZeroedFrom ??= @from;
                             if (((CcAdjunct) n).Assimilated)
                             {
-                                _logger.Info($"% {Description}");
+                                _logger.Info($"% {Description} - from: {@from?.Description}");
                             }
                         }
 
@@ -2168,7 +2169,7 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!await ZeroAtomicAsync((s, u, d) =>
+                if (!await ZeroAtomicAsync(async (s, u, d) =>
                 {
                     var _this = (CcAdjunct) s;
                     var t = (ValueTuple<CcDrone, Heading>) u;
@@ -2178,7 +2179,7 @@ namespace zero.cocoon.autopeer
                     //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
                     if (__ioCcDrone.Adjunct.CcCollective.TotalConnections >= __ioCcDrone.Adjunct.CcCollective.MaxDrones)
                     {
-                        return ValueTask.FromResult(false);
+                        return false;
                     }
 
                     //Race for direction
@@ -2187,13 +2188,12 @@ namespace zero.cocoon.autopeer
                     {
                         _this._logger.Warn(
                             $"oz: race for {__direction} lost {__ioCcDrone.Description}, current = {_this.Direction}, {_this._drone?.Description}");
-                        return ValueTask.FromResult(false);
+                        return false;
                     }
-
-
+                    
                     _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
                     _this.State = AdjunctState.Connected;
-                    return ValueTask.FromResult(true);
+                    return await CcCollective.ZeroAtomicAsync((ioNanite, _, disposing) => new ValueTask<bool>(((CcCollective)ioNanite).TotalConnections < ((CcCollective)ioNanite).MaxDrones)).ConfigureAwait(false);
                 }, ValueTuple.Create(ccDrone, direction)))
                 {
                     return false;

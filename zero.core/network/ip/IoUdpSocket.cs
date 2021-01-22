@@ -268,7 +268,7 @@ namespace zero.core.network.ip
                 {
                     if (!Zeroed())
                         _logger.Error(
-                            $"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom.Description} bound = {NativeSocket?.IsBound}");
+                            $"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom?.Description} bound = {NativeSocket?.IsBound}");
                     return 0;
                 }
 
@@ -347,12 +347,13 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    var args = _argsIoHeap.Take();
+                    _argsIoHeap.Take(out var args);
 
                     if (args == null)
                         throw new OutOfMemoryException(nameof(_argsIoHeap));
 
-                    var tcs = _tcsHeap.Take();
+                    _tcsHeap.Take(out var tcs);
+
                     if (tcs == null)
                         throw new OutOfMemoryException(nameof(_tcsHeap));
 

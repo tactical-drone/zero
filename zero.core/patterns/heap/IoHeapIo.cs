@@ -11,10 +11,10 @@ namespace zero.core.patterns.heap
     /// A heap construct that works with Iot types
     /// </summary>
     /// <typeparam name="T">The item type</typeparam>
-    public class IoHeapIo<T>: IoHeap<T> where T: class, IIoHeapItem
+    public class IoHeapIo<T>: IoHeap<T> where T: class, IIoHeapItem, IIoNanite
     {
         /// <summary>
-        /// Construct
+        /// ConstructAsync
         /// </summary>
         /// <param name="maxSize"></param>
         public IoHeapIo(long maxSize) : base(maxSize)
@@ -29,15 +29,18 @@ namespace zero.core.patterns.heap
         /// <returns>The constructed heap item</returns>
         public async ValueTask<T> TakeAsync(Func<T, object, ValueTask<T>> parms = null, object userData = null)
         {
-            object next = null;
+            T next = null;
             try
             {
-                //Allocate memory
-                if ((next = Take(userData)) == null)
+                if (Take(out next, userData) && next != null && !await next.ConstructAsync())
                     return null;
 
-                //Construct
-                next = await ((T) next).ConstructorAsync().ConfigureAwait(false);
+                //Take from heap
+                if (next == null)
+                    return null;
+
+                //ConstructAsync
+                next = (T) await next.ConstructorAsync().ConfigureAwait(false);
 
                 //Custom constructor
                 parms?.Invoke((T) next, userData);
@@ -48,20 +51,21 @@ namespace zero.core.patterns.heap
                     Interlocked.Increment(ref CurrentHeapSize);
                     _logger.Trace($"Flushing `{GetType()}'");
 
+                    base.Take(out next, userData);
                     //Return another item from the heap
-                    if ((next = (T)base.Take(userData)) == null)
+                    if (next == null)
                     {
                         _logger.Error($"`{GetType()}', unable to allocate memory");
                         return null;
                     }
 
                     //Try the next one
-                    next = await ((T) next).ConstructorAsync().ConfigureAwait(false);
+                    next = (T) await next.ConstructorAsync().ConfigureAwait(false);
                 }
             }
-            catch (NullReferenceException)
+            catch (NullReferenceException e)
             {
-                return null;
+                _logger.Trace(e);
             }
             catch (Exception e)
             {

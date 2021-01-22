@@ -29,7 +29,10 @@ namespace zero.cocoon.models
             _logger = LogManager.GetCurrentClassLogger();
 
             _protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(parm_max_msg_batch_size);
+        }
 
+        public override async ValueTask<bool> ConstructAsync()
+        {
             if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery"))
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
@@ -46,7 +49,7 @@ namespace zero.cocoon.models
                     return ValueTask.FromResult(false);
                 }).GetAwaiter().GetResult())
                 {
-                    ProtocolConduit = MessageService.AttachConduit(
+                    ProtocolConduit = await MessageService.AttachConduitAsync(
                         nameof(CcAdjunct),
                         true,
                         channelSource,
@@ -55,7 +58,11 @@ namespace zero.cocoon.models
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)ProtocolConduit.Source).ArrayPool;
+                    if (ProtocolConduit != null)
+                        _arrayPool = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)ProtocolConduit.Source).ArrayPool;
+                    else
+                        return false;
+                    
                 }
                 else
                 {
@@ -64,8 +71,10 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolConduit = MessageService.AttachConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
+                ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
+                return ProtocolConduit != null;
             }
+            return await base.ConstructAsync();
         }
 
         /// <summary>
