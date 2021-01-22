@@ -16,7 +16,7 @@ using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
-    public class CcDrone : IoNeighbor<CcProtocMessage<CcGossipMsg, CcGossipBatch>>
+    public class CcDrone : IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>
     {
         /// <summary>
         /// Ctor
@@ -24,10 +24,10 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
-        public CcDrone(IoNode<CcProtocMessage<CcGossipMsg, CcGossipBatch>> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> ioNetClient)
+        public CcDrone(IoNode<CcProtocMessage<CcWisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
+            IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> ioNetClient)
             : base(node, ioNetClient,
-                userData => new CcGossipMsgProto("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
+                userData => new CcWispers("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
                     ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -110,7 +110,7 @@ namespace zero.cocoon
         /// <summary>
         /// The source
         /// </summary>
-        public new IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>>) Source;
+        public new IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source;
 
         /// <summary>
         /// The attached neighbor
@@ -130,7 +130,7 @@ namespace zero.cocoon
         /// <summary>
         /// Helper
         /// </summary>
-        protected IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> IoNetClient;
+        protected IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> IoNetClient;
 
         /// <summary>
         /// 
@@ -243,7 +243,7 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if (await((IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                        if (await((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
                         {
                             Interlocked.Increment(ref AccountingBit);
                         }

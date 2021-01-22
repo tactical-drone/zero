@@ -12,6 +12,6 @@ namespace zero.cocoon.models.batches
     {
         public IIoZero Zero;
         public object UserData;
-        public CcGossipMsg Message;
+        public CcWisperMsg Message;
     }
 }

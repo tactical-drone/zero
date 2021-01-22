@@ -1,7 +1,5 @@
 ﻿syntax = "proto3";
 
-
-
 service autopeering {
 	rpc Next(NullMsg) returns (EventResponse);		
 }

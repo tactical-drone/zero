@@ -1,6 +1,4 @@
 ﻿using System;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -8,17 +6,14 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
-using zero.cocoon.events.services;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
-using zero.core.patterns.misc;
-using OperationCanceledException = System.OperationCanceledException;
 
-namespace zero.cocoon.models
+namespace zero.cocoon.models.test
 {
     /// <summary>
     /// Process gossip messages

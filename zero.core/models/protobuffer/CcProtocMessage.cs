@@ -37,7 +37,7 @@ namespace zero.core.models.protobuffer
         private readonly Logger _logger;
 
         /// <summary>
-        /// The transaction broadcaster
+        /// Message batch broadcast channel
         /// </summary>
         public IoConduit<CcProtocBatch<TModel, TBatch>> ProtocolConduit;
 
@@ -45,8 +45,6 @@ namespace zero.core.models.protobuffer
         /// Base source
         /// </summary>
         protected IoNetClient<CcProtocMessage<TModel, TBatch>> MessageService => (IoNetClient<CcProtocMessage<TModel, TBatch>>)Source;
-
-        
 
         /// <summary>
         /// Used to control how long we wait for the source before we report it
@@ -102,19 +100,6 @@ namespace zero.core.models.protobuffer
         /// Userdata in the source
         /// </summary>
         protected volatile object ProducerExtraData = new IPEndPoint(0, 0);
-
-        public enum MessageTypes
-        {
-            Undefined = 0,
-            Handshake = 1,
-            Ping = 10,
-            Pong = 11,
-            DiscoveryRequest = 12,
-            DiscoveryResponse = 13,
-            PeeringRequest = 20,
-            PeeringResponse = 21,
-            PeeringDrop = 22
-        }
 
         /// <summary>
         /// How long to wait for the consumer before timing out

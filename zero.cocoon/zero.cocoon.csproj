@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="models\protobuf\gossip\CcGossipMsg.proto" />
+    <None Remove="models\protobuf\gossip\CcGossip.proto" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,7 +36,7 @@
 
 	<ItemGroup>
 		<Protobuf Include="events\models\proto\autopeering.proto" GrpcServices="Both" />
-		<Protobuf Include="models\protobuf\gossip\CcGossipMsg.proto" />
+		<Protobuf Include="models\protobuf\gossip\CcGossip.proto" />
 	</ItemGroup>
 
   <ItemGroup>

@@ -17,27 +17,28 @@ using zero.cocoon.models.batches;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.models.protobuffer.sources;
-using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.cocoon.models
 {
-    public class CcGossipMsgProto : CcProtocMessage<CcGossipMsg, CcGossipBatch>
+    public class CcDiscoveries : CcProtocMessage<Packet, CcDiscoveryBatch>
     {
-        public CcGossipMsgProto(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcGossipMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
+        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
+            _protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(parm_max_msg_batch_size);
+
             if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery"))
             {
-                CcProtocBatchSource<CcGossipMsg, CcGossipBatch> channelSource = null;
+                CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
 
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<CcGossipMsg, CcGossipBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<CcGossipMsg, ValueTuple<IIoZero, IMessage, object, CcGossipMsg>[]>), channelSource))
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<Packet, CcDiscoveryBatch[]>), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
                     }
@@ -49,12 +50,12 @@ namespace zero.cocoon.models
                         nameof(CcAdjunct),
                         true,
                         channelSource,
-                        userData => new CcProtocBatch<CcGossipMsg, CcGossipBatch>(channelSource, -1 /*We block to control congestion*/),
+                        userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource, -1 /*We block to control congestion*/),
                         Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
                     );
 
                     //get reference to a central mem pool
-                    _arrayPool = ((CcProtocBatchSource<CcGossipMsg, CcGossipBatch>)ProtocolConduit.Source).ArrayPool;
+                    _arrayPool = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)ProtocolConduit.Source).ArrayPool;
                 }
                 else
                 {
@@ -63,8 +64,24 @@ namespace zero.cocoon.models
             }
             else
             {
-                ProtocolConduit = MessageService.AttachConduit<CcProtocBatch<CcGossipMsg, CcGossipBatch>>(nameof(CcAdjunct));
+                ProtocolConduit = MessageService.AttachConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
             }
+        }
+
+        /// <summary>
+        /// Discovery Message types
+        /// </summary>
+        public enum MessageTypes
+        {
+            Undefined = 0,
+            Handshake = 1,
+            Ping = 10,
+            Pong = 11,
+            DiscoveryRequest = 12,
+            DiscoveryResponse = 13,
+            PeeringRequest = 20,
+            PeeringResponse = 21,
+            PeeringDrop = 22
         }
 
         /// <summary>
@@ -75,14 +92,15 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private volatile CcGossipBatch[] ProtocolMsgBatch;
+        private volatile CcDiscoveryBatch[] _protocolMsgBatch;
 
         /// <summary>
         /// message heap
         /// </summary>
-        private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Create();
+        private ArrayPool<CcDiscoveryBatch> _arrayPool =
+            ArrayPool<CcDiscoveryBatch>.Create();
 
-        public ArrayPool<CcGossipBatch> ArrayPool => _arrayPool;
+        public ArrayPool<CcDiscoveryBatch> ArrayPool => _arrayPool;
 
         /// <summary>
         /// CC Node
@@ -93,6 +111,29 @@ namespace zero.cocoon.models
         ///// Cc Identity
         ///// </summary>
         public CcDesignation CcId => CcCollective.CcId;
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+#if SAFE_RELEASE
+            _protocolMsgBatch = null;
+            _arrayPool = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            if (_protocolMsgBatch != null)
+                _arrayPool.Return(_protocolMsgBatch, true);
+
+            await base.ZeroManagedAsync().ConfigureAwait(false);
+        }
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -182,33 +223,33 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    //switch ((MessageTypes)packet.Type)
-                    //{
-                    //    case MessageTypes.Ping:
-                    //        await ProcessRequestAsync<Ping>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.Pong:
-                    //        await ProcessRequestAsync<Pong>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.DiscoveryRequest:
-                    //        await ProcessRequestAsync<DiscoveryRequest>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.DiscoveryResponse:
-                    //        await ProcessRequestAsync<DiscoveryResponse>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.PeeringRequest:
-                    //        await ProcessRequestAsync<PeeringRequest>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.PeeringResponse:
-                    //        await ProcessRequestAsync<PeeringResponse>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.PeeringDrop:
-                    //        await ProcessRequestAsync<PeeringDrop>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    default:
-                    //        _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
-                    //        break;
-                    //}
+                    switch ((MessageTypes)packet.Type)
+                    {
+                        case MessageTypes.Ping:
+                            await ProcessRequestAsync<Ping>(packet).ConfigureAwait(false);
+                            break;
+                        case MessageTypes.Pong:
+                            await ProcessRequestAsync<Pong>(packet).ConfigureAwait(false);
+                            break;
+                        case MessageTypes.DiscoveryRequest:
+                            await ProcessRequestAsync<DiscoveryRequest>(packet).ConfigureAwait(false);
+                            break;
+                        case MessageTypes.DiscoveryResponse:
+                            await ProcessRequestAsync<DiscoveryResponse>(packet).ConfigureAwait(false);
+                            break;
+                        case MessageTypes.PeeringRequest:
+                            await ProcessRequestAsync<PeeringRequest>(packet).ConfigureAwait(false);
+                            break;
+                        case MessageTypes.PeeringResponse:
+                            await ProcessRequestAsync<PeeringResponse>(packet).ConfigureAwait(false);
+                            break;
+                        case MessageTypes.PeeringDrop:
+                            await ProcessRequestAsync<PeeringDrop>(packet).ConfigureAwait(false);
+                            break;
+                        default:
+                            _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
+                            break;
+                    }
 
                 }
 
@@ -253,38 +294,44 @@ namespace zero.cocoon.models
         /// <param name="packet">The packet</param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private async ValueTask ProcessRequestAsync<T>(CcGossipMsg packet)
+        private async ValueTask ProcessRequestAsync<T>(Packet packet)
             where T : IMessage<T>, IMessage, new()
         {
-            //try
-            //{
-            //    var parser = new MessageParser<T>(() => new T());
-            //    var request = parser.ParseFrom(packet.Data);
+            try
+            {
+                var parser = new MessageParser<T>(() => new T());
+                var request = parser.ParseFrom(packet.Data);
 
-            //    if (request != null)
-            //    {
-            //        //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
-            //        IIoZero zero = null;
-            //        //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
-            //        //    zero = IoZero;
+                if (request != null)
+                {
+                    //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
+                    IIoZero zero = null;
+                    //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
+                    //    zero = IoZero;
 
-            //        if (CurrBatch >= parm_max_msg_batch_size)
-            //            await ForwardToNeighborAsync().ConfigureAwait(false);
+                    if (CurrBatch >= parm_max_msg_batch_size)
+                        await ForwardToNeighborAsync().ConfigureAwait(false);
 
-            //        var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
-            //        ProtocolMsgBatch[CurrBatch] = ValueTuple.Create(zero, request, remoteEp, packet);
-            //        Interlocked.Increment(ref CurrBatch);
-            //    }
-            //}
-            //catch (NullReferenceException e)
-            //{
-            //    _logger.Trace(e, Description);
-            //}
-            //catch (Exception e)
-            //{
-            //    _logger.Error(e,
-            //        $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
-            //}
+                    var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
+                    _protocolMsgBatch[CurrBatch] = new CcDiscoveryBatch
+                    {
+                        Zero = zero,
+                        EmbeddedMsg = request,
+                        UserData = remoteEp,
+                        Message = packet
+                    }; // TODO HEAPyFY
+                    Interlocked.Increment(ref CurrBatch);
+                }
+            }
+            catch (NullReferenceException e)
+            {
+                _logger.Trace(e, Description);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,
+                    $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
+            }
         }
 
         /// <summary>
@@ -295,22 +342,22 @@ namespace zero.cocoon.models
         {
             try
             {
-                if (CurrBatch == 0)
+                if (CurrBatch == 0 || Zeroed())
                     return;
 
                 if (CurrBatch < parm_max_msg_batch_size)
                 {
-                    ProtocolMsgBatch[CurrBatch] = default;
+                    _protocolMsgBatch[CurrBatch] = default;
                 }
 
                 //cog the source
                 var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
                 {
-                    var _this = (CcGossipMsgProto)ioJob;
+                    var _this = (CcDiscoveries)ioJob;
 
-                    if (!await ((CcProtocBatchSource<CcGossipMsg, CcGossipBatch>)source).EnqueueAsync(_this.ProtocolMsgBatch).ConfigureAwait(false))
+                    if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
-                        if (!((CcProtocBatchSource<CcGossipMsg, CcGossipBatch>)source).Zeroed())
+                        if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
                             _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }
@@ -318,7 +365,7 @@ namespace zero.cocoon.models
                     //Retrieve batch buffer
                     try
                     {
-                        _this.ProtocolMsgBatch = ArrayPool<CcGossipBatch>.Shared.Rent(_this.parm_max_msg_batch_size);
+                        _this._protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(_this.parm_max_msg_batch_size);
                     }
                     catch (Exception e)
                     {
