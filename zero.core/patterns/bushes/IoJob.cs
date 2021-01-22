@@ -273,7 +273,7 @@ namespace zero.core.patterns.bushes
         /// ctor
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        protected IoJob()
+        protected IoJob() : base($"nameof({nameof(IoJob<TJob>)})")
         {
             throw new NotImplementedException();
         }

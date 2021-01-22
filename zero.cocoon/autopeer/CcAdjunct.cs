@@ -640,7 +640,7 @@ namespace zero.cocoon.autopeer
 
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
-            if (SecondsSincePat > CcCollective.parm_mean_pat_delay * 8 || _dropOne == 0)
+            if (SecondsSincePat > CcCollective.parm_mean_pat_delay || _dropOne == 0)
             {
                 _dropOne = 1;
                 var reconnect = this.Direction == Heading.Egress;
@@ -649,7 +649,7 @@ namespace zero.cocoon.autopeer
                 if (TotalPats > 1)
                     _logger.Debug($"w {Description}");
                 else
-                    _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay * 4}, {MetaDesc}");
+                    _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay}, {MetaDesc}");
                 
                 await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago...")).ConfigureAwait(false);
                 

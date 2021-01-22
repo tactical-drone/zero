@@ -111,57 +111,63 @@ namespace zero.cocoon
                         CcAdjunct susceptible = null;
                         
                         //Attempt to peer with standbys
-                        if (totalConnections < MaxDrones * scanRatio && secondsSinceEnsured.Elapsed() > parm_mean_pat_delay - (MaxDrones - totalConnections)/(double)MaxDrones * parm_mean_pat_delay * 3/4)
+                        if (totalConnections < MaxDrones * scanRatio &&
+                            secondsSinceEnsured.Elapsed() > parm_mean_pat_delay / 3)
                         {
                             if (Neighbors.Count > 1)
                             {
                                 _logger.Trace($"Scanning {Neighbors.Count} < {MaxDrones * scanRatio:0}, {Description}");
 
-                                //Send peer requests
-                                foreach (var adjunct in _autoPeering.Neighbors.Values.Where(n =>
-                                        ((CcAdjunct)n).Assimilating &&
-                                        ((CcAdjunct)n).Direction == CcAdjunct.Heading.Undefined &&
-                                        ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified &&
-                                        ((CcAdjunct)n).State < CcAdjunct.AdjunctState.Peering &&
-                                        ((CcAdjunct)n).TotalPats > ((CcAdjunct)n).parm_zombie_max_connection_attempts &&
-                                        ((CcAdjunct)n).SecondsSincePat < parm_mean_pat_delay * 4).
-                                    OrderBy(n => ((CcAdjunct)n).Priority))
+                                if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay / 3)
                                 {
-                                    if (Zeroed())
-                                        break;
-
-                                    //We select the neighbor that makes least requests which means it is saturated,
-                                    //but that means it is probably not depleting its standby neighbors which is what 
-                                    //we are after. It's a long shot that relies on probability in the long run
-                                    //to work.
-                                    susceptible ??= (CcAdjunct)adjunct;
-
-                                    if (EgressConnections < parm_max_outbound)
+                                    //Send peer requests
+                                    foreach (var adjunct in _autoPeering.Neighbors.Values.Where(n =>
+                                            ((CcAdjunct) n).Assimilating &&
+                                            ((CcAdjunct) n).Direction == CcAdjunct.Heading.Undefined &&
+                                            ((CcAdjunct) n).State > CcAdjunct.AdjunctState.Unverified &&
+                                            ((CcAdjunct) n).State < CcAdjunct.AdjunctState.Peering &&
+                                            ((CcAdjunct) n).TotalPats >
+                                            ((CcAdjunct) n).parm_zombie_max_connection_attempts &&
+                                            ((CcAdjunct) n).SecondsSincePat < parm_mean_pat_delay * 4)
+                                        .OrderBy(n => ((CcAdjunct) n).Priority))
                                     {
-                                        if (await ((CcAdjunct)adjunct).SendPeerRequestAsync()
-                                            .ConfigureAwait(false))
+                                        if (Zeroed())
+                                            break;
+
+                                        //We select the neighbor that makes least requests which means it is saturated,
+                                        //but that means it is probably not depleting its standby neighbors which is what 
+                                        //we are after. It's a long shot that relies on probability in the long run
+                                        //to work.
+                                        susceptible ??= (CcAdjunct) adjunct;
+
+                                        if (EgressConnections < parm_max_outbound)
                                         {
-                                            peerAttempts++;
-                                            await Task.Delay(parm_scan_throttle, AsyncTasks.Token).ConfigureAwait(false);
+                                            if (await ((CcAdjunct) adjunct).SendPeerRequestAsync()
+                                                .ConfigureAwait(false))
+                                            {
+                                                peerAttempts++;
+                                                await Task.Delay(_random.Next(parm_scan_throttle), AsyncTasks.Token)
+                                                    .ConfigureAwait(false);
+                                            }
                                         }
                                     }
-                                    else
-                                    {
-                                        ((CcAdjunct)adjunct).State = CcAdjunct.AdjunctState.Standby;
-                                    }
                                 }
 
-                                //if we are not able to peer, use long range scanners
-                                if (susceptible != null && peerAttempts == 0 && totalConnections == TotalConnections)
+                                if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
-                                    if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
+                                    //if we are not able to peer, use long range scanners
+                                    if (susceptible != null && peerAttempts == 0 &&
+                                        totalConnections == TotalConnections)
                                     {
-                                        _logger.Debug($"& {susceptible.Description}");
+                                        if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
+                                        {
+                                            _logger.Debug($"& {susceptible.Description}");
+                                        }
                                     }
+
+
                                 }
 
-                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                
                                 //boostrap every now and again
                                 if (secondsSinceBoot.Elapsed() > parm_mean_pat_delay * 4)
                                 {
@@ -178,31 +184,36 @@ namespace zero.cocoon
                                     secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 }
                             }
-                        }
-                        else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 3) //scan for discovery
-                        {
-                            var maxP = _autoPeering.Neighbors.Values.Max(n => ((CcAdjunct) n).Priority);
-                            var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).Assimilating && ((CcAdjunct) n).Priority < maxP/2)
-                                .OrderBy(n => ((CcAdjunct) n).Priority).ToList();
 
-                            //Have we found a suitable direction to scan in?
-                            if (targetQ.Count > 0)
+                            if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                             {
-                                var target = targetQ[Math.Max(_random.Next(targetQ.Count) - 1, 0)];
-
-                                //scan
-                                if (target != null && !await ((CcAdjunct) target).SendDiscoveryRequestAsync()
-                                    .ConfigureAwait(false))
-                                {
-                                    if(target != null)
-                                        _logger.Trace($"{nameof(CcAdjunct.SendDiscoveryRequestAsync)}: [FAILED], c = {targetQ.Count}, {Description}");
-                                }
-                                else
-                                {
-                                    _logger.Debug($"* {Description}");   
-                                }
+                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             }
                         }
+                        //else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 3) //scan for discovery
+                        //{
+                        //    var maxP = _autoPeering.Neighbors.Values.Max(n => ((CcAdjunct) n).Priority);
+                        //    var targetQ = _autoPeering.Neighbors.Values.Where(n => ((CcAdjunct) n).Assimilating && ((CcAdjunct) n).Priority < maxP/2)
+                        //        .OrderBy(n => ((CcAdjunct) n).Priority).ToList();
+
+                        //    //Have we found a suitable direction to scan in?
+                        //    if (targetQ.Count > 0)
+                        //    {
+                        //        var target = targetQ[Math.Max(_random.Next(targetQ.Count) - 1, 0)];
+
+                        //        //scan
+                        //        if (target != null && !await ((CcAdjunct) target).SendDiscoveryRequestAsync()
+                        //            .ConfigureAwait(false))
+                        //        {
+                        //            if(target != null)
+                        //                _logger.Trace($"{nameof(CcAdjunct.SendDiscoveryRequestAsync)}: [FAILED], c = {targetQ.Count}, {Description}");
+                        //        }
+                        //        else
+                        //        {
+                        //            _logger.Debug($"* {Description}");   
+                        //        }
+                        //    }
+                        //}
                     }
                     catch (NullReferenceException e) { _logger.Trace(e, Description); }
                     catch (TaskCanceledException e) { _logger.Trace(e, Description);}
@@ -394,7 +405,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 280;
+        public int parm_mean_pat_delay = 240;
 
 
         /// <summary>

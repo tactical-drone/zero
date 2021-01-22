@@ -96,7 +96,7 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
-                var rateLimit = 2000;
+                var rateLimit = 5000;
                 foreach (var task in tasks)
                 {
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
