@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Google.Protobuf;
 using NLog;
 using Proto;
 using zero.cocoon.autopeer;
@@ -222,30 +223,44 @@ namespace zero.cocoon
         /// <summary>
         /// A test mode
         /// </summary>
-        public async ValueTask StartTestModeAsync()
+        public async ValueTask StartTestModeAsync(long v)
         {
             try
             {
                 if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
-                if (Interlocked.Read(ref _isTesting) > 0)
-                    return;
+                //if (Interlocked.Read(ref _isTesting) > 0)
+                //    return;
 
-                if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
-                    return;
+                //if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
+                //    return;
             
                 if (Adjunct?.Direction == CcAdjunct.Heading.Egress)
                 {
-                    long v = 0;
+
                     var vb = new byte[8];
                     Write(vb.AsSpan(), ref v);
 
+                    var m = new CcWisperMsg() {Data = ByteString.CopyFrom(vb)};
+
+                    var buf = m.ToByteArray();
+
                     if (!Zeroed())
                     {
-                        if (await((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(vb, 0, vb.Length).ConfigureAwait(false) > 0)
+                        if (await((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(buf, 0, buf.Length).ConfigureAwait(false) > 0)
                         {
-                            Interlocked.Increment(ref AccountingBit);
+                            //Interlocked.Increment(ref AccountingBit);
+                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                            {
+                                EventType = AutoPeerEventType.SendProtoMsg,
+                                Msg = new ProtoMsg
+                                {
+                                    CollectiveId = Adjunct.CcCollective.Hub.Router.Designation.IdString(),
+                                    Id = Adjunct.Designation.IdString(),
+                                    Type = "gossip"
+                                }
+                            });
                         }
                     }
                 }
@@ -255,5 +270,7 @@ namespace zero.cocoon
                 _logger.Trace(e,Description);
             }
         }
+
+        
     }
 }

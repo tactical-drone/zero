@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Grpc.Core.Utils;
+using MathNet.Numerics.Distributions;
 using Microsoft.VisualStudio.Threading;
 using NLog;
 using Proto;
@@ -301,6 +303,8 @@ namespace zero.cocoon
 
         readonly Random _random = new Random((int) DateTime.Now.Ticks);
 
+        public ConcurrentDictionary<long, object> DupChecker { get; } = new ConcurrentDictionary<long, object>();
+
         /// <summary>
         /// Bootstrap
         /// </summary>
@@ -346,15 +350,21 @@ namespace zero.cocoon
         /// </summary>
         public int TotalConnections => IngressConnections + EgressConnections;
 
+        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Ingress => Neighbors.Values.Where(kv =>
+            ((CcDrone) kv).Adjunct != null && ((CcDrone) kv).Adjunct.IsDroneAttached &&
+            (((CcDrone) kv).Adjunct.Ingress)).ToList();
+
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached && (((CcDrone)kv).Adjunct.Ingress));
+        public int IngressConnections => Ingress.Count;
+
+        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Egress => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached && (((CcDrone)kv).Adjunct.Egress)).ToList();
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Neighbors.Values.Count(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached && (((CcDrone)kv).Adjunct.Egress));
+        public int EgressConnections => Egress.Count;
 
         /// <summary>
         /// Connected nodes
@@ -853,24 +863,35 @@ namespace zero.cocoon
             }
         }
 
+        private static int _lambda = 10;
+        private Poisson _poisson = new Poisson(_lambda);
         /// <summary>
         /// Boots the node
         /// </summary>
-        public async Task BootAsync()
+        public async ValueTask<bool> BootAsync(long v = 0)
         {
-            Interlocked.Exchange(ref Testing, 0);
-            
+            Interlocked.Exchange(ref Testing, 1);
+            var s = 0;
             foreach (var ioNeighbor in Neighbors.Values)
             {
+                
+                if ((s = _poisson.Sample()) < 25)
+                {
+                    //Console.Write($"[{s}]");
+                    continue;
+                }
                 try
                 {
-                    await ((CcDrone) ioNeighbor).StartTestModeAsync().ConfigureAwait(false);
+                    await ((CcDrone) ioNeighbor).StartTestModeAsync(v).ConfigureAwait(false);
+                    return true;
                 }
                 catch (Exception e)
                 {
                     _logger.Debug(e,Description);
                 }
             }
+
+            return false;
         }
 
         /// <summary>

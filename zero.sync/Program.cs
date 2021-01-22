@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 500;
+            int total = 250;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<CcCollective>>();
 
@@ -115,20 +115,29 @@ namespace zero.sync
                     c++;
                 }
 
-                await Task.Delay(60 * total);
+                await Task.Delay(100 * total);
+                //await Task.Delay(10000);
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 c = 0;
-                foreach (var task in tasks)
+                long v = 0;
+                while (_running)
                 {
-                    //continue;
-                    await task.Result.BootAsync();
-                    c++;
-                    //if (c % 20 == 0)
+                    foreach (var task in tasks)
                     {
-                        Console.WriteLine($"<<<Testing {c}/{total}...>>>");
-                        //Thread.Sleep(1000);
+                        //continue;
+                        if (await task.Result.BootAsync(v++))
+                            break;
+                        c++;
+                        //if (c % 20 == 0)
+                        {
+                            //Console.WriteLine($"<<<Testing {c}/{total}...>>>");
+                            //Thread.Sleep(1000);
+                        }
                     }
+
+                    await Task.Delay(100);
                 }
+                
             });
 
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>

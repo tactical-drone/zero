@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,8 +14,10 @@ using NLog;
 using Proto;
 using SimpleBase;
 using zero.cocoon.autopeer;
+using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
+using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.models.protobuffer.sources;
@@ -32,52 +36,52 @@ namespace zero.cocoon.models
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        public override async ValueTask<bool> ConstructAsync()
-        {
-            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery"))
-            {
-                CcProtocBatchSource<CcWisperMsg, CcGossipBatch> channelSource = null;
+        //public override async ValueTask<bool> ConstructAsync()
+        //{
+        //    if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<CcWisperMsg, CcGossipBatch>)}.Gossip"))
+        //    {
+        //        CcProtocBatchSource<CcWisperMsg, CcGossipBatch> channelSource = null;
 
-                //Transfer ownership
-                if (await MessageService.ZeroAtomicAsync((s, u, d) =>
-                {
-                    channelSource = new CcProtocBatchSource<CcWisperMsg, CcGossipBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
-                    if (MessageService.ObjectStorage.TryAdd($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery", channelSource))
-                    {
-                        return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
-                    }
+        //        //Transfer ownership
+        //        if (await MessageService.ZeroAtomicAsync((s, u, d) =>
+        //        {
+        //            channelSource = new CcProtocBatchSource<CcWisperMsg, CcGossipBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+        //            if (MessageService.ObjectStorage.TryAdd($"{nameof(CcProtocMessage<CcWisperMsg, CcGossipBatch>)}.Gossip", channelSource))
+        //            {
+        //                return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
+        //            }
 
-                    return ValueTask.FromResult(false);
-                }).ConfigureAwait(false))
-                {
-                    ProtocolConduit = await MessageService.AttachConduitAsync(
-                        nameof(CcAdjunct),
-                        true,
-                        channelSource,
-                        userData => new CcProtocBatch<CcWisperMsg, CcGossipBatch>(channelSource, -1 /*We block to control congestion*/),
-                        Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
-                    ).ConfigureAwait(false);
+        //            return ValueTask.FromResult(false);
+        //        }).ConfigureAwait(false))
+        //        {
+        //            ProtocolConduit = await MessageService.AttachConduitAsync(
+        //                nameof(CcDrone),
+        //                true,
+        //                channelSource,
+        //                userData => new CcProtocBatch<CcWisperMsg, CcGossipBatch>(channelSource, -1 /*We block to control congestion*/),
+        //                Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
+        //            ).ConfigureAwait(false);
 
-                    //get reference to a central mem pool
-                    if (ProtocolConduit != null)
-                        _arrayPool = ((CcProtocBatchSource<CcWisperMsg, CcGossipBatch>)ProtocolConduit.Source).ArrayPool;
-                    else
-                        return false;
-                }
-                else
-                {
-                    var t = channelSource.ZeroAsync(new IoNanoprobe("Lost race on creation"));
-                    ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcAdjunct)).ConfigureAwait(false);
-                }
-            }
-            else
-            {
-                ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcAdjunct)).ConfigureAwait(false);
-                return ProtocolConduit != null;
-            }
+        //            //get reference to a central mem pool
+        //            if (ProtocolConduit != null)
+        //                _arrayPool = ((CcProtocBatchSource<CcWisperMsg, CcGossipBatch>)ProtocolConduit.Source).ArrayPool;
+        //            else
+        //                return false;
+        //        }
+        //        else
+        //        {
+        //            var t = channelSource.ZeroAsync(new IoNanoprobe("Lost race on creation"));
+        //            ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcDrone)).ConfigureAwait(false);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWisperMsg, CcGossipBatch>>(nameof(CcDrone)).ConfigureAwait(false);
+        //        return ProtocolConduit != null;
+        //    }
 
-            return await base.ConstructAsync().ConfigureAwait(false);
-        }
+        //    return await base.ConstructAsync().ConfigureAwait(false);
+        //}
 
         /// <summary>
         /// logger
@@ -99,7 +103,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// CC Node
         /// </summary>
-        protected CcCollective CcCollective => ((CcAdjunct)IoZero)?.CcCollective;
+        protected CcCollective CcCollective => ((CcDrone)IoZero)?.Adjunct?.CcCollective;
 
         ///// <summary>
         ///// Cc Identity
@@ -122,13 +126,14 @@ namespace zero.cocoon.models
                     {
                         _logger.Fatal($"{Description} ----> Datumcount = {DatumCount}");
                     }
-                    Packet packet = null;
+                    CcWisperMsg wispers = null;
+
                     var read = stream.Position;
 
                     //deserialize
                     try
                     {
-                        packet = Packet.Parser.ParseFrom(stream);
+                        wispers = CcWisperMsg.Parser.ParseFrom(stream);
                     }
                     catch (Exception e)
                     {
@@ -172,26 +177,61 @@ namespace zero.cocoon.models
                     }
 
                     //Sanity check the data
-                    if (packet == null || packet.Data == null || packet.Data.Length == 0)
+                    if (wispers == null || wispers.Data == null || wispers.Data.Length == 0)
                     {
                         continue;
                     }
 
-                    var packetMsgRaw = packet.Data.Memory.AsArray();
-                    if (packet.Signature != null && !packet.Signature.IsEmpty)
+                    var req = MemoryMarshal.Read<long>(wispers.Data.Span);
+                    if (CcCollective.DupChecker.TryAdd(req, null))
                     {
-                        verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
-                                0, packet.Signature.Memory.AsArray(), 0);
+                        async void ForwardMessage(IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>> drone)
+                        {
+                            var buf = wispers.ToByteArray();
 
-                    }
+                            try
+                            {
+                                var sentTask = await ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>)drone.Source).IoNetSocket.SendAsync(buf, 0, buf.Length).ConfigureAwait(false);
+                                if (sentTask <= 0)
+                                {
+                                    _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
+                                }
+                                else
+                                {
+                                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                                    {
+                                        EventType = AutoPeerEventType.SendProtoMsg,
+                                        Msg = new ProtoMsg
+                                        {
+                                            CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                                            Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
+                                            Type = "gossip" + req % 3 
+                                        }
+                                    });
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                //_logger.Trace(e);
+                            }
+                        }
 
-                    var messageType = Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type);
-                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {ProducerExtraData} /> {MessageService.IoNetSocket.LocalNodeAddress}<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, id = {Id}, o = {CurrBatch}, r = {BytesRead}");
+                        await Task.Delay(200).ConfigureAwait(false);
 
-                    //Don't process unsigned or unknown messages
-                    if (!verified || messageType == null)
-                    {
-                        continue;
+                        var ingress = CcCollective.Ingress.ForEachAsync(d=>
+                        {
+                            ForwardMessage(d);
+                            return ValueTask.CompletedTask;
+
+                        });
+
+                        var egress = CcCollective.Egress.ForEachAsync(d =>
+                        {
+                            ForwardMessage(d);
+                            return ValueTask.CompletedTask;
+                        });
+
+                        await Task.WhenAll(ingress.AsTask(), egress.AsTask());
                     }
 
                     //switch ((MessageTypes)packet.Type)
@@ -225,7 +265,7 @@ namespace zero.cocoon.models
                 }
 
                 //Release a waiter
-                await ForwardToNeighborAsync().ConfigureAwait(false);
+                //await ForwardToNeighborAsync().ConfigureAwait(false);
 
                 State = IoJobMeta.JobState.Consumed;
             }
