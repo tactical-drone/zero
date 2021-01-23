@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -110,6 +111,11 @@ namespace zero.cocoon.models
         ///// </summary>
         public CcDesignation CcId => CcCollective.CcId;
 
+        /// <summary>
+        /// random number generator
+        /// </summary>
+        readonly Random _random = new Random((int)DateTime.Now.Ticks);
+
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             var stream = ByteStream;
@@ -119,7 +125,6 @@ namespace zero.cocoon.models
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
 
-                var verified = false;
                 for (var i = 0; i <= DatumCount && BytesLeftToProcess > 0; i++)
                 {
                     if (DatumCount > 1)
@@ -183,15 +188,39 @@ namespace zero.cocoon.models
                     }
 
                     var req = MemoryMarshal.Read<long>(wispers.Data.Span);
-                    if (CcCollective.DupChecker.TryAdd(req, null))
+                    var endpoint = ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
+                    ConcurrentBag<string> dupEndpoints = null;
+
+                    //set this message as seen if seen before
+                    Func<bool> dupcheck = () =>
                     {
+                        if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
+                        {
+                            dupEndpoints.Add(endpoint);
+                            return true;
+                        }
+
+                        return false;
+                    };
+
+                    //if not seen before, set message as seen
+                    if (!dupcheck() && CcCollective.DupChecker.TryAdd(req, dupEndpoints = new ConcurrentBag<string>(new[] { endpoint })))
+                    {
+                        var buf = wispers.ToByteArray();
+
                         async void ForwardMessage(IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>> drone)
                         {
-                            var buf = wispers.ToByteArray();
-
                             try
                             {
-                                var sentTask = await ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>)drone.Source).IoNetSocket.SendAsync(buf, 0, buf.Length).ConfigureAwait(false);
+                                var source = ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) drone.Source);
+
+                                //Don't forward new messages to nodes from which we have received the msg in the mean time.
+                                //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
+                                //which in turn lowers the traffic causing less congestion
+                                if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                                    return;
+
+                                var sentTask = await source.IoNetSocket.SendAsync(buf, 0, buf.Length).ConfigureAwait(false);
                                 if (sentTask <= 0)
                                 {
                                     _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
@@ -205,7 +234,7 @@ namespace zero.cocoon.models
                                         {
                                             CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
                                             Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
-                                            Type = "gossip" + req % 3 
+                                            Type = $"gossip{req % 4}"
                                         }
                                     });
                                 }
@@ -216,22 +245,20 @@ namespace zero.cocoon.models
                             }
                         }
 
-                        await Task.Delay(200).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(100) + 10).ConfigureAwait(false);
 
-                        var ingress = CcCollective.Ingress.ForEachAsync(d=>
-                        {
-                            ForwardMessage(d);
-                            return ValueTask.CompletedTask;
-
-                        });
-
-                        var egress = CcCollective.Egress.ForEachAsync(d =>
+                        await CcCollective.WisperingDrones.ForEachAsync(d=>
                         {
                             ForwardMessage(d);
                             return ValueTask.CompletedTask;
                         });
-
-                        await Task.WhenAll(ingress.AsTask(), egress.AsTask());
+                    }
+                    else
+                    {
+                        if (!dupcheck())
+                        {
+                            _logger.Fatal($"Unexpected: source drone {endpoint} not found");
+                        }
                     }
 
                     //switch ((MessageTypes)packet.Type)

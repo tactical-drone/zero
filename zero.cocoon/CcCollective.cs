@@ -303,7 +303,7 @@ namespace zero.cocoon
 
         readonly Random _random = new Random((int) DateTime.Now.Ticks);
 
-        public ConcurrentDictionary<long, object> DupChecker { get; } = new ConcurrentDictionary<long, object>();
+        public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new ConcurrentDictionary<long, ConcurrentBag<string>>();
 
         /// <summary>
         /// Bootstrap
@@ -350,16 +350,20 @@ namespace zero.cocoon
         /// </summary>
         public int TotalConnections => IngressConnections + EgressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Ingress => Neighbors.Values.Where(kv =>
-            ((CcDrone) kv).Adjunct != null && ((CcDrone) kv).Adjunct.IsDroneAttached &&
-            (((CcDrone) kv).Adjunct.Ingress)).ToList();
+        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Ingress => Drones.Where(kv=>(((CcDrone) kv).Adjunct.Ingress)).ToList();
+
+        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Drones => Neighbors.Values.Where(kv =>
+            ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList();
+
+        public List<CcDrone> WisperingDrones => Neighbors.Values.Where(kv =>
+            ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList().Cast<CcDrone>().ToList();
 
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
         public int IngressConnections => Ingress.Count;
 
-        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Egress => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached && (((CcDrone)kv).Adjunct.Egress)).ToList();
+        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.Egress)).ToList();
 
         /// <summary>
         /// Number of outbound neighbors

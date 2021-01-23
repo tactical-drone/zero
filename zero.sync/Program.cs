@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 250;
+            int total = 400;
             var maxNeighbors = 8;
             var tasks = new ConcurrentBag<Task<CcCollective>>();
 
@@ -125,8 +125,12 @@ namespace zero.sync
                     foreach (var task in tasks)
                     {
                         //continue;
-                        if (await task.Result.BootAsync(v++))
+                        if (await task.Result.BootAsync(v))
+                        {
+                            v++;
                             break;
+                        }
+
                         c++;
                         //if (c % 20 == 0)
                         {
@@ -135,7 +139,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(100);
+                    await Task.Delay(200).ConfigureAwait(false);
                 }
                 
             });
