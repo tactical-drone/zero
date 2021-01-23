@@ -494,6 +494,20 @@ namespace zero.cocoon.autopeer
         public int parm_min_spare_bays = 1;
 
         /// <summary>
+        /// Network id
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public uint parm_network_id = 13;
+
+        /// <summary>
+        /// Protocol version
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public uint parm_protocol_version = 0;
+
+        /// <summary>
         /// Handle to peer zero sub
         /// </summary>
         private IoZeroSub _zeroSub;
@@ -1563,15 +1577,14 @@ namespace zero.cocoon.autopeer
         {
             var remoteEp = (IPEndPoint) extraData;
             
+            //Drop old API calls
+            if(ping.NetworkId != parm_network_id || ping.Version != parm_protocol_version)
+                return;
+
+            //Drop old messages
             if (ping.Timestamp.ElapsedDelta() > parm_max_network_latency/1000 * 2) //TODO params
             {
                 _logger.Trace($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.Elapsed()}s");
-                return;
-            }
-
-            if (!Proxy && ((IPEndPoint) extraData).Equals(ExtGossipAddress?.IpEndPoint))
-            {
-                _logger.Fatal($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: Dropping ping from self: {extraData}");
                 return;
             }
 
@@ -1822,8 +1835,8 @@ namespace zero.cocoon.autopeer
                 var pingRequest = new Ping
                 {
                     DstAddr = dest.IpEndPoint.Address.ToString(),
-                    NetworkId = 8,
-                    Version = 0,
+                    NetworkId = parm_network_id,
+                    Version = parm_protocol_version,
                     SrcAddr = "0.0.0.0",
                     SrcPort = (uint) CcCollective.Services.CcRecord.Endpoints[CcService.Keys.peering].Port,
                     // Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / parm_max_time_error *
