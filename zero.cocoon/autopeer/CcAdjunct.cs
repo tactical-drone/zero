@@ -1143,8 +1143,7 @@ namespace zero.cocoon.autopeer
             {
                 var backoffTask = Task.Factory.StartNew(async () =>
                 {
-                    //await Task.Delay(_random.Next(parm_max_network_latency) + parm_max_network_latency/2).ConfigureAwait(false);
-                    await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
+                    await Task.Delay(_random.Next(parm_max_network_latency) + parm_max_network_latency/2).ConfigureAwait(false);
                     var connectionTime = Stopwatch.StartNew();
                     if (!await ConnectAsync().ConfigureAwait(false))
                     {
