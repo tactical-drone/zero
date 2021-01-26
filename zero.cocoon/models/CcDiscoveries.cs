@@ -67,14 +67,14 @@ namespace zero.cocoon.models
                 else
                 {
                     var t = channelSource.ZeroAsync(this);
+                    ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
                 }
             }
             else
             {
                 ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
-                return ProtocolConduit != null;
             }
-            return await base.ConstructAsync();
+            return await base.ConstructAsync() && ProtocolConduit != null;
         }
 
         /// <summary>

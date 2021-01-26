@@ -25,6 +25,7 @@ using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using Packet = Proto.Packet;
 
 namespace zero.cocoon
@@ -157,17 +158,16 @@ namespace zero.cocoon
 
                                 if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
+                                    var newConnections = TotalConnections - totalConnections;
                                     //if we are not able to peer, use long range scanners
-                                    if (susceptible != null && peerAttempts == 0 &&
-                                        totalConnections == TotalConnections)
+                                    if (susceptible != null && peerAttempts == 0 && newConnections == 0)
                                     {
                                         if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
                                         {
+                                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                             _logger.Debug($"& {susceptible.Description}");
                                         }
                                     }
-
-
                                 }
 
                                 //boostrap every now and again
@@ -187,9 +187,12 @@ namespace zero.cocoon
                                 }
                             }
 
-                            if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
+                            if (peerAttempts > 0)
                             {
-                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
+                                {
+                                    secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                }
                             }
                         }
                         //else if(secondsSinceEnsured.Elapsed() > parm_mean_pat_delay * 3) //scan for discovery
@@ -475,7 +478,6 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    await Task.Yield().ConfigureAwait(false);
                     _logger.Debug($">|{drone.Description}");
                 }
 
@@ -582,9 +584,6 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            //race for connection
-                            var won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ConfigureAwait(false);
-                            
                             var packetData = packet.Data.Memory.AsArray();
                             
                             //verify the signature
@@ -595,14 +594,14 @@ namespace zero.cocoon
                                     packet!.Signature!.Memory.AsArray(), 0);
                             }
                             
-                            _this._logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {__peer.IoSource.Key}");
-                        
                             //Don't process unsigned or unknown messages
                             if (!verified)
                                 return false;
-                        
+
+                            
                             //process handshake request 
                             var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
+                            bool won = false;
                             if (handshakeRequest != null)
                             {
                                 //reject old handshake requests
@@ -620,14 +619,20 @@ namespace zero.cocoon
                                         $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {handshakeRequest.Version}, wants {_this.parm_version}");
                                     return false;
                                 }
-                        
+
                                 //reject requests to invalid ext ip
                                 //if (handshakeRequest.To != ((CcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
                                 //{
                                 //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((CcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
                                 //    return false;
                                 //}
-                        
+
+                                //race for connection
+                                won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ConfigureAwait(false);
+
+                                _this._logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {__peer.IoSource.Key}");
+
+
                                 //send response
                                 var handshakeResponse = new HandshakeResponse
                                 {
@@ -650,10 +655,11 @@ namespace zero.cocoon
                             //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                             //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                             //    .ConfigureAwait(false);
-                            return !Zeroed() && drone.Adjunct != null && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress;
-                        
+                            var ret = !Zeroed() && drone.Adjunct != null && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational; ;
+                            return ret;
                         }
                     }
+                    //-----------------------------------------------------//
                     else if (__peer.IoSource.IoNetSocket.Egress) //Outbound
                     {
                         var handshakeRequest = new HandshakeRequest
@@ -672,12 +678,12 @@ namespace zero.cocoon
                         if (sent > 0)
                         {
                             _this._logger.Trace(
-                                $"Sent {sent} inbound handshake challange response, socket = {ioNetSocket.Description}");
+                                $"Sent {sent} egress handshake challange, socket = {ioNetSocket.Description}");
                         }
                         else
                         {
                             _this._logger.Trace(
-                                $"Failed to send inbound handshake challange response, socket = {ioNetSocket.Description}");
+                                $"Failed to send egress handshake challange, socket = {ioNetSocket.Description}");
                             return false;
                         }
                         
@@ -698,12 +704,12 @@ namespace zero.cocoon
                         if (bytesRead == 0)
                         {
                             _this._logger.Trace(
-                                $"Failed to read outbound handshake challange response, waited = {_this._sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {_this.Zeroed()}");
+                                $"Failed to read egress  handshake challange response, waited = {_this._sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {_this.Zeroed()}");
                             return false;
                         }
                         
                         _this._logger.Trace(
-                            $"Read outbound handshake challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
+                            $"Read egress  handshake challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
                         
                         var verified = false;
                         
@@ -711,12 +717,7 @@ namespace zero.cocoon
                         
                         if (packet != null && packet.Data != null && packet.Data.Length > 0)
                         {
-                            //race for connection
-                            if (!await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Egress, __peer, packet,
-                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                                .ConfigureAwait(false))
-                                return false;
-                        
+
                             var packetData = packet.Data.Memory.AsArray();
                         
                             //verify signature
@@ -727,15 +728,23 @@ namespace zero.cocoon
                                     packet.Signature.Memory.AsArray(), 0);
                             }
                         
-                            _this._logger.Trace(
-                                $"HandshakeResponse [{(verified ? "signed" : "un-signed")}], read = {bytesRead}, {__peer.IoSource.Key}");
-                        
                             //Don't process unsigned or unknown messages
                             if (!verified)
                             {
                                 return false;
                             }
-                        
+
+                            _this._logger.Trace(
+                                $"HandshakeResponse [signed], from = egress, read = {bytesRead}, {__peer.IoSource.Key}");
+
+                            //race for connection
+                            var won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Egress, __peer, packet,
+                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
+                                .ConfigureAwait(false);
+
+                            if(!won)
+                                return false;
+
                             //validate handshake response
                             var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
                         
@@ -757,7 +766,8 @@ namespace zero.cocoon
                                 }
                             }
                         
-                            return !Zeroed() && drone.Adjunct != null && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress;
+                            var ret = !Zeroed() && drone.Adjunct != null && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational;
+                            return ret;
                         }
                     }
                 }
@@ -832,6 +842,7 @@ namespace zero.cocoon
                     !Zeroed() && 
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
+                    //adjunct.State <= CcAdjunct.AdjunctState.Standby &&
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc
                     adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)
@@ -854,8 +865,7 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    await drone.ZeroAsync(this).ConfigureAwait(false);
-                    await Task.Yield().ConfigureAwait(false); //yield on opposite sides of this coin
+                    await drone.ZeroAsync(new IoNanoprobe("Lost connection race")).ConfigureAwait(false);
                     _logger.Debug($"|>{drone.Description}");
                     return false;
                 }

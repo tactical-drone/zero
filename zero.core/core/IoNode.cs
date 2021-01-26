@@ -174,7 +174,7 @@ namespace zero.core.core
                                 else//else drop existing
                                 {
                                     _logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                    await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).ConfigureAwait(false);
                                 }
                             }
                         }
@@ -274,14 +274,14 @@ namespace zero.core.core
                 //We capture a local variable here as newNeighbor.Id disappears on zero
                 var id = newNeighbor.Key;
 
-                //if (Neighbors.TryGetValue(newNeighbor.Id, out var staleNeighbor))
+                //if (Neighbors.TryGetValue(newNeighbor.Key, out var staleNeighbor))
                 //{
                 //    if (staleNeighbor.Uptime.Elapsed() > parm_zombie_connect_time_threshold)
                 //    {
-                //        if (Neighbors.TryRemove(staleNeighbor.Id, out _))
+                //        if (Neighbors.TryRemove(staleNeighbor.Key, out _))
                 //        {
                 //            await staleNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                //            _logger.Warn($"Neighbor with id = {newNeighbor.Id} already exists! Replacing connection...");
+                //            _logger.Warn($"Neighbor with id = {newNeighbor.Key} already exists! Replacing connection...");
                 //        }
                 //        else
                 //        {
@@ -299,11 +299,11 @@ namespace zero.core.core
                     }
 
                     //Existing and not broken neighbor?
-                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.IsArbitrating && existingNeighbor.Source.IsOperational)
+                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime > parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
                     {
                         return false;
                     }
-
+                    
                     //Existing broken neighbor...
                     if (existingNeighbor != null) await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
                     return true;
@@ -311,7 +311,6 @@ namespace zero.core.core
 
                 if (await ZeroAtomicAsync(OwnershipAction).ConfigureAwait(false))
                 {
-                    //Is this a race condition? Between subbing and being zeroed out?
                     newNeighbor.ZeroEvent(s =>
                     {
                         try
@@ -327,7 +326,7 @@ namespace zero.core.core
                         }
                         catch (Exception e)
                         {
-                            _logger.Trace(e, $"Failed to remove {newNeighbor.Description} from {Description}");
+                            _logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {Description}");
                         }
 
                         return Task.CompletedTask;

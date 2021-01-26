@@ -205,8 +205,8 @@ namespace zero.core.network.ip
                     if (IoNetSocket.IsTcpSocket)
                     {
                         //rate limit
-                        if (_lastSocketHealthCheck.ElapsedMsDelta() < 5000)
-                            return _operational && IoNetSocket.NativeSocket.Connected;
+                        //if (_lastSocketHealthCheck.ElapsedMsDelta() < 5000)
+                        //    return _operational && IoNetSocket.NativeSocket.Connected;
                         
                         _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         //TODO more checks?

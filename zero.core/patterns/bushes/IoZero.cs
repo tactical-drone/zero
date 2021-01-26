@@ -281,7 +281,7 @@ namespace zero.core.patterns.bushes
 
                             if (nextJob.Id == 0)
                                 IsArbitrating = true;
-                            
+
                             //wait for prefetch pressure
                             if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
                             {

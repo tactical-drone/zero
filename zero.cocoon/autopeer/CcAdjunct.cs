@@ -74,7 +74,7 @@ namespace zero.cocoon.autopeer
                     while (!Zeroed())
                     {
                         await WatchdogAsync().ConfigureAwait(false);
-                        await Task.Delay(_random.Next(CcCollective.parm_mean_pat_delay / 2) * 1000 + CcCollective.parm_mean_pat_delay / 4 * 1000,AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(CcCollective.parm_mean_pat_delay / 2) * 1000 + CcCollective.parm_mean_pat_delay / 8 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
@@ -586,7 +586,10 @@ namespace zero.cocoon.autopeer
                     // ignored
                 }
 
-                await Router.SendPeerDropAsync(RemoteAddress).ConfigureAwait(false);
+                if (IsDroneConnected)
+                {
+                    await Router.SendPeerDropAsync(RemoteAddress).ConfigureAwait(false);
+                }
             }
             else
             {
@@ -627,7 +630,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Test mode
         /// </summary>
-        private static uint _dropOne = 0;
+        private static uint _dropOne = 1;
 
         /// <summary>
         /// Ensures that the peer is running
@@ -650,6 +653,7 @@ namespace zero.cocoon.autopeer
             if (!Proxy && Hub.Neighbors.Count <= 3)
             {
                 await CcCollective.BootAsync().ConfigureAwait(false);
+                return;
             }
 
             //Watchdog failure
@@ -722,18 +726,22 @@ namespace zero.cocoon.autopeer
         protected async ValueTask<bool> ConnectAsync()
         {
             //Validate request
-            if (!Assimilating && !IsDroneAttached)
+            if (!Assimilating && !IsDroneConnected && State < AdjunctState.Verified && State >= AdjunctState.Standby)
             {
-#if DEBUG
-                if (IsDroneAttached || State < AdjunctState.Disconnected)
-                    _logger.Fatal($"Incorrect state, {MetaDesc}, {Description}");
-#endif
-
-                _logger.Debug($"Connection aborted, {MetaDesc}, {Description}");
+                _logger.Fatal($"{Description}: Connect aborted, wrong state: {MetaDesc}, ");
                 return false;
             }
 
             State = Assimilated ? AdjunctState.Reconnecting : AdjunctState.Connecting;
+
+            
+            if (CcCollective.Neighbors.TryGetValue(Key, out var existingNeighbor))
+            {
+                if(IsDroneConnected)
+                    _logger.Fatal("DROPPED!------------------------");
+                //await existingNeighbor.ZeroAsync(new IoNanoprobe("Dropped because reconnect?")).ConfigureAwait(false);
+                return false;
+            }
 
             //Attempt the connection, race to win
             if (await CcCollective.ConnectToDroneAsync(this).ConfigureAwait(false))
@@ -1135,6 +1143,7 @@ namespace zero.cocoon.autopeer
             {
                 var backoffTask = Task.Factory.StartNew(async () =>
                 {
+                    //await Task.Delay(_random.Next(parm_max_network_latency) + parm_max_network_latency/2).ConfigureAwait(false);
                     await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
                     var connectionTime = Stopwatch.StartNew();
                     if (!await ConnectAsync().ConfigureAwait(false))
@@ -1336,7 +1345,7 @@ namespace zero.cocoon.autopeer
 
                 var assimilate = Task.Factory.StartNew(async c =>
                 {
-                    await Task.Delay(parm_max_network_latency * (int) c).ConfigureAwait(false);
+                    await Task.Delay(parm_max_network_latency * (int)c + (int)c * 1000).ConfigureAwait(false);
                     await CollectAsync(newRemoteEp, id, services);
                 },++count, TaskCreationOptions.LongRunning);
                 
@@ -2206,7 +2215,7 @@ namespace zero.cocoon.autopeer
                     
                     _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
                     _this.State = AdjunctState.Connected;
-                    return await CcCollective.ZeroAtomicAsync((ioNanite, _, disposing) => new ValueTask<bool>(((CcCollective)ioNanite).TotalConnections < ((CcCollective)ioNanite).MaxDrones)).ConfigureAwait(false);
+                    return await CcCollective.ZeroAtomicAsync((ioNanite, _, disposing) => new ValueTask<bool>(((CcCollective)ioNanite).TotalConnections <= ((CcCollective)ioNanite).MaxDrones)).ConfigureAwait(false);
                 }, ValueTuple.Create(ccDrone, direction)))
                 {
                     return false;

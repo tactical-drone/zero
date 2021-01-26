@@ -47,9 +47,9 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token);
-                    if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Connected)
+                    if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Peering)
                     {
-                        _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}");
+                        _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}, {Adjunct?.MetaDesc}");
                         await ZeroAsync(this).ConfigureAwait(false);
                     }
                 }
@@ -215,9 +215,6 @@ namespace zero.cocoon
 
             if(adjunct != null)
                 await adjunct.DetachPeerAsync(this).ConfigureAwait(false);
-            // {
-            //     throw new NullReferenceException($"{nameof(adjunct)}");
-            // }
         }
 
         /// <summary>
