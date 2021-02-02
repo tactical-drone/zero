@@ -207,7 +207,15 @@ namespace zero.sync
                                 minInC++;
 
                             if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)
-                                throw new ApplicationException($"{nameof(ioCcNode.TotalConnections)} > {ioCcNode.MaxDrones}");
+                            {
+                                Console.WriteLine($"[{ioCcNode.Description}]");
+                                foreach (var d in ioCcNode.Neighbors.Values)
+                                {
+                                    var drone = (CcDrone) d;
+                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.TickSec():0.00}");
+                                }
+                            }
+                                
 
                             ooutBound += e;
                             oinBound += i;

@@ -13,6 +13,7 @@ using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
@@ -35,9 +36,6 @@ namespace zero.cocoon
             IoNetClient = ioNetClient;
 
             Adjunct = adjunct;
-            //if(Neighbor != null)
-            //    AttachNeighborAsync(Neighbor);
-
 
             //Testing
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
@@ -50,7 +48,7 @@ namespace zero.cocoon
                     if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Peering)
                     {
                         _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}, {Adjunct?.MetaDesc}");
-                        await ZeroAsync(this).ConfigureAwait(false);
+                        await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).ConfigureAwait(false);
                     }
                 }
             }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
@@ -116,7 +114,7 @@ namespace zero.cocoon
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public CcAdjunct Adjunct { get; private set; }
+        public CcAdjunct Adjunct { get; set; }
 
         /// <summary>
         /// CcId
@@ -165,9 +163,14 @@ namespace zero.cocoon
             if((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
                 _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
 
-            var ccid = Adjunct?.CcCollective.CcId.IdString();
             await DetachNeighborAsync().ConfigureAwait(false);
             await base.ZeroManagedAsync().ConfigureAwait(false);
+        }
+
+
+        public new ValueTask ZeroAsync(IIoNanite @from)
+        {
+            return base.ZeroAsync(@from);
         }
 
         /// <summary>
@@ -175,23 +178,21 @@ namespace zero.cocoon
         /// </summary>
         /// <param name="adjunct"></param>
         /// <param name="direction"></param>
-        public async ValueTask<bool> AttachNeighborAsync(CcAdjunct adjunct, CcAdjunct.Heading direction)
+        public async ValueTask<bool> AttachViaAdjunctAsync(CcAdjunct.Heading direction)
         {
-
-            Adjunct = adjunct ?? throw new ArgumentNullException($"{nameof(adjunct)} cannot be null");
             
             //Attach the other way
             var attached = await Adjunct.AttachPeerAsync(this, direction).ConfigureAwait(false);
 
             if (attached)
             {
-                _logger.Trace($"{nameof(AttachNeighborAsync)}: {direction} attach to neighbor {adjunct.Description}");
+                _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to neighbor {Adjunct.Description}");
                 
                 //var t = StartTestModeAsync();
             }
             else
             {
-                _logger.Trace($"{nameof(AttachNeighborAsync)}: [RACE LOST]{direction} attach to neighbor {adjunct.Description}, {adjunct.MetaDesc}");
+                _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to neighbor {Adjunct.Description}, {Adjunct.MetaDesc}");
             }
 
             return attached;
@@ -202,19 +203,19 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask DetachNeighborAsync()
         {
-            CcAdjunct adjunct = null;
+            CcAdjunct latch = null;
 
             lock (this)
             {
                 if (Adjunct != null)
                 {
-                    adjunct = Adjunct;
+                    latch = Adjunct;
                     Adjunct = null;
                 }
             }
 
-            if(adjunct != null)
-                await adjunct.DetachPeerAsync(this).ConfigureAwait(false);
+            if(latch != null)
+                await latch.DetachPeerAsync().ConfigureAwait(false);
         }
 
         /// <summary>

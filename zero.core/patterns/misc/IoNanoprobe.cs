@@ -143,7 +143,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public async ValueTask ZeroAsync(IIoNanite from)
+        public virtual async ValueTask ZeroAsync(IIoNanite from)
         {
 #if DEBUG
             if (from == null)
@@ -196,7 +196,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public IoZeroSub ZeroEvent(Func<IIoNanite, Task> sub)
+        public IoZeroSub ZeroEvent(Func<IIoNanite, ValueTask> sub)
         {
             IoZeroSub newSub;
             _zeroSubs.Push(newSub = new IoZeroSub
@@ -258,7 +258,7 @@ namespace zero.core.patterns.misc
                 {
                     if (!s.Equals(this))
                         Unsubscribe(sub);
-                    return Task.CompletedTask;
+                    return ValueTask.CompletedTask;
                 });
             }
 
@@ -399,7 +399,7 @@ namespace zero.core.patterns.misc
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>s
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
+        public virtual async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)
         {

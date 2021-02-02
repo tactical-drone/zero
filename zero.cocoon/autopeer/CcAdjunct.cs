@@ -185,12 +185,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether The peer is attached
         /// </summary>
-        public bool IsDroneAttached => _drone != null;
+        public bool IsDroneAttached => _drone != null && !_drone.Zeroed();
 
         /// <summary>
         /// Whether the peer is nominal
         /// </summary>
-        public bool IsDroneConnected => IsDroneAttached && (_drone?.IoSource?.IsOperational ?? false) && State == AdjunctState.Connected;
+        public bool IsDroneConnected => IsDroneAttached && (_drone?.IoSource?.IsOperational ?? false) && State == AdjunctState.Connected && Direction != Heading.Undefined;
 
         /// <summary>
         /// Is this the local listener
@@ -601,7 +601,7 @@ namespace zero.cocoon.autopeer
             if (Assimilated && Direction != Heading.Undefined)
                 _logger.Info($"- `{(Assimilated ? "Distinct" : "Common")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
 
-            await DetachPeerAsync(_drone, true).ConfigureAwait(false);
+            await DetachPeerAsync().ConfigureAwait(false);
 
             await _pingRequest.DumpAsync(Router._pingRequest).ConfigureAwait(false);
             await _pingRequest.ZeroAsync(this).ConfigureAwait(false);
@@ -611,20 +611,6 @@ namespace zero.cocoon.autopeer
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
 #endif
             await base.ZeroManagedAsync().ConfigureAwait(false);
-
-            //if (Proxy)
-            //{
-            //    //emit event
-            //    AutoPeeringEventService.AddEvent(new AutoPeerEvent
-            //    {
-            //        EventType = AutoPeerEventType.RemoveAdjunct,
-            //        Adjunct = new Adjunct()
-            //        {
-            //            CollectiveId = CcCollective.CcId.IdString(),
-            //            Id = Designation.IdString(),
-            //        }
-            //    });
-            //}
         }
 
         /// <summary>
@@ -1473,7 +1459,7 @@ namespace zero.cocoon.autopeer
                         // ignored
                     }
 
-                    return Task.CompletedTask;
+                    return ValueTask.CompletedTask;
                 });
 
                 if (sub == null)
@@ -2214,7 +2200,7 @@ namespace zero.cocoon.autopeer
                     
                     _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
                     _this.State = AdjunctState.Connected;
-                    return await CcCollective.ZeroAtomicAsync((ioNanite, _, disposing) => new ValueTask<bool>(((CcCollective)ioNanite).TotalConnections <= ((CcCollective)ioNanite).MaxDrones)).ConfigureAwait(false);
+                    return await CcCollective.ZeroAtomicAsync((ioNanite, _, disposing) => new ValueTask<bool>(((CcCollective)ioNanite).TotalConnections <= ((CcCollective)ioNanite).MaxDrones), force:true).ConfigureAwait(false);
                 }, ValueTuple.Create(ccDrone, direction)))
                 {
                     return false;
@@ -2264,47 +2250,32 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Detaches a peer from this neighbor
         /// </summary>
-        public async ValueTask DetachPeerAsync(CcDrone dc, bool force = false)
+        public async ValueTask DetachPeerAsync()
         {
-            var parms = ValueTuple.Create(dc, force);
+            CcDrone latch = null;
             if (!await ZeroAtomicAsync((s, u, d) =>
             {
                 var _this = (CcAdjunct) s;
-                var t = (ValueTuple<CcDrone, bool>) u;
-                if (_this._drone == null && !t.Item2)
-                    return ValueTask.FromResult(false);
+                latch = ((CcAdjunct) s)._drone;
+                ((CcAdjunct)s)._drone = null;
 
-                if (_this._drone != t.Item1)
-                    return ValueTask.FromResult(false);
-                
-                t.Item1 = _this._drone;
-
-                _this._drone = null;
-                return ValueTask.FromResult(true);
-            }, parms).ConfigureAwait(false))
+                return ValueTask.FromResult(latch != null);
+            }).ConfigureAwait(false))
             {
                 return;
             }
 
-            var drone = parms.Item1;
-
-            if (drone != dc)
-                throw new ApplicationException("peer == dc");
-            
             //send drop request
             await SendPeerDropAsync().ConfigureAwait(false);
             
-            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {drone?.Description ?? Description}");
+            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {latch?.Description ?? Description}");
 
             //Detach zeroed
             Unsubscribe(_zeroSub);
             _zeroSub = default;
 
-            if (drone != null)
-            {
-                await drone.ZeroAsync(this).ConfigureAwait(false);
-            }
-
+            await latch.ZeroAsync(this).ConfigureAwait(false);
+            
             Interlocked.Exchange(ref _direction, 0);
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             TotalPats = 0;
@@ -2326,7 +2297,7 @@ namespace zero.cocoon.autopeer
                 Drone = new Drone
                 {   
                     CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                    Adjunct = drone.Adjunct.Designation.IdString()
+                    Adjunct = Designation.IdString()
                 }
             });
         }

@@ -210,7 +210,7 @@ namespace zero.core.core
                                 {
                                     _logger.Trace(e, $"Removing {newNeighbor.Description} from {Description}");
                                 }
-                                return Task.CompletedTask;
+                                return ValueTask.CompletedTask;
                             });
                             return ValueTask.FromResult(true);
                         }).ConfigureAwait(false);
@@ -329,7 +329,7 @@ namespace zero.core.core
                             _logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {Description}");
                         }
 
-                        return Task.CompletedTask;
+                        return ValueTask.CompletedTask;
                     });
 
                     //TODO

@@ -360,14 +360,14 @@ namespace zero.cocoon
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public int IngressConnections => Ingress.Count;
+        public volatile int IngressConnections;
 
         public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.Egress)).ToList();
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public int EgressConnections => Egress.Count;
+        public volatile int EgressConnections;
 
         /// <summary>
         /// Connected nodes
@@ -462,7 +462,7 @@ namespace zero.cocoon
             await base.SpawnListenerAsync(async drone =>
             {
                 //limit connects
-                if (Zeroed() || IngressConnections >= parm_max_inbound || drone == null)
+                if (Zeroed() || IngressConnections >= parm_max_inbound)
                     return false;
 
                 //Handshake
@@ -470,6 +470,7 @@ namespace zero.cocoon
                 {
                     //ACCEPT
                     _logger.Info($"+ {drone.Description}");
+                    
                     return true;
                 }
                 else
@@ -522,6 +523,12 @@ namespace zero.cocoon
         private readonly int _handshakeBufferSize;
         public long Testing;
 
+
+        //public new ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction, object userData = null, bool disposing = false, bool force = false)
+        //{
+        //    return base.ZeroAtomicAsync(ownershipAction, userData, disposing, force);
+        //}
+
         /// <summary>
         /// Perform handshake
         /// </summary>
@@ -531,6 +538,7 @@ namespace zero.cocoon
         {
             return await ZeroAtomicAsync(async (s, u, d) =>
             {
+                var handshakeSuccess = false;
                 var _this = (CcCollective)s;
                 var __peer = (CcDrone) u;
                 var bytesRead = 0;
@@ -651,8 +659,8 @@ namespace zero.cocoon
                             //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                             //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                             //    .ConfigureAwait(false);
-                            var ret = !Zeroed() && drone.Adjunct != null && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational; ;
-                            return ret;
+                            handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressConnections < parm_max_inbound;
+                            return handshakeSuccess;
                         }
                     }
                     //-----------------------------------------------------//
@@ -762,8 +770,8 @@ namespace zero.cocoon
                                 }
                             }
                         
-                            var ret = !Zeroed() && drone.Adjunct != null && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational;
-                            return ret;
+                            handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational && EgressConnections < parm_max_outbound;
+                            return handshakeSuccess;
                         }
                     }
                 }
@@ -784,9 +792,34 @@ namespace zero.cocoon
                     _this._logger.Error(e,
                         $"Handshake (size = {bytesRead}/{_this._handshakeRequestSize}/{_this._handshakeResponseSize}) for {_this.Description} failed with:");
                 }
+                finally
+                {
+                    if (handshakeSuccess)
+                    {
+                        if (__peer.IoSource.IoNetSocket.Egress)
+                        {
+                            drone.ZeroEvent(_ =>
+                            {
+                                Interlocked.Decrement(ref EgressConnections);
+                                return ValueTask.CompletedTask;
+                            });
+
+                            Interlocked.Increment(ref EgressConnections);
+                        }
+                        else if (__peer.IoSource.IoNetSocket.Ingress)
+                        {
+                            drone.ZeroEvent(nanite =>
+                            {
+                                Interlocked.Decrement(ref IngressConnections);
+                                return ValueTask.CompletedTask;
+                            });
+                            Interlocked.Increment(ref IngressConnections);
+                        }
+                    }
+                }
 
                 return false;
-            }, drone, force: true).ConfigureAwait(false);
+            }, drone).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -805,24 +838,20 @@ namespace zero.cocoon
             //Race for connection...
             var id = CcAdjunct.MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
 
-            var adjunct = _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id));
-            if (adjunct != null)
+            if ((direction == CcAdjunct.Heading.Ingress) && (drone.Adjunct = (CcAdjunct) _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
             {
-                var ccAdjunct = (CcAdjunct) adjunct;
-                if (ccAdjunct.Assimilating && !ccAdjunct.IsDroneAttached)
-                {
-                    //did we win?
-                    return await drone.AttachNeighborAsync((CcAdjunct) adjunct, direction).ConfigureAwait(false) && TotalConnections <= MaxDrones;
-                }
-                else
-                {
-                    _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {ccAdjunct.State}, a = {ccAdjunct.Assimilating}, p = {ccAdjunct.IsDroneConnected}, pa = {ccAdjunct.IsDroneAttached}, ut = {ccAdjunct.Uptime.TickSec()}");
-                    return false;
-                }
+                _logger.Error($"Neighbor {id} not found, dropping {direction} connection to {remoteEp}");
+                return false;
+            }
+
+            if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
+            {
+                //did we win?
+                return await drone.AttachViaAdjunctAsync(direction).ConfigureAwait(false) && TotalConnections <= MaxDrones;
             }
             else
             {
-                _logger.Error($"Neighbor {id} not found, dropping {direction} connection to {remoteEp}");
+                _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.TickSec()}");
                 return false;
             }
         }
@@ -845,7 +874,7 @@ namespace zero.cocoon
                 )
             {
                 var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
-                if (Zeroed() || drone == null)
+                if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                 {
                     if (drone != null) await drone.ZeroAsync(this).ConfigureAwait(false);
                     _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
@@ -856,6 +885,7 @@ namespace zero.cocoon
                 if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
                 {
                     _logger.Info($"+ {drone.Description}");
+
                     NeighborTasks.Add(drone.AssimilateAsync());
                     return true;
                 }

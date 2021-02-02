@@ -140,7 +140,8 @@ namespace zero.core.models.protobuffer.sources
                 if(backed)
                     _queueBackPressure.Release();
 
-                _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
+                if(!Zeroed())
+                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
                 return false;
             }
         }

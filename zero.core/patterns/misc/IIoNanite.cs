@@ -50,7 +50,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        IoZeroSub ZeroEvent(Func<IIoNanite, Task> sub);
+        IoZeroSub ZeroEvent(Func<IIoNanite, ValueTask> sub);
 
         /// <summary>
         /// Unsubscribe
