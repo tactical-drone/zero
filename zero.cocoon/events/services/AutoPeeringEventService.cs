@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
+using Org.BouncyCastle.Bcpg.OpenPgp;
 
 
 namespace zero.cocoon.events.services
@@ -19,21 +20,23 @@ namespace zero.cocoon.events.services
         }
 
         private readonly ILogger<AutoPeeringEventService> _logger;
-        private static readonly ConcurrentQueue<AutoPeerEvent> QueuedEvents = new ConcurrentQueue<AutoPeerEvent>();
-        private static volatile int _operational;
+        private static ConcurrentQueue<AutoPeerEvent> QueuedEvents = new ConcurrentQueue<AutoPeerEvent>();
+        private static volatile int _operational = 1;
         private static long _seq;
         private const int EventBatchSize = 10000;
 
         public override Task<EventResponse> Next(NullMsg request, ServerCallContext context)
         {
-            if(_operational == 0)
-                _operational = 1;
-
             var response = new EventResponse();
+
+            if (_operational == 0)
+                return Task.FromResult(response);
+
             var c = 0;
             var events = new List<AutoPeerEvent>();
             while (c++ < EventBatchSize && QueuedEvents.TryDequeue(out var netEvent))
             {
+
                 events.Add(netEvent);
             }
 
@@ -53,6 +56,17 @@ namespace zero.cocoon.events.services
                 newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
                 QueuedEvents.Enqueue(newAutoPeerEvent);
             }
+        }
+
+
+        /// <summary>
+        /// Clears all buffers
+        /// </summary>
+        public static void Clear()
+        {
+            QueuedEvents.Clear();
+            QueuedEvents = null;
+            Interlocked.Exchange(ref _operational, 0);
         }
     }
 }
