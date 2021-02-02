@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -41,6 +42,7 @@ namespace zero.cocoon.models.test
                 //DatumProvisionLength = DatumProvisionLengthMax;
                 Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
                 ByteSegment = ByteBuffer;
+                ReadOnlySequence = new ReadOnlySequence<byte>(ByteBuffer);
             }
         }
 

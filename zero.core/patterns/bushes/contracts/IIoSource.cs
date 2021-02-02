@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Threading;
 using zero.core.data.contracts;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 
 namespace zero.core.patterns.bushes.contracts
 {
@@ -21,7 +18,7 @@ namespace zero.core.patterns.bushes.contracts
         string Key { get; }
 
         /// <summary>
-        /// Signal source pressure
+        /// Apply source pressure
         /// </summary>
         public void Pressure();
 
@@ -32,12 +29,12 @@ namespace zero.core.patterns.bushes.contracts
         public ValueTask<bool> WaitForPressureAsync();
         
         /// <summary>
-        /// Signal sink pressure
+        /// Apply sink pressure
         /// </summary>
         public void BackPressure(int releaseCount);
 
         /// <summary>
-        /// Wait for sink pressure
+        /// Wait for sink back pressure
         /// </summary>
         /// <returns></returns>
         public ValueTask<bool> WaitForBackPressureAsync();
@@ -48,7 +45,7 @@ namespace zero.core.patterns.bushes.contracts
         bool PrefetchEnabled { get; }
         
         /// <summary>
-        /// Signal prefetch pressure
+        /// Apply prefetch pressure
         /// </summary>
         public void PrefetchPressure();
         
@@ -110,7 +107,7 @@ namespace zero.core.patterns.bushes.contracts
         int PrefetchSize { get; }
 
         /// <summary>
-        /// The amount of productions that can be made while consumption is behind
+        /// The max number of concurrent waiters
         /// </summary>
         int ConcurrencyLevel { get; }
 
@@ -127,7 +124,7 @@ namespace zero.core.patterns.bushes.contracts
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoConduitonduit{TJob}"/> to other producers.
+        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.
         /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>

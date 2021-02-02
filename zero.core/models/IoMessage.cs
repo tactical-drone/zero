@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -58,7 +59,12 @@ namespace zero.core.models
         /// Stream access to the input
         /// </summary>
         public Stream ByteStream => new MemoryStream(ByteBuffer, BufferOffset, BytesLeftToProcess);
-        
+
+        /// <summary>
+        /// Read only sequence wrapped for protobuf API
+        /// </summary>
+        public ReadOnlySequence<byte> ReadOnlySequence { get; protected set; }
+
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>

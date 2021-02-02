@@ -118,12 +118,15 @@ namespace zero.cocoon.models
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            var stream = ByteStream;
+            var readOnlySequence =
+                ReadOnlySequence.Slice(ReadOnlySequence.GetPosition(BufferOffset), ReadOnlySequence.GetPosition(BufferOffset + BytesRead));
             try
             {
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
+
+                var read = 0;
 
                 for (var i = 0; i <= DatumCount && BytesLeftToProcess > 0; i++)
                 {
@@ -131,18 +134,18 @@ namespace zero.cocoon.models
                     {
                         _logger.Fatal($"{Description} ----> Datumcount = {DatumCount}");
                     }
-                    CcWisperMsg wispers = null;
 
-                    var read = stream.Position;
+                    readOnlySequence = readOnlySequence.Slice(readOnlySequence.GetPosition(read), readOnlySequence.GetPosition(BytesRead - read));
+                    CcWisperMsg wispers = null;
 
                     //deserialize
                     try
                     {
-                        wispers = CcWisperMsg.Parser.ParseFrom(stream);
+                        wispers = CcWisperMsg.Parser.ParseFrom(readOnlySequence);
+                        read = wispers.CalculateSize();
                     }
                     catch (Exception e)
                     {
-                        read = stream.Position - read;
                         var tmpBufferOffset = BufferOffset;
                         Interlocked.Add(ref BufferOffset, (int)read);
 
@@ -156,9 +159,6 @@ namespace zero.cocoon.models
                         else
                             break;
                     }
-
-                    //did we get anything?
-                    read = stream.Position - read;
 
                     Interlocked.Add(ref BufferOffset, (int)read);
 

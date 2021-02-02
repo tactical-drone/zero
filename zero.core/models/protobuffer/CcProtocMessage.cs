@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Net;
 using System.Threading;
@@ -29,6 +30,7 @@ namespace zero.core.models.protobuffer
             DatumProvisionLengthMax = DatumSize - 1;
             Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             ByteSegment = ByteBuffer;
+            ReadOnlySequence = new ReadOnlySequence<byte>(ByteBuffer);
         }
 
         /// <summary>
