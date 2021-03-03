@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 
-namespace zero.core.patterns.semaphore
+namespace zero.core.patterns.semaphore.core
 {
     public interface IIoZeroSemaphore: IValueTaskSource<bool>
     {
