@@ -240,7 +240,7 @@ namespace zero.cocoon
                     var vb = new byte[8];
                     Write(vb.AsSpan(), ref v);
 
-                    var m = new CcWisperMsg() {Data = ByteString.CopyFrom(vb)};
+                    var m = new CcWisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
 
                     var buf = m.ToByteArray();
 

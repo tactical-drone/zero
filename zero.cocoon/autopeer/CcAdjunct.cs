@@ -391,7 +391,7 @@ namespace zero.cocoon.autopeer
                 if (_curSalt == null || _curSaltStamp.Elapsed() > parm_salt_ttl)
                 {
                     using var rand = new RNGCryptoServiceProvider();
-                    _curSalt = ByteString.CopyFrom(new byte[parm_salt_length]);
+                    _curSalt = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(new byte[parm_salt_length]));
                     rand.GetNonZeroBytes(_curSalt.ToByteArray());
                     _curSaltStamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 }
@@ -1031,7 +1031,7 @@ namespace zero.cocoon.autopeer
                 //send reject so that the sender's state can be fixed
                 var reject = new PeeringResponse
                 {
-                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
                     Status = false
                 };
 
@@ -1068,7 +1068,7 @@ namespace zero.cocoon.autopeer
 
             PeeringResponse peeringResponse = peeringResponse = new PeeringResponse
             {
-                ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
                 Status = CcCollective.IngressConnections < CcCollective.parm_max_inbound & _direction == 0
             };
             
@@ -1186,12 +1186,12 @@ namespace zero.cocoon.autopeer
                 var packet = new Packet
                 {
                     Data = data,
-                    PublicKey = ByteString.CopyFrom(CcCollective.CcId.PublicKey),
+                    PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcCollective.CcId.PublicKey)),
                     Type = (uint) type
                 };
 
                 packet.Signature =
-                    ByteString.CopyFrom(CcCollective.CcId.Sign(packet.Data!.Memory.AsArray(), 0, packet.Data.Length));
+                    UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcCollective.CcId.Sign(packet.Data!.Memory.AsArray(), 0, packet.Data.Length)));
                 var msgRaw = packet.ToByteArray();
 
 
@@ -1511,7 +1511,7 @@ namespace zero.cocoon.autopeer
 
             var discoveryResponse = new DiscoveryResponse
             {
-                ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
             };
 
             var count = 0;
@@ -1528,7 +1528,7 @@ namespace zero.cocoon.autopeer
 
                 discoveryResponse.Peers.Add(new Peer
                 {
-                    PublicKey = ByteString.CopyFrom(((CcAdjunct) ioNeighbor).Designation.PublicKey),
+                    PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(((CcAdjunct) ioNeighbor).Designation.PublicKey)),
                     Services = ((CcAdjunct) ioNeighbor).ServiceMap,
                     Ip = ((CcAdjunct) ioNeighbor).RemoteAddress.Ip
                 });
@@ -1592,12 +1592,12 @@ namespace zero.cocoon.autopeer
                     Hub.Services.CcRecord.Endpoints[CcService.Keys.peering];
                 var fpcAddress =
                     Hub.Services.CcRecord.Endpoints[CcService.Keys.fpc];
-            
+
                 
+
                 pong = new Pong
                 {
-                    //ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
-                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(ping.ToByteArray())),
+                    ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(ping.ToByteArray()))),
                     DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
                     Services =_serviceMapLocal = new ServiceMap
                     {
@@ -1623,8 +1623,8 @@ namespace zero.cocoon.autopeer
             {
                 pong = new Pong
                 {
-                    //ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
-                    ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(ping.ToByteArray())),
+                    //ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(ping.ToByteArray()))),
                     DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
                     Services = _serviceMapLocal
                 };

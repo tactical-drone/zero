@@ -60,25 +60,25 @@ namespace zero.cocoon
             var protocolMsg = new Packet
             {
                 Data = handshakeRequest.ToByteString(),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Type = (uint)CcDiscoveries.MessageTypes.Handshake
             };
-            protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length));
+            protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
 
             _handshakeRequestSize = protocolMsg.CalculateSize();
 
             var handshakeResponse = new HandshakeResponse
             {
-                ReqHash = ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray()))
+                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray())))
             };
 
             protocolMsg = new Packet
             {
                 Data = handshakeResponse.ToByteString(),
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Type = (uint)CcDiscoveries.MessageTypes.Handshake
             };
-            protocolMsg.Signature = ByteString.CopyFrom(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length));
+            protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
 
             _handshakeResponseSize = protocolMsg.CalculateSize();
 
@@ -166,7 +166,7 @@ namespace zero.cocoon
                                     }
                                 }
 
-                                //boostrap every now and again
+                                //bootstrap every now and again
                                 if (secondsSinceBoot.Elapsed() > parm_mean_pat_delay * 4)
                                 {
                                     await BootStrapAsync().ConfigureAwait(false);
@@ -175,7 +175,7 @@ namespace zero.cocoon
                             }
                             else
                             {
-                                //boostrap if alone
+                                //bootstrap if alone
                                 if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
                                     await BootStrapAsync().ConfigureAwait(false);
@@ -494,11 +494,11 @@ namespace zero.cocoon
             var responsePacket = new Packet
             {
                 Data = msg,
-                PublicKey = ByteString.CopyFrom(CcId.PublicKey),
+                PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Type = (uint)CcDiscoveries.MessageTypes.Handshake
             };
 
-            responsePacket.Signature = ByteString.CopyFrom(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length));
+            responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
 
             var protocolRaw = responsePacket.ToByteArray();
 
@@ -640,7 +640,7 @@ namespace zero.cocoon
                                 //send response
                                 var handshakeResponse = new HandshakeResponse
                                 {
-                                    ReqHash = won? ByteString.CopyFrom(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())): ByteString.Empty
+                                    ReqHash = won? UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))): ByteString.Empty
                                 };
                                 
                                 var handshake = handshakeResponse.ToByteString();
