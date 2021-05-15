@@ -502,16 +502,19 @@ namespace zero.cocoon
 
             var protocolRaw = responsePacket.ToByteArray();
 
-            var sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).ConfigureAwait(false);
+            var sentTask = drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout);
 
-            if (sent == protocolRaw.Length)
+            if (!sentTask.IsCompletedSuccessfully)
+                await sentTask.ConfigureAwait(false);
+
+            if (sentTask.Result == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"{type}: Sent {sentTask.Result} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else
             {
-                _logger.Error($"{type}: Sent {sent}/{protocolRaw.Length}...");
+                _logger.Error($"{type}: Sent {sentTask.Result}/{protocolRaw.Length}...");
                 return 0;
             }
         }
@@ -558,10 +561,15 @@ namespace zero.cocoon
                         //read from the socket
                         //do
                         //{
-                        bytesRead += await ioNetSocket
+                        var readTask = ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeRequestSize - bytesRead,
-                                timeout: _this.parm_handshake_timeout)
-                            .ConfigureAwait(false);
+                                timeout: _this.parm_handshake_timeout);
+
+                        if (readTask.IsCompletedSuccessfully)
+                            bytesRead += readTask.Result;
+                        else
+                            bytesRead += await readTask.ConfigureAwait(false);
+                        
                         //} while (
                         //    !Zeroed() &&
                         //    bytesRead < _handshakeRequestSize &&
@@ -693,10 +701,15 @@ namespace zero.cocoon
                         
                         //do
                         //{
-                        bytesRead += await ioNetSocket
+                        var readTask = ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeResponseSize - bytesRead,
-                                timeout: _this.parm_handshake_timeout)
-                            .ConfigureAwait(false);
+                                timeout: _this.parm_handshake_timeout);
+
+                        if (readTask.IsCompletedSuccessfully)
+                            bytesRead += readTask.Result;
+                        else
+                            bytesRead += await readTask.ConfigureAwait(false);
+                        
                         //} while (
                         //    !Zeroed() &&
                         //    bytesRead < _handshakeResponseSize &&

@@ -50,7 +50,7 @@ namespace zero.cocoon.events.services
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AddEvent(AutoPeerEvent newAutoPeerEvent)
         {
-            //return;
+            return;
             if (_operational > 0 || QueuedEvents.Count < 100000)
             {
                 newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

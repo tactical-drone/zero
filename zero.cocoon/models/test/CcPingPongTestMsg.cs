@@ -282,9 +282,12 @@ namespace zero.cocoon.models.test
                         //if (Id % 10 == 0)
                         await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
 
-                        var sentTask = await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false);
-                        
-                        if (sentTask > 0)
+                        var sentTask = ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize);
+
+                        if (!sentTask.IsCompletedSuccessfully)
+                            await sentTask.ConfigureAwait(false);
+
+                        if (sentTask.Result > 0)
                         {
                             Interlocked.Add(ref ((CcDrone) IoZero).AccountingBit, 2);
                         }

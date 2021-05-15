@@ -237,7 +237,7 @@ namespace zero.core.network.ip
         /// <param name="endPoint">endpoint when required by the socket</param>
         /// <param name="timeout">Send timeout</param>
         /// <returns></returns>
-        public abstract ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
+        public abstract ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0);
 
         /// <summary>
         /// Reads a message from the socket
@@ -249,7 +249,7 @@ namespace zero.core.network.ip
         /// <param name="blacklist"></param>
         /// <param name="timeout">Sync read with timout</param>
         /// <returns>The amounts of bytes read</returns>
-        public abstract ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, IPEndPoint remoteEp = null, byte[] blacklist = null, int timeout = 0);
+        public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp = null, byte[] blacklist = null, int timeout = 0);
 
         /// <summary>
         /// Connection status

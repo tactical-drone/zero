@@ -246,7 +246,11 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if (await((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(buf, 0, buf.Length).ConfigureAwait(false) > 0)
+                        var sentTask = ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(buf, 0, buf.Length);
+                        if (!sentTask.IsCompletedSuccessfully)
+                            await sentTask.ConfigureAwait(false);
+
+                        if(sentTask.Result > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent

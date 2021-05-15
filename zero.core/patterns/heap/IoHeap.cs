@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Runtime;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -125,7 +126,7 @@ namespace zero.core.patterns.heap
                 // to zero eventually?
                 _buffer.ToList().ForEach(h=>
                 {
-                    if (zeroAction != null) zeroAction(h);
+                    zeroAction?.Invoke(h);
                 });
                 _buffer.Clear();
             }
@@ -139,6 +140,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="T"/></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Take(out T item, object userData = null)
         {
             try
@@ -184,7 +186,9 @@ namespace zero.core.patterns.heap
         /// Returns an item to the heap
         /// </summary>
         /// <param name="item">The item to be returned to the heap</param>
-        public void Return(T item)
+        /// <param name="destroy">Whether to destroy this object</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Return(T item, bool destroy = false)
         {
 #if DEBUG
             // if (item == null)
@@ -193,8 +197,12 @@ namespace zero.core.patterns.heap
             try
             {
                 IoFpsCounter.Tick();
-                _buffer.Add(item);
-                Interlocked.Add(ref ReferenceCount, -1);
+                if (!destroy)
+                    _buffer.Add(item);
+                else
+                    Interlocked.Decrement(ref CurrentHeapSize);
+
+                Interlocked.Decrement(ref ReferenceCount);
             }
             catch (NullReferenceException)
             {

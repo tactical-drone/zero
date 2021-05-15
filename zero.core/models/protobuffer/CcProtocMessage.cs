@@ -150,7 +150,14 @@ namespace zero.core.models.protobuffer
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational && !Zeroed())
                         {
-                            int rx = await ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize, _this._remoteEp).ConfigureAwait(false);
+                            var rxTask = ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize, _this._remoteEp);
+
+                            int rx;
+
+                            if (rxTask.IsCompletedSuccessfully)
+                                rx = rxTask.Result;
+                            else
+                                rx = await rxTask.ConfigureAwait(false);
 
                             //var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
                             //await readTask.OverBoostAsync().ConfigureAwait(false);

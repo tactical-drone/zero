@@ -724,7 +724,7 @@ namespace zero.cocoon.autopeer
             if (CcCollective.Neighbors.TryGetValue(Key, out var existingNeighbor))
             {
                 if(IsDroneConnected)
-                    _logger.Fatal("DROPPED!------------------------");
+                    _logger.Fatal("Drone was connected...");
                 //await existingNeighbor.ZeroAsync(new IoNanoprobe("Dropped because reconnect?")).ConfigureAwait(false);
                 return false;
             }
@@ -1216,17 +1216,18 @@ namespace zero.cocoon.autopeer
                     sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
                         .ConfigureAwait(false);
                 }
+
+                return sent;
 #else
-                var sent = await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
+                return await MessageService.IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length, dest.IpEndPoint)
                     .ConfigureAwait(false);
 #endif
                 
 #if DEBUG
                 //await sent.OverBoostAsync().ConfigureAwait(false);
-                _logger.Trace(
-                    $"=/> {Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
+                //_logger.Trace(
+                //    $"=/> {Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
 #endif
-                return sent;
             }
             catch (NullReferenceException e)
             {
@@ -1869,7 +1870,7 @@ namespace zero.cocoon.autopeer
                     else
                     {
                         if (Collected)
-                            _logger.Debug($"-/> {nameof(Ping)}: [FAILED], {Description}");
+                            _logger.Error($"-/> {nameof(Ping)}: [FAILED], {Description}");
                         return false;
                     }
                 }
@@ -1903,7 +1904,7 @@ namespace zero.cocoon.autopeer
                     else
                     {
                         if (!router.Zeroed() && !router.MessageService.Zeroed())
-                            _logger.Debug($"-/> {nameof(SendPingAsync)}:(X) [FAILED], {Description}");
+                            _logger.Error($"-/> {nameof(SendPingAsync)}:(X) [FAILED], {Description}");
                         return false;
                     }
                 }

@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
-using zero.core.patterns.bushes.contracts;
 using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.core.network.ip
@@ -214,18 +211,22 @@ namespace zero.core.network.ip
         /// <param name="offset">The offset into the buffer to start reading from</param>
         /// <param name="length">The length of the data to be sent</param>
         /// <param name="endPoint">not used</param>
+        /// <param name="timeout"></param>
         /// <returns>The amount of bytes sent</returns>
-        public override ValueTask<int> SendAsync(ArraySegment<byte> buffer, int offset, int length, EndPoint endPoint = null, int timeout = 0)
+        public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
+            EndPoint endPoint = null, int timeout = 0)
         {
             try
             {
                 if (timeout == 0)
                 {
-                    return NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
+                    return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
                 }
 
                 NativeSocket.SendTimeout = timeout;
-                return ValueTask.FromResult(NativeSocket.Send(buffer.Array!, offset, length, SocketFlags.None));
+                var sent = NativeSocket.Send(buffer.ToArray(), offset, length, SocketFlags.None);
+                NativeSocket.SendTimeout = 0;
+                return sent; //TODO optimize copy
             }
             catch (NullReferenceException e) {_logger.Trace(e, Description);}
             catch (TaskCanceledException e) {_logger.Trace(e, Description);}
@@ -240,8 +241,8 @@ namespace zero.core.network.ip
                 _logger.Error(e, $"Send failed: {Description}");
             }
 
-            ZeroAsync(this).ConfigureAwait(false);
-            return ValueTask.FromResult(0);
+            await ZeroAsync(this).ConfigureAwait(false);
+            return 0;
         }
 
         /// <inheritdoc />
@@ -255,18 +256,25 @@ namespace zero.core.network.ip
         /// <param name="blacklist"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override ValueTask<int> ReadAsync(ArraySegment<byte> buffer, int offset, int length, IPEndPoint remoteEp = null,
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp = null,
             byte[] blacklist = null, int timeout = 0) //TODO can we go back to array buffers?
         {
             try
             {
+                //fast path: no timeout
                 if (timeout == 0)
                 {
-                    return NativeSocket.ReceiveAsync(buffer.Slice(offset, length),  SocketFlags.None,AsyncTasks.Token);
+                    return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
                 }
 
-                NativeSocket.ReceiveTimeout = timeout;
-                return ValueTask.FromResult(NativeSocket.Receive(buffer.Array!, offset, length, SocketFlags.None));
+                //slow path: timeout
+                if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>) buffer, out var buf))
+                {
+                    NativeSocket.ReceiveTimeout = timeout;
+                    var read = NativeSocket.Receive(buf.Array!, offset, length, SocketFlags.None);
+                    NativeSocket.ReceiveTimeout = 0;
+                    return read;
+                }
             }
             catch (NullReferenceException e) { _logger.Trace(e, Description);}
             catch (TaskCanceledException e) { _logger.Trace(e, Description);}
@@ -278,15 +286,15 @@ namespace zero.core.network.ip
                 _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
 #endif
                 _logger.Trace(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
-                ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).ConfigureAwait(false);
+                await ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).ConfigureAwait(false);
             }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to read from socket {Description}, length = `{length}', offset = `{offset}' :");
-                ZeroAsync(this).ConfigureAwait(false);
+                await ZeroAsync(this).ConfigureAwait(false);
             }
 
-            return ValueTask.FromResult(0);
+            return 0;
         }
 
         private readonly byte[] _sentinelBuffer = new byte[0];

@@ -220,8 +220,11 @@ namespace zero.cocoon.models
                                 if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
                                     return;
 
-                                var sentTask = await source.IoNetSocket.SendAsync(buf, 0, buf.Length).ConfigureAwait(false);
-                                if (sentTask <= 0)
+                                var sentTask = source.IoNetSocket.SendAsync(buf, 0, buf.Length);
+                                if (!sentTask.IsCompletedSuccessfully)
+                                    await sentTask.ConfigureAwait(false);
+
+                                if (sentTask.Result <= 0)
                                 {
                                     _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
                                 }
