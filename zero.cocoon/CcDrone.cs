@@ -188,7 +188,7 @@ namespace zero.cocoon
             {
                 _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to neighbor {Adjunct.Description}");
                 
-                //var t = StartTestModeAsync();
+                //var t = EmitTestGossipMsgAsync();
             }
             else
             {
@@ -221,7 +221,7 @@ namespace zero.cocoon
         /// <summary>
         /// A test mode
         /// </summary>
-        public async ValueTask StartTestModeAsync(long v)
+        public async ValueTask EmitTestGossipMsgAsync(long v)
         {
             try
             {
@@ -234,7 +234,7 @@ namespace zero.cocoon
                 //if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
                 //    return;
             
-                if (Adjunct?.Direction == CcAdjunct.Heading.Egress)
+                //if (Adjunct?.Direction == CcAdjunct.Heading.Egress)
                 {
 
                     var vb = new byte[8];

@@ -903,7 +903,7 @@ namespace zero.cocoon
             }
         }
 
-        private static int _lambda = 10;
+        private static int _lambda = 100;
         private Poisson _poisson = new Poisson(_lambda);
         /// <summary>
         /// Boots the node
@@ -912,17 +912,16 @@ namespace zero.cocoon
         {
             Interlocked.Exchange(ref Testing, 1);
             var s = 0;
-            foreach (var ioNeighbor in Neighbors.Values)
+            foreach (var ioNeighbor in Drones)
             {
-                
-                if ((s = _poisson.Sample()) < 25)
+                if ((s = _poisson.Sample()) < _lambda)
                 {
                     //Console.Write($"[{s}]");
                     continue;
                 }
                 try
                 {
-                    await ((CcDrone) ioNeighbor).StartTestModeAsync(v).ConfigureAwait(false);
+                    await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).ConfigureAwait(false);
                     return true;
                 }
                 catch (Exception e)

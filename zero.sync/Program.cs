@@ -71,15 +71,26 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            int total = 600;
+            var total = 2000;
             var maxDrones = 8;
             var maxAdjuncts = 16;
-            var tasks = new ConcurrentBag<Task<CcCollective>>();
+            var tasks = new ConcurrentBag<Task<CcCollective>>
+            {
+                CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{14627}",
+                    $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{14627}", new[] {$"udp://127.0.0.1:{14626}"}.ToList(),
+                    0),
+                CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15670 + portOffset}",
+                    $"udp://127.0.0.1:{15630 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}",
+                    $"udp://127.0.0.1:{15630 + portOffset}",
+                    new[]
+                    {
+                        $"udp://127.0.0.1:{14627}", $"udp://127.0.0.1:{14627 + portOffset}",
+                        $"udp://127.0.0.1:{15631 + portOffset}"
+                    }.ToList(), 1)
+            };
 
             //tasks.Add(CoCoonAsync(CcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}", $"udp://127.0.0.1:{14626}" }.ToList(), 0));
-            tasks.Add(CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{14627}", $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{14627}", new[] { $"udp://127.0.0.1:{14626}" }.ToList(), 0));
 
-            tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15670 + portOffset}", $"udp://127.0.0.1:{15630 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{15630 + portOffset}", new[] { $"udp://127.0.0.1:{14627}", $"udp://127.0.0.1:{14627 + portOffset}", $"udp://127.0.0.1:{15631 + portOffset}" }.ToList(), 1));
 
             for (var i = 2; i < total; i++)
             {
@@ -117,9 +128,14 @@ namespace zero.sync
                     c++;
                 }
 
-                await Task.Delay(100 * total);
-                //await Task.Delay(10000);
+                await Task.Delay(200 * total);
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
+                Console.WriteLine($"Starting accounting... {tasks.Count}");
+                Console.WriteLine($"Starting accounting... {tasks.Count}");
+                Console.WriteLine($"Starting accounting... {tasks.Count}");
+                Console.WriteLine($"Starting accounting... {tasks.Count}");
+                Console.WriteLine($"Starting accounting... {tasks.Count}");
+
                 c = 0;
                 long v = 0;
                 while (_running)
@@ -141,7 +157,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(200).ConfigureAwait(false);
+                    await Task.Delay(100).ConfigureAwait(false);
                 }
                 
             });
