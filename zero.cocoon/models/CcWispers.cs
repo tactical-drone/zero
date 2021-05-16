@@ -195,6 +195,11 @@ namespace zero.cocoon.models
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
                     ConcurrentBag<string> dupEndpoints = null;
 
+                    if (CcCollective.DupChecker.Count > 100)
+                    {
+                        CcCollective.DupChecker.Clear();
+                    }
+
                     //set this message as seen if seen before
                     Func<bool> dupcheck = () =>
                     {
