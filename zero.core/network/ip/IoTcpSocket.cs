@@ -234,11 +234,13 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException e) {_logger.Trace(e, Description);}
             catch (SocketException e)
             {
-                _logger.Error(e, $"Send failed: {Description}");
+                if(!Zeroed())
+                    _logger.Error(e, $"Send failed: {Description}");
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Send failed: {Description}");
+                if (!Zeroed())
+                    _logger.Error(e, $"Send failed: {Description}");
             }
 
             await ZeroAsync(this).ConfigureAwait(false);

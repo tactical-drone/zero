@@ -253,13 +253,13 @@ namespace zero.cocoon.models
                             }
                             catch (Exception e)
                             {
-                                //_logger.Trace(e);
+                                _logger.Trace(e);
                             }
                         }
 
                         await Task.Delay(_random.Next(100) + 10).ConfigureAwait(false);
 
-                        await CcCollective.WisperingDrones.ForEachAsync(d=>
+                        await CcCollective.WisperingDrones.ForEachAsync(d =>
                         {
                             ForwardMessage(d);
                             return ValueTask.CompletedTask;
