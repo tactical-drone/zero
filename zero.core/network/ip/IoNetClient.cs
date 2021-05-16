@@ -173,7 +173,8 @@ namespace zero.core.network.ip
             }
             catch (Exception e)
             {
-                _logger.Error(e,$"Source `{Description}' callback failed:");
+                if(!Zeroed())
+                    _logger.Error(e,$"Source `{Description}' callback failed:");
                 return false;
             }
         }

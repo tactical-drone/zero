@@ -142,7 +142,11 @@ namespace zero.cocoon.models
                     try
                     {
                         wispers = CcWisperMsg.Parser.ParseFrom(readOnlySequence);
+                        if (wispers == null)
+                            break;
+
                         read = wispers.CalculateSize();
+                        Interlocked.Add(ref BytesRead, read);
                     }
                     catch (Exception e)
                     {
@@ -182,7 +186,7 @@ namespace zero.cocoon.models
                     }
 
                     //Sanity check the data
-                    if (wispers == null || wispers.Data == null || wispers.Data.Length == 0)
+                    if (wispers.Data == null || wispers.Data.Length == 0)
                     {
                         continue;
                     }
@@ -263,35 +267,6 @@ namespace zero.cocoon.models
                             _logger.Fatal($"Unexpected: source drone {endpoint} not found");
                         }
                     }
-
-                    //switch ((MessageTypes)packet.Type)
-                    //{
-                    //    case MessageTypes.Ping:
-                    //        await ProcessRequestAsync<Ping>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.Pong:
-                    //        await ProcessRequestAsync<Pong>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.DiscoveryRequest:
-                    //        await ProcessRequestAsync<DiscoveryRequest>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.DiscoveryResponse:
-                    //        await ProcessRequestAsync<DiscoveryResponse>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.PeeringRequest:
-                    //        await ProcessRequestAsync<PeeringRequest>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.PeeringResponse:
-                    //        await ProcessRequestAsync<PeeringResponse>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    case MessageTypes.PeeringDrop:
-                    //        await ProcessRequestAsync<PeeringDrop>(packet).ConfigureAwait(false);
-                    //        break;
-                    //    default:
-                    //        _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
-                    //        break;
-                    //}
-
                 }
 
                 //Release a waiter

@@ -138,16 +138,17 @@ namespace zero.core.models.protobuffer
                 await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var _this = (CcProtocMessage<TModel, TBatch>)ioJob;
-                    //----------------------------------------------------------------------------
-                    // BARRIER
-                    // We are only allowed to run ahead of the consumer by some configurable
-                    // amount of steps. Instead of say just filling up memory buffers.
-                    // This allows us some kind of (anti DOS?) congestion control
-                    //----------------------------------------------------------------------------
-                    if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
-                        return false;
                     try
                     {
+                        //----------------------------------------------------------------------------
+                        // BARRIER
+                        // We are only allowed to run ahead of the consumer by some configurable
+                        // amount of steps. Instead of say just filling up memory buffers.
+                        // This allows us some kind of (anti DOS?) congestion control
+                        //----------------------------------------------------------------------------
+                        if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
+                            return false;
+                    
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational && !Zeroed())
                         {

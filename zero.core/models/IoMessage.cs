@@ -153,13 +153,14 @@ namespace zero.core.models
             var p = (IoMessage<TJob>)PreviousJob;
             try
             {
-                var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
-                Interlocked.Add(ref BufferOffset, -bytesToTransfer);
-                Interlocked.Add(ref BytesRead, bytesToTransfer);
+                var bytesLeft = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
+                Interlocked.Add(ref BufferOffset, -bytesLeft);
+                Interlocked.Add(ref BytesRead, bytesLeft);
+
+                Array.Copy(p.Buffer, p.BufferOffset + BytesRead, Buffer, BufferOffset, bytesLeft);
 
                 UpdateBufferMetaData();
-
-                Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0), Buffer, BufferOffset, bytesToTransfer);
+                DatumFragmentLength = 0;
             }
             catch (Exception) // we de-synced 
             {
