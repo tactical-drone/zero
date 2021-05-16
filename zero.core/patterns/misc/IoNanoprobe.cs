@@ -52,8 +52,9 @@ namespace zero.core.patterns.misc
         /// </summary>
         ~IoNanoprobe()
         {
-            ZeroedFrom = new IoNanoprobe("Destructor");
-            ZeroAsync(false).ConfigureAwait(false); //.GetAwaiter().GetResult();
+#pragma warning disable 4014
+            ZeroAsync(false); //.GetAwaiter().GetResult();
+#pragma warning restore 4014
         }
 
         /// <summary>
@@ -136,7 +137,9 @@ namespace zero.core.patterns.misc
         public void Dispose()
         {
             ZeroedFrom = new IoNanoprobe("Dispose");
-            ZeroAsync(true).ConfigureAwait(false); //.GetAwaiter().GetResult();
+#pragma warning disable 4014
+            ZeroAsync(true);
+#pragma warning restore 4014
             GC.SuppressFinalize(this);
         }
 
@@ -268,7 +271,6 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Our dispose implementation
         /// </summary>
-        /// <param name="disposing">Whether we are disposing unmanaged objects</
         [MethodImpl(MethodImplOptions.AggressiveInlining)] 
         private async ValueTask ZeroAsync(bool disposing)
         {
@@ -320,37 +322,37 @@ namespace zero.core.patterns.misc
 
                 @this.CascadeTime = DateTimeOffset.Now.Ticks;
 
-                //Dispose managed
-                try
+                if (isDisposing)
                 {
-                    await @this.ZeroManagedAsync().ConfigureAwait(false);
-                }
-                //catch (NullReferenceException) { }
-                catch (Exception e)
-                {
-                    _logger.Error(e, $"[{@this.ToString()}] {nameof(@this.ZeroManagedAsync)} returned with errors!");
+                    //Dispose managed
+                    try
+                    {
+                        await @this.ZeroManagedAsync().ConfigureAwait(false);
+                    }
+                    //catch (NullReferenceException) { }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, $"[{@this.ToString()}] {nameof(@this.ZeroManagedAsync)} returned with errors!");
+                    }
                 }
 
                 //Dispose unmanaged
-                if (isDisposing)
+                try
                 {
-                    try
-                    {
-                        @this.AsyncTasks.Dispose();
+                    @this.AsyncTasks.Dispose();
 
-                        @this.ZeroUnmanaged();
+                    @this.ZeroUnmanaged();
 
-                        @this.AsyncTasks = null;
-                        //@this.ZeroedFrom = null;
-                        @this._zeroSubs = null;
-                    }
-                    catch (NullReferenceException)
-                    {
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Error(e, $"ZeroAsync [Un]managed errors: {@this.Description}");
-                    }
+                    @this.AsyncTasks = null;
+                    //@this.ZeroedFrom = null;
+                    @this._zeroSubs = null;
+                }
+                catch (NullReferenceException)
+                {
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"ZeroAsync [Un]managed errors: {@this.Description}");
                 }
 
                 @this.TearDownTime = DateTime.Now.Ticks;

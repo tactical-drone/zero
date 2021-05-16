@@ -508,6 +508,13 @@ namespace zero.cocoon.autopeer
         public uint parm_protocol_version = 0;
 
         /// <summary>
+        /// udp concurrency level
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_udp_concurrency_level = 1;
+
+        /// <summary>
         /// Handle to peer zero sub
         /// </summary>
         private IoZeroSub _zeroSub;
@@ -1356,8 +1363,7 @@ namespace zero.cocoon.autopeer
             CcAdjunct newAdjunct = null;
 
             var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>(MessageService, newRemoteEp);
-            newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source,
-                Tuple.Create(id, services, newRemoteEp));
+            newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source, Tuple.Create(id, services, newRemoteEp));
 
             if (await Hub.ZeroAtomicAsync(async (s, u, ___) =>
             {

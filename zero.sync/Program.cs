@@ -115,7 +115,7 @@ namespace zero.sync
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
                     if (c % 50 == 0)
                     {
-                        await Task.Delay(rateLimit += 100).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 200).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");

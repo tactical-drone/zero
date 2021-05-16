@@ -47,7 +47,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
+            _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, parm_max_neighbor_pc_threads), true).target;
 
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -397,6 +397,13 @@ namespace zero.cocoon
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_outbound = 4;
+
+        /// <summary>
+        /// Max inbound neighbors
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_neighbor = 16;
 
         /// <summary>
         /// Protocol version

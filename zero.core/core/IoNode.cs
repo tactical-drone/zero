@@ -90,7 +90,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_max_neighbor_pc_threads = 3;
+        protected int parm_max_neighbor_pc_threads = 2;
 
         /// <summary>
         /// Threads per neighbor

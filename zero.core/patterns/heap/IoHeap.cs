@@ -92,13 +92,6 @@ namespace zero.core.patterns.heap
                         break;
                     Interlocked.Decrement(ref CurrentHeapSize);
                 }
-
-                //Do some compaction
-                if (collect)
-                {
-                    GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-                    GC.Collect(GC.MaxGeneration);
-                }                
             }
         }
 

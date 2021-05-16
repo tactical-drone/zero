@@ -26,8 +26,9 @@ namespace zero.cocoon
         /// <param name="node">The node this peer belongs to </param>
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
+        /// <param name="concurrencyLevel"></param>
         public CcDrone(IoNode<CcProtocMessage<CcWisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> ioNetClient)
+            IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> ioNetClient, int concurrencyLevel = 1)
             : base(node, ioNetClient,
                 userData => new CcWispers("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
                     ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
