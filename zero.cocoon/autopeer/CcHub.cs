@@ -39,7 +39,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// the logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Description
@@ -68,6 +68,7 @@ namespace zero.cocoon.autopeer
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
+            _logger = null;
             CcCollective = null;
             Router = null;
 #endif

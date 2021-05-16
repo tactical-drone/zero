@@ -33,7 +33,7 @@ namespace zero.core.core
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// The node this neighbor belongs to
@@ -54,6 +54,7 @@ namespace zero.core.core
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             Node = null;
 #endif
         }

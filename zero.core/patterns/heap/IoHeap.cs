@@ -45,7 +45,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Logger
         /// </summary>
-        private static readonly Logger _logger;
+        private static Logger _logger;
 
         /// <summary>
         /// The heap buffer space
@@ -101,6 +101,7 @@ namespace zero.core.patterns.heap
         public void ZeroUnmanaged()
         {
 #if SAFE_RELEASE
+            _logger = null;
             _buffer = null;
             Make = null;
 #endif

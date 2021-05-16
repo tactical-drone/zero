@@ -313,6 +313,7 @@ namespace zero.sync
             GC.Collect(GC.MaxGeneration);
 
             var s = host.StopAsync();
+            LogManager.Shutdown();
             Console.WriteLine("##");
 
             Console.ReadLine();

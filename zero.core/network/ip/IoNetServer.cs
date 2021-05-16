@@ -41,7 +41,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// The listening address of this server
@@ -194,6 +194,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             ListeningAddress = null;
             IoListenSocket = null;
             _connectionAttempts = null;

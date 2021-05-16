@@ -126,7 +126,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// logger
         /// </summary>
-        private readonly ILogger _logger;
+        private ILogger _logger;
 
         /// <summary>
         /// Indicates whether jobs are being processed
@@ -223,6 +223,7 @@ namespace zero.core.patterns.bushes
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             Source = null;
             JobHeap = null;
             _queue = null;

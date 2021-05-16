@@ -96,7 +96,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Batch of messages
@@ -128,6 +128,7 @@ namespace zero.cocoon.models
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
+            _logger = null;
             _protocolMsgBatch = null;
             _arrayPool = null;
 #endif

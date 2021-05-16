@@ -38,7 +38,7 @@ namespace zero.core.core
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// The listening address of this node
@@ -90,7 +90,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_max_neighbor_pc_threads = 2;
+        protected int parm_max_neighbor_pc_threads = 3;
 
         /// <summary>
         /// Threads per neighbor
@@ -419,6 +419,7 @@ namespace zero.core.core
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             Neighbors = null;
             NeighborTasks = null;
             _netServer = null;

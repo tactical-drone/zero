@@ -46,7 +46,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// A dictionary of downstream channels
@@ -171,6 +171,7 @@ namespace zero.core.patterns.bushes
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             _pressure = null;
             _backPressure = null;
             _prefetchPressure = null;

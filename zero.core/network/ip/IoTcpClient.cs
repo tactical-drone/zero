@@ -17,7 +17,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
@@ -60,6 +60,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             IoNetSocket = null;
             IoConduits = null;
 #endif

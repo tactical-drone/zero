@@ -49,7 +49,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         //Socket description 
         public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
@@ -196,6 +196,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             LocalNodeAddress = null;
             RemoteNodeAddress = null;
             NativeSocket = null;

@@ -40,7 +40,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            
+            _logger = null;
 #endif
         }
 
@@ -55,7 +55,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Starts a TCP listener

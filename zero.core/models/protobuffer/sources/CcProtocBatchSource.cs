@@ -47,7 +47,7 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Shared heap
@@ -95,6 +95,7 @@ namespace zero.core.models.protobuffer.sources
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             _queuePressure = null;
             _queueBackPressure = null;
             MessageQueue = null;

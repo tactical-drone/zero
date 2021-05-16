@@ -103,10 +103,13 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             _argsIoHeap = null;
             _argsIoHeapOnce = null;
             _tcsHeap = null;
             RemoteNodeAddress = null;
+            _sendSync = null;
+            _rcvSync = null;
 #endif
         }
 
@@ -118,14 +121,23 @@ namespace zero.core.network.ip
             _argsIoHeap.ZeroManaged(o =>
             {
                 o.Completed -= Signal;
+                o.UserToken = null;
+                o.RemoteEndPoint = null;
                 ((IDisposable) o).Dispose();
             });
+
             _argsIoHeapOnce.ZeroManaged(o =>
             {
                 o.Completed -= Signal;
+                o.UserToken = null;
+                o.RemoteEndPoint = null;
                 ((IDisposable) o).Dispose();
             });
+
             _tcsHeap.ZeroManaged(o => o.Zero());
+
+            _sendSync.Zero();
+            _rcvSync.Zero();
 
             return base.ZeroManagedAsync();
         }

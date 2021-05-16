@@ -58,7 +58,7 @@ namespace zero.cocoon
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         
         /// <summary>
@@ -151,6 +151,7 @@ namespace zero.cocoon
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
+            _logger = null;
             IoNetClient = null;
             Adjunct = null;
 #endif

@@ -36,7 +36,7 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Message batch broadcast channel
@@ -115,6 +115,7 @@ namespace zero.core.models.protobuffer
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
+            _logger = null;
             ProducerExtraData = null;
             ProtocolConduit = null;
 #endif

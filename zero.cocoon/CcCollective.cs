@@ -246,6 +246,7 @@ namespace zero.cocoon
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
+            _logger = null;
             _autoPeering = null;
             _autoPeeringTask = null;
             CcId = null;
@@ -281,7 +282,7 @@ namespace zero.cocoon
             });
         }
 
-        private readonly Logger _logger;
+        private Logger _logger;
 
         private string _description;
         public override string Description

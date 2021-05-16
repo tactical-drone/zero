@@ -65,7 +65,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// logger
         /// </summary>
-        private readonly Logger _logger;
+        private Logger _logger;
 
         /// <summary>
         /// Keys this instance.
@@ -110,6 +110,7 @@ namespace zero.core.network.ip
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
+            _logger = null;
             IoNetSocket = null;
 #endif
         }
