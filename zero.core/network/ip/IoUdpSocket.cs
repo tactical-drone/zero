@@ -403,11 +403,17 @@ namespace zero.core.network.ip
                         args.UserToken = null;
                         args.AcceptSocket = null;
                         args.RemoteEndPoint = null;
-                        args.SetBuffer(null, 0, 0);
-                        //_argsIoHeapOnce.Return(args, args.SocketError != SocketError.Success || args.Disposed);
-                        args.Completed -= Signal;
-                        args.Dispose();
-                        _argsIoHeapOnce.Return(args, true);
+                        //args.SetBuffer(null, 0, 0);
+                        var dispose = args.SocketError != SocketError.Success || args.Disposed;
+
+                        if (dispose && !args.Disposed)
+                        {
+                            args.Completed -= Signal;
+                            args.Dispose();
+                        }
+
+                        _argsIoHeapOnce.Return(args, dispose);
+
                         _tcsHeap.Return(tcs);
                     }
                 }
@@ -492,20 +498,18 @@ namespace zero.core.network.ip
                 if (timeout == 0)
                 {
                     _argsIoHeap.Take(out var args);
-
-                    //var args = new SocketAsyncEventArgs();
-                    //args.Completed += Signal;
-
-                    if (args == null)
-                        throw new OutOfMemoryException(nameof(_argsIoHeap));
-
                     _tcsHeap.Take(out var tcs);
-
-                    if (tcs == null)
-                        throw new OutOfMemoryException(nameof(_tcsHeap));
-
                     try
                     {
+                        //var args = new SocketAsyncEventArgs();
+                        //args.Completed += Signal;
+
+                        if (args == null)
+                            throw new OutOfMemoryException(nameof(_argsIoHeap));
+
+                        if (tcs == null)
+                            throw new OutOfMemoryException(nameof(_tcsHeap));
+
                         //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var buf2))
                         {
                             args.AcceptSocket = null;
@@ -591,9 +595,14 @@ namespace zero.core.network.ip
                         
                         //args.SetBuffer(null, 0, 0);
 
-                        _argsIoHeap.Return(args, args.SocketError != SocketError.Success);
-                        //args.Completed -= Signal;
-                        //args.Dispose();
+                        var dispose = args.SocketError != SocketError.Success;
+                        if (dispose)
+                        {
+                            args.Completed -= Signal;
+                            args.Dispose();
+                        }
+
+                        _argsIoHeap.Return(args, dispose);
 
                         _tcsHeap.Return(tcs);
                         _argsIoHeap.Return(args, true);

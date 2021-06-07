@@ -931,7 +931,6 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0)
         {
-            return true;
             Interlocked.Exchange(ref Testing, 1);
             var s = 0;
             foreach (var ioNeighbor in Drones)
