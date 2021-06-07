@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
@@ -33,12 +34,28 @@ namespace zero.core.models
             //        Buffer = new sbyte[BufferSize];
             //    }                    
             //};            
-        }        
+        }
+
+
+        /// <summary>
+        /// buffer owner
+        /// </summary>
+        public IMemoryOwner<sbyte> MemoryOwner;
 
         /// <summary>
         /// A buffer to receive the message in
         /// </summary>
         public sbyte[] Buffer;
+
+        /// <summary>
+        /// A clone
+        /// </summary>
+        public byte[] BufferClone;
+
+        /// <summary>
+        /// A memory clone
+        /// </summary>
+        public Memory<byte> BufferCloneMemory;
 
         /// <summary>
         /// A <see cref="byte"/> span of the input buffer
@@ -56,10 +73,25 @@ namespace zero.core.models
         public ArraySegment<byte> ByteSegment { get; protected set; }
 
         /// <summary>
+        /// A memory buffer
+        /// </summary>
+        public Memory<byte> MemoryBuffer { get; protected set; }
+
+        /// <summary>
+        /// Pins the memory
+        /// </summary>
+        public MemoryHandle MemoryBufferPin { get; protected set; }
+
+        /// <summary>
         /// Stream access to the input
         /// </summary>
-        public Stream ByteStream => new MemoryStream(ByteBuffer, BufferOffset, BytesLeftToProcess);
+        public Stream ByteStream;
 
+        /// <summary>
+        /// Coded Stream
+        /// </summary>
+        public CodedInputStream CodedStream;
+        
         /// <summary>
         /// Read only sequence wrapped for protobuf API
         /// </summary>
@@ -146,9 +178,9 @@ namespace zero.core.models
         /// <summary>
         /// Handle fragments
         /// </summary>
-        private void TransferPreviousBits()
+        protected void TransferPreviousBits()
         {
-            if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
+            if (!IoZero.SupportsSync || !(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
             var p = (IoMessage<TJob>)PreviousJob;
             try
@@ -157,10 +189,16 @@ namespace zero.core.models
                 Interlocked.Add(ref BufferOffset, -bytesLeft);
                 Interlocked.Add(ref BytesRead, bytesLeft);
 
-                Array.Copy(p.Buffer, p.BufferOffset + BytesRead, Buffer, BufferOffset, bytesLeft);
+                p.MemoryBuffer.Slice(p.BufferOffset + p.BytesRead - p.BytesLeftToProcess).CopyTo(MemoryBuffer[BufferOffset..]);
+                //Array.Copy(p.Buffer, p.BufferOffset + BytesRead, Buffer, BufferOffset, bytesLeft);
 
-                UpdateBufferMetaData();
-                DatumFragmentLength = 0;
+                //UpdateBufferMetaData();
+                //DatumFragmentLength = 0;
+
+                p.State = IoJobMeta.JobState.Consumed;
+                p.State = IoJobMeta.JobState.Accept;
+
+                _logger.Error($"{Description}: Transferred previous bits size {bytesLeft}");
             }
             catch (Exception) // we de-synced 
             {
@@ -183,7 +221,7 @@ namespace zero.core.models
             DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            StillHasUnprocessedFragments = DatumFragmentLength > 0;
+            StillHasUnprocessedFragments = DatumFragmentLength > 0 && IoZero.SupportsSync;
         }
     }
 }

@@ -475,7 +475,14 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override string ToString()
         {
-            return Description;
+            try
+            {
+                return Description??GetHashCode().ToString();
+            }
+            catch
+            {
+                return GetHashCode().ToString();
+            }
         }
     }
 }

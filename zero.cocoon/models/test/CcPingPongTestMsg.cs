@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.IO;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -43,6 +44,7 @@ namespace zero.cocoon.models.test
                 Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
                 ByteSegment = ByteBuffer;
                 ReadOnlySequence = new ReadOnlySequence<byte>(ByteBuffer);
+                ByteStream = new MemoryStream(ByteBuffer);
             }
         }
 
@@ -146,9 +148,9 @@ namespace zero.cocoon.models.test
 
                             //slow path
                             if (!readTask.IsCompletedSuccessfully)
-                                _this.BytesRead = await readTask.ConfigureAwait(false);
+                                Interlocked.Add(ref _this.BytesRead, await readTask.ConfigureAwait(false));
                             else
-                                _this.BytesRead = readTask.Result;
+                                Interlocked.Add(ref _this.BytesRead, readTask.Result);
 
                             //TODO WTF
                             if (_this.BytesRead == 0)

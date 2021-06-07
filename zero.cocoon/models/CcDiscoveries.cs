@@ -2,8 +2,10 @@
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,16 +21,18 @@ using zero.core.models.protobuffer;
 using zero.core.models.protobuffer.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.heap;
 
 namespace zero.cocoon.models
 {
     public class CcDiscoveries : CcProtocMessage<Packet, CcDiscoveryBatch>
     {
-        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
+        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
             _logger = LogManager.GetCurrentClassLogger();
-
+            _concurrencyLevel = concurrencyLevel;
             _protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(parm_max_msg_batch_size);
+            _batchHeap = new IoHeap<CcDiscoveryBatch>(concurrencyLevel + 1) {Make = o => new CcDiscoveryBatch()};
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -40,7 +44,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, _concurrencyLevel);
                     if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<Packet, CcDiscoveryBatch[]>), channelSource))
                     {
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
@@ -54,7 +58,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource, -1 /*We block to control congestion*/),
-                        Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
+                        _concurrencyLevel, _concurrencyLevel
                     );
 
                     //get reference to a central mem pool
@@ -104,10 +108,20 @@ namespace zero.cocoon.models
         private volatile CcDiscoveryBatch[] _protocolMsgBatch;
 
         /// <summary>
+        /// Batch heap items
+        /// </summary>
+        private IoHeap<CcDiscoveryBatch> _batchHeap;
+
+        /// <summary>
         /// message heap
         /// </summary>
         private ArrayPool<CcDiscoveryBatch> _arrayPool =
             ArrayPool<CcDiscoveryBatch>.Create();
+
+        /// <summary>
+        /// The concurrency level
+        /// </summary>
+        private int _concurrencyLevel;
 
         public ArrayPool<CcDiscoveryBatch> ArrayPool => _arrayPool;
 
@@ -147,69 +161,155 @@ namespace zero.cocoon.models
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            var readOnlySequence =
-                ReadOnlySequence.Slice(ReadOnlySequence.GetPosition(BufferOffset), ReadOnlySequence.GetPosition(BufferOffset + BytesRead));
+            TransferPreviousBits();
             try
             {
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
 
+                var totalBytesProcessed = 0;
                 var read = 0;
-
                 var verified = false;
-                for (var i = 0; i <= DatumCount && BytesLeftToProcess > 0; i++)
+
+                while (BytesLeftToProcess > 0 && totalBytesProcessed < BytesRead)
                 {
-                    if (DatumCount > 1)
-                    {
-                        _logger.Fatal($"{Description} ----> Datumcount = {DatumCount}");
-                    }
-                    readOnlySequence = readOnlySequence.Slice(readOnlySequence.GetPosition(read), readOnlySequence.GetPosition(BytesRead - read));
+                    //if (DatumCount > 1)
+                    //{
+                    //    _logger.Fatal($"{Description} ----> Datumcount = {DatumCount}");
+                    //}
+
                     Packet packet = null;
-                    
+                    long curPos = 0;
+                    read = 0;
+                    //var s = new MemoryStream(ByteBuffer);
                     //deserialize
                     try
                     {
-                        packet = Packet.Parser.ParseFrom(readOnlySequence);
-                        read = packet.CalculateSize();
+                        ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
+                        ByteStream.SetLength(BufferOffset + BytesLeftToProcess);
+                        curPos = BufferOffset;
+
+                        //trim zeroes
+                        if (IoZero.SupportsSync)
+                        {
+                            bool trimmed = false;
+
+                            while (ByteBuffer[curPos++] == 0 && totalBytesProcessed < BytesRead)
+                            {
+                                read++;
+                                totalBytesProcessed++;
+                                trimmed = true;
+                            }
+
+                            if (totalBytesProcessed == BytesRead)
+                            {
+                                //State = IoJobMeta.JobState.Consumed;
+                                continue;
+                            }
+                                
+
+                            if (trimmed)
+                            {
+                                ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
+                                ByteStream.SetLength(BufferOffset + BytesLeftToProcess - read);
+                                curPos = BufferOffset + read;
+                            }
+                        }
+
+                        //s.Seek(ByteStream.Position, SeekOrigin.Begin);
+                        //s.SetLength(ByteStream.Position + BytesLeftToProcess);
+                        //curPos = s.Position;
+                        //CodedStream = new CodedInputStream(s);
+
+                        //CodedStream = new CodedInputStream(ByteBuffer, BufferOffset, BytesRead);
+                        try
+                        {
+                            packet = Packet.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
+                            read = packet.CalculateSize();
+                        }
+                        catch 
+                        {
+                            try
+                            {
+                                var s = new MemoryStream(ByteBuffer);
+                                s.Seek(ByteStream.Position, SeekOrigin.Begin);
+                                s.SetLength(ByteStream.Position + BytesLeftToProcess);
+                                curPos = s.Position;
+                                CodedStream = new CodedInputStream(s);
+
+                                packet = Packet.Parser.ParseFrom(CodedStream);
+                                read = (int)(CodedStream.Position - curPos);
+                            }
+                            catch 
+                            {
+                                packet = Packet.Parser.ParseFrom(BufferClone.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
+                                read = packet.CalculateSize();
+                                //_logger.Warn("FFF");
+                            }
+                        }
+
+                        totalBytesProcessed += read;
+                        State = IoJobMeta.JobState.Consumed;
                     }
                     catch (Exception e)
                     {
+                        State = IoJobMeta.JobState.ConsumeErr;
+                        read = (int)(CodedStream.Position - curPos);
+                        totalBytesProcessed += read;
+
+                        //sync fragmented datums
+                        if (IoZero.SupportsSync && totalBytesProcessed == BytesRead && State != IoJobMeta.JobState.Consumed)//TODO hacky
+                        {
+                            read = 0;
+                            //State = IoJobMeta.JobState.Consumed;
+                        }
+
                         var tmpBufferOffset = BufferOffset;
-                        Interlocked.Add(ref BufferOffset, (int)read);
 
                         if (!Zeroed() && !MessageService.Zeroed())
-                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
-
-                        if (read > 0)
                         {
-                            continue;
+                            _logger.Debug(e,
+                                $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+
+                            var r = new ReadOnlyMemory<byte>(ByteBuffer);
+                            if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryBuffer, out var seg))
+                            {
+                                ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
+                                ByteStream.SetLength(BufferOffset + BytesRead - read);
+
+                                StringWriter w = new StringWriter();
+                                StringWriter w2 = new StringWriter();
+                                w.Write($"{MemoryBuffer.GetHashCode()}({BytesRead}):");
+                                w2.Write($"{BufferClone.GetHashCode()}({BytesRead}):");
+                                var nullc = 0;
+                                var nulld = 0;
+                                for (var i = 0; i < BytesRead; i++)
+                                {
+                                    w.Write($" {seg[i + BufferOffset]}.");
+                                    w2.Write($" {BufferClone[i + BufferOffset]}.");
+                                }
+
+                                _logger.Debug(w.ToString());
+                                _logger.Warn(w2.ToString());
+                            }
                         }
-                        else
-                            break;
-                    }
 
-                    Interlocked.Add(ref BufferOffset, (int)read);
-
-#if !DEBUG
-                    if (read == 0)
-                    {
                         continue;
                     }
-#endif
-
-                    if (DatumCount > 0)
+                    finally
                     {
-                        if (i == 0 && BytesLeftToProcess > 0)
-                        {
-                            _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}, d = {read}, l = {BytesLeftToProcess}>>");
-                        }
-                        if (i == 1) //&& read > 0)
-                        {
-                            _logger.Debug($"MULTI - READ <<D = {DatumCount}, r = {BytesRead}, d = {read}, l = {BytesLeftToProcess}>>");
-                        }
+                        Interlocked.Add(ref BufferOffset, (int)read);
                     }
 
+                    if (read == 0)
+                        break;
+                    
+                    //if (BytesLeftToProcess > 0)
+                    //{
+                    //    _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}:{read}, T = {totalBytesProcessed}, l = {BytesLeftToProcess}>>");
+                    //}
+                    
                     //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)
                     {
@@ -265,8 +365,6 @@ namespace zero.cocoon.models
 
                 //Release a waiter
                 await ForwardToNeighborAsync().ConfigureAwait(false);
-
-                State = IoJobMeta.JobState.Consumed;
             }
             catch (NullReferenceException e)
             {
@@ -290,9 +388,23 @@ namespace zero.cocoon.models
             }
             finally
             {
-                if (State == IoJobMeta.JobState.Consuming)
-                    State = IoJobMeta.JobState.ConsumeErr;
                 UpdateBufferMetaData();
+
+                if (State != IoJobMeta.JobState.Consumed)
+                {
+                    State = IoJobMeta.JobState.ConsumeErr;
+
+                    if (PreviousJob.StillHasUnprocessedFragments)
+                    {
+                        StillHasUnprocessedFragments = false;
+                    }
+                    else
+                    {
+                        _logger.Debug($"FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
+                    }
+                }
+
+                MemoryBufferPin.Dispose();
             }
 
             return State;
@@ -323,13 +435,20 @@ namespace zero.cocoon.models
                         await ForwardToNeighborAsync().ConfigureAwait(false);
 
                     var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
-                    _protocolMsgBatch[CurrBatch] = new CcDiscoveryBatch
-                    {
-                        Zero = zero,
-                        EmbeddedMsg = request,
-                        UserData = remoteEp,
-                        Message = packet
-                    }; // TODO HEAPyFY
+
+                    _batchHeap.Take(out var batch);
+                    if (batch == null)
+                        throw new OutOfMemoryException(nameof(_batchHeap));
+
+                    batch.Zero = zero;
+                    batch.EmbeddedMsg = request;
+                    batch.UserData = remoteEp;
+                    batch.Message = packet;
+                    batch.HeapRef = _batchHeap;
+                    
+
+                    _protocolMsgBatch[CurrBatch] = batch;
+
                     Interlocked.Increment(ref CurrBatch);
                 }
             }

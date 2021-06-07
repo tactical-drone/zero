@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -25,12 +27,27 @@ namespace zero.core.models.protobuffer
 
             DatumSize = 508;
 
+            MemoryOwner = MemoryPool<sbyte>.Shared.Rent();
+
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
-            Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+
+            //Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
+            if (MemoryMarshal.TryGetArray((ReadOnlyMemory<sbyte>)MemoryOwner.Memory, out var seg))
+            {
+                Buffer = seg.Array;
+                if (Buffer != null && Buffer.Length < BufferSize)
+                {
+                    throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
+                }
+            }
+
             ByteSegment = ByteBuffer;
             ReadOnlySequence = new ReadOnlySequence<byte>(ByteBuffer);
+            MemoryBuffer = new Memory<byte>(ByteBuffer);
+            ByteStream = new MemoryStream(ByteBuffer);
+            CodedStream = new CodedInputStream(ByteStream);
         }
 
         /// <summary>
@@ -65,7 +82,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 10;
+        public int parm_datums_per_buffer = 5;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -113,6 +130,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         public override void ZeroUnmanaged()
         {
+            MemoryOwner.Dispose();
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             _logger = null;
@@ -138,6 +156,7 @@ namespace zero.core.models.protobuffer
                 await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var _this = (CcProtocMessage<TModel, TBatch>)ioJob;
+
                     try
                     {
                         //----------------------------------------------------------------------------
@@ -152,14 +171,34 @@ namespace zero.core.models.protobuffer
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational && !Zeroed())
                         {
-                            var rxTask = ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize, _this._remoteEp);
+                            _this.MemoryBufferPin = _this.MemoryBuffer.Pin();
 
-                            int rx;
+                            if (_this.BufferClone == null)
+                            {
+                                _this.BufferClone = new byte[_this.Buffer.Length];
+                                _this.BufferCloneMemory = new Memory<byte>(_this.BufferClone);
+                            }
 
-                            if (rxTask.IsCompletedSuccessfully)
-                                rx = rxTask.Result;
-                            else
-                                rx = await rxTask.ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this._remoteEp).ConfigureAwait(false);
+
+                            if(bytesRead > 0)
+                                _this.MemoryBuffer.Slice(_this.BufferOffset, bytesRead).CopyTo(_this.BufferCloneMemory[BufferOffset..]);
+                                //_this.MemoryBuffer[_this.BufferOffset..bytesRead].CopyTo(_this.BufferCloneMemory[_this.BufferOffset..]);
+                            
+                            //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
+                            //{
+                            //    StringWriter w = new StringWriter();
+                            //    w.Write($"{_this.MemoryBuffer.GetHashCode()}({bytesRead}):");
+                            //    var nullc = 0;
+                            //    var nulld = 0;
+                            //    for (var i = 0; i < bytesRead; i++)
+                            //    {
+                            //        w.Write($" {seg[i + BufferOffset]}.");
+                            //    }
+
+                            //    _logger.Fatal(w.ToString());
+                            //}
+
 
                             //var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
                             //await readTask.OverBoostAsync().ConfigureAwait(false);
@@ -173,35 +212,37 @@ namespace zero.core.models.protobuffer
                             ((IPEndPoint)_this.ProducerExtraData).Port = _this._remoteEp.Port;
 
                             //Drop zero reads
-                            if (rx == 0)
+                            if (bytesRead == 0)
                             {
                                 _this.BytesRead = 0;
                                 _this.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
+
+                            //Array.Copy(Buffer, Buffer, Buffer.Length);
 
                             //rate limit
-                            _this._msgCount++;
-                            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                            var delta = now - _this._msgRateCheckpoint;
-                            if (_this._msgCount > _this.parm_ave_sec_ms &&
-                                (double)_this._msgCount * 1000 / delta > _this.parm_ave_sec_ms)
-                            {
-                                _this.BytesRead = 0;
-                                _this.State = IoJobMeta.JobState.ProduceTo;
-                                _this._logger.Fatal($"Dropping spam {_this._msgCount}");
-                                _this._msgCount -= 2;
-                                return false;
-                            }
+                            //_this._msgCount++;
+                            //var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            //var delta = now - _this._msgRateCheckpoint;
+                            //if (_this._msgCount > _this.parm_ave_sec_ms &&
+                            //    (double)_this._msgCount * 1000 / delta > _this.parm_ave_sec_ms)
+                            //{
+                            //    _this.BytesRead = 0;
+                            //    _this.State = IoJobMeta.JobState.ProduceTo;
+                            //    _this._logger.Fatal($"Dropping spam {_this._msgCount}");
+                            //    _this._msgCount -= 2;
+                            //    return false;
+                            //}
 
-                            //hist reset
-                            if (delta > _this.parm_ave_msg_sec_hist * 1000)
-                            {
-                                _this._msgRateCheckpoint = now;
-                                _this._msgCount = 0;
-                            }
+                            ////hist reset
+                            //if (delta > _this.parm_ave_msg_sec_hist * 1000)
+                            //{
+                            //    _this._msgRateCheckpoint = now;
+                            //    _this._msgCount = 0;
+                            //}
 
-                            _this.BytesRead = rx;
+                            Interlocked.Add(ref _this.BytesRead, bytesRead);
 
                             _this.UpdateBufferMetaData();
 
@@ -248,8 +289,8 @@ namespace zero.core.models.protobuffer
                     catch (Exception e)
                     {
                         _this.State = IoJobMeta.JobState.ProduceErr;
-                        await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
                         _this._logger.Error(e, $"ReadAsync {_this.Description}:");
+                        await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
                         return false;
                     }
                 }, barrier, zeroClosure, this).ConfigureAwait(false);
@@ -290,34 +331,34 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// Handle fragments
         /// </summary>
-        private void TransferPreviousBits()
-        {
-            if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
+        //private void TransferPreviousBits()
+        //{
+        //    if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
-            var p = (IoMessage<CcProtocMessage<TModel, TBatch>>)PreviousJob;
-            try
-            {
-                var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
-                Interlocked.Add(ref BufferOffset, -bytesToTransfer);
-                Interlocked.Add(ref BytesRead, bytesToTransfer);
+        //    var p = (IoMessage<CcProtocMessage<TModel, TBatch>>)PreviousJob;
+        //    try
+        //    {
+        //        var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
+        //        Interlocked.Add(ref BufferOffset, -bytesToTransfer);
+        //        Interlocked.Add(ref BytesRead, bytesToTransfer);
 
-                UpdateBufferMetaData();
+        //        UpdateBufferMetaData();
 
-                Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0),
-                    Buffer, BufferOffset, bytesToTransfer);
-            }
-            catch (Exception e) // we de-synced 
-            {
-                _logger.Warn(e, $"{TraceDescription} We desynced!:");
+        //        Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0),
+        //            Buffer, BufferOffset, bytesToTransfer);
+        //    }
+        //    catch (Exception e) // we de-synced 
+        //    {
+        //        _logger.Warn(e, $"{TraceDescription} We desynced!:");
 
-                MessageService.Synced = false;
-                DatumCount = 0;
-                BytesRead = 0;
-                State = IoJobMeta.JobState.ConInvalid;
-                DatumFragmentLength = 0;
-                StillHasUnprocessedFragments = false;
-            }
-        }
+        //        MessageService.Synced = false;
+        //        DatumCount = 0;
+        //        BytesRead = 0;
+        //        State = IoJobMeta.JobState.ConInvalid;
+        //        DatumFragmentLength = 0;
+        //        StillHasUnprocessedFragments = false;
+        //    }
+        //}
 
       
 

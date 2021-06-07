@@ -42,7 +42,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// logger
         /// </summary>
-        private static Logger _logger;
+        protected static Logger _logger;
 
         /// <summary>
         /// A unique id for this work
@@ -142,7 +142,8 @@ namespace zero.core.patterns.bushes
             _stateMeta.Value = IoJobMeta.JobState.Undefined;
             Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
 #endif
-            State = IoJobMeta.JobState.Undefined;
+
+            FinalState = State = IoJobMeta.JobState.Undefined;
             StillHasUnprocessedFragments = false;
 
             //var curState = 0;
@@ -279,6 +280,10 @@ namespace zero.core.patterns.bushes
             throw new NotImplementedException();
         }
 #endif
+        /// <summary>
+        /// Final state
+        /// </summary>
+        public IoJobMeta.JobState FinalState { get; set; }
 
         /// <summary>
         /// Gets and sets the state of the work
@@ -296,7 +301,7 @@ namespace zero.core.patterns.bushes
                 {
                     if (_stateMeta.Value == IoJobMeta.JobState.Finished)
                     {
-                        PrintStateHistory();
+                        //PrintStateHistory();
                         _stateMeta.Value = IoJobMeta.JobState.Race; //TODO
                         throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Finished}' to `{value}'");
                     }
@@ -371,7 +376,8 @@ namespace zero.core.patterns.bushes
 
                 //terminate
                 if (value == IoJobMeta.JobState.Accept || value == IoJobMeta.JobState.Reject)
-                {                    
+                {
+                    FinalState = State;
                     State = IoJobMeta.JobState.Finished;
                 }                
             }

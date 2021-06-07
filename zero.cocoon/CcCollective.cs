@@ -47,7 +47,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, parm_max_neighbor_pc_threads), true).target;
+            _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
 
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -426,7 +426,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 240;
+        public int parm_mean_pat_delay = 60 * 5;
 
 
         /// <summary>
@@ -931,6 +931,7 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0)
         {
+            return true;
             Interlocked.Exchange(ref Testing, 1);
             var s = 0;
             foreach (var ioNeighbor in Drones)

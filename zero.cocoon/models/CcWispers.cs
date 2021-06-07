@@ -145,13 +145,11 @@ namespace zero.cocoon.models
                         if (wispers == null)
                             break;
 
-                        read = wispers.CalculateSize();
-                        Interlocked.Add(ref BytesRead, read);
+                        read += wispers.CalculateSize();
                     }
                     catch (Exception e)
                     {
                         var tmpBufferOffset = BufferOffset;
-                        Interlocked.Add(ref BufferOffset, (int)read);
 
                         if (!Zeroed() && !MessageService.Zeroed())
                             _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");

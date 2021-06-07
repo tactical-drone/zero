@@ -16,6 +16,7 @@ namespace zero.core.patterns.bushes.contracts
         public override string Description => _description;
 
         public long Id { get; } = -1;
+        public IoJobMeta.JobState FinalState { get; set; }
         public IoJobMeta.JobState State { get; set; }
         public IIoJob PreviousJob { get; } = null;
         public IIoSource Source { get; } = null;

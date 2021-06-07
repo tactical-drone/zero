@@ -258,7 +258,8 @@ namespace zero.core.network.ip
         /// <param name="blacklist"></param>
         /// <param name="timeout">A timeout</param>
         /// <returns>The number of bytes read</returns>
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp = null,
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
+            IPEndPoint remoteEp = null,
             byte[] blacklist = null, int timeout = 0) //TODO can we go back to array buffers?
         {
             try

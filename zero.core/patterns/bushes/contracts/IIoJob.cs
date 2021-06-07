@@ -9,6 +9,7 @@ namespace zero.core.patterns.bushes.contracts
     public interface IIoJob : IIoHeapItem, IIoNanoprobe
     {
         long Id { get; }
+        IoJobMeta.JobState FinalState { get; set; }
         IoJobMeta.JobState State { get; set; }
         IIoJob PreviousJob { get; }
         IIoSource Source { get; }

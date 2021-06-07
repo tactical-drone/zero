@@ -96,7 +96,7 @@ namespace zero.core.patterns.bushes
         /// Whether this source supports fragmented datums
         /// </summary>
         //protected bool SupportsSync => ConsumerCount == 1;
-        protected bool SupportsSync => false;
+        public bool SupportsSync => true;
 
         /// <summary>
         /// Upstream <see cref="Source"/> reference
@@ -350,9 +350,6 @@ namespace zero.core.patterns.bushes
                                     _producerStopwatch.Stop();
                                     IsArbitrating = true;
 
-                                    //if(SupportsSync)
-                                        //_previousJobFragment.TryAdd(nextJob.Id, nextJob);
-                                    
                                     if(SupportsSync)
                                         _previousJobFragment.Enqueue(nextJob);
                                     
@@ -522,12 +519,12 @@ namespace zero.core.patterns.bushes
                 if (SupportsSync && job.PreviousJob != null)
                 {
 #if DEBUG
-                    if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
-                    {
-                        _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
-                    }
+                    //if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
+                    //{
+                    //    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
+                    //}
 #endif
-                    JobHeap.Return((IoSink<TJob>)job.PreviousJob);
+                    JobHeap.Return((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept);
                     job.PreviousJob = null;
                     return null;
                 }
@@ -536,9 +533,10 @@ namespace zero.core.patterns.bushes
                 //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
                 //}
 
-                if(parent || !SupportsSync)
-                    JobHeap.Return(job);
-
+                if (parent || !SupportsSync)
+                {
+                    JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);
+                }
             }
             catch (NullReferenceException e)
             {
@@ -615,7 +613,7 @@ namespace zero.core.patterns.bushes
                         }
                         else if (!Zeroed() && !curJob.Zeroed() && !Source.Zeroed())
                         {
-                            _logger.Error(
+                            _logger.Debug(
                                 $"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' was unsuccessful, state = {curJob.State}");
                             curJob.State = IoJobMeta.JobState.Error;
                         }
