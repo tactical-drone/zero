@@ -1052,7 +1052,7 @@ namespace zero.cocoon.autopeer
             //fail fast
             if (!Assimilating)
             {
-                //var dmzSyn = Task.Factory.StartNew(async () =>
+                var dmzSyn = Task.Factory.StartNew(async () =>
                 {
                     //send reject so that the sender's state can be fixed
                     var reject = new PeeringResponse
@@ -1083,8 +1083,7 @@ namespace zero.cocoon.autopeer
                             .ConfigureAwait(false))
                             _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
                     }
-                }
-                //}, TaskCreationOptions.LongRunning);
+                }, TaskCreationOptions.LongRunning);
                 
                 return;
             }
@@ -1822,7 +1821,7 @@ namespace zero.cocoon.autopeer
                         IoNodeAddress.Create(
                             $"{pong.Services.Map[key].Network}://{((IPEndPoint) extraData).Address}:{pong.Services.Map[key].Port}"));
 
-                CollectAsync(fromAddr.IpEndPoint, idCheck, remoteServices, true);
+                await CollectAsync(fromAddr.IpEndPoint, idCheck, remoteServices, true).ConfigureAwait(false);
             }
             else if (!Verified) //Process ACK SYN
             {
@@ -2012,7 +2011,7 @@ namespace zero.cocoon.autopeer
 
                 //rate limit
                 if (_lastScan.Elapsed() < parm_max_network_latency / 1000)
-                    await Task.Delay(parm_max_network_latency + _random.Next(parm_max_network_latency * 10)).ConfigureAwait(false);
+                    return false;
                 
                 var discoveryRequest = new DiscoveryRequest
                 {
