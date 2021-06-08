@@ -159,9 +159,11 @@ namespace zero.cocoon.models
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
+        private long _failCounter;
+        private long _lastFail;
+
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            TransferPreviousBits();
             try
             {
                 //fail fast
@@ -172,7 +174,7 @@ namespace zero.cocoon.models
                 var read = 0;
                 var verified = false;
 
-                while (BytesLeftToProcess > 0 && totalBytesProcessed < BytesRead)
+                while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
                     //if (DatumCount > 1)
                     //{
@@ -191,7 +193,7 @@ namespace zero.cocoon.models
                         curPos = BufferOffset;
 
                         //trim zeroes
-                        if (IoZero.SupportsSync)
+                        if (IoZero.SyncRecoveryModeEnabled)
                         {
                             bool trimmed = false;
 
@@ -204,7 +206,7 @@ namespace zero.cocoon.models
 
                             if (totalBytesProcessed == BytesRead)
                             {
-                                //State = IoJobMeta.JobState.Consumed;
+                                State = IoJobMeta.JobState.Consumed;
                                 continue;
                             }
                                 
@@ -225,10 +227,11 @@ namespace zero.cocoon.models
                         //CodedStream = new CodedInputStream(ByteBuffer, BufferOffset, BytesRead);
                         try
                         {
+                            Interlocked.Increment(ref _failCounter);
                             packet = Packet.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
                             read = packet.CalculateSize();
                         }
-                        catch 
+                        catch
                         {
                             try
                             {
@@ -241,11 +244,13 @@ namespace zero.cocoon.models
                                 packet = Packet.Parser.ParseFrom(CodedStream);
                                 read = (int)(CodedStream.Position - curPos);
                             }
-                            catch 
+                            catch
                             {
+                                
                                 packet = Packet.Parser.ParseFrom(BufferClone.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
                                 read = packet.CalculateSize();
-                                //_logger.Warn("FFF");
+                                _logger.Warn($"FFF {_lastFail}/{_failCounter}");
+                                Interlocked.Exchange(ref _lastFail, _failCounter);
                             }
                         }
 
@@ -259,10 +264,10 @@ namespace zero.cocoon.models
                         totalBytesProcessed += read;
 
                         //sync fragmented datums
-                        if (IoZero.SupportsSync && totalBytesProcessed == BytesRead && State != IoJobMeta.JobState.Consumed)//TODO hacky
+                        if (IoZero.SyncRecoveryModeEnabled && totalBytesProcessed == BytesRead && State != IoJobMeta.JobState.Consumed)//TODO hacky
                         {
                             read = 0;
-                            //State = IoJobMeta.JobState.Consumed;
+                            State = IoJobMeta.JobState.ConInlined;
                         }
 
                         var tmpBufferOffset = BufferOffset;
@@ -304,12 +309,12 @@ namespace zero.cocoon.models
 
                     if (read == 0)
                         break;
-                    
-                    //if (BytesLeftToProcess > 0)
-                    //{
-                    //    _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}:{read}, T = {totalBytesProcessed}, l = {BytesLeftToProcess}>>");
-                    //}
-                    
+
+                    if (BytesLeftToProcess > 0)
+                    {
+                        _logger.Debug($"MULTI<<D = {DatumCount}, r = {BytesRead}:{read}, T = {totalBytesProcessed}, l = {BytesLeftToProcess}>>");
+                    }
+
                     //Sanity check the data
                     if (packet == null || packet.Data == null || packet.Data.Length == 0)
                     {
@@ -388,18 +393,15 @@ namespace zero.cocoon.models
             }
             finally
             {
-                UpdateBufferMetaData();
-
                 if (State != IoJobMeta.JobState.Consumed)
                 {
-                    State = IoJobMeta.JobState.ConsumeErr;
-
                     if (PreviousJob.StillHasUnprocessedFragments)
                     {
-                        StillHasUnprocessedFragments = false;
+                        State = IoJobMeta.JobState.ConsumeErr;
                     }
                     else
                     {
+                        State = IoJobMeta.JobState.ConInlined;
                         _logger.Debug($"FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
                     }
                 }

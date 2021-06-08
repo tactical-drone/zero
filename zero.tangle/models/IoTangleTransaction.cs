@@ -74,5 +74,15 @@ namespace zero.tangle.models
             State = IoJobMeta.JobState.ConInlined;
             return ValueTask.FromResult(State);
         }
+
+        public override void SyncPrevJob()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void JobSync()
+        {
+            throw new NotImplementedException();
+        }
     }    
 }

@@ -301,7 +301,7 @@ namespace zero.cocoon.models
             {
                 if (State == IoJobMeta.JobState.Consuming)
                     State = IoJobMeta.JobState.ConsumeErr;
-                UpdateBufferMetaData();
+                JobSync();
             }
 
             return State;

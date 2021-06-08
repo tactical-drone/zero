@@ -14,7 +14,7 @@ namespace zero.core.patterns.bushes.contracts
         //public object IoJobHeap { get; }
         bool IsArbitrating { get; }
 
-        bool SupportsSync { get;  }
+        bool SyncRecoveryModeEnabled { get;  }
 
         /// <summary>
         /// Number of concurrent producers

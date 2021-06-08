@@ -74,6 +74,22 @@ namespace zero.core.models.protobuffer
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        public override void SyncPrevJob()
+        {
+            
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public override void JobSync()
+        {
+            
+        }
+
+        /// <summary>
         /// Callback the generates the next job
         /// </summary>        
         /// <returns>

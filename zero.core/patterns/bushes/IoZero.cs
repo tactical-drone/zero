@@ -95,8 +95,8 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Whether this source supports fragmented datums
         /// </summary>
-        //protected bool SupportsSync => ConsumerCount == 1;
-        public bool SupportsSync => true;
+        //protected bool SyncRecoveryModeEnabled => ConsumerCount == 1;
+        public bool SyncRecoveryModeEnabled => true;
 
         /// <summary>
         /// Upstream <see cref="Source"/> reference
@@ -310,7 +310,7 @@ namespace zero.core.patterns.bushes
 
                                 }
                                 
-                                if (SupportsSync && _previousJobFragment.TryDequeue(out var prevJobFragment))
+                                if (SyncRecoveryModeEnabled && _previousJobFragment.TryDequeue(out var prevJobFragment))
                                 {
                                     //if( prevJobFragment.Id == nextJob.Id + 1)
                                         nextJob.PreviousJob = prevJobFragment;
@@ -318,6 +318,11 @@ namespace zero.core.patterns.bushes
                                 }
                                 
                                 _producerStopwatch.Restart();
+
+                                //prepare a failed job to sync with next job
+                                if(SyncRecoveryModeEnabled)
+                                    nextJob.JobSync();
+
                                 //Produce job input
                                 if (await nextJob.ProduceAsync(async (job, closure) =>
                                 {
@@ -350,7 +355,7 @@ namespace zero.core.patterns.bushes
                                     _producerStopwatch.Stop();
                                     IsArbitrating = true;
 
-                                    if(SupportsSync)
+                                    if(SyncRecoveryModeEnabled)
                                         _previousJobFragment.Enqueue(nextJob);
                                     
                                     //signal back pressure
@@ -516,7 +521,7 @@ namespace zero.core.patterns.bushes
                 if (job == null)
                     return null;
 
-                if (SupportsSync && job.PreviousJob != null)
+                if (SyncRecoveryModeEnabled && job.PreviousJob != null)
                 {
 #if DEBUG
                     //if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
@@ -533,7 +538,7 @@ namespace zero.core.patterns.bushes
                 //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
                 //}
 
-                if (parent || !SupportsSync)
+                if (parent || !SyncRecoveryModeEnabled)
                 {
                     JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);
                 }
@@ -597,6 +602,11 @@ namespace zero.core.patterns.bushes
                     curJob.State = IoJobMeta.JobState.Consuming;
                     try
                     {
+                        
+                        //sync previous failed job buffers
+                        if(SyncRecoveryModeEnabled)
+                            curJob.SyncPrevJob();
+
                         //Consume the job
                         if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
                             curJob.State == IoJobMeta.JobState.ConInlined &&
@@ -606,10 +616,15 @@ namespace zero.core.patterns.bushes
                             {
                                 //forward any jobs                                                                             
                                 await inlineCallback(curJob, zeroClosure).ConfigureAwait(false);
-                                curJob.State = IoJobMeta.JobState.Consumed;
                             }
 
+                            curJob.State = IoJobMeta.JobState.Consumed;
+
                             Source.BackPressure();
+
+                            //sync previous failed job buffers
+                            if (SyncRecoveryModeEnabled)
+                                curJob.JobSync();
                         }
                         else if (!Zeroed() && !curJob.Zeroed() && !Source.Zeroed())
                         {

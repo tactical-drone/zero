@@ -178,9 +178,9 @@ namespace zero.core.models
         /// <summary>
         /// Handle fragments
         /// </summary>
-        protected void TransferPreviousBits()
+        public override void SyncPrevJob()
         {
-            if (!IoZero.SupportsSync || !(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
+            if (!IoZero.SyncRecoveryModeEnabled || !(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
             var p = (IoMessage<TJob>)PreviousJob;
             try
@@ -190,15 +190,11 @@ namespace zero.core.models
                 Interlocked.Add(ref BytesRead, bytesLeft);
 
                 p.MemoryBuffer.Slice(p.BufferOffset + p.BytesRead - p.BytesLeftToProcess).CopyTo(MemoryBuffer[BufferOffset..]);
-                //Array.Copy(p.Buffer, p.BufferOffset + BytesRead, Buffer, BufferOffset, bytesLeft);
-
-                //UpdateBufferMetaData();
-                //DatumFragmentLength = 0;
-
+                
                 p.State = IoJobMeta.JobState.Consumed;
                 p.State = IoJobMeta.JobState.Accept;
 
-                _logger.Error($"{Description}: Transferred previous bits size {bytesLeft}");
+                _logger.Error($"{Description}: >>> {bytesLeft} bytes <<<");
             }
             catch (Exception) // we de-synced 
             {
@@ -214,14 +210,14 @@ namespace zero.core.models
         /// <summary>
         /// Updates buffer meta data
         /// </summary>
-        protected void UpdateBufferMetaData()
+        public override void JobSync()
         {
             //Set how many datums we have available to process
             DatumCount = BytesLeftToProcess / DatumSize;
             DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            StillHasUnprocessedFragments = DatumFragmentLength > 0 && IoZero.SupportsSync;
+            StillHasUnprocessedFragments = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State == IoJobMeta.JobState.Consumed;
         }
     }
 }

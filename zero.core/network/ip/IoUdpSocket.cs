@@ -462,7 +462,14 @@ namespace zero.core.network.ip
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Signal(object sender, SocketAsyncEventArgs eventArgs)
         {
-            ((IIoZeroSemaphore) eventArgs?.UserToken)?.Release();
+            try
+            {
+                ((IIoZeroSemaphore) eventArgs!.UserToken)!.Release();
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         /// <summary>

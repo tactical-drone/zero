@@ -1,4 +1,7 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+using zero.core.models;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes
@@ -75,5 +78,15 @@ namespace zero.core.patterns.bushes
         {
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Handle fragments
+        /// </summary>
+        public abstract void SyncPrevJob();
+
+        /// <summary>
+        /// Updates buffer meta data
+        /// </summary>
+        public abstract void JobSync();
     }
 }

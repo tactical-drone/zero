@@ -244,7 +244,7 @@ namespace zero.core.models.protobuffer
 
                             Interlocked.Add(ref _this.BytesRead, bytesRead);
 
-                            _this.UpdateBufferMetaData();
+                            _this.JobSync();
 
                             _this.State = IoJobMeta.JobState.Produced;
 
@@ -331,7 +331,7 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// Handle fragments
         /// </summary>
-        //private void TransferPreviousBits()
+        //private void SyncPrevJob()
         //{
         //    if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
 
@@ -342,7 +342,7 @@ namespace zero.core.models.protobuffer
         //        Interlocked.Add(ref BufferOffset, -bytesToTransfer);
         //        Interlocked.Add(ref BytesRead, bytesToTransfer);
 
-        //        UpdateBufferMetaData();
+        //        JobSync();
 
         //        Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0),
         //            Buffer, BufferOffset, bytesToTransfer);

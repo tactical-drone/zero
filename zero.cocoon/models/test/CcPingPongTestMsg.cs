@@ -338,7 +338,7 @@ namespace zero.cocoon.models.test
             }
             finally
             {
-                UpdateBufferMetaData();
+                JobSync();
             }
 
             return State = IoJobMeta.JobState.Consumed;
