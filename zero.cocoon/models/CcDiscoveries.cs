@@ -1,16 +1,10 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using NLog;
 using Proto;
 using SimpleBase;
 using zero.cocoon.autopeer;
@@ -29,10 +23,9 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
-            _logger = LogManager.GetCurrentClassLogger();
             _concurrencyLevel = concurrencyLevel;
             _protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(parm_max_msg_batch_size);
-            _batchHeap = new IoHeap<CcDiscoveryBatch>(concurrencyLevel + 1) {Make = o => new CcDiscoveryBatch()};
+            _batchHeap = new IoHeap<CcDiscoveryBatch>(concurrencyLevel) {Make = o => new CcDiscoveryBatch()};
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -97,11 +90,7 @@ namespace zero.cocoon.models
             PeeringDrop = 22
         }
 
-        /// <summary>
-        /// logger
-        /// </summary>
-        private Logger _logger;
-
+        
         /// <summary>
         /// Batch of messages
         /// </summary>
@@ -121,9 +110,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The concurrency level
         /// </summary>
-        private int _concurrencyLevel;
-
-        public ArrayPool<CcDiscoveryBatch> ArrayPool => _arrayPool;
+        private readonly int _concurrencyLevel;
 
         /// <summary>
         /// CC Node
@@ -142,7 +129,6 @@ namespace zero.cocoon.models
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            _logger = null;
             _protocolMsgBatch = null;
             _arrayPool = null;
 #endif
@@ -169,62 +155,50 @@ namespace zero.cocoon.models
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
                     return State = IoJobMeta.JobState.ConInvalid;
-
+                
                 var totalBytesProcessed = 0;
-                var read = 0;
                 var verified = false;
 
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
-                    //if (DatumCount > 1)
-                    //{
-                    //    _logger.Fatal($"{Description} ----> Datumcount = {DatumCount}");
-                    //}
-
                     Packet packet = null;
                     long curPos = 0;
-                    read = 0;
-                    //var s = new MemoryStream(ByteBuffer);
+                    var read = 0;
+                    
                     //deserialize
                     try
                     {
                         ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
-                        ByteStream.SetLength(BufferOffset + BytesLeftToProcess);
+                        //ByteStream.SetLength(BytesLeftToProcess);
                         curPos = BufferOffset;
 
                         //trim zeroes
-                        if (IoZero.SyncRecoveryModeEnabled)
-                        {
-                            bool trimmed = false;
-
-                            while (ByteBuffer[curPos++] == 0 && totalBytesProcessed < BytesRead)
-                            {
-                                read++;
-                                totalBytesProcessed++;
-                                trimmed = true;
-                            }
-
-                            if (totalBytesProcessed == BytesRead)
-                            {
-                                State = IoJobMeta.JobState.Consumed;
-                                continue;
-                            }
-                                
-
-                            if (trimmed)
-                            {
-                                ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
-                                ByteStream.SetLength(BufferOffset + BytesLeftToProcess - read);
-                                curPos = BufferOffset + read;
-                            }
-                        }
-
-                        //s.Seek(ByteStream.Position, SeekOrigin.Begin);
-                        //s.SetLength(ByteStream.Position + BytesLeftToProcess);
-                        //curPos = s.Position;
-                        //CodedStream = new CodedInputStream(s);
-
-                        //CodedStream = new CodedInputStream(ByteBuffer, BufferOffset, BytesRead);
+                        // if (IoZero.SyncRecoveryModeEnabled)
+                        // {
+                        //     bool trimmed = false;
+                        //
+                        //     while (Buffer[curPos++] == 0 && totalBytesProcessed < BytesRead)
+                        //     {
+                        //         read++;
+                        //         totalBytesProcessed++;
+                        //         trimmed = true;
+                        //     }
+                        //
+                        //     if (totalBytesProcessed == BytesRead)
+                        //     {
+                        //         State = IoJobMeta.JobState.Consumed;
+                        //         continue;
+                        //     }
+                        //         
+                        //
+                        //     if (trimmed)
+                        //     {
+                        //         ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
+                        //         ByteStream.SetLength(BytesLeftToProcess - read);
+                        //         curPos = BufferOffset + read;
+                        //     }
+                        // }
+                        
                         try
                         {
                             Interlocked.Increment(ref _failCounter);
@@ -233,24 +207,26 @@ namespace zero.cocoon.models
                         }
                         catch
                         {
-                            try
+                            //try
                             {
-                                var s = new MemoryStream(ByteBuffer);
+                                var s = new MemoryStream(Buffer);
                                 s.Seek(ByteStream.Position, SeekOrigin.Begin);
-                                s.SetLength(ByteStream.Position + BytesLeftToProcess);
+                                //s.SetLength(ByteStream.Position + BytesLeftToProcess);
                                 curPos = s.Position;
-                                CodedStream = new CodedInputStream(s);
+                                CodedStream = new CodedInputStream(s, true);
 
                                 packet = Packet.Parser.ParseFrom(CodedStream);
                                 read = (int)(CodedStream.Position - curPos);
                             }
-                            catch
+                            //catch
                             {
-                                
-                                packet = Packet.Parser.ParseFrom(BufferClone.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
-                                read = packet.CalculateSize();
-                                _logger.Warn($"FFF {_lastFail}/{_failCounter}");
-                                Interlocked.Exchange(ref _lastFail, _failCounter);
+                                //if (!__enableZeroCopyDebug)
+                                    //throw;
+
+                                //packet = Packet.Parser.ParseFrom(__zeroCopyDebugBuffer.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
+                                //read = packet.CalculateSize();
+                                //_logger.Warn($"FFF {_lastFail}/{_failCounter}");
+                                //Interlocked.Exchange(ref _lastFail, _failCounter);
                             }
                         }
 
@@ -275,29 +251,29 @@ namespace zero.cocoon.models
                         if (!Zeroed() && !MessageService.Zeroed())
                         {
                             _logger.Debug(e,
-                                $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                                $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
 
-                            var r = new ReadOnlyMemory<byte>(ByteBuffer);
-                            if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryBuffer, out var seg))
-                            {
-                                ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
-                                ByteStream.SetLength(BufferOffset + BytesRead - read);
-
-                                StringWriter w = new StringWriter();
-                                StringWriter w2 = new StringWriter();
-                                w.Write($"{MemoryBuffer.GetHashCode()}({BytesRead}):");
-                                w2.Write($"{BufferClone.GetHashCode()}({BytesRead}):");
-                                var nullc = 0;
-                                var nulld = 0;
-                                for (var i = 0; i < BytesRead; i++)
-                                {
-                                    w.Write($" {seg[i + BufferOffset]}.");
-                                    w2.Write($" {BufferClone[i + BufferOffset]}.");
-                                }
-
-                                _logger.Debug(w.ToString());
-                                _logger.Warn(w2.ToString());
-                            }
+                            // var r = new ReadOnlyMemory<byte>(Buffer);
+                            // if (__enableZeroCopyDebug && MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryBuffer, out var seg))
+                            // {
+                            //     ByteStream.Seek(BufferOffset + read, SeekOrigin.Begin);
+                            //     ByteStream.SetLength(BufferOffset + BytesRead - read);
+                            //
+                            //     StringWriter w = new StringWriter();
+                            //     StringWriter w2 = new StringWriter();
+                            //     w.Write($"{MemoryBuffer.GetHashCode()}({BytesRead}):");
+                            //     w2.Write($"{__zeroCopyDebugBuffer.GetHashCode()}({BytesRead}):");
+                            //     var nullc = 0;
+                            //     var nulld = 0;
+                            //     for (var i = 0; i < BytesRead; i++)
+                            //     {
+                            //         w.Write($"[{seg[i + BufferOffset]}]");
+                            //         w2.Write($"[{__zeroCopyDebugBuffer[i + BufferOffset]}]");
+                            //     }
+                            //
+                            //     _logger.Debug(w.ToString());
+                            //     _logger.Warn(w2.ToString());
+                            // }
                         }
 
                         continue;
@@ -326,7 +302,6 @@ namespace zero.cocoon.models
                     {
                         verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
                                 0, packet.Signature.Memory.AsArray(), 0);
-
                     }
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
@@ -406,7 +381,6 @@ namespace zero.cocoon.models
                     }
                 }
 
-                MemoryBufferPin.Dispose();
             }
 
             return State;
@@ -489,7 +463,7 @@ namespace zero.cocoon.models
                     if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
                     {
                         if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
-                            _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
+                            _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }
 
@@ -500,7 +474,7 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _this._logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
+                        _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
                         return false;
                     }
 

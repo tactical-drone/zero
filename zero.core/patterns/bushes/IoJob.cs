@@ -42,7 +42,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// logger
         /// </summary>
-        protected static Logger _logger;
+        protected static readonly Logger _logger;
 
         /// <summary>
         /// A unique id for this work
@@ -174,7 +174,6 @@ namespace zero.core.patterns.bushes
 #if SAFE_RELEASE
             //_stateMeta = null;
             //StateTransitionHistory = null;
-            _logger = null;
             Source = null;
             PreviousJob = null;
 #if DEBUG

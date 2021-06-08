@@ -40,14 +40,13 @@ namespace zero.core.models.protobuffer
             : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource)
         {
             _waitForConsumerTimeout = waitForConsumerTimeout;
-            _logger = LogManager.GetCurrentClassLogger();
         }
 
 
         /// <summary>
         /// The logger
         /// </summary>
-        private readonly Logger _logger;
+        
         private readonly int _waitForConsumerTimeout;
 
         /// <summary>
@@ -110,7 +109,7 @@ namespace zero.core.models.protobuffer
                 }
                 catch (Exception e)
                 {
-                    _this._logger.Fatal(e,$"MessageQueue.DequeueAsync failed: {_this.Description}"); 
+                    _logger.Fatal(e,$"MessageQueue.DequeueAsync failed: {_this.Description}"); 
                 }
 
                 _this.State = _this.Batch != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProdCancel;

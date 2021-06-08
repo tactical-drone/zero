@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,40 +22,34 @@ namespace zero.core.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-            _logger = LogManager.GetCurrentClassLogger();
 
             //ProtocolMsgBatch = ArrayPool<ValueTuple<IIoZero, TModel, object, TModel>>.Shared.Rent(parm_max_msg_batch_size);
 
             DatumSize = 508;
 
-            MemoryOwner = MemoryPool<sbyte>.Shared.Rent();
+            MemoryOwner = MemoryPool<byte>.Shared.Rent();
 
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
 
             //Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
-            if (MemoryMarshal.TryGetArray((ReadOnlyMemory<sbyte>)MemoryOwner.Memory, out var seg))
+            if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
             {
-                Buffer = seg.Array;
                 if (Buffer != null && Buffer.Length < BufferSize)
                 {
                     throw new InternalBufferOverflowException($"Invalid buffer size of {BufferSize} < {Buffer.Length}");
                 }
+                ArraySegment = malloc;
+
+                Buffer = ArraySegment.Array;
+                
+                ReadOnlySequence = new ReadOnlySequence<byte>(Buffer!);
+                MemoryBuffer = new Memory<byte>(Buffer);
+                ByteStream = new MemoryStream(Buffer);
             }
-
-            ByteSegment = ByteBuffer;
-            ReadOnlySequence = new ReadOnlySequence<byte>(ByteBuffer);
-            MemoryBuffer = new Memory<byte>(ByteBuffer);
-            ByteStream = new MemoryStream(ByteBuffer);
-            CodedStream = new CodedInputStream(ByteStream);
         }
-
-        /// <summary>
-        /// logger
-        /// </summary>
-        private Logger _logger;
-
+        
         /// <summary>
         /// Message batch broadcast channel
         /// </summary>
@@ -106,11 +101,6 @@ namespace zero.core.models.protobuffer
         public int parm_max_msg_batch_size = 64;//TODO
 
         /// <summary>
-        /// Message count 
-        /// </summary>
-        private int _msgCount = 0;
-
-        /// <summary>
         /// Message rate
         /// </summary>
         private long _msgRateCheckpoint = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -133,7 +123,7 @@ namespace zero.core.models.protobuffer
             MemoryOwner.Dispose();
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            _logger = null;
+            MemoryOwner = null;
             ProducerExtraData = null;
             ProtocolConduit = null;
 #endif
@@ -153,6 +143,7 @@ namespace zero.core.models.protobuffer
         {
             try
             {
+                //MemoryBufferPin = MemoryBuffer.Pin();
                 await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var _this = (CcProtocMessage<TModel, TBatch>)ioJob;
@@ -171,20 +162,8 @@ namespace zero.core.models.protobuffer
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational && !Zeroed())
                         {
-                            _this.MemoryBufferPin = _this.MemoryBuffer.Pin();
-
-                            if (_this.BufferClone == null)
-                            {
-                                _this.BufferClone = new byte[_this.Buffer.Length];
-                                _this.BufferCloneMemory = new Memory<byte>(_this.BufferClone);
-                            }
-
                             var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this._remoteEp).ConfigureAwait(false);
 
-                            if(bytesRead > 0)
-                                _this.MemoryBuffer.Slice(_this.BufferOffset, bytesRead).CopyTo(_this.BufferCloneMemory[BufferOffset..]);
-                                //_this.MemoryBuffer[_this.BufferOffset..bytesRead].CopyTo(_this.BufferCloneMemory[_this.BufferOffset..]);
-                            
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
                             //    StringWriter w = new StringWriter();
@@ -252,7 +231,7 @@ namespace zero.core.models.protobuffer
                         }
                         else
                         {
-                            _this._logger.Warn(
+                            _logger.Warn(
                                 $"Source {_this.MessageService.Description} produce failed!");
                             _this.State = IoJobMeta.JobState.Cancelled;
                             await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
@@ -268,33 +247,32 @@ namespace zero.core.models.protobuffer
                     }
                     catch (NullReferenceException e)
                     {
-                        _this._logger.Trace(e, _this.Description);
+                        _logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (TaskCanceledException e)
                     {
-                        _this._logger.Trace(e, _this.Description);
+                        _logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (OperationCanceledException e)
                     {
-                        _this._logger.Trace(e, _this.Description);
+                        _logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (ObjectDisposedException e)
                     {
-                        _this._logger.Trace(e, _this.Description);
+                        _logger.Trace(e, _this.Description);
                         return false;
                     }
                     catch (Exception e)
                     {
                         _this.State = IoJobMeta.JobState.ProduceErr;
-                        _this._logger.Error(e, $"ReadAsync {_this.Description}:");
+                        _logger.Error(e, $"ReadAsync {_this.Description}:");
                         await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
                         return false;
                     }
                 }, barrier, zeroClosure, this).ConfigureAwait(false);
-                await Source.ProduceAsync((source, func, arg3, arg4) => new ValueTask<bool>());
             }
             catch (TaskCanceledException e)
             {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -294,29 +295,25 @@ namespace zero.core.patterns.misc
 
                 @this.TearDownTime = DateTime.Now.Ticks;
 
-                var subs = new IoZeroSub[1000];
-                var popped = 0;
+                
+                var c = 0;
                 //emit zero event
-                while ((popped = @this._zeroSubs.TryPopRange(subs)) > 0)
+                while (@this._zeroSubs.TryPop(out var zeroSub))
                 {
-                    for (var i = 0; i < popped; i++)
+                    try
                     {
-                        var zeroSub = subs[i];
-                        try
-                        {
-                            if (!zeroSub.Schedule)
-                                continue;
-                            var zero = zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
-                        }
-                        catch (NullReferenceException e)
-                        {
-                            _logger.Trace(e, @this.Description);
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Fatal(e,
-                                $"zero sub {((IIoNanite) zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
-                        }
+                        if (!zeroSub.Schedule)
+                            continue;
+                        await  zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
+                    }
+                    catch (NullReferenceException e)
+                    {
+                        _logger.Trace(e, @this.Description);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Fatal(e,
+                            $"zero sub {((IIoNanite) zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
                     }
                 }
 
@@ -364,7 +361,7 @@ namespace zero.core.patterns.misc
                 _logger = null;
 
                 return true;
-            }, disposing: disposing, force: true).ConfigureAwait(false);
+            }, disposing: disposing, force: false).ConfigureAwait(false);
         }
 
 

@@ -327,7 +327,7 @@ namespace zero.core.patterns.bushes
                                 if (await nextJob.ProduceAsync(async (job, closure) =>
                                 {
                                     var _this = (IoZero<TJob>)closure;
-                                    //Block on producer backpressure
+                                    //Block on producer back pressure
                                     try
                                     {
                                         var backPressure = await job.Source.WaitForBackPressureAsync().ConfigureAwait(false);
@@ -457,11 +457,11 @@ namespace zero.core.patterns.bushes
                             return false;
                         }
                     }
-                    catch (NullReferenceException) { nextJob = Free(nextJob, true); }
-                    catch (ObjectDisposedException) { nextJob = Free(nextJob, true); }
-                    catch (TimeoutException) { nextJob = Free(nextJob, true); }
-                    catch (TaskCanceledException) { nextJob = Free(nextJob, true); }
-                    catch (OperationCanceledException) { nextJob = Free(nextJob, true); }
+                    catch (NullReferenceException) {  }
+                    catch (ObjectDisposedException) {  }
+                    catch (TimeoutException) {  }
+                    catch (TaskCanceledException) {  }
+                    catch (OperationCanceledException) {  }
                     catch (Exception e)
                     {
                         _logger.Error(e, $"{GetType().Name}: Producing `{Description}' returned with errors:");
@@ -483,7 +483,7 @@ namespace zero.core.patterns.bushes
                                 nextJob.State = IoJobMeta.JobState.Reject;
                             }
                             
-                            nextJob = Free(nextJob, true);
+                            Free(nextJob, true);
                         }
                     }
                 }
@@ -545,7 +545,7 @@ namespace zero.core.patterns.bushes
             }
             catch (NullReferenceException e)
             {
-                _logger.Trace(e,Description);
+                _logger.Fatal(e,Description);
             }
 
             return null;

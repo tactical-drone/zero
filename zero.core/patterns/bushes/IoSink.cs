@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.models;
@@ -88,5 +89,14 @@ namespace zero.core.patterns.bushes
         /// Updates buffer meta data
         /// </summary>
         public abstract void JobSync();
+
+        /// <summary>
+        /// Used to debug
+        /// </summary>
+        /// <returns></returns>
+        public virtual bool Verify([CallerMemberName] string desc = "", [CallerLineNumber] int sourceLineNumber = 0)
+        {
+            return true;
+        }
     }
 }

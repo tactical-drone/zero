@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,10 +49,8 @@ namespace zero.tangle.models
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
             //DatumProvisionLength = DatumProvisionLengthMax;
-            Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
-            ByteSegment = ByteBuffer;
-
-            
+            Buffer = new byte[BufferSize + DatumProvisionLengthMax];
+            ArraySegment = new ArraySegment<byte>(Buffer);
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -202,7 +201,7 @@ namespace zero.tangle.models
                             continue;
                         }
                             
-                        var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Buffer, BufferOffset, TritBuffer);
+                        var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Unsafe.As<sbyte[]>(Buffer), BufferOffset, TritBuffer);
                         interopTx.Uri = Source.Key; //TODO breaking
 
                         //check for pow
@@ -490,7 +489,7 @@ namespace zero.tangle.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync(ByteSegment, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
+                        await ((IoSocket)ioSocket).ReadAsync(ArraySegment, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
                         {                                                                    
                             switch (rx.Status)
                             {

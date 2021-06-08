@@ -878,7 +878,8 @@ namespace zero.cocoon.autopeer
                                             }
                                             catch (Exception e)
                                             {
-                                                _logger.Trace(e, Description);
+                                                if(!Zeroed())
+                                                    _logger.Trace(e, Description);
                                                 return;
                                             }
 
@@ -1026,6 +1027,7 @@ namespace zero.cocoon.autopeer
             }
             catch
             {
+                // ignored
             }
         }
 
@@ -1037,37 +1039,6 @@ namespace zero.cocoon.autopeer
         /// <param name="packet">The original packet</param>
         private async ValueTask ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
-            //fail fast
-            if (!Assimilating)
-            {
-                //send reject so that the sender's state can be fixed
-                var reject = new PeeringResponse
-                {
-                    ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
-                    Status = false
-                };
-
-                var remote = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData);                    
-                if (await Router.SendMessageAsync(reject.ToByteString(), remote,
-                    CcDiscoveries.MessageTypes.PeeringResponse).ConfigureAwait(false) > 0)
-                {
-                    _logger.Trace($"-/> {nameof(PeeringResponse)}: Sent {(reject.Status ? "ACCEPT" : "REJECT")}, {Description}");
-                }
-                else
-                    _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
-                
-                //DMZ-syn
-                if (Collected)
-                {
-                    //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
-                    if (await Router.SendPingAsync(remote, CcDesignation.FromPubKey(packet.PublicKey.Span).IdString())
-                        .ConfigureAwait(false)) 
-                        _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
-                }
-                
-                return;
-            }
-
             //Drop old requests
             if (request.Timestamp.ElapsedDelta() > parm_max_network_latency / 1000 * 2)
             {
@@ -1078,32 +1049,78 @@ namespace zero.cocoon.autopeer
 
             PeerRequests++;
 
-            PeeringResponse peeringResponse = peeringResponse = new PeeringResponse
+            //fail fast
+            if (!Assimilating)
             {
-                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
-                Status = CcCollective.IngressConnections < CcCollective.parm_max_inbound & _direction == 0
-            };
-            
-            if (await SendMessageAsync(data: peeringResponse.ToByteString(),
-                type: CcDiscoveries.MessageTypes.PeeringResponse).ConfigureAwait(false) > 0)
-            {
-                var response = $"{(peeringResponse.Status ? "accept" : "reject")}";
-                _logger.Trace(
-                    $"-/> {nameof(PeeringResponse)}: Sent {response}, {Description}");
-
-                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                //var dmzSyn = Task.Factory.StartNew(async () =>
                 {
-                    EventType = AutoPeerEventType.SendProtoMsg,
-                    Msg = new ProtoMsg
+                    //send reject so that the sender's state can be fixed
+                    var reject = new PeeringResponse
                     {
-                        CollectiveId = Hub.Router.Designation.IdString(),
-                        Id = Designation.IdString(),
-                        Type = $"peer response {response}"
+                        ReqHash = UnsafeByteOperations.UnsafeWrap(
+                            CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                        Status = false
+                    };
+
+                    var remote = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData);
+                    if (await Router.SendMessageAsync(reject.ToByteString(), CcDiscoveries.MessageTypes.PeeringResponse,
+                        remote
+                    ).ConfigureAwait(false) > 0)
+                    {
+                        _logger.Trace(
+                            $"-/> {nameof(PeeringResponse)}: Sent {(reject.Status ? "ACCEPT" : "REJECT")}, {Description}");
                     }
-                });
+                    else
+                        _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
+
+                    //DMZ-syn
+                    if (Collected)
+                    {
+                        await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
+                        //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
+                        if (await Router
+                            .SendPingAsync(remote, CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString())
+                            .ConfigureAwait(false))
+                            _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
+                    }
+                }
+                //}, TaskCreationOptions.LongRunning);
+                
+                return;
             }
-            else
-                _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
+            
+            //var peerResponseTask = Task.Factory.StartNew(async () =>
+            {
+
+                var peeringResponse = new PeeringResponse
+                {
+                    ReqHash = UnsafeByteOperations.UnsafeWrap(
+                        CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+                    Status = CcCollective.IngressConnections < CcCollective.parm_max_inbound & _direction == 0
+                };
+
+                if (await SendMessageAsync(data: peeringResponse.ToByteString(),
+                    type: CcDiscoveries.MessageTypes.PeeringResponse).ConfigureAwait(false) > 0)
+                {
+                    var response = $"{(peeringResponse.Status ? "accept" : "reject")}";
+                    _logger.Trace(
+                        $"-/> {nameof(PeeringResponse)}: Sent {response}, {Description}");
+
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.SendProtoMsg,
+                        Msg = new ProtoMsg
+                        {
+                            CollectiveId = Hub.Router.Designation.IdString(),
+                            Id = Designation.IdString(),
+                            Type = $"peer response {response}"
+                        }
+                    });
+                }
+                else
+                    _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
+            }
+            //}, TaskCreationOptions.LongRunning);
         }
 
         /// <summary>
@@ -1178,8 +1195,7 @@ namespace zero.cocoon.autopeer
         /// <param name="dest">The destination address</param>
         /// <param name="type">The message type</param>
         /// <returns></returns>
-        private async ValueTask<int> SendMessageAsync(ByteString data, IoNodeAddress dest = null,
-            CcDiscoveries.MessageTypes type = CcDiscoveries.MessageTypes.Undefined)
+        private async ValueTask<int> SendMessageAsync(ByteString data, CcDiscoveries.MessageTypes type = CcDiscoveries.MessageTypes.Undefined, IoNodeAddress dest = null)
         {
             try
             {
@@ -1198,12 +1214,22 @@ namespace zero.cocoon.autopeer
                 var packet = new Packet
                 {
                     Data = data,
-                    PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcCollective.CcId.PublicKey)),
+                    PublicKey = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.PublicKey),
                     Type = (uint) type
                 };
 
-                packet.Signature =
-                    UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcCollective.CcId.Sign(packet.Data!.Memory.AsArray(), 0, packet.Data.Length)));
+                var packetMsgRaw = packet.Data.Memory.AsArray();
+                packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
+                
+// #if DEBUG
+//                 var verified = CcCollective.CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
+//                     0, packet.Signature.Memory.AsArray(), 0);
+//                 if (!verified)
+//                 {
+//                     _logger.Fatal($"{Description}: Unable to sign message!!!");
+//                 }
+// #endif
+
                 var msgRaw = packet.ToByteArray();
 
 
@@ -1280,7 +1306,7 @@ namespace zero.cocoon.autopeer
             {
                 if (Proxy && Collected && response.Peers.Count <= parm_max_discovery_peers)
                     _logger.Debug(
-                        $"{nameof(DiscoveryResponse)}{response.ToByteArray().PayloadSig()}: Reject, rq = {response.ReqHash.Memory.HashSig()}, {response.Peers.Count} > {parm_max_discovery_peers}? from {MakeId(CcDesignation.FromPubKey(packet.PublicKey.Span), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest.Count}, matched[{extraData}] = {discoveryRequest.Payload != null}");
+                        $"{nameof(DiscoveryResponse)}{response.ToByteArray().PayloadSig()}: Reject, rq = {response.ReqHash.Memory.HashSig()}, {response.Peers.Count} > {parm_max_discovery_peers}? from {MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory), IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData))}, RemoteAddress = {RemoteAddress}, request = {_discoveryRequest.Count}, matched[{extraData}] = {discoveryRequest.Payload != null}");
                 return;
             }
 
@@ -1322,7 +1348,7 @@ namespace zero.cocoon.autopeer
                     continue;
 
                 //Don't add already known neighbors
-                var id = CcDesignation.FromPubKey(responsePeer.PublicKey.Span);
+                var id = CcDesignation.FromPubKey(responsePeer.PublicKey.Memory);
                 if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation?.Equals(id) ?? false))
                     continue;
 
@@ -1393,7 +1419,7 @@ namespace zero.cocoon.autopeer
                         .OrderBy(n => ((CcAdjunct) n).Priority).FirstOrDefault();
                     
                     //try harder when this comes from a synack 
-                    if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(0, CcDesignation.PubKeyLen) - 1] < byte.MaxValue/2)
+                    if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(1, CcDesignation.PubKeyLen) - 1] < byte.MaxValue/2)
                     {
                         var selection = q.ToList();
                         if(selection.Count > 0)
@@ -1493,7 +1519,13 @@ namespace zero.cocoon.autopeer
                     }
                 });
 
-                return await newAdjunct.SendPingAsync().ConfigureAwait(false);
+                if (!await newAdjunct.SendPingAsync().ConfigureAwait(false))
+                {
+                    _logger.Debug($"{newAdjunct.Description}: Unable to send ping!!!");
+                    return false;
+                }
+
+                return true;
             }
             else
             {
@@ -1523,7 +1555,7 @@ namespace zero.cocoon.autopeer
 
             var discoveryResponse = new DiscoveryResponse
             {
-                ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
+                ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
             };
 
             var count = 0;
@@ -1547,29 +1579,33 @@ namespace zero.cocoon.autopeer
                 count++;
             }
 
-            if (await SendMessageAsync(discoveryResponse.ToByteString(),
-                    RemoteAddress, CcDiscoveries.MessageTypes.DiscoveryResponse)
-                .ConfigureAwait(false) > 0)
+            //var discResponseTask = Task.Factory.StartNew(async () =>
             {
-                _logger.Trace($"-/> {nameof(DiscoveryResponse)}: Sent {count} discoveries to {Description}");
-
-                //Emit message event
-                AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                if (await SendMessageAsync(discoveryResponse.ToByteString(),
+                        CcDiscoveries.MessageTypes.DiscoveryResponse)
+                    .ConfigureAwait(false) > 0)
                 {
-                    EventType = AutoPeerEventType.SendProtoMsg,
-                    Msg = new ProtoMsg
+                    _logger.Trace($"-/> {nameof(DiscoveryResponse)}: Sent {count} discoveries to {Description}");
+
+                    //Emit message event
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
                     {
-                        CollectiveId = Hub.Router.Designation.IdString(),
-                        Id = Designation.IdString(),
-                        Type = "discovery response"
-                    }
-                });
+                        EventType = AutoPeerEventType.SendProtoMsg,
+                        Msg = new ProtoMsg
+                        {
+                            CollectiveId = Hub.Router.Designation.IdString(),
+                            Id = Designation.IdString(),
+                            Type = "discovery response"
+                        }
+                    });
+                }
+                else
+                {
+                    if (Collected)
+                        _logger.Debug($"<\\- {nameof(DiscoveryRequest)}: [FAILED], {Description}, {MetaDesc}");
+                }
             }
-            else
-            {
-                if (Collected)
-                    _logger.Debug($"<\\- {nameof(DiscoveryRequest)}: [FAILED], {Description}, {MetaDesc}");
-            }
+            //}, TaskCreationOptions.LongRunning);
         }
 
         private volatile ServiceMap _serviceMapLocal;
@@ -1609,7 +1645,7 @@ namespace zero.cocoon.autopeer
 
                 pong = new Pong
                 {
-                    ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
+                    ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
                     DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
                     Services =_serviceMapLocal = new ServiceMap
                     {
@@ -1635,7 +1671,7 @@ namespace zero.cocoon.autopeer
             {
                 pong = new Pong
                 {
-                    ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))),
+                    ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
                     DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
                     Services = _serviceMapLocal
                 };
@@ -1664,59 +1700,67 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                //SEND SYN-ACK
-                var sent = 0;
-                if ((sent = await SendMessageAsync(pong.ToByteString(), toAddress, CcDiscoveries.MessageTypes.Pong)
-                    .ConfigureAwait(false)) > 0)
+                //var synAckTask = Task.Factory.StartNew(async () =>
                 {
-                    _logger.Trace($"-/> {nameof(Pong)}: Sent {sent} SYN-ACK, to = {toAddress}");
-
-                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    //SEND SYN-ACK
+                    var sent = 0;
+                    if ((sent = await SendMessageAsync(pong.ToByteString(), CcDiscoveries.MessageTypes.Pong, toAddress)
+                        .ConfigureAwait(false)) > 0)
                     {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                        _logger.Trace($"-/> {nameof(Pong)}: Sent {sent} SYN-ACK, to = {toAddress}");
+
+                        AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Base58.Bitcoin.Encode(packet.PublicKey.Span.Slice(0, 8).ToArray()),
-                            Type = "pong"
-                        }
-                    });
-                }
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Base58.Bitcoin.Encode(packet.PublicKey.Span.Slice(0, 8).ToArray()),
+                                Type = "pong"
+                            }
+                        });
+                    }
 
-                if (CcCollective.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
-                {
-                    await SendMessageAsync(pong.ToByteString(), toAddress, CcDiscoveries.MessageTypes.Pong)
-                        .ConfigureAwait(false);
+                    if (CcCollective.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
+                    {
+                        await SendMessageAsync(pong.ToByteString(), CcDiscoveries.MessageTypes.Pong, toAddress)
+                            .ConfigureAwait(false);
 
+                    }
                 }
-                    
+                //}, TaskCreationOptions.LongRunning);
             }
             else //PROCESS ACK
             {
-                var sent = 0;
-                if ((sent = await SendMessageAsync(data: pong.ToByteString(), type: CcDiscoveries.MessageTypes.Pong).ConfigureAwait(false)) > 0)
+                //var ackTask = Task.Factory.StartNew(async () =>
                 {
-                    if (IsDroneConnected)
-                        _logger.Trace($"-/> {nameof(Pong)}: Sent {sent} KEEPALIVE, to = {Description}");
-                    else
-                        _logger.Trace($"-/> {nameof(Pong)}: Sent {sent} ACK SYN, to = {Description}");
-
-                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    var sent = 0;
+                    if ((sent = await SendMessageAsync(data: pong.ToByteString(), type: CcDiscoveries.MessageTypes.Pong)
+                        .ConfigureAwait(false)) > 0)
                     {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                        if (IsDroneConnected)
+                            _logger.Trace($"-/> {nameof(Pong)}: Sent {sent} KEEPALIVE, to = {Description}");
+                        else
+                            _logger.Trace($"-/> {nameof(Pong)}: Sent {sent} ACK SYN, to = {Description}");
+
+                        AutoPeeringEventService.AddEvent(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Designation.IdString(),
-                            Type = "pong"
-                        }
-                    });
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Designation.IdString(),
+                                Type = "pong"
+                            }
+                        });
+                    }
+                    else
+                    {
+                        if (Collected)
+                            _logger.Debug($"<\\- {nameof(Ping)}: [FAILED] Sent ACK SYN/KEEPALIVE, to = {Description}");
+                    }
                 }
-                else
-                {
-                    if (Collected)
-                        _logger.Debug($"<\\- {nameof(Ping)}: [FAILED] Sent ACK SYN/KEEPALIVE, to = {Description}");
-                }
+                //}, TaskCreationOptions.LongRunning);
             }
         }
 
@@ -1753,7 +1797,7 @@ namespace zero.cocoon.autopeer
             //Process SYN-ACK
             if (!Proxy)
             {
-                var idCheck = CcDesignation.FromPubKey(packet.PublicKey.Span);
+                var idCheck = CcDesignation.FromPubKey(packet.PublicKey.Memory);
                 var fromAddr = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) extraData);
                 var keyStr = MakeId(idCheck, fromAddr);
 
@@ -1778,8 +1822,7 @@ namespace zero.cocoon.autopeer
                         IoNodeAddress.Create(
                             $"{pong.Services.Map[key].Network}://{((IPEndPoint) extraData).Address}:{pong.Services.Map[key].Port}"));
 
-                await CollectAsync(fromAddr.IpEndPoint, idCheck, remoteServices, true)
-                    .ConfigureAwait(false);
+                CollectAsync(fromAddr.IpEndPoint, idCheck, remoteServices, true);
             }
             else if (!Verified) //Process ACK SYN
             {
@@ -1797,14 +1840,18 @@ namespace zero.cocoon.autopeer
 
                 Verified = true;
 
-                _logger.Trace($"<\\- {nameof(Pong)}: ACK SYN: {Description}");
-
-
+                _logger.Debug($"<\\- {nameof(Pong)}: ACK SYN: {Description}");
+                
                 //we need this peer request even if we are full. Verification needs this signal
                 //if (CcCollective.EgressConnections < CcCollective.parm_max_outbound)
                 {
                     _logger.Trace($"{(Proxy ? "V>" : "X>")}(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
-                    await SendPeerRequestAsync().ConfigureAwait(false);
+                    var peerRequestTask = Task.Factory.StartNew(async () =>
+                    {
+                        await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
+                        var s = SendPeerRequestAsync();
+                    });                  
+                    
                 }
             }
             else //sometimes drones we know prod us for connections
@@ -1813,7 +1860,7 @@ namespace zero.cocoon.autopeer
                 {
                     _logger.Trace(
                         $"<\\- {nameof(Pong)}(acksyn-fast): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
-                    await SendPeerRequestAsync().ConfigureAwait(false);
+                    var s = SendPeerRequestAsync();
                 }
                 else
                 {
@@ -1894,7 +1941,7 @@ namespace zero.cocoon.autopeer
                         .ConfigureAwait(false))
                         return false;
 
-                    var sent = await SendMessageAsync(reqBuf, dest, CcDiscoveries.MessageTypes.Ping)
+                    var sent = await SendMessageAsync(reqBuf, CcDiscoveries.MessageTypes.Ping, dest)
                         .ConfigureAwait(false);
                     if (sent > 0)
                     {
@@ -1981,8 +2028,7 @@ namespace zero.cocoon.autopeer
 
                 _lastScan = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                var sent = await SendMessageAsync(reqBuf, RemoteAddress,
-                    CcDiscoveries.MessageTypes.DiscoveryRequest).ConfigureAwait(false);
+                var sent = await SendMessageAsync(reqBuf,CcDiscoveries.MessageTypes.DiscoveryRequest, RemoteAddress).ConfigureAwait(false);
                 if (sent > 0)
                 {
                     _logger.Trace(
@@ -2060,19 +2106,17 @@ namespace zero.cocoon.autopeer
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                 };
 
-                var reqBuf = peerRequest.ToByteString();
-                if (!await _peerRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
-                    .ConfigureAwait(false))
+                var peerRequestRaw = peerRequest.ToByteString();
+                if (!await _peerRequest.ChallengeAsync(RemoteAddress.IpPort, peerRequestRaw).ConfigureAwait(false))
                 {
                     return false;
                 }
                 
-                var sent = await SendMessageAsync(reqBuf, null,
-                    CcDiscoveries.MessageTypes.PeeringRequest).ConfigureAwait(false);
+                var sent = await SendMessageAsync(peerRequestRaw, CcDiscoveries.MessageTypes.PeeringRequest).ConfigureAwait(false);
                 if (sent > 0)
                 {
                     _logger.Trace(
-                        $"-/> {nameof(SendPeerRequestAsync)}{reqBuf.Memory.PayloadSig()}: Sent {sent}, {Description}");
+                        $"-/> {nameof(SendPeerRequestAsync)}{peerRequestRaw.Memory.PayloadSig()}: Sent {sent}, {Description}");
 
                     AutoPeeringEventService.AddEvent(new AutoPeerEvent
                     {
@@ -2136,8 +2180,7 @@ namespace zero.cocoon.autopeer
 
                 var sent = 0;
                 _logger.Trace(
-                    (sent = await SendMessageAsync(dropRequest.ToByteString(), dest,
-                        CcDiscoveries.MessageTypes.PeeringDrop).ConfigureAwait(false)) > 0
+                    (sent = await SendMessageAsync(dropRequest.ToByteString(),CcDiscoveries.MessageTypes.PeeringDrop, dest).ConfigureAwait(false)) > 0
                         ? $"-/> {nameof(PeeringDrop)}: Sent {sent}, {Description}"
                         : $"-/> {nameof(SendPeerDropAsync)}: [FAILED], {Description}, {MetaDesc}");
 
@@ -2298,7 +2341,7 @@ namespace zero.cocoon.autopeer
             //back off for a while... Try to re-establish a link 
             var t = Task.Run(async () =>
             {
-                await Task.Delay(parm_max_network_latency).ConfigureAwait(false);
+                await Task.Delay(parm_max_network_latency + _random.Next(parm_max_network_latency)).ConfigureAwait(false);
                 await SendPingAsync().ConfigureAwait(false);
             });
 

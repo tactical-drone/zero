@@ -2,6 +2,9 @@
 using System.Buffers;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics.Arm;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -40,47 +43,22 @@ namespace zero.core.models
         /// <summary>
         /// buffer owner
         /// </summary>
-        public IMemoryOwner<sbyte> MemoryOwner;
+        public IMemoryOwner<byte> MemoryOwner;
 
         /// <summary>
         /// A buffer to receive the message in
         /// </summary>
-        public sbyte[] Buffer;
-
-        /// <summary>
-        /// A clone
-        /// </summary>
-        public byte[] BufferClone;
-
-        /// <summary>
-        /// A memory clone
-        /// </summary>
-        public Memory<byte> BufferCloneMemory;
-
-        /// <summary>
-        /// A <see cref="byte"/> span of the input buffer
-        /// </summary>
-        public Span<byte> BufferSpan => ByteBuffer.AsSpan();
-
-        /// <summary>
-        /// A byte array cast of the buffer
-        /// </summary>
-        public byte[] ByteBuffer => (byte[]) (Array) Buffer;
-
+        public byte[] Buffer;
+        
         /// <summary>
         /// Array segment form
         /// </summary>
-        public ArraySegment<byte> ByteSegment { get; protected set; }
+        public ArraySegment<byte> ArraySegment { get; protected set; }
 
         /// <summary>
         /// A memory buffer
         /// </summary>
         public Memory<byte> MemoryBuffer { get; protected set; }
-
-        /// <summary>
-        /// Pins the memory
-        /// </summary>
-        public MemoryHandle MemoryBufferPin { get; protected set; }
 
         /// <summary>
         /// Stream access to the input
@@ -171,7 +149,7 @@ namespace zero.core.models
 
 #if SAFE_RELEASE
             Buffer = null;
-            ByteSegment = null;
+            ArraySegment = null;
 #endif
         }
 

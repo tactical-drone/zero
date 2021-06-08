@@ -33,7 +33,6 @@ namespace zero.cocoon.models.test
         {
             if (zeroOnCascade)
             {
-                _logger = LogManager.GetCurrentClassLogger();
 
                 DatumSize = parm_max_datum_size;
 
@@ -41,18 +40,13 @@ namespace zero.cocoon.models.test
                 BufferSize = DatumSize * parm_datums_per_buffer;
                 DatumProvisionLengthMax = DatumSize - 1;
                 //DatumProvisionLength = DatumProvisionLengthMax;
-                Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
-                ByteSegment = ByteBuffer;
-                ReadOnlySequence = new ReadOnlySequence<byte>(ByteBuffer);
-                ByteStream = new MemoryStream(ByteBuffer);
+                Buffer = new byte[BufferSize + DatumProvisionLengthMax];
+                ArraySegment = new ArraySegment<byte>(Buffer);
+                ReadOnlySequence = new ReadOnlySequence<byte>(Buffer);
+                ByteStream = new MemoryStream(Buffer);
             }
         }
-
-        /// <summary>
-        /// logger
-        /// </summary>
-        private readonly Logger _logger;
-
+        
         /// <summary>
         /// The node that this message belongs to
         /// </summary>
@@ -144,7 +138,7 @@ namespace zero.cocoon.models.test
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            var readTask = ((IoSocket)ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset, _this.BufferSize);
+                            var readTask = ((IoSocket)ioSocket).ReadAsync(_this.ArraySegment, _this.BufferOffset, _this.BufferSize);
 
                             //slow path
                             if (!readTask.IsCompletedSuccessfully)
@@ -183,14 +177,14 @@ namespace zero.cocoon.models.test
                         }
                         return true;
                     }
-                    catch (NullReferenceException e){ _this._logger.Trace(e, _this.Description); return false;}
-                    catch (TaskCanceledException e){ _this._logger.Trace(e, _this.Description); return false; }
-                    catch (ObjectDisposedException e) { _this._logger.Trace(e, _this.Description); return false; }
-                    catch (OperationCanceledException e) { _this._logger.Trace(e, _this.Description); return false; }
+                    catch (NullReferenceException e){ _logger.Trace(e, _this.Description); return false;}
+                    catch (TaskCanceledException e){ _logger.Trace(e, _this.Description); return false; }
+                    catch (ObjectDisposedException e) { _logger.Trace(e, _this.Description); return false; }
+                    catch (OperationCanceledException e) { _logger.Trace(e, _this.Description); return false; }
                     catch (Exception e)
                     {
                         if(!_this.Zeroed() && !(e is SocketException))
-                            _this._logger.Debug(e,$"Error producing {_this.Description}");
+                            _logger.Debug(e,$"Error producing {_this.Description}");
                         
                         await Task.Delay(100).ConfigureAwait(false); //TODO
 
@@ -273,18 +267,18 @@ namespace zero.cocoon.models.test
             {
                 for (var i = 0; i < DatumCount; i++)
                 {
-                    var req = MemoryMarshal.Read<long>(BufferSpan.Slice(BufferOffset, DatumSize));
+                    var req = MemoryMarshal.Read<long>(MemoryBuffer.Span.Slice(BufferOffset, DatumSize));
                     var exp = Interlocked.Read(ref ((CcDrone) IoZero).AccountingBit);
                     if (req == exp)
                     {
                         
                         req++;
-                        MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
+                        MemoryMarshal.Write(MemoryBuffer.Span.Slice(BufferOffset, DatumSize), ref req);
 
                         //if (Id % 10 == 0)
                         await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
 
-                        var sentTask = ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ByteSegment, BufferOffset, DatumSize);
+                        var sentTask = ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ArraySegment, BufferOffset, DatumSize);
 
                         if (!sentTask.IsCompletedSuccessfully)
                             await sentTask.ConfigureAwait(false);
@@ -303,9 +297,9 @@ namespace zero.cocoon.models.test
 
                             req = 1;
 
-                            MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
+                            MemoryMarshal.Write(MemoryBuffer.Span.Slice(BufferOffset, DatumSize), ref req);
                             if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
-                                .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                                .SendAsync(ArraySegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 2);
                             }
@@ -315,9 +309,9 @@ namespace zero.cocoon.models.test
                             _logger.Fatal($"({DatumCount}) SET! {req} != {exp}");
 
                             req = 0;
-                            MemoryMarshal.Write(BufferSpan.Slice(BufferOffset, DatumSize), ref req);
+                            MemoryMarshal.Write(MemoryBuffer.Span.Slice(BufferOffset, DatumSize), ref req);
                             if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
-                                .SendAsync(ByteSegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                                .SendAsync(ArraySegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 1);
                             }

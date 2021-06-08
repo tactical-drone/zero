@@ -34,7 +34,7 @@ namespace zero.cocoon.models
     {
         public CcWispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _logger = LogManager.GetCurrentClassLogger();
+            
         }
 
         //public override async ValueTask<bool> ConstructAsync()
@@ -83,12 +83,7 @@ namespace zero.cocoon.models
 
         //    return await base.ConstructAsync().ConfigureAwait(false);
         //}
-
-        /// <summary>
-        /// logger
-        /// </summary>
-        private readonly Logger _logger;
-
+        
         /// <summary>
         /// Batch of messages
         /// </summary>
@@ -127,7 +122,7 @@ namespace zero.cocoon.models
                     return State = IoJobMeta.JobState.ConInvalid;
 
                 var read = 0;
-
+                
                 for (var i = 0; i <= DatumCount && BytesLeftToProcess > 0; i++)
                 {
                     if (DatumCount > 1)
@@ -152,7 +147,7 @@ namespace zero.cocoon.models
                         var tmpBufferOffset = BufferOffset;
 
                         if (!Zeroed() && !MessageService.Zeroed())
-                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={BufferSpan.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
 
                         if (read > 0)
                         {
@@ -371,7 +366,7 @@ namespace zero.cocoon.models
                     if (!await ((CcProtocBatchSource<CcWisperMsg, CcGossipBatch>)source).EnqueueAsync(_this.ProtocolMsgBatch).ConfigureAwait(false))
                     {
                         if (!((CcProtocBatchSource<CcWisperMsg, CcGossipBatch>)source).Zeroed())
-                            _this._logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
+                            _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;
                     }
 
@@ -382,7 +377,7 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _this._logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
+                        _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
                         return false;
                     }
 

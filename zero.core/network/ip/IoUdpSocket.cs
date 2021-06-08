@@ -10,6 +10,7 @@ using MathNet.Numerics;
 using NLog;
 using zero.core.misc;
 using zero.core.network.extensions;
+using zero.core.patterns.bushes;
 using zero.core.patterns.heap;
 using zero.core.patterns.semaphore.core;
 
@@ -40,7 +41,7 @@ namespace zero.core.network.ip
             remoteEndPoint)
         {
             Proxy = true;
-            Init(concurrencyLevel);
+            Init(16);
         }
 
 
@@ -67,11 +68,11 @@ namespace zero.core.network.ip
         {
             //concurrencyLevel *= 2;
 
-            _argsIoHeap = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
+            _argsIoHeap = new IoHeap<SocketAsyncEventArgsExt>(concurrencyLevel)
             {
                 Make = o =>
                 {
-                    var args = new SocketAsyncEventArgs();
+                    var args = new SocketAsyncEventArgsExt();
                     args.Completed += Signal;
                     return args;
                 }
@@ -355,7 +356,7 @@ namespace zero.core.network.ip
                     //return sendTask.Result;
 
                     _argsIoHeapOnce.Take(out var args);
-
+                    
                     if (args == null)
                         throw new OutOfMemoryException(nameof(_argsIoHeapOnce));
 
@@ -373,13 +374,15 @@ namespace zero.core.network.ip
                     if (tcs == null)
                         throw new OutOfMemoryException(nameof(_tcsHeap));
 
+                    MemoryHandle pin;
                     try
                     {
-                        args.BufferList = null;
-                        args.DisconnectReuseSocket = false;
-                        args.AcceptSocket = null;
-                        args.SocketFlags = SocketFlags.None;
+                        //args.BufferList = null;
+                        //args.DisconnectReuseSocket = false;
+                        //args.AcceptSocket = null;
+                        //args.SocketFlags = SocketFlags.None;
                         var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
+                        //_sendPin = buf.Pin();
                         args.SetBuffer(buf);
                         args.RemoteEndPoint = endPoint;
                         args.UserToken = tcs;
@@ -390,8 +393,8 @@ namespace zero.core.network.ip
                             return 0;
                         }
 
+                        //args.SetBuffer(_tmpBuf, 0, 0);
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
-
                     }
                     catch (Exception e)
                     {
@@ -399,21 +402,16 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        //TODO why does this not work?
-                        args.UserToken = null;
-                        args.AcceptSocket = null;
-                        args.RemoteEndPoint = null;
-                        //args.SetBuffer(null, 0, 0);
                         var dispose = args.SocketError != SocketError.Success || args.Disposed;
 
                         if (dispose && !args.Disposed)
                         {
+                            args.SetBuffer(null, 0, 0);
                             args.Completed -= Signal;
                             args.Dispose();
                         }
 
                         _argsIoHeapOnce.Return(args, dispose);
-
                         _tcsHeap.Return(tcs);
                     }
                 }
@@ -447,7 +445,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs> _argsIoHeap;
+        private IoHeap<SocketAsyncEventArgsExt> _argsIoHeap;
 
         /// <summary>
         /// socket args heap
@@ -464,6 +462,8 @@ namespace zero.core.network.ip
         {
             try
             {
+                //var s = ((IIoZeroSemaphore) eventArgs!.UserToken)!;
+                //if (s!.CurrentCount == 0)
                 ((IIoZeroSemaphore) eventArgs!.UserToken)!.Release();
             }
             catch
@@ -471,11 +471,6 @@ namespace zero.core.network.ip
                 // ignored
             }
         }
-
-        /// <summary>
-        /// pins the memory
-        /// </summary>
-        MemoryHandle _pin;
 
         /// <summary>
         /// Read from the socket
@@ -490,8 +485,6 @@ namespace zero.core.network.ip
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
             IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
-            int b;
-            Memory<byte> buf = null;
             try
             {
                 //fail fast
@@ -522,38 +515,18 @@ namespace zero.core.network.ip
                             args.AcceptSocket = null;
                             args.SocketFlags = SocketFlags.None;
 
-                            //Array.Clear(buf2.Array!, offset, length);
-
-                            buf = buffer.Slice(offset, length);
-                            _pin.Dispose();
-                            _pin = buf.Pin();
-
-                            //args.SetBuffer(buf2.Array, offset, length);
-                            args.SetBuffer(buf);
+                            args.SetBuffer(buffer.Slice(offset, length));
 
                             args.RemoteEndPoint = RemoteNodeAddress.IpEndPoint;
                             args.UserToken = tcs;
-
-                            //receive
-                            //buf2 = buf2.Slice(offset, length);
-                            //var result = await NativeSocket.ReceiveFromAsync(buf2, SocketFlags.None, remoteEp).ConfigureAwait(false);
-
 
                             if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().ConfigureAwait(false))
                             {
                                 return 0;
                             }
 
-                            //_logger.Debug($"[READ] - {args.BytesTransferred} : {buffer.GetHashCode()}");
-                            //_pin.Dispose();
-
-
                             remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
                             remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
-
-                            //remoteEp.Address = ((IPEndPoint)result.RemoteEndPoint)!.Address;
-                            //remoteEp.Port = ((IPEndPoint)result.RemoteEndPoint)!.Port;
-                            //return result.ReceivedBytes;
 
                             return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                         }
@@ -602,18 +575,16 @@ namespace zero.core.network.ip
                         
                         //args.SetBuffer(null, 0, 0);
 
-                        var dispose = args.SocketError != SocketError.Success;
+                        var dispose = args.Disposed || args.SocketError != SocketError.Success;
                         if (dispose)
                         {
+                            args.SetBuffer(null, 0, 0);
                             args.Completed -= Signal;
                             args.Dispose();
                         }
 
                         _argsIoHeap.Return(args, dispose);
-
                         _tcsHeap.Return(tcs);
-                        _argsIoHeap.Return(args, true);
-                        
                     }
                 }
 
