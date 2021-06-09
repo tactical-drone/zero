@@ -166,10 +166,11 @@ namespace zero.cocoon.models
                     {
                         foreach (var mId in CcCollective.DupChecker)
                         {
-                            if (mId.Key < req - _poolSize / 2)
+                            if (mId.Key < req - _poolSize / 4)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId))
                                 {
+                                    mId.Value.Clear();
                                     _dupHeap.Return(mId.Value);
                                 }
                             }
