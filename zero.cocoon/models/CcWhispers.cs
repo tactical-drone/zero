@@ -162,7 +162,7 @@ namespace zero.cocoon.models
                     
                     _poolSize = 2000; //TODO adjust to be always above tps
 
-                    if (CcCollective.DupChecker.Count > _poolSize)
+                    if (CcCollective.DupChecker.Count > _poolSize * 2 / 3)
                     {
                         foreach (var mId in CcCollective.DupChecker)
                         {
@@ -186,12 +186,12 @@ namespace zero.cocoon.models
 
                     //if not seen before, set message as seen
                     ConcurrentBag<string> dupEndpoints = null;
-                    var hit = false;
+                    var inserted = false;
                     if (!Duplicate() && 
                         // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                         (_dupHeap.Take(out dupEndpoints, endpoint) || true) && 
                         dupEndpoints != null &&
-                        (hit = CcCollective.DupChecker.TryAdd(req, dupEndpoints)))
+                        (inserted = CcCollective.DupChecker.TryAdd(req, dupEndpoints)))
                     {
                         var buf = whispers.ToByteArray();
 
@@ -247,7 +247,7 @@ namespace zero.cocoon.models
                     {
                         if (dupEndpoints == null)
                             throw new OutOfMemoryException($"{_dupHeap}");
-                        if (hit)
+                        if (inserted)
                         {
                             _logger.Fatal($"Unexpected: source drone {endpoint} not found");
                         }

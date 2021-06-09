@@ -128,7 +128,7 @@ namespace zero.sync
                     c++;
                 }
 
-                await Task.Delay(250 * total);
+                await Task.Delay(200 * total);
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
@@ -157,7 +157,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(2000).ConfigureAwait(false);
+                    await Task.Delay(500).ConfigureAwait(false);
                 }
                 
             });
@@ -636,7 +636,7 @@ namespace zero.sync
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
                 0, 0, 4
-                , 1);
+                , 2);
 
             _nodes.Add(cocoon);
 
