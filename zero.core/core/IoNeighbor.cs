@@ -17,14 +17,16 @@ namespace zero.core.core
     {
         /// <summary>
         /// ConstructAsync
-        /// </summary>        
+        /// </summary>
         /// <param name="node">The node this neighbor is connected to</param>
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocJob">The callback that allocates new message buffer space</param>
+        /// <param name="enableSync"></param>
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
-        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoSink<TJob>> mallocJob, int producers = 1, int consumers = 1)
-            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, true, producers, consumers)
+        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoSink<TJob>> mallocJob,
+            bool enableSync, int producers = 1, int consumers = 1)
+            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableSync, true, producers: producers, consumers: consumers)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;

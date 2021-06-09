@@ -11,10 +11,10 @@ namespace zero.core.patterns.bushes.contracts
     public interface IIoZero: IIoNanoprobe
     {
         IIoSource IoSource { get; }
-        //public object IoJobHeap { get; }
+        
         bool IsArbitrating { get; }
 
-        bool SyncRecoveryModeEnabled { get;  }
+        bool SyncRecoveryModeEnabled { get; }
 
         /// <summary>
         /// Number of concurrent producers

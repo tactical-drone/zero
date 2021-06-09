@@ -160,11 +160,15 @@ namespace zero.core.patterns.heap
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref ReferenceCount);
-                    item = newItem; 
+                    item = newItem;
+                    Prep?.Invoke(item, userData);
                     return false;
                 }
             }
-            catch (NullReferenceException) { }
+            catch (NullReferenceException e)
+            {
+                _logger.Trace(e);
+            }
             catch (Exception e)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
@@ -208,6 +212,11 @@ namespace zero.core.patterns.heap
         /// Makes a new item
         /// </summary>
         public Func<object,T> Make;
+
+        /// <summary>
+        /// Prepares an item from the stack
+        /// </summary>
+        public Action<T, object> Prep;
 
         /// <summary>
         /// Returns the amount of space left in the buffer

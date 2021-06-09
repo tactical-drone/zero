@@ -2,10 +2,10 @@
 
 package proto;
 
-message CcWisperMsg {
+message CcWhisperMsg {
     bytes data = 1;
 }
 
-message CcWisperReq {
+message CcWhisperReq {
     bytes id = 1;
 }

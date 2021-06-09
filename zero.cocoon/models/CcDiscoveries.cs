@@ -145,9 +145,6 @@ namespace zero.cocoon.models
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 
-        private long _failCounter;
-        private long _lastFail;
-
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             try
@@ -164,13 +161,12 @@ namespace zero.cocoon.models
                     Packet packet = null;
                     long curPos = 0;
                     var read = 0;
-                    
+                    var currentOffset = BufferOffset;
                     //deserialize
                     try
                     {
-                        ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
                         //ByteStream.SetLength(BytesLeftToProcess);
-                        curPos = BufferOffset;
+                        //curPos = BufferOffset;
 
                         //trim zeroes
                         // if (IoZero.SyncRecoveryModeEnabled)
@@ -201,7 +197,6 @@ namespace zero.cocoon.models
                         
                         try
                         {
-                            Interlocked.Increment(ref _failCounter);
                             packet = Packet.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
                             read = packet.CalculateSize();
                         }
@@ -210,10 +205,9 @@ namespace zero.cocoon.models
                             //try
                             {
                                 var s = new MemoryStream(Buffer);
-                                s.Seek(ByteStream.Position, SeekOrigin.Begin);
-                                //s.SetLength(ByteStream.Position + BytesLeftToProcess);
+                                s.Seek(currentOffset, SeekOrigin.Begin);
                                 curPos = s.Position;
-                                CodedStream = new CodedInputStream(s, true);
+                                CodedStream = new CodedInputStream(s);
 
                                 packet = Packet.Parser.ParseFrom(CodedStream);
                                 read = (int)(CodedStream.Position - curPos);

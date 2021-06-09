@@ -27,16 +27,20 @@ namespace zero.core.patterns.bushes
         /// <param name="description">A description of the progress</param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
+        /// <param name="enableSync"></param>
         /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
-        protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob, bool sourceZeroCascade = false, int producers = 1, int consumers = 1) : base($"{nameof(IoSink<TJob>)}")
+        protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob,
+            bool enableSync, bool sourceZeroCascade = false, int producers = 1, int consumers = 1) : base($"{nameof(IoSink<TJob>)}")
         {
             ProducerCount = producers;
             ConsumerCount = consumers;
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
+
+            SyncRecoveryModeEnabled = enableSync;
 
             //What to do when certain parameters change
             //SettingChangedEvent += (sender, pair) =>
@@ -96,7 +100,7 @@ namespace zero.core.patterns.bushes
         /// Whether this source supports fragmented datums
         /// </summary>
         //protected bool SyncRecoveryModeEnabled => ConsumerCount == 1;
-        public bool SyncRecoveryModeEnabled => true;
+        public bool SyncRecoveryModeEnabled { get; protected set; }
 
         /// <summary>
         /// Upstream <see cref="Source"/> reference
@@ -273,9 +277,12 @@ namespace zero.core.patterns.bushes
                             return new ValueTask<IoSink<TJob>>(load);
                         }, this).ConfigureAwait(false);
 
-                        
+                        if (nextJob == null)
+                        {
+
+                        }
                         //Allocate a job from the heap
-                        if (!Zeroed() && nextJob != null) //TODO 
+                        if (!Zeroed() && nextJob != null)
                         {
 
                             nextJob.State = IoJobMeta.JobState.Producing;

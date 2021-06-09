@@ -18,7 +18,7 @@ using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon
 {
-    public class CcDrone : IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>
+    public class CcDrone : IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
     {
         /// <summary>
         /// Ctor
@@ -27,11 +27,11 @@ namespace zero.cocoon
         /// <param name="adjunct">Optional neighbor association</param>
         /// <param name="ioNetClient">The peer transport carrier</param>
         /// <param name="concurrencyLevel"></param>
-        public CcDrone(IoNode<CcProtocMessage<CcWisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> ioNetClient, int concurrencyLevel = 1)
+        public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
+            IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient, int concurrencyLevel = 1)
             : base(node, ioNetClient,
-                userData => new CcWispers("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
-                    ioNetClient), ioNetClient.ConcurrencyLevel, ioNetClient.ConcurrencyLevel)
+                userData => new CcWhispers("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}",
+                    ioNetClient), false, producers: ioNetClient.ConcurrencyLevel, consumers: ioNetClient.ConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
@@ -110,7 +110,7 @@ namespace zero.cocoon
         /// <summary>
         /// The source
         /// </summary>
-        public new IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source;
+        public new IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoSource => (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) Source;
 
         /// <summary>
         /// The attached neighbor
@@ -130,7 +130,7 @@ namespace zero.cocoon
         /// <summary>
         /// Helper
         /// </summary>
-        protected IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>> IoNetClient;
+        protected IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoNetClient;
 
         /// <summary>
         /// 
@@ -242,13 +242,13 @@ namespace zero.cocoon
                     var vb = new byte[8];
                     Write(vb.AsSpan(), ref v);
 
-                    var m = new CcWisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
+                    var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
 
                     var buf = m.ToByteArray();
 
                     if (!Zeroed())
                     {
-                        var sentTask = ((IoNetClient<CcProtocMessage<CcWisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(buf, 0, buf.Length);
+                        var sentTask = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(buf, 0, buf.Length);
                         if (!sentTask.IsCompletedSuccessfully)
                             await sentTask.ConfigureAwait(false);
 

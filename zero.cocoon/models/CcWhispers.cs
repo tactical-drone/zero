@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ using zero.core.models.protobuffer;
 using zero.core.models.protobuffer.sources;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
 namespace zero.cocoon.models
@@ -25,7 +27,14 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-
+            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize)
+            {
+                Make = o => new ConcurrentBag<string>(),
+                Prep = (popped, endpoint) =>
+                {
+                    popped.Add((string) endpoint);
+                }
+            };
         }
 
         //public override async ValueTask<bool> ConstructAsync()
@@ -96,6 +105,9 @@ namespace zero.cocoon.models
         /// </summary>
         readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
+        private IoHeap<ConcurrentBag<string>> _dupHeap;
+        private int _poolSize = 2000;
+
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             var readOnlySequence =
@@ -107,10 +119,9 @@ namespace zero.cocoon.models
                     return State = IoJobMeta.JobState.ConInvalid;
 
                 var read = 0;
-                
+
                 while(BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
                 {
-
                     readOnlySequence = readOnlySequence.Slice(readOnlySequence.GetPosition(read), readOnlySequence.GetPosition(BytesRead - read));
                     CcWhisperMsg whispers = null;
 
@@ -122,23 +133,14 @@ namespace zero.cocoon.models
                             break;
 
                         read += whispers.CalculateSize();
+                        State = IoJobMeta.JobState.Consumed;
                     }
                     catch (Exception e)
                     {
-                        var tmpBufferOffset = BufferOffset;
-
                         if (!Zeroed() && !MessageService.Zeroed())
-                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(BufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
 
-                        if (read > 0)
-                        {
-                            Interlocked.Add(ref BufferOffset, (int)read);
-                            continue;
-                        }
-                        else
-                        {
-                            State = IoJobMeta.JobState.ConInlined;
-                        }
+                        State = IoJobMeta.JobState.ConInlined;
                     }
 
                     if (read == 0)
@@ -157,29 +159,39 @@ namespace zero.cocoon.models
 
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
-                    ConcurrentBag<string> dupEndpoints = null;
+                    
+                    _poolSize = 2000; //TODO adjust to be always above tps
 
-                    var poolSize = 2000; //TODO adjust to be always above tps
-
-                    if (CcCollective.DupChecker.Count > poolSize)
+                    if (CcCollective.DupChecker.Count > _poolSize)
                     {
                         foreach (var mId in CcCollective.DupChecker)
                         {
-                            if (mId.Key < req - poolSize / 2)
-                                CcCollective.DupChecker.TryRemove(mId);
+                            if (mId.Key < req - _poolSize / 2)
+                            {
+                                if (CcCollective.DupChecker.TryRemove(mId))
+                                {
+                                    _dupHeap.Return(mId.Value);
+                                }
+                            }
                         }
                     }
 
                     //set this message as seen if seen before
                     bool Duplicate()
                     {
-                        if (!CcCollective.DupChecker.TryGetValue(req, out dupEndpoints)) return false;
-                        dupEndpoints.Add(endpoint);
+                        if (CcCollective.DupChecker.TryGetValue(req, out var endpoints) || endpoints == null) return false;
+                        endpoints.Add(endpoint);
                         return true;
                     }
 
                     //if not seen before, set message as seen
-                    if (!Duplicate() && CcCollective.DupChecker.TryAdd(req, dupEndpoints = new ConcurrentBag<string>(new[] { endpoint })))
+                    ConcurrentBag<string> dupEndpoints = null;
+                    var hit = false;
+                    if (!Duplicate() && 
+                        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                        (_dupHeap.Take(out dupEndpoints, endpoint) || true) && 
+                        dupEndpoints != null &&
+                        (hit = CcCollective.DupChecker.TryAdd(req, dupEndpoints)))
                     {
                         var buf = whispers.ToByteArray();
 
@@ -233,17 +245,14 @@ namespace zero.cocoon.models
                     }
                     else
                     {
-                        if (!Duplicate())
+                        if (dupEndpoints == null)
+                            throw new OutOfMemoryException($"{_dupHeap}");
+                        if (hit)
                         {
                             _logger.Fatal($"Unexpected: source drone {endpoint} not found");
                         }
                     }
                 }
-
-                //Release a waiter
-                //await ForwardToNeighborAsync().ConfigureAwait(false);
-
-                State = IoJobMeta.JobState.Consumed;
             }
             catch (NullReferenceException e)
             {

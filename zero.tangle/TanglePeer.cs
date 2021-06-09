@@ -30,7 +30,7 @@ namespace zero.tangle
         /// <param name="node">The node this peer is connected to</param>
         /// <param name="ioNetClient">The network client used to communicate with this neighbor</param>
         public TanglePeer(TangleNode<IoTangleMessage<TKey>, TKey> node, IoNetClient<IoTangleMessage<TKey>> ioNetClient) :
-            base(node,ioNetClient, (userData) => new IoTangleMessage<TKey>($"rx", $"{ioNetClient.Key}", ioNetClient))
+            base(node,ioNetClient, (userData) => new IoTangleMessage<TKey>($"rx", $"{ioNetClient.Key}", ioNetClient), true)
         {
             _logger = LogManager.GetCurrentClassLogger();            
             //JobThreadScheduler = new LimitedThreadScheduler(parm_max_consumer_threads = 2);                        

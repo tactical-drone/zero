@@ -29,7 +29,7 @@ namespace zero.cocoon
     /// <summary>
     /// Connects to cocoon
     /// </summary>
-    public class CcCollective : IoNode<CcProtocMessage<CcWisperMsg, CcGossipBatch>>
+    public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
@@ -350,12 +350,12 @@ namespace zero.cocoon
         /// </summary>
         public int TotalConnections => IngressConnections + EgressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Ingress => Drones.Where(kv=>(((CcDrone) kv).Adjunct.Ingress)).ToList();
+        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Ingress => Drones.Where(kv=>(((CcDrone) kv).Adjunct.Ingress)).ToList();
 
-        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Drones => Neighbors.Values.Where(kv =>
+        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Drones => Neighbors.Values.Where(kv =>
             ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList();
 
-        public List<CcDrone> WisperingDrones => Neighbors.Values.Where(kv =>
+        public List<CcDrone> WhisperingDrones => Neighbors.Values.Where(kv =>
             ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList().Cast<CcDrone>().ToList();
 
         /// <summary>
@@ -363,7 +363,7 @@ namespace zero.cocoon
         /// </summary>
         public volatile int IngressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.Egress)).ToList();
+        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.Egress)).ToList();
 
         /// <summary>
         /// Number of outbound neighbors
@@ -373,7 +373,7 @@ namespace zero.cocoon
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        private List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports
@@ -456,7 +456,7 @@ namespace zero.cocoon
         /// <param name="acceptConnection"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWisperMsg, CcGossipBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
             _autoPeeringTask = Task.Factory.StartNew(async () =>
             {
@@ -567,26 +567,26 @@ namespace zero.cocoon
                         
                         _this._sw.Restart();
                         //read from the socket
-                        //do
-                        //{
-                        var readTask = ioNetSocket
-                            .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeRequestSize - bytesRead,
-                                timeout: _this.parm_handshake_timeout);
+                        do
+                        {
+                            var readTask = ioNetSocket
+                                .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeRequestSize - bytesRead,
+                                    timeout: _this.parm_handshake_timeout);
 
-                        if (readTask.IsCompletedSuccessfully)
-                            bytesRead += readTask.Result;
-                        else
-                            bytesRead += await readTask.ConfigureAwait(false);
-                        
-                        //} while (
-                        //    !Zeroed() &&
-                        //    bytesRead < _handshakeRequestSize &&
-                        //    ioNetSocket.NativeSocket.Available > 0 &&
-                        //    bytesRead < handshakeBuffer.Length &&
-                        //    ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
-                        //);
-                        
-                        
+                            if (readTask.IsCompletedSuccessfully)
+                                bytesRead += readTask.Result;
+                            else
+                                bytesRead += await readTask.ConfigureAwait(false);
+
+                        } while (
+                            !Zeroed() &&
+                            bytesRead < _handshakeRequestSize &&
+                            ioNetSocket.NativeSocket.Available > 0 &&
+                            bytesRead < handshakeBuffer.Length &&
+                            ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                        );
+
+
                         if (bytesRead == 0)
                         {
                             _this._logger.Trace(
@@ -706,26 +706,26 @@ namespace zero.cocoon
                                 $"Failed to send egress handshake challange, socket = {ioNetSocket.Description}");
                             return false;
                         }
-                        
-                        //do
-                        //{
-                        var readTask = ioNetSocket
+
+                        do
+                        {
+                            var readTask = ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeResponseSize - bytesRead,
                                 timeout: _this.parm_handshake_timeout);
 
-                        if (readTask.IsCompletedSuccessfully)
-                            bytesRead += readTask.Result;
-                        else
-                            bytesRead += await readTask.ConfigureAwait(false);
-                        
-                        //} while (
-                        //    !Zeroed() &&
-                        //    bytesRead < _handshakeResponseSize &&
-                        //    ioNetSocket.NativeSocket.Available > 0 &&
-                        //    bytesRead < handshakeBuffer.Length &&
-                        //    ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
-                        //);
-                        
+                            if (readTask.IsCompletedSuccessfully)
+                                bytesRead += readTask.Result;
+                            else
+                                bytesRead += await readTask.ConfigureAwait(false);
+
+                        } while (
+                            !Zeroed() &&
+                            bytesRead < _handshakeResponseSize &&
+                            ioNetSocket.NativeSocket.Available > 0 &&
+                            bytesRead < handshakeBuffer.Length &&
+                            ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                        );
+
                         if (bytesRead == 0)
                         {
                             _this._logger.Trace(
@@ -924,8 +924,9 @@ namespace zero.cocoon
             }
         }
 
-        private static int _lambda = 100;
-        private Poisson _poisson = new Poisson(_lambda);
+        private static readonly float _lambda = 10;
+        
+        private readonly Poisson _poisson = new Poisson(_lambda);
         /// <summary>
         /// Boots the node
         /// </summary>
@@ -935,7 +936,8 @@ namespace zero.cocoon
             var s = 0;
             foreach (var ioNeighbor in Drones)
             {
-                if ((s = _poisson.Sample()) < _lambda)
+                s = _poisson.Sample();
+                if (Math.Abs(s - _lambda) > _lambda * 4/5)
                 {
                     //Console.Write($"[{s}]");
                     continue;

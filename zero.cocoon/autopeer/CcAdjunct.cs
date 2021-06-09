@@ -40,9 +40,9 @@ namespace zero.cocoon.autopeer
             (
                 node,
                 ioNetClient,
-                userData => new CcDiscoveries("adjunct RX", $"{ioNetClient.Key}", ioNetClient, extraData != null ? 1 : ioNetClient.ConcurrencyLevel),
-                extraData != null? 1 : ioNetClient.ConcurrencyLevel,
-                extraData != null? 1 : ioNetClient.ConcurrencyLevel
+                userData => new CcDiscoveries("adjunct RX", $"{ioNetClient.Key}", ioNetClient, extraData != null ? 1 : ioNetClient.ConcurrencyLevel), true,
+                producers: extraData != null? 1 : 1,
+                consumers: extraData != null? 1 : 1
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
