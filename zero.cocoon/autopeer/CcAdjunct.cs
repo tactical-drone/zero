@@ -822,7 +822,7 @@ namespace zero.cocoon.autopeer
                             ArrayPoolProxy = ((CcProtocBatchSource<Packet,CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
                         else
                         {
-                            await Task.Delay(2000, AsyncTasks.Token).ConfigureAwait(false); //TODO config
+                            await Task.Delay(200, AsyncTasks.Token).ConfigureAwait(false); //TODO config
                         }
 
                         continue;
@@ -1052,7 +1052,7 @@ namespace zero.cocoon.autopeer
             //fail fast
             if (!Assimilating)
             {
-                var dmzSyn = Task.Factory.StartNew(async () =>
+                //var dmzSyn = Task.Factory.StartNew(async () =>
                 {
                     //send reject so that the sender's state can be fixed
                     var reject = new PeeringResponse
@@ -1076,14 +1076,14 @@ namespace zero.cocoon.autopeer
                     //DMZ-syn
                     if (Collected)
                     {
-                        await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
                         //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
                         if (await Router
                             .SendPingAsync(remote, CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString())
                             .ConfigureAwait(false))
                             _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
                     }
-                }, TaskCreationOptions.LongRunning);
+                }
+                //}, TaskCreationOptions.LongRunning);
                 
                 return;
             }
