@@ -164,15 +164,12 @@ namespace zero.cocoon.models
 
                     if (CcCollective.DupChecker.Count > _poolSize * 2 / 3)
                     {
-                        foreach (var mId in CcCollective.DupChecker)
+                        foreach (var mId in CcCollective.DupChecker.Where(kv=>kv.Key < req - _poolSize / 4))
                         {
-                            if (mId.Key < req - _poolSize / 4)
+                            if (CcCollective.DupChecker.TryRemove(mId))
                             {
-                                if (CcCollective.DupChecker.TryRemove(mId))
-                                {
-                                    mId.Value.Clear();
-                                    _dupHeap.Return(mId.Value);
-                                }
+                                mId.Value.Clear();
+                                _dupHeap.Return(mId.Value);
                             }
                         }
                     }
