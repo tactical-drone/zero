@@ -122,12 +122,12 @@ namespace zero.cocoon.models
 
                 while(BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
                 {
-                    readOnlySequence = readOnlySequence.Slice(readOnlySequence.GetPosition(read), readOnlySequence.GetPosition(BytesRead - read));
                     CcWhisperMsg whispers = null;
-
                     //deserialize
                     try
                     {
+                        readOnlySequence = readOnlySequence.Slice(readOnlySequence.GetPosition(read), readOnlySequence.GetPosition(BytesRead - read));
+                        
                         whispers = CcWhisperMsg.Parser.ParseFrom(readOnlySequence);
                         if (whispers == null)
                             break;
