@@ -27,7 +27,7 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize)
+            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2)
             {
                 Make = o => new ConcurrentBag<string>(),
                 Prep = (popped, endpoint) =>

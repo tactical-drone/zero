@@ -128,7 +128,7 @@ namespace zero.sync
                     c++;
                 }
 
-                await Task.Delay(200 * total);
+                await Task.Delay(100 * total);
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
@@ -157,7 +157,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(500).ConfigureAwait(false);
+                    await Task.Delay(750).ConfigureAwait(false);
                 }
                 
             });
