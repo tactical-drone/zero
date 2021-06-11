@@ -189,8 +189,8 @@ namespace zero.core.patterns.heap
         public void Return(T item, bool destroy = false)
         {
 #if DEBUG
-            // if (item == null)
-            //     throw new ArgumentException($"{nameof(item)} cannot be null");
+             if (item == null)
+                 throw new ArgumentException($"{nameof(item)} cannot be null");
 #endif
             try
             {

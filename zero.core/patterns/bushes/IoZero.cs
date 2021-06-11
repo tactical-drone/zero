@@ -616,7 +616,9 @@ namespace zero.core.patterns.bushes
 
                         //Consume the job
                         if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
-                            curJob.State == IoJobMeta.JobState.ConInlined &&
+                            curJob.State == IoJobMeta.JobState.ConInlined ||
+                            curJob.State == IoJobMeta.JobState.FastDup 
+                            &&
                             !Zeroed())
                         {
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)

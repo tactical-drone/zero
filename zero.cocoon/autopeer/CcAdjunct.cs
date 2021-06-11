@@ -623,7 +623,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Ensures that the peer is running
         /// </summary>
-        public async Task WatchdogAsync()
+        public async ValueTask WatchdogAsync()
         {
             // Verify request
             if (!Assimilating)

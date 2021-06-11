@@ -45,7 +45,7 @@ namespace zero.cocoon
             {
                 while (!Zeroed())
                 {
-                    await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token);
+                    await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token).ConfigureAwait(false);
                     if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Peering)
                     {
                         _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}, {Adjunct?.MetaDesc}");

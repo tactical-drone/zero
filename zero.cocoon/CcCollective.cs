@@ -939,7 +939,6 @@ namespace zero.cocoon
                 s = _poisson.Sample();
                 if (Math.Abs(s - _lambda) > _lambda * 4/5)
                 {
-                    //Console.Write($"[{s}]");
                     continue;
                 }
                 try

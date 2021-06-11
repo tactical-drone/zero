@@ -106,7 +106,8 @@ namespace zero.cocoon.models
         readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
         private IoHeap<ConcurrentBag<string>> _dupHeap;
-        private int _poolSize = 2000;
+        private int _poolSize = 1000;
+        private long _maxReq = int.MinValue;
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -158,98 +159,92 @@ namespace zero.cocoon.models
                     }
 
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
-                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
+                    if (req > _maxReq)
+                        _maxReq = req;
                     
-                    _poolSize = 2000; //TODO adjust to be always above tps
+                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
 
-                    if (CcCollective.DupChecker.Count > _poolSize * 2 / 3)
+                    if (CcCollective.DupChecker.Count > _poolSize  / 2)
                     {
-                        foreach (var mId in CcCollective.DupChecker.Where(kv=>kv.Key < req - _poolSize / 4))
+                        foreach (var mId in CcCollective.DupChecker.Where(kv=>kv.Key < _maxReq - _poolSize / 4).ToList())
                         {
-                            if (CcCollective.DupChecker.TryRemove(mId))
+                            if (CcCollective.DupChecker.TryRemove(mId.Key, out var del))
                             {
-                                mId.Value.Clear();
-                                _dupHeap.Return(mId.Value);
+                                del.Clear();
+                                _dupHeap.Return(del);
                             }
                         }
                     }
 
-                    //set this message as seen if seen before
-                    bool Duplicate()
-                    {
-                        if (CcCollective.DupChecker.TryGetValue(req, out var endpoints) || endpoints == null) return false;
-                        endpoints.Add(endpoint);
-                        return true;
-                    }
-
-                    //if not seen before, set message as seen
                     ConcurrentBag<string> dupEndpoints = null;
-                    var inserted = false;
-                    if (!Duplicate() && 
-                        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                        (_dupHeap.Take(out dupEndpoints, endpoint) || true) && 
-                        dupEndpoints != null &&
-                        (inserted = CcCollective.DupChecker.TryAdd(req, dupEndpoints)))
+                    
+                    //set this message as seen if seen before
+                    
+                    _dupHeap.Take(out dupEndpoints, endpoint);
+                    
+                    if (dupEndpoints == null)
+                        throw new OutOfMemoryException($"{_dupHeap}: {_dupHeap.ReferenceCount}/{_dupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = {_maxReq}");
+
+                    if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                     {
-                        var buf = whispers.ToByteArray();
-
-                        async void ForwardMessage(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone)
+                        _dupHeap.Return(dupEndpoints);
+                        
+                        //best effort
+                        if (CcCollective.DupChecker.TryGetValue(req, out var endpoints));
+                            endpoints!.Add(endpoint);
+                        
+                        return State = IoJobMeta.JobState.FastDup;
+                    }
+                    
+                    //if not seen before, set message as seen
+                    var buf = whispers.ToByteArray();
+                    async void ForwardMessage(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone)
+                    {
+                        try
                         {
-                            try
+                            var source = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) drone.Source);
+                    
+                            //Don't forward new messages to nodes from which we have received the msg in the mean time.
+                            //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
+                            //which in turn lowers the traffic causing less congestion
+                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                                return;
+                    
+                            var sentTask = source.IoNetSocket.SendAsync(Buffer, BufferOffset - BytesRead, BytesRead);
+                            if (!sentTask.IsCompletedSuccessfully)
+                                await sentTask.ConfigureAwait(false);
+                    
+                            if (sentTask.Result <= 0)
                             {
-                                var source = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) drone.Source);
-
-                                //Don't forward new messages to nodes from which we have received the msg in the mean time.
-                                //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
-                                //which in turn lowers the traffic causing less congestion
-                                if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
-                                    return;
-
-                                var sentTask = source.IoNetSocket.SendAsync(Buffer, BufferOffset - BytesRead, BytesRead);
-                                if (!sentTask.IsCompletedSuccessfully)
-                                    await sentTask.ConfigureAwait(false);
-
-                                if (sentTask.Result <= 0)
+                                _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
+                            }
+                            else
+                            {
+                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
                                 {
-                                    _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
-                                }
-                                else
-                                {
-                                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                                    EventType = AutoPeerEventType.SendProtoMsg,
+                                    Msg = new ProtoMsg
                                     {
-                                        EventType = AutoPeerEventType.SendProtoMsg,
-                                        Msg = new ProtoMsg
-                                        {
-                                            CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                                            Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
-                                            Type = $"gossip{req % 4}"
-                                        }
-                                    });
-                                }
-                            }
-                            catch (Exception e)
-                            {
-                                _logger.Trace(e);
+                                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                                        Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
+                                        Type = $"gossip{req % 4}"
+                                    }
+                                });
                             }
                         }
-
-                        await Task.Delay(15).ConfigureAwait(false);
-
-                        await CcCollective.WhisperingDrones.ForEachAsync( d =>
+                        catch (Exception e)
                         {
-                            ForwardMessage(d);
-                            return ValueTask.CompletedTask;
-                        });
+                            _logger.Trace(e);
+                        }
                     }
-                    else
+                    
+                    await Task.Delay(15).ConfigureAwait(false);
+                    
+                    await CcCollective.WhisperingDrones.ForEachAsync( d =>
                     {
-                        if (dupEndpoints == null)
-                            throw new OutOfMemoryException($"{_dupHeap}");
-                        if (inserted)
-                        {
-                            _logger.Fatal($"Unexpected: source drone {endpoint} not found");
-                        }
-                    }
+                        ForwardMessage(d);
+                        return ValueTask.CompletedTask;
+                    }).ConfigureAwait(false);
                 }
             }
             catch (NullReferenceException e)
