@@ -33,17 +33,11 @@ namespace zero.cocoon.events.services
                 return Task.FromResult(response);
 
             var c = 0;
-            var events = new List<AutoPeerEvent>();
             while (c++ < EventBatchSize && QueuedEvents.TryDequeue(out var netEvent))
             {
-
-                events.Add(netEvent);
+                response.Events.Add(netEvent);
             }
-
-            response.Events.AddRange(events);
             
-            //if (response.Events.Count == 0)
-            //    await Task.Delay(500).ConfigureAwait(false);
             return Task.FromResult(response);
         }
 
