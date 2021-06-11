@@ -204,7 +204,7 @@ namespace zero.core.patterns.heap
             }
             catch (NullReferenceException)
             {
-                //await item.ZeroAsync(this).ConfigureAwait(false);
+                _logger.Fatal($"Unexpected error while returning item to the heap: ");
             }
         }
 

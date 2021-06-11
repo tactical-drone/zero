@@ -924,7 +924,7 @@ namespace zero.cocoon
             }
         }
 
-        private static readonly float _lambda = 10;
+        private static readonly float _lambda = 100;
         
         private readonly Poisson _poisson = new Poisson(_lambda);
         /// <summary>
@@ -937,7 +937,7 @@ namespace zero.cocoon
             foreach (var ioNeighbor in Drones)
             {
                 s = _poisson.Sample();
-                if (Math.Abs(s - _lambda) > _lambda * 4/5)
+                if (Math.Abs(s - _lambda) < 46)
                 {
                     continue;
                 }

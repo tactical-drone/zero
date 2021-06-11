@@ -179,21 +179,20 @@ namespace zero.cocoon.models
                     ConcurrentBag<string> dupEndpoints = null;
                     
                     //set this message as seen if seen before
-                    
                     _dupHeap.Take(out dupEndpoints, endpoint);
-                    
+                
                     if (dupEndpoints == null)
                         throw new OutOfMemoryException($"{_dupHeap}: {_dupHeap.ReferenceCount}/{_dupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = {_maxReq}");
-
-                    if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
+                    var dup = !CcCollective.DupChecker.TryAdd(req, dupEndpoints);
+                    if (dup)
                     {
                         _dupHeap.Return(dupEndpoints);
-                        
+                    
                         //best effort
-                        if (CcCollective.DupChecker.TryGetValue(req, out var endpoints));
+                        if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))
                             endpoints!.Add(endpoint);
-                        
-                        return State = IoJobMeta.JobState.FastDup;
+                    
+                        continue;
                     }
                     
                     //if not seen before, set message as seen
