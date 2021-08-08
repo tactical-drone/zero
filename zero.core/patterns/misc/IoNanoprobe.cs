@@ -295,8 +295,6 @@ namespace zero.core.patterns.misc
 
                 @this.TearDownTime = DateTime.Now.Ticks;
 
-                
-                var c = 0;
                 //emit zero event
                 while (@this._zeroSubs.TryPop(out var zeroSub))
                 {

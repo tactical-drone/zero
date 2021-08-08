@@ -13,11 +13,11 @@ namespace zero.core.patterns.semaphore
     /// </summary>
     public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
     {
-        public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks, string description = "IoZeroSemaphoreSlim", int maxCount = 1, int initialCount = 0,
+        public IoZeroSemaphoreSlim(CancellationToken asyncTasks, string description = "IoZeroSemaphoreSlim", int maxCount = 1, int initialCount = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}")
         {
             _semaphore = new IoZeroSemaphore(description, maxCount, initialCount, enableAutoScale, enableFairQ, enableDeadlockDetection);
-            _semaphore.ZeroRef(ref _semaphore, asyncTasks.Token);
+            _semaphore.ZeroRef(ref _semaphore, asyncTasks);
         }
 
         private IIoZeroSemaphore _semaphore;

@@ -38,8 +38,6 @@ namespace zero.tangle.models
         /// <param name="source">The upstream source where messages are coming from</param>
         public IoTangleMessage(string jobDescription, string sinkDesc, IoSource<IoTangleMessage<TKey>> source):base(sinkDesc, sinkDesc, source)
         {
-            _logger = LogManager.GetCurrentClassLogger();
-
             _entangled = Entangled<TKey>.Default;            
 
             //Set some tangle specific protocol constants
@@ -87,10 +85,6 @@ namespace zero.tangle.models
             return await base.ConstructAsync().ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// logger
-        /// </summary>
-        private readonly Logger _logger;
         
         /// <summary>
         /// The entangled libs

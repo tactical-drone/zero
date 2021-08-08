@@ -374,7 +374,6 @@ namespace zero.core.network.ip
                     if (tcs == null)
                         throw new OutOfMemoryException(nameof(_tcsHeap));
 
-                    MemoryHandle pin;
                     try
                     {
                         //args.BufferList = null;

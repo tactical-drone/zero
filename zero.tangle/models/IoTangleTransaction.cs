@@ -22,11 +22,8 @@ namespace zero.tangle.models
         public IoTangleTransaction(IoSource<IoTangleTransaction<TKey>> originatingSource, int waitForConsumerTimeout = 0) 
             : base("forward", $"{nameof(IoTangleTransaction<TKey>)}", originatingSource)
         {
-            _waitForConsumerTimeout = waitForConsumerTimeout;            
-            _logger = LogManager.GetCurrentClassLogger();            
+            _waitForConsumerTimeout = waitForConsumerTimeout;
         }
-
-        private readonly Logger _logger;
 
         /// <summary>
         /// The transaction that is ultimately consumed

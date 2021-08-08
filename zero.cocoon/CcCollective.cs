@@ -22,6 +22,7 @@ using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 using Packet = Proto.Packet;
 
 namespace zero.cocoon
@@ -48,7 +49,8 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
             _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
-
+            
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token, nameof(DupSyncRoot), parm_max_drone * tpcConcurrencyLevel);
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
             {
@@ -259,6 +261,8 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await DupSyncRoot.ZeroAsync(this).ConfigureAwait(false);
+            
             //Services.CcRecord.Endpoints.Clear();
             try
             {
@@ -303,17 +307,18 @@ namespace zero.cocoon
 
         readonly Random _random = new Random((int) DateTime.Now.Ticks);
 
+        public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new ConcurrentDictionary<long, ConcurrentBag<string>>();
 
         /// <summary>
         /// Bootstrap
         /// </summary>
-        public List<IoNodeAddress> BootstrapAddress { get; }
+        private List<IoNodeAddress> BootstrapAddress { get; }
 
         /// <summary>
         /// Reachable from NAT
         /// </summary>
-        public IoNodeAddress ExtAddress { get; protected set; }
+        public IoNodeAddress ExtAddress { get; }
 
         /// <summary>
         /// Experimental support for detection of tunneled UDP connections (WSL)
@@ -400,11 +405,18 @@ namespace zero.cocoon
         public int parm_max_outbound = 4;
 
         /// <summary>
-        /// Max inbound neighbors
+        /// Max adjuncts
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_neighbor = 16;
+        public int parm_max_drone = 8;
+        
+        /// <summary>
+        /// Max adjuncts
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_adjunct = 16;
 
         /// <summary>
         /// Protocol version

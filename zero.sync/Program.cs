@@ -71,7 +71,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 300;
+            var total = 2000;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -332,7 +332,7 @@ namespace zero.sync
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 1000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", capacity, 1, false, false, true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", capacity, 1, false, false, true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
             var releaseCount = 1;
