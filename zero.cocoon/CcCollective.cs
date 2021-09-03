@@ -355,7 +355,7 @@ namespace zero.cocoon
         /// </summary>
         public int TotalConnections => IngressConnections + EgressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Ingress => Drones.Where(kv=>(((CcDrone) kv).Adjunct.Ingress)).ToList();
+        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Ingress => Drones.Where(kv=>(((CcDrone) kv).Adjunct.IsIngress)).ToList();
 
         public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Drones => Neighbors.Values.Where(kv =>
             ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList();
@@ -368,7 +368,7 @@ namespace zero.cocoon
         /// </summary>
         public volatile int IngressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.Egress)).ToList();
+        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.IsEgress)).ToList();
 
         /// <summary>
         /// Number of outbound neighbors
@@ -378,7 +378,7 @@ namespace zero.cocoon
         /// <summary>
         /// Connected nodes
         /// </summary>
-        private List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.Ingress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        private List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.IsIngress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
 
         /// <summary>
         /// The services this node supports

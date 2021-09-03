@@ -61,11 +61,6 @@ namespace zero.core.models.protobuffer
         protected IoNetClient<CcProtocMessage<TModel, TBatch>> MessageService => (IoNetClient<CcProtocMessage<TModel, TBatch>>)Source;
 
         /// <summary>
-        /// Used to control how long we wait for the source before we report it
-        /// </summary>
-        private readonly Stopwatch _producerStopwatch = new Stopwatch();
-
-        /// <summary>
         /// The time a consumer will wait for a source to release it before aborting in ms
         /// </summary>
         [IoParameter]
@@ -106,7 +101,7 @@ namespace zero.core.models.protobuffer
         private long _msgRateCheckpoint = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         /// <summary>
-        /// Userdata in the source
+        /// User data in the source
         /// </summary>
         protected volatile object ProducerExtraData = new IPEndPoint(0, 0);
 

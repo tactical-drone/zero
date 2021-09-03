@@ -102,7 +102,7 @@ namespace zero.cocoon
         //     {
         //         //if (_description != null)
         //         //    return _description;
-        //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.Egress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
+        //         return $"`peer({Neighbor?.Direction.ToString().PadLeft(CcNeighbor.Heading.IsEgress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {Key}'";
         //         
         //     }
         // }
@@ -236,7 +236,7 @@ namespace zero.cocoon
                 //if (Interlocked.CompareExchange(ref _isTesting, 1, 0) != 0)
                 //    return;
             
-                //if (Adjunct?.Direction == CcAdjunct.Heading.Egress)
+                //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
                 {
 
                     var vb = new byte[8];

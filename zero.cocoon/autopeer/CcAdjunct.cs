@@ -286,12 +286,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// inbound
         /// </summary>
-        public bool Ingress => Direction == Heading.Ingress && IsDroneConnected;
+        public bool IsIngress => Direction == Heading.Ingress && IsDroneConnected;
 
         /// <summary>
         /// outbound
         /// </summary>
-        public bool Egress => Direction == Heading.Egress && IsDroneConnected;
+        public bool IsEgress => Direction == Heading.Egress && IsDroneConnected;
 
         /// <summary>
         /// Who contacted who?
