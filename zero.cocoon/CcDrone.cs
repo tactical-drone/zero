@@ -207,14 +207,16 @@ namespace zero.cocoon
         {
             CcAdjunct latch = null;
 
-            lock (this)
+            await ZeroAtomicAsync((nanite, o, arg3) =>
             {
                 if (Adjunct != null)
                 {
                     latch = Adjunct;
                     Adjunct = null;
                 }
-            }
+
+                return new ValueTask<bool>(true);
+            }).ConfigureAwait(false);
 
             if(latch != null)
                 await latch.DetachPeerAsync().ConfigureAwait(false);

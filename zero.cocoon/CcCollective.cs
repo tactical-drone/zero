@@ -924,7 +924,6 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    await drone.ZeroAsync(new IoNanoprobe("Lost connection race")).ConfigureAwait(false);
                     _logger.Debug($"|>{drone.Description}");
                     return false;
                 }

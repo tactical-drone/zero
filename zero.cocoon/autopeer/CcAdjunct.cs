@@ -73,8 +73,9 @@ namespace zero.cocoon.autopeer
                 {
                     while (!Zeroed())
                     {
+                        var patTime = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2: CcCollective.parm_mean_pat_delay;
                         await WatchdogAsync().ConfigureAwait(false);
-                        await Task.Delay(_random.Next(CcCollective.parm_mean_pat_delay / 2) * 1000 + CcCollective.parm_mean_pat_delay / 8 * 1000,AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(patTime / 2) * 1000 + patTime / 3 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
@@ -511,7 +512,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Handle to peer zero sub
         /// </summary>
-        private IoZeroSub _zeroSub;
+        private IoZeroSub _zeroCascadeSub;
 
         /// <summary>
         /// The service map
@@ -560,7 +561,7 @@ namespace zero.cocoon.autopeer
             _pingRequest = null;
             _drone = null;
             _protocolConduit = null;
-            _zeroSub = default;
+            _zeroCascadeSub = default;
             ArrayPoolProxy = null;
             StateTransitionHistory = null;
             _peerRequest = null;
@@ -644,9 +645,11 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
+            int threshold = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
+
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
-            if (SecondsSincePat > CcCollective.parm_mean_pat_delay || _dropOne == 0)
+            if (SecondsSincePat > threshold || _dropOne == 0)
             {
                 _dropOne = 1;
                 var reconnect = this.Direction == Heading.Egress;
@@ -656,10 +659,16 @@ namespace zero.cocoon.autopeer
                     _logger.Debug($"w {Description}");
                 else
                     _logger.Trace($"w {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay}, {MetaDesc}");
-                
+
                 await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago...")).ConfigureAwait(false);
                 
                 return;
+            }
+            else
+            {
+                //drop zombies
+                if (!IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay * 2 / 3)
+                    await SendPeerDropAsync().ConfigureAwait(false);
             }
 
             if (await SendPingAsync().ConfigureAwait(false))
@@ -2266,12 +2275,11 @@ namespace zero.cocoon.autopeer
                 Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                _zeroSub = ZeroEvent(async sender =>
+                _zeroCascadeSub = ZeroEvent(async sender =>
                 {
                     try
                     {
-                        if (_drone != null)
-                            await _drone.ZeroAsync(this).ConfigureAwait(false);
+                        await _drone.ZeroAsync(this).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -2323,11 +2331,11 @@ namespace zero.cocoon.autopeer
             //send drop request
             await SendPeerDropAsync().ConfigureAwait(false);
             
-            _logger.Trace($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {latch?.Description ?? Description}");
+            _logger.Warn($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {latch?.Description ?? Description}");
 
             //Detach zeroed
-            Unsubscribe(_zeroSub);
-            _zeroSub = default;
+            Unsubscribe(_zeroCascadeSub);
+            _zeroCascadeSub = default;
 
             await latch.ZeroAsync(this).ConfigureAwait(false);
             
