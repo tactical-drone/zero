@@ -925,8 +925,10 @@ namespace zero.cocoon
                 else
                 {
                     _logger.Debug($"|>{drone.Description}");
-                    return false;
+                    await drone.ZeroAsync(this).ConfigureAwait(false);
                 }
+
+                return false;
             }
             else
             {

@@ -75,7 +75,7 @@ namespace zero.cocoon.autopeer
                     {
                         var patTime = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2: CcCollective.parm_mean_pat_delay;
                         await WatchdogAsync().ConfigureAwait(false);
-                        await Task.Delay(_random.Next(patTime / 2) * 1000 + patTime / 3 * 1000,AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(patTime / 3 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
                 }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
@@ -645,7 +645,8 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            int threshold = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
+            var threshold = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
+            threshold *= 2;
 
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
@@ -667,8 +668,11 @@ namespace zero.cocoon.autopeer
             else
             {
                 //drop zombies
-                if (!IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay * 2 / 3)
+                if (!IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay)
+                {
+                    _logger.Warn($"{Description}: Dropping zombie drone... last seen {TimeSpan.FromSeconds(SecondsSincePat).TotalMinutes:0.0} minutes ago");
                     await SendPeerDropAsync().ConfigureAwait(false);
+                }
             }
 
             if (await SendPingAsync().ConfigureAwait(false))
@@ -1795,9 +1799,6 @@ namespace zero.cocoon.autopeer
                 return;
             }
             
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            Interlocked.Increment(ref _totalPats);
-            
             //drop old matches
             if (pingRequest.TimestampMs.ElapsedMs() > parm_max_network_latency * 2)
                 return;
@@ -1873,6 +1874,8 @@ namespace zero.cocoon.autopeer
                 else
                 {
                     _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
+                    LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    Interlocked.Increment(ref _totalPats);
                 }
             }
         }
