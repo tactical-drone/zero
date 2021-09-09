@@ -59,8 +59,11 @@ namespace zero.cocoon.events.services
         /// </summary>
         public static void Clear()
         {
-            QueuedEvents.Clear();
+            var q = QueuedEvents;
             QueuedEvents = null;
+            if(QueuedEvents == null)
+                return;
+            q.Clear();
             Interlocked.Exchange(ref _operational, 0);
         }
     }

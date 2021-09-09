@@ -182,7 +182,10 @@ namespace zero.cocoon
         /// <param name="direction"></param>
         public async ValueTask<bool> AttachViaAdjunctAsync(CcAdjunct.Heading direction)
         {
-            
+            //Raced?
+            if (Adjunct.IsDroneAttached)
+                return false;
+
             //Attach the other way
             var attached = await Adjunct.AttachPeerAsync(this, direction).ConfigureAwait(false);
 

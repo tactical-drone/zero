@@ -136,13 +136,13 @@ namespace zero.cocoon.autopeer
                 _lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
+                    return _description = $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
                 }
                 catch (Exception e)
                 {
                     if (Collected)
                         _logger.Debug(e, Description);
-                    return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Designation.IdString()}]'";;
+                    return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Designation.IdString()}]'";;
                 }
             }
         }
@@ -222,6 +222,11 @@ namespace zero.cocoon.autopeer
         /// Indicates whether we have successfully established a connection before
         /// </summary>
         protected volatile uint PeeringAttempts;
+
+        /// <summary>
+        /// Indicates whether we have successfully established a connection before
+        /// </summary>
+        protected volatile uint PeeringRequests;
 
         /// <summary>
         /// Number of peer requests
@@ -668,7 +673,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 //drop zombies
-                if (!IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay)
+                if (WasConnected && !IsDroneConnected && SecondsSincePat > CcCollective.parm_mean_pat_delay / 2 )
                 {
                     _logger.Warn($"{Description}: Dropping zombie drone... last seen {TimeSpan.FromSeconds(SecondsSincePat).TotalMinutes:0.0} minutes ago");
                     await SendPeerDropAsync().ConfigureAwait(false);
@@ -1100,7 +1105,7 @@ namespace zero.cocoon.autopeer
                 
                 return;
             }
-            
+
             //var peerResponseTask = Task.Factory.StartNew(async () =>
             {
 
@@ -1865,17 +1870,14 @@ namespace zero.cocoon.autopeer
             }
             else //sometimes drones we know prod us for connections
             {
-                if (Direction == Heading.Undefined && CcCollective.TotalConnections < CcCollective.MaxDrones && PeeringAttempts < parm_zombie_max_connection_attempts)
+                _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
+                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                Interlocked.Increment(ref _totalPats);
+
+                if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound && PeeringAttempts < parm_zombie_max_connection_attempts)
                 {
-                    _logger.Trace(
-                        $"<\\- {nameof(Pong)}(acksyn-fast): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
+                    _logger.Trace($"<\\- {nameof(Pong)}(acksyn-fast): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
                     var s = SendPeerRequestAsync();
-                }
-                else
-                {
-                    _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
-                    LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    Interlocked.Increment(ref _totalPats);
                 }
             }
         }
@@ -2243,7 +2245,11 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!await ZeroAtomicAsync(async (s, u, d) =>
+                //raced?
+                if (IsDroneAttached)
+                    return false;
+
+                if (!await ZeroAtomicAsync( (s, u, d) =>
                 {
                     var _this = (CcAdjunct) s;
                     var t = (ValueTuple<CcDrone, Heading>) u;
@@ -2251,9 +2257,10 @@ namespace zero.cocoon.autopeer
                     var __direction = t.Item2;
 
                     //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
-                    if (__ioCcDrone.Adjunct.CcCollective.TotalConnections >= __ioCcDrone.Adjunct.CcCollective.MaxDrones)
+                    if (direction == Heading.Ingress && _this.CcCollective.IngressConnections >= _this.CcCollective.parm_max_inbound || 
+                        direction == Heading.Egress && _this.CcCollective.EgressConnections >= _this.CcCollective.parm_max_outbound)
                     {
-                        return false;
+                        return new ValueTask<bool>(false);
                     }
 
                     //Race for direction
@@ -2262,12 +2269,14 @@ namespace zero.cocoon.autopeer
                     {
                         _this._logger.Warn(
                             $"oz: race for {__direction} lost {__ioCcDrone.Description}, current = {_this.Direction}, {_this._drone?.Description}");
-                        return false;
+                        return new ValueTask<bool>(false);
                     }
                     
                     _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
+                    _this.WasConnected = true;
                     _this.State = AdjunctState.Connected;
-                    return await CcCollective.ZeroAtomicAsync((ioNanite, _, disposing) => new ValueTask<bool>(((CcCollective)ioNanite).TotalConnections <= ((CcCollective)ioNanite).MaxDrones), force:true).ConfigureAwait(false);
+                    
+                    return new ValueTask<bool>(true);
                 }, ValueTuple.Create(ccDrone, direction)))
                 {
                     return false;
@@ -2312,6 +2321,8 @@ namespace zero.cocoon.autopeer
                 return false;
             }
         }
+
+        public bool WasConnected { get; set; }
 
         /// <summary>
         /// Detaches a peer from this neighbor

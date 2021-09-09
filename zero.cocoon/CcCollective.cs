@@ -880,7 +880,7 @@ namespace zero.cocoon
             if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
             {
                 //did we win?
-                return await drone.AttachViaAdjunctAsync(direction).ConfigureAwait(false) && TotalConnections <= MaxDrones;
+                return TotalConnections < MaxDrones && await drone.AttachViaAdjunctAsync(direction).ConfigureAwait(false);
             }
             else
             {
