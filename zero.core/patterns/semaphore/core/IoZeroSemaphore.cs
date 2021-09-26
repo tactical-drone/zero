@@ -246,7 +246,16 @@ namespace zero.core.patterns.semaphore.core
             
             //acquire lock
             var _ = false;
+
+            //tweak thread priority
+            if (_lock.IsHeld)
+                Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+
             _lock.Enter(ref _);
+
+            //tweak thread priority
+            if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
+                Thread.CurrentThread.Priority = ThreadPriority.Normal;
         }
 
         /// <summary>
@@ -266,11 +275,11 @@ namespace zero.core.patterns.semaphore.core
         /// Used for locking internally; when <see cref="_enableAutoScale"/> is enabled
         /// </summary>
         private SpinLock _lock;
-        
+
         /// <summary>
         /// if auto scaling is enabled 
         /// </summary>
-        private bool _enableAutoScale;
+        private readonly bool _enableAutoScale;
 
         /// <summary>
         /// A enter sentinel
@@ -426,6 +435,8 @@ namespace zero.core.patterns.semaphore.core
             //Acquire lock and disable GC
             while (!acquiredLock)
             {
+                _lock.Enter(ref acquiredLock);
+
                 try
                 {
                     GC.TryStartNoGCRegion(250 / 2 * 1024 * 1024, false);
@@ -435,8 +446,10 @@ namespace zero.core.patterns.semaphore.core
                     // ignored
                 }
 
-                _lock.Enter(ref acquiredLock);
+                if (Thread.CurrentThread.Priority == ThreadPriority.Normal)
+                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
             }
+
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
 
             //double the q
@@ -484,7 +497,9 @@ namespace zero.core.patterns.semaphore.core
             {
                 // ignored
             }
-            
+
+            Thread.CurrentThread.Priority = ThreadPriority.Normal;
+
             Console.WriteLine($"Scaled {Description}");
         }
         

@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
@@ -25,7 +23,12 @@ namespace zero.core.patterns.misc
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        public IoNanoprobe(string description)
+        /// <summary>
+        /// Constructs a nano probe
+        /// </summary>
+        /// <param name="description">A description</param>
+        /// <param name="maxConcurrency">Maximum internal concurrency allowed. Consumption: 128 bits per tick.</param>
+        public IoNanoprobe(string description, int maxConcurrency = 16)
         {
             Description = description ?? GetType().Name;
 
@@ -44,7 +47,7 @@ namespace zero.core.patterns.misc
             enableDeadlockDetection = false;
 #endif
 
-            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, maxCount: 1000, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
+            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, enableAutoScale:false, maxCount: maxConcurrency, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 
@@ -392,7 +395,7 @@ namespace zero.core.patterns.misc
         ///  </summary>
         ///  <param name="ownershipAction">The ownership transfer callback</param>
         ///  <param name="userData"></param>
-        ///  <param name="disposing">If disposing</param>
+        ///  <param name="disposing">If this call is inside a disposing thread</param>
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>s
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -224,11 +224,6 @@ namespace zero.cocoon.autopeer
         protected volatile uint PeeringAttempts;
 
         /// <summary>
-        /// Indicates whether we have successfully established a connection before
-        /// </summary>
-        protected volatile uint PeeringRequests;
-
-        /// <summary>
         /// Number of peer requests
         /// </summary>
         public uint PeerRequests { get; protected set; }
@@ -2322,7 +2317,10 @@ namespace zero.cocoon.autopeer
             }
         }
 
-        public bool WasConnected { get; set; }
+        /// <summary>
+        /// If a connection was ever made
+        /// </summary>
+        public bool WasConnected { get; protected set; } = false;
 
         /// <summary>
         /// Detaches a peer from this neighbor

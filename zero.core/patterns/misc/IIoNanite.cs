@@ -1,15 +1,17 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace zero.core.patterns.misc
 {
+    /// <summary>
+    /// zero base
+    /// </summary>
     public interface IIoNanite : IEquatable<IIoNanite>
     {
         /// <summary>
         /// Async construction
         /// </summary>
-        /// <returns></returns>
+        /// <returns>True if success, false otherwise</returns>
         ValueTask<bool> ConstructAsync();
 
         /// <summary>
@@ -61,8 +63,8 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Ensures that this action is synchronized 
         /// </summary>
-        /// <param name="ownershipAction">The ownership transfer</param>
-        /// <param name="userData"></param>
+        /// <param name="ownershipAction">The action to synchronise</param>
+        /// <param name="userData">Some user data passed to <see cref="ownershipAction"/></param>
         /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
@@ -70,7 +72,15 @@ namespace zero.core.patterns.misc
             object userData = null,
             bool disposing = false, bool force = false);
         
+        /// <summary>
+        /// Collect unmanaged resources
+        /// </summary>
         void ZeroUnmanaged();
+
+        /// <summary>
+        /// Collect managed resources
+        /// </summary>
+        /// <returns></returns>
         ValueTask ZeroManagedAsync();
     }
 }
