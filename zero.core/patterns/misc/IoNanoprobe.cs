@@ -28,7 +28,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="description">A description</param>
         /// <param name="maxConcurrency">Maximum internal concurrency allowed. Consumption: 128 bits per tick.</param>
-        public IoNanoprobe(string description, int maxConcurrency = 16)
+        public IoNanoprobe(string description, int maxConcurrency = 3)
         {
             Description = description ?? GetType().Name;
 
@@ -47,7 +47,7 @@ namespace zero.core.patterns.misc
             enableDeadlockDetection = false;
 #endif
 
-            _nanoMutex = new IoZeroSemaphore(nameof(_nanoMutex), initialCount: 1, enableAutoScale:false, maxCount: maxConcurrency, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
+            _nanoMutex = new IoZeroSemaphore(description, initialCount: 1, enableAutoScale:false, maxCount: maxConcurrency, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 
