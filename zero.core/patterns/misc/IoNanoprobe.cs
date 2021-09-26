@@ -28,7 +28,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="description">A description</param>
         /// <param name="maxConcurrency">Maximum internal concurrency allowed. Consumption: 128 bits per tick.</param>
-        public IoNanoprobe(string description, int maxConcurrency = 3)
+        public IoNanoprobe(string description, int maxConcurrency = 1)
         {
             Description = description ?? GetType().Name;
 
