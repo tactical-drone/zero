@@ -229,5 +229,13 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <returns>The number of unused heap items</returns>
         public long CacheSize() => _buffer.Count;
+
+        /// <summary>
+        /// Clear
+        /// </summary>
+        public void Clear()
+        {
+            _buffer.Clear();
+        }
     }
 }

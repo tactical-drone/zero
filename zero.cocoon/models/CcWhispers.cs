@@ -1,14 +1,11 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Linq;
-using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Microsoft.VisualStudio.Threading;
 using Proto;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
@@ -21,7 +18,6 @@ using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 
 namespace zero.cocoon.models
 {
@@ -37,6 +33,25 @@ namespace zero.cocoon.models
                     popped.Add((string) endpoint);
                 }
             };
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public override ValueTask ZeroManagedAsync()
+        {
+            _dupHeap.Clear();
+            return base.ZeroManagedAsync();
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            _dupHeap = null;
+            base.ZeroUnmanaged();
         }
 
         //public override async ValueTask<bool> ConstructAsync()
@@ -107,7 +122,7 @@ namespace zero.cocoon.models
         /// </summary>
         readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
-        private readonly IoHeap<ConcurrentBag<string>> _dupHeap;
+        private IoHeap<ConcurrentBag<string>> _dupHeap;
         private int _poolSize = 1000;
         private long _maxReq = int.MinValue;
 

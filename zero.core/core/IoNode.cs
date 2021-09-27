@@ -183,7 +183,7 @@ namespace zero.core.core
                             }
                         }
 
-                        ZeroOnCascade(newNeighbor); //TODO: double check, why was this not seen?
+                        ZeroOnCascade(newNeighbor); 
 
                         //Add new neighbor
                         return await newNeighbor.ZeroAtomicAsync((s2, u2, d2) =>
@@ -191,14 +191,14 @@ namespace zero.core.core
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
                             // Remove from lists if closed
-                            var sub = newNeighbor.ZeroEvent(@base =>
+                            var sub = newNeighbor.ZeroEvent(async @base =>
                             {
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
                                 try
                                 {
-                                    IoNeighbor<TJob> zeroNeighbor = null;
-                                    if (Neighbors?.TryRemove(id, out zeroNeighbor) ?? true)
+                                    if (Neighbors.TryRemove(id, out var zeroNeighbor))
                                     {
+                                        await zeroNeighbor.ZeroAsync(this).ConfigureAwait(false);
                                         _logger.Trace($"Removed {zeroNeighbor?.Description}");
                                     }
                                     else
@@ -214,7 +214,6 @@ namespace zero.core.core
                                 {
                                     _logger.Trace(e, $"Removing {newNeighbor.Description} from {Description}");
                                 }
-                                return ValueTask.CompletedTask;
                             });
                             return ValueTask.FromResult(true);
                         }).ConfigureAwait(false);
@@ -307,6 +306,7 @@ namespace zero.core.core
                     //New neighbor?
                     if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
                     {
+                        ZeroOnCascade(newNeighbor);
                         return true;
                     }
 
@@ -323,7 +323,7 @@ namespace zero.core.core
 
                 if (await ZeroAtomicAsync(OwnershipAction).ConfigureAwait(false))
                 {
-                    newNeighbor.ZeroEvent(s =>
+                    newNeighbor.ZeroEvent(async s =>
                     {
                         try
                         {
@@ -331,6 +331,9 @@ namespace zero.core.core
                             _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
                                 ? $"Neighbor metadata expected for key `{id}'"
                                 : $"Dropped {closedNeighbor?.Description} from {Description}");
+
+                            if (closedNeighbor != null)
+                                await closedNeighbor.ZeroAsync(this).ConfigureAwait(false);
                         }
                         catch (NullReferenceException e)
                         {
@@ -340,8 +343,6 @@ namespace zero.core.core
                         {
                             _logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {Description}");
                         }
-
-                        return ValueTask.CompletedTask;
                     });
 
                     //TODO
@@ -357,46 +358,6 @@ namespace zero.core.core
                     _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
                     await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
                 }
-
-                //if (Neighbors.TryAdd(newNeighbor.Id, newNeighbor))
-                //{
-                //    //Is this a race condition? Between subbing and being zeroed out?
-                //    newNeighbor.ZeroEvent(s =>
-                //    {
-                //        try
-                //        {
-                //            IoNeighbor<TJob> closedNeighbor = null;
-                //            _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
-                //                ? $"Neighbor metadata expected for key `{id}'"
-                //                : $"Dropped {closedNeighbor.Description} from {Description}");
-                //        }
-                //        catch (NullReferenceException)
-                //        {
-                //        }
-                //        catch (Exception e)
-                //        {
-                //            _logger.Trace(e, $"Failed to remove {newNeighbor.Description} from {Description}");
-                //        }
-
-                //        return Task.CompletedTask;
-                //    });
-
-                //    //TODO
-                //    newNeighbor.parm_producer_start_retry_time = 60000;
-                //    newNeighbor.parm_consumer_wait_for_producer_timeout = 60000;
-
-
-                //    _logger.Trace($"Added {newNeighbor.Id}");
-
-                //    //ConnectedEvent?.Invoke(this, newNeighbor);
-
-                //    return newNeighbor;
-                //}
-                //else //strange case
-                //{
-                //    _logger.Fatal($"Neighbor with id = {newNeighbor.Id} already exists! Closing connection...");
-                //    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                //}
             }
 
             return null;
@@ -446,7 +407,7 @@ namespace zero.core.core
         public override async ValueTask ZeroManagedAsync()
         {
 
-            //Neighbors.ToList().ForEach(kv=>kv.Value.ZeroAsync(this));
+            Neighbors.ToList().ForEach(async kv=>await kv.Value.ZeroAsync(this));
             Neighbors.Clear();
 
             try

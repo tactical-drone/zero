@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -32,7 +33,7 @@ namespace zero.core.patterns.misc
         {
             Description = description ?? GetType().Name;
 
-            _zeroSubs = new ConcurrentStack<IoZeroSub>();
+            _zeroSubs = new ConcurrentBag<IoZeroSub>();
             _zeroed = 0;
             ZeroedFrom = default;
             TearDownTime = default;
@@ -128,7 +129,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private ConcurrentStack<IoZeroSub> _zeroSubs;
+        private ConcurrentBag<IoZeroSub> _zeroSubs;
 
         /// <summary>
         /// A secondary constructor for async stuff
@@ -206,7 +207,7 @@ namespace zero.core.patterns.misc
         public IoZeroSub ZeroEvent(Func<IIoNanite, ValueTask> sub)
         {
             IoZeroSub newSub;
-            _zeroSubs.Push(newSub = new IoZeroSub
+            _zeroSubs.Add(newSub = new IoZeroSub
             {
                 Action = sub,
                 Schedule = true
@@ -223,6 +224,7 @@ namespace zero.core.patterns.misc
         public void Unsubscribe(IoZeroSub sub)
         {
             sub.Schedule = false;
+            sub.Action = null;
         }
 
         /// <summary>
@@ -235,40 +237,11 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return (default, false);
 
+            ZeroEvent(async from => await target.ZeroAsync(from).ConfigureAwait(false));
+
             if (twoWay) //zero
-            {
-                IoZeroSub sourceZeroHandler = default;
-                IoZeroSub targetZeroHandler = default;
-
-                sourceZeroHandler = ZeroEvent(async s =>
-                {
-                    if (s.Equals(target))
-                        Unsubscribe(sourceZeroHandler);
-                    else
-                        await target.ZeroAsync(s).ConfigureAwait(false);
-                });
-
-                // ReSharper disable once AccessToModifiedClosure
-                targetZeroHandler = target.ZeroEvent(async s =>
-                {
-                    if (s.Equals(this))
-                        target.Unsubscribe(targetZeroHandler);
-                    else
-                        await ZeroAsync(s).ConfigureAwait(false);
-                });
-            }
-            else
-            {
-                var sub = ZeroEvent(async from => await target.ZeroAsync(from).ConfigureAwait(false));
-
-                target.ZeroEvent(s =>
-                {
-                    if (!s.Equals(this))
-                        Unsubscribe(sub);
-                    return ValueTask.CompletedTask;
-                });
-            }
-
+                target.ZeroEvent(async from => await ZeroAsync(target).ConfigureAwait(false));
+            
             return (target, true);
         }
 
@@ -279,14 +252,15 @@ namespace zero.core.patterns.misc
         private async ValueTask ZeroAsync(bool disposing)
         {
             // Only once
-            if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) > 0)
+            if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) == 1)
                 return;
-            
+
             // No races allowed between shutting down and starting up
-            await ZeroAtomicAsync(async (s, u, isDisposing) =>
-            {
-                var @this = (IoNanoprobe) s;
-                @this.CascadeTime = DateTime.Now.Ticks;
+            //await ZeroAtomicAsync(async (s, u, isDisposing) =>
+            //{
+            //var @this = (IoNanoprobe) s;
+            var @this = (IoNanoprobe)this;
+            @this.CascadeTime = DateTime.Now.Ticks;
                 try
                 {
                     @this.AsyncTasks.Cancel();
@@ -299,28 +273,40 @@ namespace zero.core.patterns.misc
                 @this.TearDownTime = DateTime.Now.Ticks;
 
                 //emit zero event
-                while (@this._zeroSubs.TryPop(out var zeroSub))
+                foreach(var zeroSub in _zeroSubs)
                 {
                     try
                     {
                         if (!zeroSub.Schedule)
                             continue;
-                        await  zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
+
+                        if (zeroSub.Action != null)
+                        {
+                            await zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
+                            Unsubscribe(zeroSub);
+                        }
                     }
-                    catch (NullReferenceException e)
-                    {
-                        _logger.Trace(e, @this.Description);
-                    }
+                    //catch (NullReferenceException e)
+                    //{
+                    //    _logger.Trace(e, @this.Description);
+                    //}
                     catch (Exception e)
                     {
-                        _logger.Fatal(e,
-                            $"zero sub {((IIoNanite) zeroSub.Action.Target)?.Description} on {@this.Description} returned with errors!");
+
+                        try
+                        {
+                            _logger.Fatal(e, $"zero sub {((IIoNanite) zeroSub?.Action?.Target)?.Description} on {@this.Description} returned with errors!");
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
                     }
                 }
 
                 @this.CascadeTime = DateTimeOffset.Now.Ticks;
 
-                if (isDisposing)
+                if (disposing)
                 {
                     //Dispose managed
                     try
@@ -361,8 +347,8 @@ namespace zero.core.patterns.misc
                         $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, t = {@this.TearDownTime.TickMs() / 1000.0:0.000}, c = {@this.CascadeTime.TickMs() / 1000.0:0.000}");
                 _logger = null;
 
-                return true;
-            }, disposing: disposing, force: false).ConfigureAwait(false);
+            //    return true;
+            //}, disposing: disposing, force: false).ConfigureAwait(false);
         }
 
 
@@ -378,6 +364,7 @@ namespace zero.core.patterns.misc
         public virtual void ZeroUnmanaged()
         {
             _nanoMutex = null;
+            _zeroSubs = null;
         }
 
         /// <summary>
@@ -387,6 +374,7 @@ namespace zero.core.patterns.misc
         public virtual ValueTask ZeroManagedAsync()
         {
             _nanoMutex.Zero();
+            _zeroSubs.Clear();
             return ValueTask.CompletedTask;
         }
 

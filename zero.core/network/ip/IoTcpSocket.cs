@@ -89,6 +89,7 @@ namespace zero.core.network.ip
             if(bootstrapAsync!=null)
                 await bootstrapAsync().ConfigureAwait(false);
 
+            var description = Description;
             // Accept incoming connections
             while (!Zeroed())
             {
@@ -122,8 +123,8 @@ namespace zero.core.network.ip
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
-                catch (ObjectDisposedException e) { _logger.Trace(e, Description);}
-                catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+                catch (ObjectDisposedException e) { _logger.Trace(e, description);}
+                catch (OperationCanceledException e) { _logger.Trace(e, description); }
                 catch (Exception e)
                 {
                     if (!Zeroed())
@@ -131,7 +132,7 @@ namespace zero.core.network.ip
                 }
             }
 
-            _logger.Trace($"Listener {Description} exited");
+            _logger?.Trace($"Listener {description} exited");
         }
 
 

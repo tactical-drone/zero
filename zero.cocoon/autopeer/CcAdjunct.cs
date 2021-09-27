@@ -77,7 +77,7 @@ namespace zero.cocoon.autopeer
                         await WatchdogAsync().ConfigureAwait(false);
                         await Task.Delay(patTime / 3 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             }
             else
             {
