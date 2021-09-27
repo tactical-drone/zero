@@ -3,13 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.market;
-using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
@@ -25,12 +22,13 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel * 6)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, int zeroAtomicConcurrency) : base($"{nameof(IoNode<TJob>)}", zeroAtomicConcurrency)
         {
             _address = address;
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
             _concurrencyLevel = concurrencyLevel;
+            _zeroAtomicConcurrency = zeroAtomicConcurrency;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
         }
@@ -98,6 +96,12 @@ namespace zero.core.core
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         protected int parm_zombie_connect_time_threshold = 5;
+
+
+        /// <summary>
+        /// expected number of waiters on this node's <see cref="IoNanoprobe.ZeroAtomicAsync"/>
+        /// </summary>
+        private readonly int _zeroAtomicConcurrency;
 
         /// <summary>
         /// TCP read ahead
@@ -242,7 +246,15 @@ namespace zero.core.core
         {
             try
             {
-                NeighborTasks.Add(newNeighbor.AssimilateAsync());
+                
+                //DefaultScheduler.Instance.AsLongRunning(newNeighbor.AssimilateAsync());
+
+                var assimilation = Task.Factory.StartNew(async () =>
+                {
+                    await newNeighbor.AssimilateAsync();
+                }, TaskCreationOptions.LongRunning);
+
+                NeighborTasks.Add(assimilation);
 
                 //prune finished tasks
                 var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();

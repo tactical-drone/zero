@@ -41,7 +41,7 @@ namespace zero.core.patterns.misc
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
             
-            var enableFairQ = false;
+            var enableFairQ = true;
             var enableDeadlockDetection = true;
 #if RELEASE
             enableDeadlockDetection = false;

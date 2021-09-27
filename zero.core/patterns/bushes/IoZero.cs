@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
@@ -761,8 +762,9 @@ namespace zero.core.patterns.bushes
                     }
                     
                 }
-            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, AsyncTasks.Token,TaskCreationOptions.AttachedToParent, TaskScheduler.Current);
 
+            
             //Consumer
             consumerTask = Task.Factory.StartNew(async () =>
             {
@@ -796,7 +798,7 @@ namespace zero.core.patterns.bushes
                             return;
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
 
             //Wait for tear down                
             await Task.WhenAll(producerTask.Unwrap(), consumerTask.Unwrap()).ConfigureAwait(false);

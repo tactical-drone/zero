@@ -693,8 +693,7 @@ namespace zero.cocoon.autopeer
         public override async Task AssimilateAsync()
         {
             var processingAsync = base.AssimilateAsync();
-            var protocol = Task.Factory.StartNew(o => ProcessAsync(),TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).Unwrap();
-            //var protocol = ProcessAsync();
+            var protocol = ProcessAsync();
 
             try
             {

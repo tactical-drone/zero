@@ -34,7 +34,7 @@ namespace zero.cocoon
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
+            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, _zeroAtomicConcurrency)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -470,14 +470,8 @@ namespace zero.cocoon
         /// <returns></returns>
         protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
-            _autoPeeringTask = Task.Factory.StartNew(async () =>
-            {
-                //start peering
-                await _autoPeering.StartAsync(BootStrapAsync).ConfigureAwait(false);
+            _autoPeeringTask = _autoPeering.StartAsync(BootStrapAsync);
 
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
-
-            
             //start node listener
             await base.SpawnListenerAsync(async drone =>
             {
@@ -903,32 +897,47 @@ namespace zero.cocoon
                     //adjunct.State <= CcAdjunct.AdjunctState.Standby &&
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc
-                    adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)
+                    adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)&&
+                    _currentOutboundConnectionAttempts < _maxOutboundConnectionAttempts
                 )
             {
-                var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
-                if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
+                try
                 {
-                    if (drone != null) await drone.ZeroAsync(this).ConfigureAwait(false);
-                    _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
+                    Interlocked.Increment(ref _currentOutboundConnectionAttempts);
+
+                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
+                    if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
+                    {
+                        if (drone != null) await drone.ZeroAsync(this).ConfigureAwait(false);
+                        _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
+                        return false;
+                    }
+                
+                    //Race for a connection
+                    if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
+                    {
+                        _logger.Info($"+ {drone.Description}");
+
+                        var droneTask = Task.Factory.StartNew(async () =>
+                        {
+                            await drone.AssimilateAsync();
+                        }, TaskCreationOptions.LongRunning);
+
+                        NeighborTasks.Add(droneTask);
+                        return true;
+                    }
+                    else
+                    {
+                        _logger.Debug($"|>{drone.Description}");
+                        await drone.ZeroAsync(this).ConfigureAwait(false);
+                    }
+
                     return false;
                 }
-                
-                //Race for a connection
-                if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
+                finally
                 {
-                    _logger.Info($"+ {drone.Description}");
-
-                    NeighborTasks.Add(drone.AssimilateAsync());
-                    return true;
+                    Interlocked.Decrement(ref _currentOutboundConnectionAttempts);
                 }
-                else
-                {
-                    _logger.Debug($"|>{drone.Description}");
-                    await drone.ZeroAsync(this).ConfigureAwait(false);
-                }
-
-                return false;
             }
             else
             {
@@ -938,8 +947,12 @@ namespace zero.cocoon
         }
 
         private static readonly float _lambda = 100;
-        
+        private static readonly int _maxOutboundConnectionAttempts = 2;
+        private static readonly int _zeroAtomicConcurrency = 16;
+
+        private int _currentOutboundConnectionAttempts;
         private readonly Poisson _poisson = new Poisson(_lambda);
+
         /// <summary>
         /// Boots the node
         /// </summary>

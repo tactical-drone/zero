@@ -109,13 +109,13 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
-                var rateLimit = 8000;
+                var rateLimit = 4000;
                 foreach (var task in tasks)
                 {
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
                     if (c % 50 == 0)
                     {
-                        await Task.Delay(rateLimit += 200).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 100).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -157,7 +157,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(10).ConfigureAwait(false);
+                    await Task.Delay(1).ConfigureAwait(false);
                 }
                 
             });
@@ -635,38 +635,19 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 4
-                , 2);
+                0, 0, 2
+                , 1);
 
             _nodes.Add(cocoon);
 
 #pragma warning disable 4014
-            //var tangleNodeTask = Task.Factory.StartNew(async () =>
-            //{
-            //    await Task.Delay(total * 2);
-            //    await cocoon.StartAsync();
-            //}, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
-            //AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
-            //{
-            //    Console.WriteLine("=============================================================================");
-            //    cocoon.ZeroAsync(null);
-            //};
-
-            //Console.CancelKeyPress += (sender, args) =>
-            //{
-            //    Console.WriteLine("------------------------------------------------------------------------------");
-            //    cocoon.ZeroAsync(null);
-            //    args.Cancel = true;
-            //};
-
-            //return tangleNodeTask.Unwrap();
-
-            return new Task<CcCollective>(() =>
+            var t = new Task<CcCollective>(() =>
             {
-                cocoon.StartAsync().ConfigureAwait(false);
+                cocoon.StartAsync();
                 return cocoon;
-            }, TaskCreationOptions.None);
+            });
+            return t;
         }
     }
 }

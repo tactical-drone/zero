@@ -21,7 +21,7 @@ namespace zero.tangle
     public class TangleNode<TJob,TKey>:IoNode<TJob> 
         where TJob : IIoJob
     {        
-        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpPrefetch) : base(address, mallocNeighbor, tcpPrefetch, 1)
+        public TangleNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int tcpPrefetch) : base(address, mallocNeighbor, tcpPrefetch, 1, 1)
         {
             _logger = LogManager.GetCurrentClassLogger();            
             Milestones = new Milestone<TKey>(AsyncTasks.Token);

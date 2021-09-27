@@ -68,7 +68,7 @@ namespace zero.tangle.api.controllers.generic
             if (!address.Validated)
                 return IoApiReturn.Result(false, address.ValidationErrorString);
 
-            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TKey>>(address, (node, ioNetClient, extraData) => new TanglePeer<TKey>((TangleNode<IoTangleMessage<TKey>, TKey>) node, ioNetClient), TanglePeer<TKey>.TcpReadAhead, 2)))
+            if (!Nodes.TryAdd(address.Port, new IoNode<IoTangleMessage<TKey>>(address, (node, ioNetClient, extraData) => new TanglePeer<TKey>((TangleNode<IoTangleMessage<TKey>, TKey>) node, ioNetClient), TanglePeer<TKey>.TcpReadAhead, 2, 8)))
             {
                 var errStr = $"Cannot create node `${address.Url}', a node with that id already exists";
                 _logger.Warn(errStr);
