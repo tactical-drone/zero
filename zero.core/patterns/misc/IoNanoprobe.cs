@@ -394,8 +394,7 @@ namespace zero.core.patterns.misc
         ///  <param name="userData"></param>
         ///  <param name="disposing">If this call is inside a disposing thread</param>
         ///  <param name="force">Forces the action regardless of zero state</param>
-        ///  <returns>true if ownership was passed, false otherwise</returns>s
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        ///  <returns>true if ownership was passed, false otherwise</returns>
         public virtual async ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
             object userData = null,
             bool disposing = false, bool force = false)

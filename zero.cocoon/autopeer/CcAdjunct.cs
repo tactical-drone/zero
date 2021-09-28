@@ -1584,7 +1584,7 @@ namespace zero.cocoon.autopeer
                     var __newNeighbor = t.Item2;
                     var __synAck = t.Item3;
 
-                    if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxAdjuncts)
+                    if (_this.Hub.Neighbors.Count >= _this.CcCollective.MaxAdjuncts)
                     {
                         //drop something
                         var q = _this.Hub.Neighbors.Values.Where(n =>
@@ -1621,7 +1621,7 @@ namespace zero.cocoon.autopeer
                     }
 
                     //Transfer?
-                    if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
+                    if (_this.Hub.Neighbors.Count < _this.CcCollective.MaxAdjuncts)
                     {
                         if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
                         {
