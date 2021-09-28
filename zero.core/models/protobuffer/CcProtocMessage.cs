@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Buffers;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using NLog;
 using zero.core.conf;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
@@ -49,7 +46,7 @@ namespace zero.core.models.protobuffer
                 ByteStream = new MemoryStream(Buffer);
             }
         }
-        
+
         /// <summary>
         /// Message batch broadcast channel
         /// </summary>
@@ -121,16 +118,23 @@ namespace zero.core.models.protobuffer
             MemoryOwner = null;
             ProducerExtraData = null;
             ProtocolConduit = null;
+            ArraySegment = null;
+
+            Buffer = null;
+
+            ReadOnlySequence = default;
+            MemoryBuffer = null;
+            ByteStream = null;
 #endif
         }
 
         /// <summary>
         /// zero managed
         /// </summary>
-        //public override async ValueTask ZeroManagedAsync()
-        //{
-        //    await base.ZeroManagedAsync().ConfigureAwait(false);
-        //}
+        public override async ValueTask ZeroManagedAsync()
+        {
+            await base.ZeroManagedAsync().ConfigureAwait(false);
+        }
 
         private readonly IPEndPoint _remoteEp = new IPEndPoint(IPAddress.Any, 0);
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
@@ -338,7 +342,7 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// offset into the batch
         /// </summary>
-        protected volatile int CurrBatch;
+        protected volatile int CurrBatchSlot;
 
     }
 }

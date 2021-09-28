@@ -263,7 +263,7 @@ namespace zero.core.network.ip
         //            //atomic ensure teardown
         //            return await connection.ZeroAtomicAsync((z, b) =>
         //            {
-        //                var sub = connection.ZeroEvent(s =>
+        //                var sub = connection.ZeroSubscribe(s =>
         //                {
         //                    //Untrack connection
         //                    if (_connTrack.TryRemove(connection.IoSource.Key, out var removed))
@@ -652,11 +652,16 @@ namespace zero.core.network.ip
             {
                 return NativeSocket != null && NativeSocket.IsBound && NativeSocket.LocalEndPoint != null;
             }
+            catch (ObjectDisposedException)
+            {
+                //ignored
+            }
             catch (Exception e)
             {
                 _logger.Trace(e, Description);
-                return false;
             }
+
+            return false;
         }
 
         /// <summary>

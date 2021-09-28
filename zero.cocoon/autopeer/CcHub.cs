@@ -27,7 +27,7 @@ namespace zero.cocoon.autopeer
             Func<IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>>,
                 IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>, object,
                 IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>> mallocNeighbor, int prefetch,
-            int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, concurrencyLevel)
+            int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, _zeroAtomicConcurrency)
         {
             _logger = LogManager.GetCurrentClassLogger();
             CcCollective = ccCollective;
@@ -59,6 +59,11 @@ namespace zero.cocoon.autopeer
         public CcAdjunct Router { get; protected set; }
 
         /// <summary>
+        /// Concurrency level
+        /// </summary>
+        private static readonly int _zeroAtomicConcurrency = 8;
+
+        /// <summary>
         /// zero unmanaged
         /// </summary>
         public override void ZeroUnmanaged()
@@ -81,10 +86,10 @@ namespace zero.cocoon.autopeer
 
         protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
-            await base.SpawnListenerAsync(async neighbor =>
+            await base.SpawnListenerAsync(async router =>
             {
-                Router ??= (CcAdjunct) neighbor;
-                return acceptConnection == null || await acceptConnection(neighbor).ConfigureAwait(false);
+                Router ??= (CcAdjunct) router;
+                return acceptConnection == null || await acceptConnection(router).ConfigureAwait(false);
             }, bootstrapAsync).ConfigureAwait(false);
         }
     }

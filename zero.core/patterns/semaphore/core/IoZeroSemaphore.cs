@@ -206,24 +206,19 @@ namespace zero.core.patterns.semaphore.core
             }
 
             var i = 0;
-            Action<object> waiter = null;
-            while (waiter != null || i < _signalAwaiter.Length)
+            while (i < _signalAwaiter.Length)
             {
-                waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
+                var state = Interlocked.CompareExchange(ref _signalAwaiterState[i], null, _signalAwaiterState[i]);
+                var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
                 if (waiter != null)
                 {
                     try
                     {
-                        waiter(_signalAwaiterState[i]);
+                        waiter(state);
                     }
                     catch
                     {
                         // ignored
-                    }
-                    finally
-                    {
-                        waiter = null;
-                        _signalAwaiterState[i] = null;
                     }
                 }
 

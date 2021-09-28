@@ -69,15 +69,29 @@ namespace zero.core.misc
         /// <summary>
         /// Delta ticks
         /// </summary>
-        /// <param name="timestamp"></param>
+        /// <param name="ticks"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long DeltaTicks(this long timestamp)
+        public static long DeltaTicks(this long ticks)
         {
-            var delta = System.DateTime.UtcNow.Ticks - timestamp ;
+            var delta = System.DateTime.UtcNow.Ticks - ticks;
             if (delta < 0)
                 return -delta;
             return delta;
+        }
+
+        /// <summary>
+        /// Delta ticks
+        /// </summary>
+        /// <param name="ticks"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long DeltaTickSeconds(this long ticks)
+        {
+            var delta = System.DateTime.UtcNow.Ticks - ticks;
+            if (delta < 0)
+                return -delta;
+            return delta / 10000000;
         }
 
         /// <summary>

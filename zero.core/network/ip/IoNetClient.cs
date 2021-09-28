@@ -78,7 +78,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A description of this client. Currently the remote address
         /// </summary>
-        public override string Description => IoNetSocket.Description;
+        public override string Description => IoNetSocket?.Description??"N/A";
         
 
         /// <summary>

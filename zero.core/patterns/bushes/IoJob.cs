@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Globalization;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushes.contracts;
@@ -33,9 +30,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         protected IoJob(string desc, IoSource<TJob> source) : base($"{nameof(IoJob<TJob>)}")
         {
-            //source.ZeroOnCascade(Nanoprobe);
             Source = source;
-            Source.ZeroOnCascade(this);
             _jobDesc = desc;
         }
 
@@ -166,14 +161,14 @@ namespace zero.core.patterns.bushes
         public override void ZeroUnmanaged()
         {
 #if DEBUG
-            //_stateHeap.Dispose();
+            _stateHeap.ZeroUnmanaged();
 #endif
 
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            //_stateMeta = null;
-            //StateTransitionHistory = null;
+            _stateMeta = null;
+            StateTransitionHistory = null;
             Source = null;
             PreviousJob = null;
 #if DEBUG
@@ -190,7 +185,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
             _stateHeap.Return(_stateMeta);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
-            // await _stateHeap.ZeroAsync(this).ConfigureAwait(false); //TODO
+            _stateHeap.ZeroManaged(async transition => await transition.ZeroAsync(this).ConfigureAwait(false));
 #endif
             await base.ZeroManagedAsync().ConfigureAwait(false);
             if(PreviousJob != null)
@@ -266,7 +261,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// state heap
         /// </summary>
-#if DEBUG        
+#if DEBUG
         //TODO
         private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
 

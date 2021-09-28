@@ -68,10 +68,11 @@ namespace zero.core.patterns.semaphore
         {
             return _semaphore.WaitAsync();
         }
-        
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Zero()
         {
-            _semaphore.Zero();
+            _semaphore?.Zero();
         }
 
         public int CurrentCount => _semaphore.CurrentCount;

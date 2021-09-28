@@ -1,18 +1,12 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics.Arm;
 using System.Security.Cryptography;
-using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Microsoft.AspNetCore.Razor.TagHelpers;
-using NLog;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.misc
@@ -225,9 +219,13 @@ namespace zero.core.misc
                     target._challenge.AddRange(_challenge);
                 }
             }
+            catch (NullReferenceException)
+            {
+                //
+            }
             finally
             {
-                target._matcherMutex.Release();
+                target?._matcherMutex?.Release();
             }
         }
 

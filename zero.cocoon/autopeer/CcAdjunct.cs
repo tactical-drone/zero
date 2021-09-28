@@ -77,7 +77,7 @@ namespace zero.cocoon.autopeer
                         await WatchdogAsync().ConfigureAwait(false);
                         await Task.Delay(patTime / 3 * 1000,AsyncTasks.Token).ConfigureAwait(false);
                     }
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | /*TaskCreationOptions.PreferFairness |*/ TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             }
             else
             {
@@ -407,6 +407,26 @@ namespace zero.cocoon.autopeer
         public ArrayPool<CcDiscoveryBatch> ArrayPoolProxy { get; protected set; }
 
         /// <summary>
+        /// base task
+        /// </summary>
+        private Task _baseTask;
+
+        /// <summary>
+        /// protocol task
+        /// </summary>
+        private Task _protocolTask;
+
+        /// <summary>
+        /// Producer tasks
+        /// </summary>
+        private ValueTask<bool>[] _produceTasks = new ValueTask<bool>[1];
+
+        /// <summary>
+        /// Consumer tasks
+        /// </summary>
+        private ValueTask<bool>[] _consumeTasks = new ValueTask<bool>[1];
+
+        /// <summary>
         /// Create an CcId string
         /// </summary>
         /// <param name="designation">The crypto identity</param>
@@ -554,7 +574,7 @@ namespace zero.cocoon.autopeer
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-
+            
 #if SAFE_RELEASE
             _logger = null;
             _routingTable = null;
@@ -566,6 +586,8 @@ namespace zero.cocoon.autopeer
             StateTransitionHistory = null;
             _peerRequest = null;
             _discoveryRequest = null;
+            _produceTasks = null;
+            _consumeTasks = null;
 #endif
         }
 
@@ -610,6 +632,45 @@ namespace zero.cocoon.autopeer
             await _pingRequest.ZeroAsync(this).ConfigureAwait(false);
             await _peerRequest.ZeroAsync(this).ConfigureAwait(false);
             await _discoveryRequest.ZeroAsync(this).ConfigureAwait(false);
+
+
+            try
+            {
+                foreach (var produceTask in _produceTasks)
+                    produceTask.AsTask().Dispose();
+            }
+            catch //(Exception e)
+            {
+                //_logger.Trace(e, $"{Description}");
+            }
+
+            try{
+                foreach (var consumeTask in _consumeTasks)
+                    consumeTask.AsTask().Dispose();
+            }
+            catch //(Exception e)
+            {
+                //_logger.Trace(e, $"{Description}");
+            }
+
+            try
+            {
+                _baseTask?.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
+
+            try
+            {
+                _protocolTask?.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
+
 #if DEBUG
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
 #endif
@@ -692,22 +753,22 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         public override async Task AssimilateAsync()
         {
-            var processingAsync = base.AssimilateAsync();
-            var protocol = ProcessAsync();
+            _baseTask = base.AssimilateAsync();
+            _protocolTask = ProcessMessagesAsync();
 
             try
             {
-                await Task.WhenAll(processingAsync, protocol).ConfigureAwait(false);
+                await Task.WhenAll(_baseTask, _protocolTask).ConfigureAwait(false);
 
-                if (processingAsync.IsFaulted)
+                if (_baseTask.IsFaulted)
                 {
-                    _logger.Fatal(processingAsync.Exception, "Ajunct processing returned with errors!");
+                    _logger.Fatal(_baseTask.Exception, "Ajunct processing returned with errors!");
                     await ZeroAsync(new IoNanoprobe($"processingAsync.IsFaulted")).ConfigureAwait(false);
                 }
 
-                if (protocol.IsFaulted)
+                if (_protocolTask.IsFaulted)
                 {
-                    _logger.Fatal(protocol.Exception, "Protocol processing returned with errors!");
+                    _logger.Fatal(_protocolTask.Exception, "Protocol processing returned with errors!");
 
                     await ZeroAsync(new IoNanoprobe($"protocol.IsFaulted")).ConfigureAwait(false);
                 }
@@ -791,7 +852,7 @@ namespace zero.cocoon.autopeer
                             _logger.Debug(e, $"Processing protocol failed for {Description}: ");
                     }
                 }
-
+                
                 msg.State = IoJobMeta.JobState.Consumed;
 
                 //stopwatch.Stop();
@@ -804,23 +865,23 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                ((CcProtocBatch<Packet, CcDiscoveryBatch>) msg).Batch[0] = default;
+                //Array.Clear(((CcProtocBatch<Packet, CcDiscoveryBatch>)msg).Batch, 0, ((CcProtocBatch<Packet, CcDiscoveryBatch>)msg).Batch.Length);
                 ArrayPoolProxy?.Return(((CcProtocBatch<Packet, CcDiscoveryBatch>)msg).Batch);
             }
         }
         
         /// <summary>
-        /// Processes protocol messageS
+        /// Processes protocol messages
         /// </summary>
         /// <returns></returns>
-        private async Task ProcessAsync()
+        private async Task ProcessMessagesAsync()
         {
             _protocolConduit ??= MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
 
             _logger.Debug($"$ {Description}");
 
-            ValueTask<bool>[] channelProduceTasks = null;
-            ValueTask<bool>[] channelTasks = null;
+            var producerCount = 1;
+            var consumerCount = 1;
             try
             {
                 while (!Zeroed())
@@ -839,102 +900,88 @@ namespace zero.cocoon.autopeer
 
                         continue;
                     }
-                    else if (channelTasks == null)
-                    {
-                        channelProduceTasks = new ValueTask<bool>[_protocolConduit.ProducerCount];
-                        channelTasks = new ValueTask<bool>[_protocolConduit.ConsumerCount];
-                    }
-
-                    //produce
-                    for (int i = 0; i < _protocolConduit.ProducerCount; i++)
-                    {
-                        if (AsyncTasks.IsCancellationRequested || !_protocolConduit.Source.IsOperational)
-                            break;
-
-                        channelProduceTasks[i] = _protocolConduit.ProduceAsync();
-
-                    }
                     
-                    //Consume
-                    for (int i = 0; i < _protocolConduit.ConsumerCount; i++)
+                    //produce
+                    for (int i = 0; i < producerCount; i++)
                     {
                         if (AsyncTasks.IsCancellationRequested || !_protocolConduit.Source.IsOperational)
                             break;
 
-                        channelTasks[i] = _protocolConduit.ConsumeAsync(async (msg, ioZero) =>
+                        _produceTasks[i] = _protocolConduit.ProduceAsync();
+                        _consumeTasks[i] = _protocolConduit.ConsumeAsync(async (msg, ioZero) =>
                         {
-                            var _this = (CcAdjunct) ioZero;
+                            var _this = (CcAdjunct)ioZero;
                             try
                             {
                                 await _this.ProcessMsgBatchAsync(msg, _this._protocolConduit,
                                     async (msgBatch, forward, iioZero) =>
                                     {
-                                        var __this = (CcAdjunct) iioZero;
+                                        var __this = (CcAdjunct)iioZero;
                                         var message = msgBatch.EmbeddedMsg;
                                         var extraData = msgBatch.UserData;
                                         var packet = msgBatch.Message;
                                         try
                                         {
-                                            var routed = __this.Router._routingTable[((IPEndPoint) extraData).Port] !=
+                                            var routed = __this.Router._routingTable[((IPEndPoint)extraData).Port] !=
                                                          null;
 
                                             CcAdjunct ccNeighbor = null;
                                             try
                                             {
                                                 ccNeighbor =
-                                                    __this.Router._routingTable[((IPEndPoint) extraData).Port] ??
-                                                    (CcAdjunct) __this.Hub.Neighbors.Values.FirstOrDefault(n =>
-                                                        ((IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>)
-                                                            ((CcAdjunct) n).Source).IoNetSocket.RemoteNodeAddress
-                                                        .Port == ((IPEndPoint) extraData).Port);
+                                                    __this.Router._routingTable[((IPEndPoint)extraData).Port] ??
+                                                    (CcAdjunct)__this.Hub.Neighbors.Values.FirstOrDefault(n =>
+                                                       ((IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>)
+                                                           ((CcAdjunct)n).Source).IoNetSocket.RemoteNodeAddress
+                                                       .Port == ((IPEndPoint)extraData).Port);
                                             }
                                             catch (Exception e)
                                             {
-                                                if(!Zeroed())
+                                                if (!Zeroed())
                                                     _logger.Trace(e, Description);
                                                 return;
                                             }
 
-                                            __this.Router._routingTable[((IPEndPoint) extraData).Port] ??= ccNeighbor;
+                                            __this.Router._routingTable[((IPEndPoint)extraData).Port] ??= ccNeighbor;
 
 
                                             ccNeighbor ??= __this.Hub.Router;
 
                                             if (!routed && ccNeighbor.Proxy)
-                                                ccNeighbor._routingIndex = ((IPEndPoint) extraData).Port;
+                                                ccNeighbor._routingIndex = ((IPEndPoint)extraData).Port;
 
-                                            switch ((CcDiscoveries.MessageTypes) packet.Type)
+                                            switch ((CcDiscoveries.MessageTypes)packet.Type)
                                             {
                                                 case CcDiscoveries.MessageTypes.Ping:
-                                                    await ccNeighbor.ProcessAsync((Ping) message, extraData, packet)
+                                                    await ccNeighbor.ProcessAsync((Ping)message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
                                                 case CcDiscoveries.MessageTypes.Pong:
-                                                    await ccNeighbor.ProcessAsync((Pong) message, extraData, packet)
+                                                    await ccNeighbor.ProcessAsync((Pong)message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
                                                 case CcDiscoveries.MessageTypes.DiscoveryRequest:
                                                     await ccNeighbor
-                                                        .ProcessAsync((DiscoveryRequest) message, extraData, packet)
+                                                        .ProcessAsync((DiscoveryRequest)message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
                                                 case CcDiscoveries.MessageTypes.DiscoveryResponse:
-                                                    await ccNeighbor.ProcessAsync((DiscoveryResponse) message,
+                                                    await ccNeighbor.ProcessAsync((DiscoveryResponse)message,
                                                         extraData, packet).ConfigureAwait(false);
                                                     break;
                                                 case CcDiscoveries.MessageTypes.PeeringRequest:
                                                     await ccNeighbor
-                                                        .ProcessAsync((PeeringRequest) message, extraData, packet)
+                                                        .ProcessAsync((PeeringRequest)message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
                                                 case CcDiscoveries.MessageTypes.PeeringResponse:
                                                     await ccNeighbor
-                                                        .ProcessAsync((PeeringResponse) message, extraData, packet)
+                                                        .ProcessAsync((PeeringResponse)message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
                                                 case CcDiscoveries.MessageTypes.PeeringDrop:
                                                     await ccNeighbor
-                                                        .ProcessAsync((PeeringDrop) message, extraData, packet)
+                                                        .ProcessAsync((PeeringDrop)message, extraData, packet)
                                                         .ConfigureAwait(false);
                                                     break;
                                             }
@@ -973,16 +1020,137 @@ namespace zero.cocoon.autopeer
                             }
                         }, this);
                     }
+                    
+                    //Consume
+                    //for (int i = 0; i < consumerCount; i++)
+                    //{
+                    //    if (AsyncTasks.IsCancellationRequested)
+                    //        break;
 
-                    for (var i = 0; i < channelProduceTasks.Length; i++)
-                    {
-                        if (!await channelProduceTasks[i].ConfigureAwait(false))
-                            return;
-                    }
+                    //    _consumeTasks[i] = _protocolConduit.ConsumeAsync(async (msg, ioZero) =>
+                    //    {
+                    //        var _this = (CcAdjunct) ioZero;
+                    //        try
+                    //        {
+                    //            await _this.ProcessMsgBatchAsync(msg, _this._protocolConduit,
+                    //                async (msgBatch, forward, iioZero) =>
+                    //                {
+                    //                    var __this = (CcAdjunct) iioZero;
+                    //                    var message = msgBatch.EmbeddedMsg;
+                    //                    var extraData = msgBatch.UserData;
+                    //                    var packet = msgBatch.Message;
+                    //                    try
+                    //                    {
+                    //                        var routed = __this.Router._routingTable[((IPEndPoint) extraData).Port] !=
+                    //                                     null;
 
-                    for (var i = 0; i < channelTasks.Length; i++)
+                    //                        CcAdjunct ccNeighbor = null;
+                    //                        try
+                    //                        {
+                    //                            ccNeighbor =
+                    //                                __this.Router._routingTable[((IPEndPoint) extraData).Port] ??
+                    //                                (CcAdjunct) __this.Hub.Neighbors.Values.FirstOrDefault(n =>
+                    //                                    ((IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>)
+                    //                                        ((CcAdjunct) n).Source).IoNetSocket.RemoteNodeAddress
+                    //                                    .Port == ((IPEndPoint) extraData).Port);
+                    //                        }
+                    //                        catch (Exception e)
+                    //                        {
+                    //                            if(!Zeroed())
+                    //                                _logger.Trace(e, Description);
+                    //                            return;
+                    //                        }
+
+                    //                        __this.Router._routingTable[((IPEndPoint) extraData).Port] ??= ccNeighbor;
+
+
+                    //                        ccNeighbor ??= __this.Hub.Router;
+
+                    //                        if (!routed && ccNeighbor.Proxy)
+                    //                            ccNeighbor._routingIndex = ((IPEndPoint) extraData).Port;
+
+                    //                        switch ((CcDiscoveries.MessageTypes) packet.Type)
+                    //                        {
+                    //                            case CcDiscoveries.MessageTypes.Ping:
+                    //                                await ccNeighbor.ProcessAsync((Ping) message, extraData, packet)
+                    //                                    .ConfigureAwait(false);
+                    //                                break;
+                    //                            case CcDiscoveries.MessageTypes.Pong:
+                    //                                await ccNeighbor.ProcessAsync((Pong) message, extraData, packet)
+                    //                                    .ConfigureAwait(false);
+                    //                                break;
+                    //                            case CcDiscoveries.MessageTypes.DiscoveryRequest:
+                    //                                await ccNeighbor
+                    //                                    .ProcessAsync((DiscoveryRequest) message, extraData, packet)
+                    //                                    .ConfigureAwait(false);
+                    //                                break;
+                    //                            case CcDiscoveries.MessageTypes.DiscoveryResponse:
+                    //                                await ccNeighbor.ProcessAsync((DiscoveryResponse) message,
+                    //                                    extraData, packet).ConfigureAwait(false);
+                    //                                break;
+                    //                            case CcDiscoveries.MessageTypes.PeeringRequest:
+                    //                                await ccNeighbor
+                    //                                    .ProcessAsync((PeeringRequest) message, extraData, packet)
+                    //                                    .ConfigureAwait(false);
+                    //                                break;
+                    //                            case CcDiscoveries.MessageTypes.PeeringResponse:
+                    //                                await ccNeighbor
+                    //                                    .ProcessAsync((PeeringResponse) message, extraData, packet)
+                    //                                    .ConfigureAwait(false);
+                    //                                break;
+                    //                            case CcDiscoveries.MessageTypes.PeeringDrop:
+                    //                                await ccNeighbor
+                    //                                    .ProcessAsync((PeeringDrop) message, extraData, packet)
+                    //                                    .ConfigureAwait(false);
+                    //                                break;
+                    //                        }
+                    //                    }
+                    //                    catch (TaskCanceledException e)
+                    //                    {
+                    //                        __this._logger.Trace(e, __this.Description);
+                    //                    }
+                    //                    catch (OperationCanceledException e)
+                    //                    {
+                    //                        __this._logger.Trace(e, __this.Description);
+                    //                    }
+                    //                    catch (NullReferenceException e)
+                    //                    {
+                    //                        __this._logger.Trace(e, __this.Description);
+                    //                    }
+                    //                    catch (ObjectDisposedException e)
+                    //                    {
+                    //                        __this._logger.Trace(e, __this.Description);
+                    //                    }
+                    //                    catch (Exception e)
+                    //                    {
+                    //                        __this._logger.Debug(e,
+                    //                            $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {__this.Key}");
+                    //                    }
+                    //                    finally
+                    //                    {
+                    //                        msgBatch.HeapRef.Return(msgBatch);
+                    //                    }
+                    //                }, _this).ConfigureAwait(false);
+                    //        }
+                    //        finally
+                    //        {
+                    //            if (msg != null && msg.State != IoJobMeta.JobState.Consumed)
+                    //                msg.State = IoJobMeta.JobState.ConsumeErr;
+                    //        }
+                    //    }, this);
+                    //}
+
+                    //for (var i = 0; i < _produceTasks.Length; i++)
+                    //{
+                    //    if (!await _produceTasks[i].ConfigureAwait(false))
+                    //        return;
+                    //}
+
+                    for (var i = 0; i < _consumeTasks.Length; i++)
                     {
-                        if (!await channelTasks[i].ConfigureAwait(false))
+                        if (Zeroed())
+                            break;
+                        if (!await _consumeTasks[i].ConfigureAwait(false))
                             return;
                     }
                 }
@@ -1169,7 +1337,7 @@ namespace zero.cocoon.autopeer
             {
                 var backoffTask = Task.Factory.StartNew(async () =>
                 {
-                    await Task.Delay(_random.Next(parm_max_network_latency) + parm_max_network_latency/2).ConfigureAwait(false);
+                    await Task.Delay(_random.Next(parm_max_network_latency) + parm_max_network_latency/2, AsyncTasks.Token).ConfigureAwait(false);
                     var connectionTime = Stopwatch.StartNew();
                     if (!await ConnectAsync().ConfigureAwait(false))
                     {
@@ -1188,7 +1356,7 @@ namespace zero.cocoon.autopeer
 
                     Interlocked.Add(ref ConnectionTime, connectionTime.ElapsedMilliseconds);
                     Interlocked.Increment(ref ConnectionCount);
-                }, TaskCreationOptions.LongRunning);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
             }
             else if (!response.Status && Hub.Neighbors.Count < CcCollective.MaxAdjuncts) //at least probe
             {
@@ -1380,9 +1548,9 @@ namespace zero.cocoon.autopeer
 
                 var assimilate = Task.Factory.StartNew(async c =>
                 {
-                    await Task.Delay(parm_max_network_latency * (int)c + (int)c * 1000).ConfigureAwait(false);
+                    await Task.Delay(parm_max_network_latency * (int)c + (int)c * 1000, AsyncTasks.Token).ConfigureAwait(false);
                     await CollectAsync(newRemoteEp, id, services);
-                },++count, TaskCreationOptions.LongRunning);
+                },++count, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
                 
             }
         }
@@ -1407,69 +1575,76 @@ namespace zero.cocoon.autopeer
             var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>(MessageService, newRemoteEp);
             newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source, Tuple.Create(id, services, newRemoteEp));
 
-            if (await Hub.ZeroAtomicAsync(async (s, u, ___) =>
+            if (!Zeroed() && await Hub.ZeroAtomicAsync(async (s, u, ___) =>
             {
-                var t = (ValueTuple<CcAdjunct, CcAdjunct, bool>) u;
-                var _this = t.Item1;
-                var __newNeighbor = t.Item2;
-                var __synAck = t.Item3;
-
-                if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxAdjuncts)
+                try
                 {
-                    //drop something
-                    var q = _this.Hub.Neighbors.Values.Where(n =>
-                        ((CcAdjunct) n).State < AdjunctState.Local || 
-                        ((CcAdjunct) n).Proxy &&
-                        ((CcAdjunct) n).Direction == Heading.Undefined &&
-                        ((CcAdjunct) n).State < AdjunctState.Peering &&
-                        ((CcAdjunct) n).Uptime.TickMs() > _this.parm_max_network_latency * 2);
-                    
-                    var assimilated = q.Where(n =>
-                            ((CcAdjunct) n).Assimilating &&
-                            ((CcAdjunct) n)._totalPats > _this.parm_min_pats_before_shuffle)
-                        .OrderBy(n => ((CcAdjunct) n).Priority).FirstOrDefault();
-                    
-                    //try harder when this comes from a synack 
-                    if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(1, CcDesignation.PubKeyLen) - 1] < byte.MaxValue/2)
-                    {
-                        var selection = q.ToList();
-                        if(selection.Count > 0)
-                            assimilated = selection[Math.Max(_this._random.Next(selection.Count) - 1, 0)];
-                    }
+                    var t = (ValueTuple<CcAdjunct, CcAdjunct, bool>) u;
+                    var _this = t.Item1;
+                    var __newNeighbor = t.Item2;
+                    var __synAck = t.Item3;
 
-                    if (assimilated != null && ((CcAdjunct) assimilated).State < AdjunctState.Peering)
+                    if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxAdjuncts)
                     {
-                        //Drop assimilated neighbors
-                        _this._logger.Debug($"~ {assimilated.Description}");
-                        await ((CcAdjunct) assimilated).ZeroAsync(new IoNanoprobe("Assimilated!")).ConfigureAwait(false);
-                    }
-                    else if(__synAck)
-                    {
-                        if(_this._logger.IsDebugEnabled)
-                            _this._logger.Warn($"@ {_this.Description}");
-                    }
-                }
-
-                //Transfer?
-                if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
-                {
-                    if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
-                    {
-                        //avoid races
-                        //if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
+                        //drop something
+                        var q = _this.Hub.Neighbors.Values.Where(n =>
+                            ((CcAdjunct) n).State < AdjunctState.Local || 
+                            ((CcAdjunct) n).Proxy &&
+                            ((CcAdjunct) n).Direction == Heading.Undefined &&
+                            ((CcAdjunct) n).State < AdjunctState.Peering &&
+                            ((CcAdjunct) n).Uptime.TickMs() > _this.parm_max_network_latency * 2);
+                    
+                        var assimilated = q.Where(n =>
+                                ((CcAdjunct) n).Assimilating &&
+                                ((CcAdjunct) n)._totalPats > _this.parm_min_pats_before_shuffle)
+                            .OrderBy(n => ((CcAdjunct) n).Priority).FirstOrDefault();
+                    
+                        //try harder when this comes from a synack 
+                        if (__synAck && assimilated == null && __newNeighbor.Designation.PublicKey[_this._random.Next(1, CcDesignation.PubKeyLen) - 1] < byte.MaxValue/2)
                         {
-                            Hub.ZeroOnCascade(newAdjunct);
-                            return true;
+                            var selection = q.ToList();
+                            if(selection.Count > 0)
+                                assimilated = selection[Math.Max(_this._random.Next(selection.Count) - 1, 0)];
                         }
 
-                        //we raced
-                        //_this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out _);
+                        if (assimilated != null && ((CcAdjunct) assimilated).State < AdjunctState.Peering)
+                        {
+                            //Drop assimilated neighbors
+                            _this._logger.Debug($"~ {assimilated.Description}");
+                            await ((CcAdjunct) assimilated).ZeroAsync(new IoNanoprobe("Assimilated!")).ConfigureAwait(false);
+                        }
+                        else if(__synAck)
+                        {
+                            if(_this._logger.IsDebugEnabled)
+                                _this._logger.Warn($"@ {_this.Description}");
+                        }
                     }
 
-                    return false;
+                    //Transfer?
+                    if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
+                    {
+                        if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
+                        {
+                            //avoid races
+                            //if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
+                            {
+                                Hub.ZeroOnCascade(newAdjunct);
+                                return true;
+                            }
+
+                            //we raced
+                            //_this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out _);
+                        }
+
+                        return false;
+                    }
                 }
-                else
-                    return false;
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"{Description}");
+                }
+
+                return false;
             }, ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
             {
                 //setup conduits to messages
@@ -1478,7 +1653,7 @@ namespace zero.cocoon.autopeer
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;
 
-                var sub = newAdjunct.ZeroEvent(from =>
+                var sub = newAdjunct.ZeroSubscribe(from =>
                 {
                     try
                     {
@@ -1856,9 +2031,9 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"{(Proxy ? "V>" : "X>")}(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
                     var peerRequestTask = Task.Factory.StartNew(async () =>
                     {
-                        await Task.Delay(_random.Next(parm_max_network_latency)).ConfigureAwait(false);
+                        await Task.Delay(_random.Next(parm_max_network_latency), AsyncTasks.Token).ConfigureAwait(false);
                         var s = SendPeerRequestAsync();
-                    });                  
+                    }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);                  
                     
                 }
             }
@@ -2281,7 +2456,7 @@ namespace zero.cocoon.autopeer
                 Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                _zeroCascadeSub = ZeroEvent(async sender =>
+                _zeroCascadeSub = ZeroSubscribe(async sender =>
                 {
                     try
                     {
@@ -2359,7 +2534,7 @@ namespace zero.cocoon.autopeer
             //back off for a while... Try to re-establish a link 
             var t = Task.Run(async () =>
             {
-                await Task.Delay(parm_max_network_latency + _random.Next(parm_max_network_latency)).ConfigureAwait(false);
+                await Task.Delay(parm_max_network_latency + _random.Next(parm_max_network_latency), AsyncTasks.Token).ConfigureAwait(false);
                 await SendPingAsync().ConfigureAwait(false);
             });
 

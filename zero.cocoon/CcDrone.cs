@@ -52,7 +52,7 @@ namespace zero.cocoon
                         await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).ConfigureAwait(false);
                     }
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Current);
         }
 
         /// <summary>
@@ -162,10 +162,26 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            if((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
-                _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
+            try
+            {
+                await DetachNeighborAsync().ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e, $"{Description}");
+            }
 
-            await DetachNeighborAsync().ConfigureAwait(false);
+            try
+            {
+                if ((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
+                    _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
+            }
+            catch
+            {
+                // ignored
+            }
+
+
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 

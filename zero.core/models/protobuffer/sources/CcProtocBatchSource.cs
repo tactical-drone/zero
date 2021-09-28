@@ -40,8 +40,8 @@ namespace zero.core.models.protobuffer.sources
             enableDeadlockDetection = false;
 #endif
             
-            _queuePressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  enableFairQ, enableDeadlockDetection)).target;
-            _queueBackPressure = ZeroOnCascade(new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, enableFairQ, enableDeadlockDetection)).target;
+            _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  enableFairQ, enableDeadlockDetection);
+            _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, enableFairQ, enableDeadlockDetection);
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace zero.core.models.protobuffer.sources
         /// <value>
         /// <c>true</c> if this instance is operational; otherwise, <c>false</c>.
         /// </value>
-        public override bool IsOperational => true;
+        public override bool IsOperational => !Zeroed();
 
         /// <summary>
         /// zero unmanaged
@@ -108,9 +108,9 @@ namespace zero.core.models.protobuffer.sources
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            MessageQueue.Clear();
             _queuePressure.Zero();
             _queueBackPressure.Zero();
+            MessageQueue.Clear();
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
 

@@ -13,7 +13,6 @@ using zero.cocoon.models.batches;
 using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
-using zero.core.models.protobuffer.sources;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
@@ -23,8 +22,13 @@ namespace zero.cocoon.models
 {
     public class CcWhispers : CcProtocMessage<CcWhisperMsg, CcGossipBatch>
     {
-        public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
+        public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
+            _concurrencyLevel = concurrencyLevel;
+
+            //_protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
+            //_batchMsgHeap = new IoHeap<CcGossipBatch>(concurrencyLevel) { Make = o => new CcGossipBatch() };
+
             _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2)
             {
                 Make = o => new ConcurrentBag<string>(),
@@ -41,6 +45,16 @@ namespace zero.cocoon.models
         /// <returns></returns>
         public override ValueTask ZeroManagedAsync()
         {
+            //if (_protocolMsgBatch != null)
+            //    _arrayPool.Return(_protocolMsgBatch, true);
+
+            //_batchMsgHeap.ZeroManaged(batchMsg =>
+            //{
+            //    batchMsg.Zero = null;
+            //    batchMsg.Message = null;
+            //    batchMsg.UserData = null;
+            //});
+
             _dupHeap.Clear();
             return base.ZeroManagedAsync();
         }
@@ -51,62 +65,21 @@ namespace zero.cocoon.models
         public override void ZeroUnmanaged()
         {
             _dupHeap = null;
+            _arrayPool = null;
+            _batchMsgHeap = null;
             base.ZeroUnmanaged();
         }
 
-        //public override async ValueTask<bool> ConstructAsync()
-        //{
-        //    if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<CcWhisperMsg, CcGossipBatch>)}.Gossip"))
-        //    {
-        //        CcProtocBatchSource<CcWhisperMsg, CcGossipBatch> channelSource = null;
-
-        //        //Transfer ownership
-        //        if (await MessageService.ZeroAtomicAsync((s, u, d) =>
-        //        {
-        //            channelSource = new CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>(MessageService, _arrayPool, 0, Source.ConcurrencyLevel * 2);
-        //            if (MessageService.ObjectStorage.TryAdd($"{nameof(CcProtocMessage<CcWhisperMsg, CcGossipBatch>)}.Gossip", channelSource))
-        //            {
-        //                return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
-        //            }
-
-        //            return ValueTask.FromResult(false);
-        //        }).ConfigureAwait(false))
-        //        {
-        //            ProtocolConduit = await MessageService.AttachConduitAsync(
-        //                nameof(CcDrone),
-        //                true,
-        //                channelSource,
-        //                userData => new CcProtocBatch<CcWhisperMsg, CcGossipBatch>(channelSource, -1 /*We block to control congestion*/),
-        //                Source.ConcurrencyLevel * 2, Source.ConcurrencyLevel * 2
-        //            ).ConfigureAwait(false);
-
-        //            //get reference to a central mem pool
-        //            if (ProtocolConduit != null)
-        //                _arrayPool = ((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)ProtocolConduit.Source).ArrayPool;
-        //            else
-        //                return false;
-        //        }
-        //        else
-        //        {
-        //            var t = channelSource.ZeroAsync(new IoNanoprobe("Lost race on creation"));
-        //            ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWhisperMsg, CcGossipBatch>>(nameof(CcDrone)).ConfigureAwait(false);
-        //        }
-        //    }
-        //    else
-        //    {
-        //        ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<CcWhisperMsg, CcGossipBatch>>(nameof(CcDrone)).ConfigureAwait(false);
-        //        return ProtocolConduit != null;
-        //    }
-
-        //    return await base.ConstructAsync().ConfigureAwait(false);
-        //}
-        
         /// <summary>
         /// Batch of messages
         /// </summary>
         private volatile CcGossipBatch[] _protocolMsgBatch;
 
-        
+        /// <summary>
+        /// Batch heap items
+        /// </summary>
+        private IoHeap<CcGossipBatch> _batchMsgHeap;
+
         /// <summary>
         /// CC Node
         /// </summary>
@@ -125,6 +98,9 @@ namespace zero.cocoon.models
         private IoHeap<ConcurrentBag<string>> _dupHeap;
         private int _poolSize = 1000;
         private long _maxReq = int.MinValue;
+
+        private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Create();
+        private readonly int _concurrencyLevel;
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -267,7 +243,7 @@ namespace zero.cocoon.models
                     async Task Forward(int broadCastDelay = 0)
                     {
                         if(broadCastDelay > 0)
-                            await Task.Delay(broadCastDelay).ConfigureAwait(false);
+                            await Task.Delay(broadCastDelay, AsyncTasks.Token).ConfigureAwait(false);
                         
                         await CcCollective.WhisperingDrones.ForEachAsync(async d =>
                         {
@@ -333,12 +309,12 @@ namespace zero.cocoon.models
             //        //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
             //        //    zero = IoZero;
 
-            //        if (CurrBatch >= parm_max_msg_batch_size)
+            //        if (CurrBatchSlot >= parm_max_msg_batch_size)
             //            await ForwardToNeighborAsync().ConfigureAwait(false);
 
             //        var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
-            //        ProtocolMsgBatch[CurrBatch] = ValueTuple.Create(zero, request, remoteEp, packet);
-            //        Interlocked.Increment(ref CurrBatch);
+            //        ProtocolMsgBatch[CurrBatchSlot] = ValueTuple.Create(zero, request, remoteEp, packet);
+            //        Interlocked.Increment(ref CurrBatchSlot);
             //    }
             //}
             //catch (NullReferenceException e)
@@ -356,75 +332,75 @@ namespace zero.cocoon.models
         /// Forward jobs to conduit
         /// </summary>
         /// <returns>Task</returns>
-        private async ValueTask ForwardToNeighborAsync()
-        {
-            try
-            {
-                if (CurrBatch == 0)
-                    return;
+        //private async ValueTask ForwardToNeighborAsync()
+        //{
+        //    try
+        //    {
+        //        if (CurrBatchSlot == 0)
+        //            return;
 
-                if (CurrBatch < parm_max_msg_batch_size)
-                {
-                    _protocolMsgBatch[CurrBatch] = default;
-                }
+        //        if (CurrBatchSlot < parm_max_msg_batch_size)
+        //        {
+        //            _protocolMsgBatch[CurrBatchSlot] = default;
+        //        }
 
-                //cog the source
-                var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
-                {
-                    var _this = (CcWhispers)ioJob;
+        //        //cog the source
+        //        var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
+        //        {
+        //            var _this = (CcWhispers)ioJob;
 
-                    if (!await ((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
-                    {
-                        if (!((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).Zeroed())
-                            _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
-                        return false;
-                    }
+        //            if (!await ((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+        //            {
+        //                if (!((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).Zeroed())
+        //                    _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
+        //                return false;
+        //            }
 
-                    //Retrieve batch buffer
-                    try
-                    {
-                        _this._protocolMsgBatch = ArrayPool<CcGossipBatch>.Shared.Rent(_this.parm_max_msg_batch_size);
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
-                        return false;
-                    }
+        //            //Retrieve batch buffer
+        //            try
+        //            {
+        //                _this._protocolMsgBatch = _arrayPool.Rent(_this.parm_max_msg_batch_size);
+        //            }
+        //            catch (Exception e)
+        //            {
+        //                _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
+        //                return false;
+        //            }
 
-                    _this.CurrBatch = 0;
+        //            _this.CurrBatchSlot = 0;
 
-                    return true;
-                }, jobClosure: this).ConfigureAwait(false);
+        //            return true;
+        //        }, jobClosure: this).ConfigureAwait(false);
 
-                ////forward transactions
-                // if (cogSuccess)
-                // {
-                //     if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
-                //     {
-                //         _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
-                //     }
-                // }
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
-            {
-                _logger.Debug(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
-            }
-        }
+        //        ////forward transactions
+        //        // if (cogSuccess)
+        //        // {
+        //        //     if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
+        //        //     {
+        //        //         _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
+        //        //     }
+        //        // }
+        //    }
+        //    catch (TaskCanceledException e)
+        //    {
+        //        _logger.Trace(e, Description);
+        //    }
+        //    catch (OperationCanceledException e)
+        //    {
+        //        _logger.Trace(e, Description);
+        //    }
+        //    catch (ObjectDisposedException e)
+        //    {
+        //        _logger.Trace(e, Description);
+        //    }
+        //    catch (NullReferenceException e)
+        //    {
+        //        _logger.Trace(e, Description);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        _logger.Debug(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
+        //    }
+        //}
     }
 }

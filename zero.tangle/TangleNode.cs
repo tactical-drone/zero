@@ -85,7 +85,7 @@ namespace zero.tangle
                 var newNeighbor = await ConnectAsync(connectBackAddress).ConfigureAwait(false);
                 if (newNeighbor!= null)
                 {
-                    ((IoNetClient<TJob>) ioNeighbor.Source).ZeroEvent(async s => await newNeighbor.ZeroAsync(this).ConfigureAwait(false));
+                    ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubscribe(async s => await newNeighbor.ZeroAsync(this).ConfigureAwait(false));
 
                     if (newNeighbor.Source.IsOperational)
                         await newNeighbor.Source.ProduceAsync((client,_, __, ___) =>

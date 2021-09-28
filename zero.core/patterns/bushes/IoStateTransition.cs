@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.bushes.contracts;
@@ -17,6 +18,20 @@ namespace zero.core.patterns.bushes
         public IoStateTransition() : base($"{nameof(IoStateTransition<TState>)}")
         {
             ConstructorAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public override ValueTask ZeroManagedAsync()
+        {
+            return base.ZeroManagedAsync();
+        }
+
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+
+            Previous = null;
+            Next = null;
+            Repeat = null;
         }
 
         /// <summary>
@@ -119,6 +134,7 @@ namespace zero.core.patterns.bushes
         /// Enter a state
         /// </summary>
         /// <param name="state"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Enter(TState state)
         {
 #if DEBUG
@@ -139,6 +155,7 @@ namespace zero.core.patterns.bushes
         /// Exit state
         /// </summary>
         /// <param name="nextState">The state we are exiting to</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Exit(IoStateTransition<TState> nextState)
         {
             if (Zeroed())

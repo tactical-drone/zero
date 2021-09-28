@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -65,7 +66,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// 
         /// </summary>
-        private static ILogger _logger;
+        private static readonly ILogger _logger;
 
         /// <summary>
         /// seeds UIDs
@@ -196,7 +197,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Zeroed()
         {
-            return _zeroed > 0;
+            return _zeroed > 0 || AsyncTasks.IsCancellationRequested;
         }
 
         /// <summary>
@@ -204,7 +205,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <returns>The handler</returns>
-        public IoZeroSub ZeroEvent(Func<IIoNanite, ValueTask> sub)
+        public IoZeroSub ZeroSubscribe(Func<IIoNanite, ValueTask> sub)
         {
             IoZeroSub newSub;
             _zeroSubs.Add(newSub = new IoZeroSub
@@ -237,10 +238,10 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return (default, false);
 
-            ZeroEvent(async from => await target.ZeroAsync(from).ConfigureAwait(false));
+            ZeroSubscribe(async from => await target.ZeroAsync(from).ConfigureAwait(false));
 
             if (twoWay) //zero
-                target.ZeroEvent(async from => await ZeroAsync(target).ConfigureAwait(false));
+                target.ZeroSubscribe(async from => await ZeroAsync(target).ConfigureAwait(false));
             
             return (target, true);
         }
@@ -252,7 +253,7 @@ namespace zero.core.patterns.misc
         private async ValueTask ZeroAsync(bool disposing)
         {
             // Only once
-            if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) == 1)
+            if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
 
             // No races allowed between shutting down and starting up
@@ -260,7 +261,7 @@ namespace zero.core.patterns.misc
             //{
             //var @this = (IoNanoprobe) s;
             var @this = (IoNanoprobe)this;
-            @this.CascadeTime = DateTime.Now.Ticks;
+            @this.CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
                     @this.AsyncTasks.Cancel();
@@ -269,8 +270,6 @@ namespace zero.core.patterns.misc
                 {
                     _logger.Error(e, $"Cancel async tasks failed for {@this.Description}");
                 }
-
-                @this.TearDownTime = DateTime.Now.Ticks;
 
                 //emit zero event
                 foreach(var zeroSub in _zeroSubs)
@@ -282,8 +281,11 @@ namespace zero.core.patterns.misc
 
                         if (zeroSub.Action != null)
                         {
-                            await zeroSub.Action(ZeroedFrom ?? this).ConfigureAwait(false);
+                            var zeroAction = zeroSub.Action;
                             Unsubscribe(zeroSub);
+                        //await zeroAction(ZeroedFrom ?? this).ConfigureAwait(false);
+                        //var cascade = Task.Factory.StartNew(() => zeroAction(ZeroedFrom ?? this), TaskCreationOptions.LongRunning);
+                            zeroAction(ZeroedFrom ?? this);
                         }
                     }
                     //catch (NullReferenceException e)
@@ -304,8 +306,8 @@ namespace zero.core.patterns.misc
                     }
                 }
 
-                @this.CascadeTime = DateTimeOffset.Now.Ticks;
-
+                @this.CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - @this.CascadeTime;
+                @this.TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 if (disposing)
                 {
                     //Dispose managed
@@ -316,7 +318,7 @@ namespace zero.core.patterns.misc
                     //catch (NullReferenceException) { }
                     catch (Exception e)
                     {
-                        _logger.Error(e, $"[{@this.ToString()}] {nameof(@this.ZeroManagedAsync)} returned with errors!");
+                        _logger.Error(e, $"[{@this}] {nameof(ZeroManagedAsync)} returned with errors!");
                     }
                 }
 
@@ -328,7 +330,7 @@ namespace zero.core.patterns.misc
                     @this.ZeroUnmanaged();
 
                     @this.AsyncTasks = null;
-                    //@this.ZeroedFrom = null;
+                    @this.ZeroedFrom = null;
                     @this._zeroSubs = null;
                 }
                 catch (NullReferenceException)
@@ -339,13 +341,20 @@ namespace zero.core.patterns.misc
                     _logger.Error(e, $"ZeroAsync [Un]managed errors: {@this.Description}");
                 }
 
-                @this.TearDownTime = DateTime.Now.Ticks;
+                @this.TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - @this.TearDownTime;
                 //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
                 //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
-                if (@this.Uptime.TickSec() > 10 && @this.TearDownTime.TickMs() > @this.CascadeTime.TickMs() + 200)
-                    _logger.Fatal(
-                        $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, t = {@this.TearDownTime.TickMs() / 1000.0:0.000}, c = {@this.CascadeTime.TickMs() / 1000.0:0.000}");
-                _logger = null;
+
+                try
+                {
+                    if (@this.Uptime.TickSec() > 10 && @this.CascadeTime > @this.TearDownTime * 2 && @this.TearDownTime > 0)
+                        _logger.Fatal(
+                            $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, c = {@this.CascadeTime:0.0}ms, t = {@this.TearDownTime:0.0}ms, count = {_zeroSubs.Count}");
+                }
+                catch
+                {
+                    // ignored
+                }
 
             //    return true;
             //}, disposing: disposing, force: false).ConfigureAwait(false);
@@ -412,8 +421,8 @@ namespace zero.core.patterns.misc
                         }
                         catch (Exception e)
                         {
-                            _logger.Error(e,
-                                $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+                            if(!Zeroed())
+                                _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
                             return false;
                         }
                         finally

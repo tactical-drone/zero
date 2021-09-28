@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
+using zero.core.misc;
 using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.core.network.ip
@@ -235,8 +236,8 @@ namespace zero.core.network.ip
             catch (ObjectDisposedException e) {_logger.Trace(e, Description);}
             catch (SocketException e)
             {
-                if(!Zeroed())
-                    _logger.Error(e, $"Send failed: {Description}");
+                if(!Zeroed() && NativeSocket.IsBound)
+                    _logger.Error($"Send failed: {Description}: {e.Message}");
             }
             catch (Exception e)
             {
@@ -282,14 +283,18 @@ namespace zero.core.network.ip
             }
             catch (NullReferenceException e) { _logger.Trace(e, Description);}
             catch (TaskCanceledException e) { _logger.Trace(e, Description);}
-            catch (OperationCanceledException e) { _logger.Trace(e, Description);}
+            catch (OperationCanceledException) { }
             catch (ObjectDisposedException e) { _logger.Trace(e, Description);}
             catch (SocketException e)
             {
+                if (!Zeroed() && NativeSocket.IsBound)
+                {
 #if DEBUG
-                _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
+                    _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
 #endif
-                _logger.Trace(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
+                    _logger.Trace(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
+                }
+
                 await ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).ConfigureAwait(false);
             }
             catch (Exception e)

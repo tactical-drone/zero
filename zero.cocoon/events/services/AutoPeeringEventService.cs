@@ -45,11 +45,18 @@ namespace zero.cocoon.events.services
         public static void AddEvent(AutoPeerEvent newAutoPeerEvent)
         {
             //return;
-            if (_operational > 0 || QueuedEvents.Count < 100000)
+            try
             {
-                newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
-                QueuedEvents.Enqueue(newAutoPeerEvent);
+                if (_operational > 0 || QueuedEvents.Count < 100000)
+                {
+                    newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
+                    QueuedEvents.Enqueue(newAutoPeerEvent);
+                }
+            }
+            catch (NullReferenceException)
+            {
+                
             }
         }
 

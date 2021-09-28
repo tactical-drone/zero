@@ -49,7 +49,7 @@ namespace zero.core.network.ip
             while (!Zeroed())
             {
                 //Creates a listening socket
-                IoListenSocket = ZeroOnCascade(new IoUdpSocket(ConcurrencyLevel)).target;
+                IoListenSocket = ZeroOnCascade(new IoUdpSocket(ConcurrencyLevel), true).target;
 
                 await IoListenSocket.ListenAsync(ListeningAddress, async ioSocket =>
                 {

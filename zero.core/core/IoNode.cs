@@ -132,7 +132,9 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            _netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel), true).target;
+            //_netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel), true).target;
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel);
+            _netServer.ZeroOnCascade(this);
 
             await _netServer.ListenAsync(async ioNetClient =>
             {
@@ -191,7 +193,7 @@ namespace zero.core.core
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
                             // Remove from lists if closed
-                            var sub = newNeighbor.ZeroEvent(async @base =>
+                            var sub = newNeighbor.ZeroSubscribe(async @base =>
                             {
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
                                 try
@@ -251,7 +253,7 @@ namespace zero.core.core
                 var assimilation = Task.Factory.StartNew(async () =>
                 {
                     await newNeighbor.AssimilateAsync();
-                }, TaskCreationOptions.LongRunning);
+                }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent, TaskScheduler.Current);
 
                 NeighborTasks.Add(assimilation);
 
@@ -323,7 +325,7 @@ namespace zero.core.core
 
                 if (await ZeroAtomicAsync(OwnershipAction).ConfigureAwait(false))
                 {
-                    newNeighbor.ZeroEvent(async s =>
+                    newNeighbor.ZeroSubscribe(async s =>
                     {
                         try
                         {
@@ -406,22 +408,30 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await _netServer.ZeroAsync(this).ConfigureAwait(false);
 
-            Neighbors.ToList().ForEach(async kv=>await kv.Value.ZeroAsync(this));
+            foreach (var ioNeighbor in Neighbors.Values)
+                await ioNeighbor.ZeroAsync(this).ConfigureAwait(false);
+
             Neighbors.Clear();
 
             try
             {
                 //_listenerTask?.GetAwaiter().GetResult();
+                foreach (var neighborTask in NeighborTasks)
+                {
+                    neighborTask.Dispose();
+                }
                 await Task.WhenAll(NeighborTasks).ConfigureAwait(false); //TODO teardown
             }
             catch
             {
                 // ignored
             }
+            NeighborTasks.Clear();
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
-            _logger.Trace($"Closed {Description}");
+            _logger.Info($"- {Description}");
         }
 
         public bool WhiteList(IoNodeAddress address)

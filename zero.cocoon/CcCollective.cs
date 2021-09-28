@@ -47,8 +47,10 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
-            _autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
-            
+            //_autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
+            _autoPeering = new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
+            _autoPeering.ZeroOnCascade(this);
+
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token, nameof(DupSyncRoot), parm_max_drone * tpcConcurrencyLevel);
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -226,7 +228,7 @@ namespace zero.cocoon
                         _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");
                     }
                 }
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
+            }, AsyncTasks.Token,TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Current);
 
             //Emit collective event
             AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -260,8 +262,9 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            var id = Hub?.Router?.Designation?.IdString();
             await DupSyncRoot.ZeroAsync(this).ConfigureAwait(false);
-            
+            await _autoPeering.ZeroAsync(this).ConfigureAwait(false);
             //Services.CcRecord.Endpoints.Clear();
             try
             {
@@ -275,14 +278,24 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().ConfigureAwait(false);
             //GC.Collect(GC.MaxGeneration);
 
-            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+            try
             {
-                EventType = AutoPeerEventType.RemoveCollective,
-                Collective = new Collective()
+                if (!string.IsNullOrEmpty(id))
                 {
-                    Id = Hub.Router.Designation.IdString()
+                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.RemoveCollective,
+                        Collective = new Collective()
+                        {
+                            Id = id
+                        }
+                    });
                 }
-            });
+            }
+            catch 
+            {
+                
+            }
         }
 
         private Logger _logger;
@@ -469,6 +482,7 @@ namespace zero.cocoon
         /// <returns></returns>
         protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
         {
+            _autoPeeringTask?.Dispose();
             _autoPeeringTask = _autoPeering.StartAsync(BootStrapAsync);
 
             //start node listener
@@ -824,7 +838,7 @@ namespace zero.cocoon
                     {
                         if (__peer.IoSource.IoNetSocket.Egress)
                         {
-                            drone.ZeroEvent(_ =>
+                            drone.ZeroSubscribe(_ =>
                             {
                                 Interlocked.Decrement(ref EgressConnections);
                                 return ValueTask.CompletedTask;
@@ -834,7 +848,7 @@ namespace zero.cocoon
                         }
                         else if (__peer.IoSource.IoNetSocket.Ingress)
                         {
-                            drone.ZeroEvent(nanite =>
+                            drone.ZeroSubscribe(nanite =>
                             {
                                 Interlocked.Decrement(ref IngressConnections);
                                 return ValueTask.CompletedTask;
@@ -920,7 +934,7 @@ namespace zero.cocoon
                         var droneTask = Task.Factory.StartNew(async () =>
                         {
                             await drone.AssimilateAsync();
-                        }, TaskCreationOptions.LongRunning);
+                        }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
 
                         NeighborTasks.Add(droneTask);
                         return true;
@@ -997,7 +1011,7 @@ namespace zero.cocoon
                         if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
                             continue;
 
-                        await Task.Delay(++c * 2000).ConfigureAwait(false);
+                        await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(false);
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
                         if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).ConfigureAwait(false))
                         {

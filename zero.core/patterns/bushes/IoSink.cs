@@ -1,8 +1,5 @@
-﻿using System;
-using System.Runtime.CompilerServices;
-using System.Threading;
+﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using zero.core.models;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.patterns.bushes

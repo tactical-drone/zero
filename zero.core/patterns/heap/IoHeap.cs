@@ -2,13 +2,11 @@
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
-using zero.core.patterns.misc;
 
 namespace zero.core.patterns.heap
 {
@@ -199,6 +197,8 @@ namespace zero.core.patterns.heap
                     _buffer.Add(item);
                 else
                     Interlocked.Decrement(ref CurrentHeapSize);
+                
+                    
 
                 Interlocked.Decrement(ref ReferenceCount);
             }

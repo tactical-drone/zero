@@ -39,15 +39,8 @@ namespace zero.core.models.protobuffer
         public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource, int waitForConsumerTimeout = -1)
             : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource)
         {
-            _waitForConsumerTimeout = waitForConsumerTimeout;
+            
         }
-
-
-        /// <summary>
-        /// The logger
-        /// </summary>
-        
-        private readonly int _waitForConsumerTimeout;
 
         /// <summary>
         /// The transaction that is ultimately consumed

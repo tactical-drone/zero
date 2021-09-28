@@ -24,8 +24,8 @@ namespace zero.cocoon.models
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
             _concurrencyLevel = concurrencyLevel;
-            _protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(parm_max_msg_batch_size);
-            _batchHeap = new IoHeap<CcDiscoveryBatch>(concurrencyLevel) {Make = o => new CcDiscoveryBatch()};
+            _protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
+            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(concurrencyLevel) {Make = o => new CcDiscoveryBatch()};
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -40,7 +40,7 @@ namespace zero.cocoon.models
                     channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, _concurrencyLevel);
                     if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<Packet, CcDiscoveryBatch[]>), channelSource))
                     {
-                        return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource).success);
+                        return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource, true).success);
                     }
 
                     return ValueTask.FromResult(false);
@@ -99,13 +99,12 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch heap items
         /// </summary>
-        private IoHeap<CcDiscoveryBatch> _batchHeap;
+        private IoHeap<CcDiscoveryBatch> _batchMsgHeap;
 
         /// <summary>
         /// message heap
         /// </summary>
-        private ArrayPool<CcDiscoveryBatch> _arrayPool =
-            ArrayPool<CcDiscoveryBatch>.Create();
+        private ArrayPool<CcDiscoveryBatch> _arrayPool = ArrayPool<CcDiscoveryBatch>.Create();
 
         /// <summary>
         /// The concurrency level
@@ -141,6 +140,14 @@ namespace zero.cocoon.models
         {
             if (_protocolMsgBatch != null)
                 _arrayPool.Return(_protocolMsgBatch, true);
+
+            _batchMsgHeap.ZeroManaged(batch =>
+            {
+                batch.Zero = null;
+                batch.Message = null;
+                batch.EmbeddedMsg = null;
+                batch.HeapRef = null;
+            });
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
         }
@@ -299,7 +306,7 @@ namespace zero.cocoon.models
                     }
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
-                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {ProducerExtraData} /> {MessageService.IoNetSocket.LocalNodeAddress}<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, id = {Id}, o = {CurrBatch}, r = {BytesRead}");
+                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {ProducerExtraData} /> {MessageService.IoNetSocket.LocalNodeAddress}<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, id = {Id}, o = {CurrBatchSlot}, r = {BytesRead}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
@@ -401,25 +408,25 @@ namespace zero.cocoon.models
                     //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
                     //    zero = IoZero;
 
-                    if (CurrBatch >= parm_max_msg_batch_size)
+                    if (CurrBatchSlot == parm_max_msg_batch_size - 1)
                         await ForwardToNeighborAsync().ConfigureAwait(false);
 
                     var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
 
-                    _batchHeap.Take(out var batch);
-                    if (batch == null)
-                        throw new OutOfMemoryException(nameof(_batchHeap));
+                    _batchMsgHeap.Take(out var batchMsg);
+                    if (batchMsg == null)
+                        throw new OutOfMemoryException(nameof(_batchMsgHeap));
 
-                    batch.Zero = zero;
-                    batch.EmbeddedMsg = request;
-                    batch.UserData = remoteEp;
-                    batch.Message = packet;
-                    batch.HeapRef = _batchHeap;
+                    batchMsg.Zero = zero;
+                    batchMsg.EmbeddedMsg = request;
+                    batchMsg.UserData = remoteEp;
+                    batchMsg.Message = packet;
+                    batchMsg.HeapRef = _batchMsgHeap;
                     
 
-                    _protocolMsgBatch[CurrBatch] = batch;
+                    _protocolMsgBatch[CurrBatchSlot] = batchMsg;
 
-                    Interlocked.Increment(ref CurrBatch);
+                    Interlocked.Increment(ref CurrBatchSlot);
                 }
             }
             catch (NullReferenceException e)
@@ -441,12 +448,12 @@ namespace zero.cocoon.models
         {
             try
             {
-                if (CurrBatch == 0 || Zeroed())
+                if (CurrBatchSlot == 0 || Zeroed())
                     return;
 
-                if (CurrBatch < parm_max_msg_batch_size)
+                if (CurrBatchSlot < parm_max_msg_batch_size)
                 {
-                    _protocolMsgBatch[CurrBatch] = default;
+                    _protocolMsgBatch[CurrBatchSlot] = default;
                 }
 
                 //cog the source
@@ -461,10 +468,10 @@ namespace zero.cocoon.models
                         return false;
                     }
 
-                    //Retrieve batch buffer
+                    //Retrieve a new batch buffer
                     try
                     {
-                        _this._protocolMsgBatch = ArrayPool<CcDiscoveryBatch>.Shared.Rent(_this.parm_max_msg_batch_size);
+                        _this._protocolMsgBatch = _arrayPool.Rent(_this.parm_max_msg_batch_size);
                     }
                     catch (Exception e)
                     {
@@ -472,7 +479,7 @@ namespace zero.cocoon.models
                         return false;
                     }
 
-                    _this.CurrBatch = 0;
+                    _this.CurrBatchSlot = 0;
 
                     return true;
                 }, jobClosure: this).ConfigureAwait(false);
