@@ -283,9 +283,7 @@ namespace zero.core.patterns.misc
                         {
                             var zeroAction = zeroSub.Action;
                             Unsubscribe(zeroSub);
-                        //await zeroAction(ZeroedFrom ?? this).ConfigureAwait(false);
-                        //var cascade = Task.Factory.StartNew(() => zeroAction(ZeroedFrom ?? this), TaskCreationOptions.LongRunning);
-                            zeroAction(ZeroedFrom ?? this);
+                            await zeroAction(ZeroedFrom ?? this).ConfigureAwait(false);
                         }
                     }
                     //catch (NullReferenceException e)
@@ -434,8 +432,9 @@ namespace zero.core.patterns.misc
                         return await ownershipAction(this, userData, disposing).ConfigureAwait(false);
                     }
                 }
-                catch
+                catch (Exception e)
                 {
+                    _logger.Fatal(e, $"{Description}");
                     // ignored
                 }
             }

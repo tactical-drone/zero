@@ -38,7 +38,7 @@ namespace zero.core.patterns.semaphore.core
 
             _maxCount = maxCount;
             _useMemoryBarrier = enableFairQ;
-            _currentCount = initialCount;
+            _signalCount = initialCount;
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
@@ -73,6 +73,11 @@ namespace zero.core.patterns.semaphore.core
         #region properties
 
         /// <summary>
+        /// The current token
+        /// </summary>
+        private short _currentToken;
+
+        /// <summary>
         /// A semaphore description
         /// </summary>
         private readonly string _description;
@@ -80,7 +85,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_currentCount}, qSize = {_maxCount}, h = {_head}, t = {_tail}";
+        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_signalCount}, qSize = {_maxCount}, h = {_head}, t = {_tail}";
 
         /// <summary>
         /// The semaphore capacity 
@@ -90,12 +95,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The number of waiters that can enter the semaphore without blocking 
         /// </summary>
-        private int _currentCount;
+        private int _signalCount;
 
         /// <summary>
         /// The number of waiters that can enter the semaphore without blocking 
         /// </summary>
-        public int CurrentCount => _currentCount;
+        public int ReadyCount => _signalCount;
 
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted
@@ -125,12 +130,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private int _head;
+        private uint _head;
 
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private int _tail;
+        private uint _tail;
 
         /// <summary>
         /// Whether this semaphore has been cleared out
@@ -179,7 +184,7 @@ namespace zero.core.patterns.semaphore.core
         public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken)
         {
             _zeroRef = @ref;
-            _zeroWait = new ValueTask<bool>(_zeroRef, 305);
+            _zeroWait = new ValueTask<bool>(_zeroRef, 23);
             _asyncToken = asyncToken;
 
             _asyncTokenReg = asyncToken.Register(s =>
@@ -289,7 +294,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Used for latching 
         /// </summary>
-        private Action<object> _latched;
+        private readonly Action<object> _latched;
 
         #endregion
 
@@ -301,7 +306,14 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool GetResult(short token)
         {
-            return !_asyncToken.IsCancellationRequested;
+#if TOKEN
+            if (_currentToken != token)
+                throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_currentToken}");
+
+            _currentToken++;
+#endif
+
+            return !_asyncToken.IsCancellationRequested && _zeroed == 0;
         }
 
         /// <summary>
@@ -312,6 +324,14 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
+#if TOKEN
+            if (_currentToken != token)
+                throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_currentToken}");
+#endif
+
+            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
+                return ValueTaskSourceStatus.Canceled;
+
             return ValueTaskSourceStatus.Pending;
         }
 
@@ -322,32 +342,40 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool Signalled()
         {
-            //fail fast
-            if (_asyncToken.IsCancellationRequested)
+            //signal on cancel
+            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
             {
-                return false;
+                return true;
             }
+
+            if (_signalCount > 0)
+            {
+                if (Interlocked.Decrement(ref _signalCount) >= 0)
+                    return true;
+                Interlocked.Increment(ref _signalCount);
+            }
+            return false;
 
             //race for fast path
-            var released = 0;
-            ulong spinCount = 0;
-            var lockedCount = _currentCount;
-            while (lockedCount > 0 &&
-                   (released = Interlocked.CompareExchange(ref _currentCount, lockedCount - 1, lockedCount)) != lockedCount)
-            {
-                //Will this ever happen?
-                if (spinCount > MaxSpin)
-                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
-                
-                lockedCount = _currentCount;
-            }
-            
-            //restore thread priority
-            if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
+            //var released = 0;
+            //ulong spinCount = 0;
+            //var lockedCount = _signalCount;
+            //while (lockedCount > 0 &&
+            //       (released = Interlocked.CompareExchange(ref _signalCount, lockedCount - 1, lockedCount)) != lockedCount)
+            //{
+            //    //Will this ever happen?
+            //    if (spinCount > MaxSpin)
+            //        Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
 
-            //Did we win?
-            return lockedCount > 0 && released == lockedCount;
+            //    lockedCount = _signalCount;
+            //}
+
+            ////restore thread priority
+            //if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
+            //    Thread.CurrentThread.Priority = ThreadPriority.Normal;
+
+            ////Did we win?
+            //return lockedCount > 0 && released == lockedCount;
         }
 
         /// <summary>
@@ -361,8 +389,13 @@ namespace zero.core.patterns.semaphore.core
         public void OnCompleted(Action<object> continuation, object state, short token,
             ValueTaskSourceOnCompletedFlags flags)
         {
+#if TOKEN
+            if (_currentToken != token)
+                throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_currentToken}");
+#endif
+
             //fast path
-            if (Signalled() || _zeroed == 1)
+            if (Signalled() || _zeroed == 1 || _asyncToken.IsCancellationRequested)
             {
                 continuation(state);
                 return;
@@ -372,30 +405,42 @@ namespace zero.core.patterns.semaphore.core
             ZeroLock();
             
             //choose a head
-            var head = (Interlocked.Increment(ref _head) - 1) % _maxCount;
-            var c = 0;
-            while (Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null && c++ < _maxCount)
-            {
-                head = (Interlocked.Increment(ref _head) - 1) % _maxCount;
-            }
             
-            //Did we get it?
-            if (c < _maxCount)
-            //if(Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null)
-            {
-                //set the state as well
-                _signalAwaiterState[head] = state;
-                Interlocked.Exchange(ref _signalAwaiter[head], continuation);
+            
+            var c = 0;
+            //while (Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null && c++ < _maxCount)
+            //{
+            //    head = (Interlocked.Increment(ref _head) - 1) % _maxCount;
+            //}
 
-                 //adapt to meta race conditions
-                 // if (_manifold < MaxTolerance)
-                 //     Interlocked.Increment(ref _manifold);
-                
+            var headIdx = (Interlocked.Increment(ref _head) - 1) % _maxCount;
+            var slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null);
+
+            while (slot != null && c < _maxCount)
+            {
+                Volatile.Write(ref _signalAwaiter[headIdx], slot);
+                //_signalAwaiter[headIdx] = slot;
+                Interlocked.Decrement(ref _head);
+                headIdx = (Interlocked.Increment(ref _head) - 1) % _maxCount;
+                slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null);
+                c++;
+            }
+
+            //Did we win?
+            if(slot == null) 
+            {
+                while (Interlocked.CompareExchange(ref _signalAwaiterState[headIdx], state, null) != null)
+                {
+                    //keep trying, the tail will prevent deadlock
+                }
+
                 //release lock
                 ZeroUnlock();
             }
             else //if(_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
             {
+                Volatile.Write(ref _signalAwaiter[headIdx], slot);
+                Thread.MemoryBarrier();
                 Interlocked.Decrement(ref _head);
 
                 //release lock
@@ -414,7 +459,7 @@ namespace zero.core.patterns.semaphore.core
                 // }
                 else
                 {
-                    throw new ZeroValidationException($"{Description}: w[{head % _maxCount}] = {_signalAwaiter[head]} : {_signalAwaiterState[head]}, Unable to handle concurrent call, enable auto scale or increase expectedNrOfWaiters");
+                    throw new ZeroValidationException($"{Description}: w[{headIdx % _maxCount}] = {_signalAwaiter[headIdx]} : {_signalAwaiterState[headIdx]}, Unable to handle concurrent call, enable auto scale or increase expectedNrOfWaiters");
                 }
             }
         }
@@ -458,7 +503,7 @@ namespace zero.core.patterns.semaphore.core
             
             //copy Q
             
-            var j = 0;
+            var j = (uint)0;
             //special zero case
             if (_tail != _head || prevZeroState[_tail] != null && prevZeroQ.Length == 1)
             {
@@ -468,7 +513,7 @@ namespace zero.core.patterns.semaphore.core
             }
             else
             {
-                for (var i = _tail; i != _head || prevZeroState[i] != null && j < _maxCount; i = (i + 1) % prevZeroQ.Length)
+                for (var i = _tail; i != _head || prevZeroState[i] != null && j < _maxCount; i = (i + 1) % (uint)prevZeroQ.Length)
                 {
                     _signalAwaiter[j] = prevZeroQ[i];
                     _signalAwaiterState[j] = prevZeroState[i];
@@ -502,102 +547,98 @@ namespace zero.core.patterns.semaphore.core
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
-        /// <returns>The current count, -1 on failure</returns>
+        /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1)
         {
             //preconditions
-            if(releaseCount < 1 || releaseCount > _maxCount)
-                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount}, must be bigger than zero and smaller than {nameof(_maxCount)} = {_maxCount}");
+            if(releaseCount < 1 || releaseCount + _signalCount > _maxCount)
+                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxCount)}({_maxCount})");
 
             //fail fast on cancellation token
-            if (_asyncToken.IsCancellationRequested || _zeroed == 1)
+            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
                 return -1;
             
-            //Lock
-            ZeroLock();
-            
             //lock in return value
-            var returnCount = _currentCount;
-
-            //release lock
-            ZeroUnlock();
-            
+            var returnCount = _signalCount;
             var released = 0;
-            var count = 0;
-            
+            var c = 0;
             //awaiter entries
-            while (released < releaseCount && count++ < _maxCount)
+            while (released < releaseCount && c++ < _maxCount)
             {
                 //Lock
                 ZeroLock();
 
                 //choose a tail index
-                var tail = (Interlocked.Increment(ref _tail) - 1) % _maxCount;
+                var origTail = Interlocked.Increment(ref _tail);
+                var tailIdx = (origTail - 1) % _maxCount;
 
-                //target a chosen tail
-                var targetWaiter = _signalAwaiter[tail];
-                
-                //did we get a potential target to latch on to?
-                if (targetWaiter == null || targetWaiter == _latched)
+                ////latch a chosen tail state
+                var state = Interlocked.CompareExchange(ref _signalAwaiterState[tailIdx], null, _signalAwaiterState[tailIdx]);
+
+                //Did we loose?
+                if (state == null)
                 {
-                    //reset the tail
-                    Interlocked.Decrement(ref _tail);
-                    
+                    //restore the latch
+                    var reset =  origTail == Interlocked.Decrement(ref _tail);
+
                     ZeroUnlock();
-                    
+
+                    //abort
+                    if (reset)
+                        break;
+
                     //try again
                     continue;
                 }
-                
-                //attempt to latch onto the waiter
-                Action<object> latchedWaiter;
-                if ((latchedWaiter = Interlocked.CompareExchange(ref _signalAwaiter[tail], _latched, targetWaiter)) == targetWaiter)
+
+                //latch a chosen tail
+                //var targetWaiter = _signalAwaiter[tailIdx];
+                var targetWaiter = Interlocked.CompareExchange(ref _signalAwaiter[tailIdx], null, _signalAwaiter[tailIdx]);
+                if (targetWaiter == null)
                 {
-                    //grab the state
-                    var state = _signalAwaiterState[tail];
-                    
-                    //free the state
-                    Interlocked.Exchange(ref _signalAwaiterState[tail], null);
-                    
-                    //unlatch
-                    Interlocked.Exchange(ref _signalAwaiter[tail], null);
-                    
-#if DEBUG
-                    //validate
-                    if(state == null)
-                        throw new ArgumentNullException($"-> {nameof(state)}");
-#endif
-                    
-                    //release the lock
+                    //prevent deadlock
+                    Volatile.Write(ref _signalAwaiterState[tailIdx], state);
+                    //_signalAwaiterState[tailIdx] = state;
+
+                    Thread.MemoryBarrier();
+                    //restore the latch
+                    Interlocked.Decrement(ref _tail);
+
                     ZeroUnlock();
 
-                    //release a waiter
-                    latchedWaiter(state);
+                    //try again
+                    continue;
+                }
 
-                    //count the number of waiters released
-                    released++;
-                }
-                else
-                {
-                    count--;
-                    //reset the tail
-                    Interlocked.Decrement(ref _tail);
-                }
+                Volatile.Write(ref _signalAwaiter[tailIdx], null);
+                //_signalAwaiter[tailIdx] = null;
+#if DEBUG
+                //validate
+                if (state == null)
+                    throw new ArgumentNullException($"-> {nameof(state)}");
+#endif
+                
+                //release the lock
+                ZeroUnlock();
+
+                //release a waiter
+                targetWaiter(state);
+
+                //count the number of waiters released
+                released++;
             }
             
-            //validate releaseCount
-            if (_maxCount - (_currentCount) < releaseCount - released)
-            {
-                Interlocked.Exchange(ref _currentCount, _maxCount);
-                
-                //throw when the semaphore runs out of capacity
-                throw new ZeroSemaphoreFullException($"${Description}, {nameof(_currentCount)} = {_currentCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
-            }
-
             //update current count
-            Interlocked.Add(ref _currentCount, releaseCount - released);
+            Interlocked.Add(ref _signalCount, releaseCount - released);
+
+            //validate releaseCount
+            if (_maxCount - _signalCount < 0)
+            {
+                //throw when the semaphore runs out of capacity
+                throw new ZeroSemaphoreFullException($"${Description}, {nameof(_signalCount)} = {_signalCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
+            }
 
             //return previous number of waiters
             return returnCount;
@@ -611,7 +652,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         { 
             //fail fast 
-            if (_asyncToken.IsCancellationRequested || _zeroed == 1)
+            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
                 return ValueTask.FromResult(false);
 
             //Enter on fast path if signalled or wait

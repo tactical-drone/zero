@@ -7,6 +7,7 @@ using Google.Protobuf;
 using NLog;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 
 namespace zero.core.models.protobuffer.sources
@@ -122,14 +123,11 @@ namespace zero.core.models.protobuffer.sources
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async Task<bool> EnqueueAsync(TBatch[] item)
         {
-            var backed = false;
+            ValueTask<bool> backPressure = default;
             try
             {
-                var backPressure = await _queueBackPressure.WaitAsync().ConfigureAwait(false);
-                
-                backed = true;
-                
-                if (!backPressure)
+                backPressure = _queueBackPressure.WaitAsync();
+                if (!await backPressure.FastPath().ConfigureAwait(false))
                     return false;
 
                 MessageQueue.Enqueue(item);
@@ -138,7 +136,7 @@ namespace zero.core.models.protobuffer.sources
             }
             catch(Exception e)
             {
-                if(backed)
+                if(backPressure.IsCompleted)
                     _queueBackPressure.Release();
 
                 if(!Zeroed())
@@ -160,8 +158,8 @@ namespace zero.core.models.protobuffer.sources
                 var batch = default(TBatch[]);
                 while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
                 {
-                    var checkQ = await _queuePressure.WaitAsync().ConfigureAwait(false);
-                    if (Zeroed() || _queueBackPressure.Release() < 0 || !checkQ)
+                    var checkQ = _queuePressure.WaitAsync();
+                    if (!await checkQ.FastPath().ConfigureAwait(false) || _queueBackPressure.Release() < 0 )
                         break;
                 }
                 return batch;

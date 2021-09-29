@@ -16,15 +16,15 @@ namespace zero.core.patterns.bushes.contracts
 
         bool SyncRecoveryModeEnabled { get; }
 
-        /// <summary>
-        /// Number of concurrent producers
-        /// </summary>
-        int ProducerCount { get; }
+        ///// <summary>
+        ///// Number of concurrent producers
+        ///// </summary>
+        //int ProducerCount { get; }
 
-        /// <summary>
-        /// Number of concurrent consumers
-        /// </summary>
-        int ConsumerCount { get; }
+        ///// <summary>
+        ///// Number of concurrent consumers
+        ///// </summary>
+        //int ConsumerCount { get; }
 
         Task AssimilateAsync();
         ValueTask<bool> ConsumeAsync();

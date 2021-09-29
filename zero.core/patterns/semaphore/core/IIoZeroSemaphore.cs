@@ -10,6 +10,6 @@ namespace zero.core.patterns.semaphore.core
         int Release(int releaseCount = 1);
         ValueTask<bool> WaitAsync();
         void Zero();
-        int CurrentCount { get; }
+        int ReadyCount { get; }
     }
 }

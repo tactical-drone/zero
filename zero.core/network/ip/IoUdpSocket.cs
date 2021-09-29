@@ -457,7 +457,7 @@ namespace zero.core.network.ip
             try
             {
                 //var s = ((IIoZeroSemaphore) eventArgs!.UserToken)!;
-                //if (s!.CurrentCount == 0)
+                //if (s!.ReadyCount == 0)
                 ((IIoZeroSemaphore) eventArgs!.UserToken)!.Release();
             }
             catch

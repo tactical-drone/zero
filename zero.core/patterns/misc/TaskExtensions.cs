@@ -49,5 +49,16 @@ namespace zero.core.patterns.misc
             foreach (var item in enumerable)                
                 await Task.Run(async () => { await action(item).ConfigureAwait(false); }).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Fast path for value tasks
+        /// </summary>
+        /// <typeparam name="T">The return type</typeparam>
+        /// <param name="task">The value task to be fast pathed</param>
+        /// <returns>The result of the async op</returns>
+        public static ValueTask<T> FastPath<T>(this ValueTask<T> task)
+        {
+            return task.IsCompletedSuccessfully ? ValueTask.FromResult(task.Result) : task;
+        }
     }    
 }

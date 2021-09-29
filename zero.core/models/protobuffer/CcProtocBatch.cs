@@ -34,9 +34,8 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// ctor
         /// </summary>
-        /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource"/></param>
-        /// <param name="waitForConsumerTimeout"></param>
-        public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource, int waitForConsumerTimeout = -1)
+        /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource{TModel,TBatch}"/></param>
+        public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource)
             : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource)
         {
             

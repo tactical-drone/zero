@@ -201,7 +201,7 @@ namespace zero.core.patterns.bushes
 
             await base.ZeroManagedAsync().ConfigureAwait(false);
 
-            _logger.Trace($"Closed {Description}");
+            _logger.Trace($"Closed {Description} from {ZeroedFrom}");
         }
 
         /// <summary>
@@ -213,13 +213,11 @@ namespace zero.core.patterns.bushes
         /// <param name="cascade">ZeroOnCascade close events</param>
         /// <param name="channelSource">The source of this conduit, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
-        /// <param name="producers">Nr of concurrent producers</param>
-        /// <param name="consumers">Nr of concurrent consumers</param>
         /// ///
         /// <returns></returns>
         public async Task<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
             IoSource<TFJob> channelSource = null,
-            Func<object, IoSink<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
+            Func<object, IoSink<TFJob>> jobMalloc = null)
         where TFJob : IIoJob
         {
             if (!IoConduits.ContainsKey(id))
@@ -234,7 +232,7 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel =
                         new IoConduit<TFJob>($"`conduit({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'",
-                            channelSource, jobMalloc, producers, consumers);
+                            channelSource, jobMalloc);
 
                     if (!IoConduits.TryAdd(id, newChannel))
                     {

@@ -33,12 +33,9 @@ namespace zero.core.patterns.bushes
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob,
-            bool enableSync, bool sourceZeroCascade = false, int producers = 1, int consumers = 1) : base($"{nameof(IoSink<TJob>)}")
+            bool enableSync, bool sourceZeroCascade = false) : base($"{nameof(IoSink<TJob>)}")
         {
-            //ProducerCount = producers;
-            //ConsumerCount = consumers;
-            ProducerCount = 1;
-            ConsumerCount = 1;
+            
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -89,15 +86,15 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public IoSource<TJob> Source;
 
-        /// <summary>
-        /// Number of concurrent producers
-        /// </summary>
-        public int ProducerCount { get; protected set; }
+        ///// <summary>
+        ///// Number of concurrent producers
+        ///// </summary>
+        //public int ProducerCount { get; protected set; }
 
-        /// <summary>
-        /// Number of concurrent consumers
-        /// </summary>
-        public int ConsumerCount { get; protected set; }
+        ///// <summary>
+        ///// Number of concurrent consumers
+        ///// </summary>
+        //public int ConsumerCount { get; protected set; }
 
         /// <summary>
         /// Whether this source supports fragmented datums
@@ -743,86 +740,74 @@ namespace zero.core.patterns.bushes
         {
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
-
             //Producer
             _producerTask = Task.Factory.StartNew(async () =>
             {
                 //While supposed to be working
-                var producers = new ValueTask<bool>[ProducerCount];
+                ValueTask<bool>[] pcTasks = new ValueTask<bool>[2]{ ValueTask.FromResult(true), ValueTask.FromResult(true) };
+                var i = 0;
+                try
+                {
+                    //Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                    while (!Zeroed())
+                    {
+                        try
+                        {
+                            var produceTask = ProduceAsync();
+
+                            if (!await produceTask.FastPath().ConfigureAwait(false))
+                                break;
+
+                            //if (!produceTask.IsCompletedSuccessfully && !await produceTask.ConfigureAwait(false) || !produceTask.Result)
+                            //    break;
+
+                            //pcTasks[0] = ProduceAsync();
+                            //pcTasks[1] = ConsumeAsync();
+
+                            //if (!pcTasks[0].IsCompletedSuccessfully)
+                            //    await pcTasks[0].ConfigureAwait(false);
+
+                            //if (!pcTasks[1].IsCompletedSuccessfully)
+                            //    await pcTasks[1].ConfigureAwait(false);
+
+
+                            //if (!pcTasks[0].Result || !pcTasks[1].Result)
+                            //    break;
+                            //i++;
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e, $"Production failed [{i}]: {Description}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"{Description}");
+                }
+            }, AsyncTasks.Token,/*TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness |*/ TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+
+
+            //Consumer
+            _consumerTask = Task.Factory.StartNew(async () =>
+            {
+                Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
+                //While supposed to be working
                 while (!Zeroed())
                 {
                     try
                     {
-                        // ReSharper disable once PossibleNullReferenceException
-                        // ReSharper disable once AccessToModifiedClosure
-                        if(_consumerTask!.Unwrap().IsCompleted)
+                        var consumeTask = ConsumeAsync();
+                        if (!await consumeTask.FastPath().ConfigureAwait(false))
                             break;
-                    }
-                    catch { }
 
-                    for (var i = 0; i < ProducerCount; i++)
-                    {
-                        try
-                        {
-                            producers[i] = ProduceAsync();
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Error(e, $"Production failed {Description}");
-                        }
                     }
-
-                    if (!Source?.IsOperational ?? false)
+                    catch (Exception e)
                     {
-                        _logger.Trace($"{GetType().Name}: Producer {Description} went non operational!");
-                        break;
-                    }
-                    
-                    //wait for all to completes
-                    for (int i = 0; i < producers.Length; i++)
-                    {
-                        if (!await producers[i].ConfigureAwait(false))
-                            return;
-                    }
-                    
-                }
-            }, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
-
-            
-            //Consumer
-            _consumerTask = Task.Factory.StartNew(async () =>
-            {
-                var consumers = new ValueTask<bool>[ConsumerCount];
-                
-                //While supposed to be working
-                while (!Zeroed() && !_producerTask.Unwrap().IsCompleted)
-                {
-                    for (int i = 0; i < ConsumerCount; i++)
-                    {
-                        try
-                        {
-                            consumers[i] = ConsumeAsync();
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Error(e,$"Consumption failed {Description}");
-                        }
-                    }
-
-                    if (!Source?.IsOperational ?? false)
-                    {
-                        _logger.Trace($"{GetType().Name}: Consumer {Description} went non operational!");
-                        break;
-                    }
-
-                    //wait for all to completes
-                    for (int i = 0; i < consumers.Length; i++)
-                    {
-                        if (!await consumers[i].ConfigureAwait(false))
-                            return;
+                        _logger.Error(e, $"Consumption failed {Description}");
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);

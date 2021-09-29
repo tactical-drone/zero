@@ -252,10 +252,10 @@ namespace zero.tangle.models
                         //Add tx to be processed
                         newInteropTransactions.Add(interopTx);
 
-                        TotalTpsCounter.Tick();
+                        TotalTpsCounter.TickAsync();
                         if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
-                            ValueTpsCounter.Tick();
+                            ValueTpsCounter.TickAsync();
                             _logger.Info($"{interopTx.AsTrytes(interopTx.AddressBuffer)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
                         }                                                

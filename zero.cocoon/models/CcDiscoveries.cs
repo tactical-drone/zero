@@ -16,6 +16,7 @@ using zero.core.models.protobuffer.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.cocoon.models
 {
@@ -30,28 +31,27 @@ namespace zero.cocoon.models
 
         public override async ValueTask<bool> ConstructAsync()
         {
-            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}.Discovery"))
+            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}"))
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
 
                 //Transfer ownership
-                if (MessageService.ZeroAtomicAsync((s, u, d) =>
+                if (await MessageService.ZeroAtomicAsync((s, u, d) =>
                 {
                     channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, _concurrencyLevel);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<Packet, CcDiscoveryBatch[]>), channelSource))
-                    {
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<Packet, CcDiscoveryBatch>), channelSource))
                         return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource, true).success);
-                    }
-
+                    else
+                        channelSource.ZeroAsync(this).ConfigureAwait(false);
+                    
                     return ValueTask.FromResult(false);
-                }).GetAwaiter().GetResult())
+                }).FastPath().ConfigureAwait(false))
                 {
                     ProtocolConduit = await MessageService.AttachConduitAsync(
                         nameof(CcAdjunct),
                         true,
                         channelSource,
-                        userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource, -1 /*We block to control congestion*/),
-                        _concurrencyLevel, _concurrencyLevel
+                        userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource)
                     );
 
                     //get reference to a central mem pool
@@ -63,7 +63,6 @@ namespace zero.cocoon.models
                 }
                 else
                 {
-                    var t = channelSource.ZeroAsync(this);
                     ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
                 }
             }

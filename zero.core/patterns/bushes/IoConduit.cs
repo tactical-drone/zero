@@ -21,7 +21,7 @@ namespace zero.core.patterns.bushes
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
-        public IoConduit(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob, int producers = 1, int consumers = 1) : base(description, source, mallocJob, false, true, producers: producers, consumers: consumers)
+        public IoConduit(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob) : base(description, source, mallocJob, false, true)
         {
             
         }

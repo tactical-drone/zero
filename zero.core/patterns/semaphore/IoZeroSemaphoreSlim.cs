@@ -75,6 +75,6 @@ namespace zero.core.patterns.semaphore
             _semaphore?.Zero();
         }
 
-        public int CurrentCount => _semaphore.CurrentCount;
+        public int ReadyCount => _semaphore.ReadyCount;
     }
 }

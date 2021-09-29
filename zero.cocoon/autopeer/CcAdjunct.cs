@@ -40,9 +40,7 @@ namespace zero.cocoon.autopeer
             (
                 node,
                 ioNetClient,
-                userData => new CcDiscoveries("adjunct RX", $"{ioNetClient.Key}", ioNetClient, extraData != null ? 1 : ioNetClient.ConcurrencyLevel), true,
-                producers: extraData != null? 1 : 1,
-                consumers: extraData != null? 1 : 1
+                userData => new CcDiscoveries("adjunct RX", $"{ioNetClient.Key}", ioNetClient, extraData != null ? 1 : ioNetClient.ConcurrencyLevel), true
             )
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -249,7 +247,7 @@ namespace zero.cocoon.autopeer
         public IoNodeAddress RemoteAddress { get; protected set; }
 
         /// <summary>
-        /// Whether this adjunctcontains verified remote client connection information
+        /// Whether this adjunct contains verified remote client connection information
         /// </summary>
         public bool Proxy => (RemoteAddress != null);
 
@@ -616,11 +614,7 @@ namespace zero.cocoon.autopeer
                     await Router.SendPeerDropAsync(RemoteAddress).ConfigureAwait(false);
                 }
             }
-            else
-            {
-                await _protocolConduit.ZeroAsync(this).ConfigureAwait(false);
-            }
-            
+
             State = AdjunctState.ZeroState;
 
             if (Assimilated && Direction != Heading.Undefined)
@@ -753,13 +747,23 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         public override async Task AssimilateAsync()
         {
-            _baseTask = base.AssimilateAsync();
-            _protocolTask = ProcessMessagesAsync();
+            _protocolTask = Task.Factory.StartNew(async () =>
+            {
+                await ProcessMessagesAsync().ConfigureAwait(false);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            
+            _baseTask = Task.Factory.StartNew(async () =>
+            {
+                await base.AssimilateAsync().ConfigureAwait(false);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+            //_protocolTask = ProcessMessagesAsync();
+            //_baseTask = base.AssimilateAsync();
 
             try
             {
                 await Task.WhenAll(_baseTask, _protocolTask).ConfigureAwait(false);
-
+                
                 if (_baseTask.IsFaulted)
                 {
                     _logger.Fatal(_baseTask.Exception, "Ajunct processing returned with errors!");
@@ -1621,31 +1625,27 @@ namespace zero.cocoon.autopeer
                     }
 
                     //Transfer?
-                    if (_this.Hub.Neighbors.Count < _this.CcCollective.MaxAdjuncts)
+                    
+                    if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
                     {
-                        if (_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
-                        {
-                            //avoid races
-                            //if (_this.Hub.Neighbors.Count - 1 < _this.CcCollective.MaxAdjuncts)
-                            {
-                                Hub.ZeroOnCascade(newAdjunct);
-                                return true;
-                            }
-
-                            //we raced
-                            //_this.Hub.Neighbors.TryRemove(__newNeighbor.Key, out _);
-                        }
-
-                        return false;
+                        Hub.ZeroOnCascade(newAdjunct);
+                        return true;
                     }
+                    else
+                    {
+                        await newAdjunct.ZeroAsync(this).ConfigureAwait(false);
+                    }
+
+                    return false;
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"{Description}");
+                    _logger.Error(e, $"{Description??"N/A"}");
                 }
 
                 return false;
-            }, ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
+            }
+                , ValueTuple.Create(this, newAdjunct, synAck)).ConfigureAwait(false))
             {
                 //setup conduits to messages
                 newAdjunct.MessageService.SetConduit(nameof(CcAdjunct), MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct)));
@@ -2119,8 +2119,7 @@ namespace zero.cocoon.autopeer
                 {
                     var router = Hub.Router;
 
-                    if (!await router._pingRequest.ChallengeAsync(dest.IpPort, reqBuf)
-                        .ConfigureAwait(false))
+                    if (!await router._pingRequest.ChallengeAsync(dest.IpPort, reqBuf).ConfigureAwait(false))
                         return false;
 
                     var sent = await SendMessageAsync(reqBuf, CcDiscoveries.MessageTypes.Ping, dest)

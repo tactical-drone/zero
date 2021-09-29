@@ -192,7 +192,7 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                IoFpsCounter.Tick();
+                IoFpsCounter.TickAsync().ConfigureAwait(false).GetAwaiter();
                 if (!destroy)
                     _buffer.Add(item);
                 else

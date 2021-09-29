@@ -135,9 +135,6 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
-        Task<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
-            IoSource<TFJob> channelSource = null,
-            Func<object, IoSink<TFJob>> jobMalloc = null, int producers = 1, int consumers = 1)
-            where TFJob : IIoJob;
+        Task<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null, Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
     }
 }
