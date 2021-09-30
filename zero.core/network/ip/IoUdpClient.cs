@@ -48,7 +48,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="clone"></param>
         /// <param name="newRemoteEp"></param>
-        public IoUdpClient(IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.ConcurrencyLevel), clone.PrefetchSize, clone.ConcurrencyLevel)
+        public IoUdpClient(IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, clone.ZeroConcurrencyLevel()), clone.PrefetchSize, clone.ZeroConcurrencyLevel())
         {
 
         }
@@ -66,7 +66,7 @@ namespace zero.core.network.ip
         /// </returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            IoNetSocket = ZeroOnCascade(new IoUdpSocket(ConcurrencyLevel), true).target;
+            IoNetSocket = ZeroOnCascade(new IoUdpSocket(ZeroConcurrencyLevel()), true).target;
             return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
         }
 

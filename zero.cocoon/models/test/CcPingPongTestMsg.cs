@@ -14,6 +14,7 @@ using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.cocoon.models.test
 {
@@ -138,13 +139,7 @@ namespace zero.cocoon.models.test
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            var readTask = ((IoSocket)ioSocket).ReadAsync(_this.ArraySegment, _this.BufferOffset, _this.BufferSize);
-
-                            //slow path
-                            if (!readTask.IsCompletedSuccessfully)
-                                Interlocked.Add(ref _this.BytesRead, await readTask.ConfigureAwait(false));
-                            else
-                                Interlocked.Add(ref _this.BytesRead, readTask.Result);
+                            Interlocked.Add(ref _this.BytesRead, await ((IoSocket)ioSocket).ReadAsync(_this.ArraySegment, _this.BufferOffset, _this.BufferSize).FastPath().ConfigureAwait(false));
 
                             //TODO WTF
                             if (_this.BytesRead == 0)

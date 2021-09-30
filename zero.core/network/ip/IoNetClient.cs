@@ -120,7 +120,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

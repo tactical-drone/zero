@@ -183,13 +183,15 @@ namespace zero.core.patterns.bushes
         public override async ValueTask ZeroManagedAsync()
         {
 #if DEBUG
-            _stateHeap.Return(_stateMeta);
+            if(_stateMeta != null)
+                _stateHeap.Return(_stateMeta);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
-            _stateHeap.ZeroManaged(async transition => await transition.ZeroAsync(this).ConfigureAwait(false));
+            await _stateHeap.ZeroManaged().FastPath().ConfigureAwait(false);
 #endif
-            await base.ZeroManagedAsync().ConfigureAwait(false);
-            if(PreviousJob != null)
-                await PreviousJob.ZeroAsync(this).ConfigureAwait(false);
+            if (PreviousJob != null)
+                await PreviousJob.ZeroAsync(this).FastPath().ConfigureAwait(false);
+
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -263,16 +265,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG
         //TODO
-        private IoHeapIo<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new IoHeapIo<IoStateTransition<IoJobMeta.JobState>>(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
-
-        /// <summary>
-        /// ctor
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
-        protected IoJob() : base($"nameof({nameof(IoJob<TJob>)})")
-        {
-            throw new NotImplementedException();
-        }
+        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
 #endif
         /// <summary>
         /// Final state
@@ -324,24 +317,21 @@ namespace zero.core.patterns.bushes
                 //Allocate memory for a new current state
                 var prevState = _stateMeta;
 
-                var newState = _stateHeap.TakeAsync((transition, closure) =>
-                {
 
-                    transition.Previous = ((IoJob<TJob>) closure)._stateMeta;
-                    transition.EnterTime = DateTime.Now;
-                    transition.ExitTime = DateTime.Now;
-
-                    return new ValueTask<IoStateTransition<IoJobMeta.JobState>>(transition);
-                }, this).ConfigureAwait(false).GetAwaiter().GetResult();
+                _stateHeap.Take(out var newState);
 
                 if (newState == null)
                 {
-                    if(!Zeroed())
+                    if (!Zeroed())
                         throw new OutOfMemoryException();
 
                     return;
                 }
-                
+
+                newState.Previous = _stateMeta;
+                newState.EnterTime = DateTime.Now;
+                newState.ExitTime = DateTime.Now;
+
                 newState.Value = value;
 
                 _stateMeta = newState;

@@ -21,6 +21,7 @@ using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using Packet = Proto.Packet;
 
@@ -145,11 +146,10 @@ namespace zero.cocoon
                                         if (EgressConnections < parm_max_outbound)
                                         {
                                             if (await ((CcAdjunct) adjunct).SendPeerRequestAsync()
-                                                .ConfigureAwait(false))
+                                                .FastPath().ConfigureAwait(false))
                                             {
                                                 peerAttempts++;
-                                                await Task.Delay(_random.Next(parm_scan_throttle), AsyncTasks.Token)
-                                                    .ConfigureAwait(false);
+                                                await Task.Delay(_random.Next(parm_scan_throttle), AsyncTasks.Token).ConfigureAwait(false);
                                             }
                                         }
                                     }
@@ -161,7 +161,7 @@ namespace zero.cocoon
                                     //if we are not able to peer, use long range scanners
                                     if (susceptible != null && peerAttempts == 0 && newConnections == 0)
                                     {
-                                        if (await susceptible.SendDiscoveryRequestAsync().ConfigureAwait(false))
+                                        if (await susceptible.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
                                         {
                                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                             _logger.Debug($"& {susceptible.Description}");
@@ -207,7 +207,7 @@ namespace zero.cocoon
 
                         //        //scan
                         //        if (target != null && !await ((CcAdjunct) target).SendDiscoveryRequestAsync()
-                        //            .ConfigureAwait(false))
+                        //            .FastPath().ConfigureAwait(false))
                         //        {
                         //            if(target != null)
                         //                _logger.Trace($"{nameof(CcAdjunct.SendDiscoveryRequestAsync)}: [FAILED], c = {targetQ.Count}, {Description}");
@@ -263,8 +263,8 @@ namespace zero.cocoon
         public override async ValueTask ZeroManagedAsync()
         {
             var id = Hub?.Router?.Designation?.IdString();
-            await DupSyncRoot.ZeroAsync(this).ConfigureAwait(false);
-            await _autoPeering.ZeroAsync(this).ConfigureAwait(false);
+            await DupSyncRoot.ZeroAsync(this).FastPath().ConfigureAwait(false);
+            await _autoPeering.ZeroAsync(this).FastPath().ConfigureAwait(false);
             //Services.CcRecord.Endpoints.Clear();
             try
             {
@@ -275,7 +275,7 @@ namespace zero.cocoon
                 // ignored
             }
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
             //GC.Collect(GC.MaxGeneration);
 
             try
@@ -493,7 +493,7 @@ namespace zero.cocoon
                     return false;
 
                 //Handshake
-                if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
+                if (await HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(false))
                 {
                     //ACCEPT
                     _logger.Info($"+ {drone.Description}");
@@ -529,19 +529,15 @@ namespace zero.cocoon
 
             var protocolRaw = responsePacket.ToByteArray();
 
-            var sentTask = drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout);
-
-            if (!sentTask.IsCompletedSuccessfully)
-                await sentTask.ConfigureAwait(false);
-
-            if (sentTask.Result == protocolRaw.Length)
+            var sent = 0;
+            if ((sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(false)) == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sentTask.Result} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else
             {
-                _logger.Error($"{type}: Sent {sentTask.Result}/{protocolRaw.Length}...");
+                _logger.Error($"{type}: Sent {sent}/{protocolRaw.Length}...");
                 return 0;
             }
         }
@@ -588,14 +584,9 @@ namespace zero.cocoon
                         //read from the socket
                         do
                         {
-                            var readTask = ioNetSocket
+                            bytesRead+= await ioNetSocket
                                 .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeRequestSize - bytesRead,
-                                    timeout: _this.parm_handshake_timeout);
-
-                            if (readTask.IsCompletedSuccessfully)
-                                bytesRead += readTask.Result;
-                            else
-                                bytesRead += await readTask.ConfigureAwait(false);
+                                    timeout: _this.parm_handshake_timeout).FastPath().ConfigureAwait(false);
 
                         } while (
                             !Zeroed() &&
@@ -667,7 +658,7 @@ namespace zero.cocoon
                                 //}
 
                                 //race for connection
-                                won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).ConfigureAwait(false);
+                                won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, __peer, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
                                 _this._logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {__peer.IoSource.Key}");
 
@@ -683,7 +674,7 @@ namespace zero.cocoon
                                 _this._sw.Restart();
                                 
                                 var sent = await _this.SendMessageAsync(__peer, handshake, nameof(HandshakeResponse),
-                                    _this.parm_handshake_timeout).ConfigureAwait(false);
+                                    _this.parm_handshake_timeout).FastPath().ConfigureAwait(false);
                                 if (sent == 0)
                                 {
                                     _this._logger.Trace($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
@@ -693,7 +684,7 @@ namespace zero.cocoon
                             //Race
                             //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                             //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                            //    .ConfigureAwait(false);
+                            //    .FastPath().ConfigureAwait(false);
                             handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressConnections < parm_max_inbound;
                             return handshakeSuccess;
                         }
@@ -713,7 +704,7 @@ namespace zero.cocoon
                         _this._sw.Restart();
                         var sent = await _this.SendMessageAsync(__peer, handshake, nameof(HandshakeResponse),
                                 _this.parm_handshake_timeout)
-                            .ConfigureAwait(false);
+                            .FastPath().ConfigureAwait(false);
                         if (sent > 0)
                         {
                             _this._logger.Trace(
@@ -728,15 +719,9 @@ namespace zero.cocoon
 
                         do
                         {
-                            var readTask = ioNetSocket
+                            bytesRead = await ioNetSocket
                             .ReadAsync(handshakeBuffer, bytesRead, _this._handshakeResponseSize - bytesRead,
-                                timeout: _this.parm_handshake_timeout);
-
-                            if (readTask.IsCompletedSuccessfully)
-                                bytesRead += readTask.Result;
-                            else
-                                bytesRead += await readTask.ConfigureAwait(false);
-
+                                timeout: _this.parm_handshake_timeout).FastPath().ConfigureAwait(false);
                         } while (
                             !Zeroed() &&
                             bytesRead < _handshakeResponseSize &&
@@ -784,7 +769,7 @@ namespace zero.cocoon
                             //race for connection
                             var won = await _this.ConnectForTheWinAsync(CcAdjunct.Heading.Egress, __peer, packet,
                                     (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                                .ConfigureAwait(false);
+                                .FastPath().ConfigureAwait(false);
 
                             if(!won)
                                 return false;
@@ -859,7 +844,7 @@ namespace zero.cocoon
                 }
 
                 return false;
-            }, drone).ConfigureAwait(false);
+            }, drone).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -887,7 +872,7 @@ namespace zero.cocoon
             if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
             {
                 //did we win?
-                return TotalConnections < MaxDrones && await drone.AttachViaAdjunctAsync(direction).ConfigureAwait(false);
+                return TotalConnections < MaxDrones && await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(false);
             }
             else
             {
@@ -921,13 +906,13 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.ZeroAsync(this).ConfigureAwait(false);
+                        if (drone != null) await drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
                 
                     //Race for a connection
-                    if (await HandshakeAsync((CcDrone)drone).ConfigureAwait(false))
+                    if (await HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(false))
                     {
                         _logger.Info($"+ {drone.Description}");
 
@@ -942,7 +927,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"|>{drone.Description}");
-                        await drone.ZeroAsync(this).ConfigureAwait(false);
+                        await drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
                     }
 
                     return false;
@@ -982,7 +967,7 @@ namespace zero.cocoon
                 }
                 try
                 {
-                    await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).ConfigureAwait(false);
+                    await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(false);
                     return true;
                 }
                 catch (Exception e)
@@ -1013,7 +998,7 @@ namespace zero.cocoon
 
                         await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(false);
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                        if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).ConfigureAwait(false))
+                        if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).FastPath().ConfigureAwait(false))
                         {
                             if(!Hub.Router.Zeroed())
                                 _logger.Trace($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");

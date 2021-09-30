@@ -50,7 +50,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -222,7 +222,7 @@ namespace zero.core.network.ip
             {
                 if (timeout == 0)
                 {
-                    return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
+                    return await NativeSocket.SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).FastPath().ConfigureAwait(false);
                 }
 
                 NativeSocket.SendTimeout = timeout;
@@ -245,7 +245,7 @@ namespace zero.core.network.ip
                     _logger.Error(e, $"Send failed: {Description}");
             }
 
-            await ZeroAsync(this).ConfigureAwait(false);
+            await ZeroAsync(this).FastPath().ConfigureAwait(false);
             return 0;
         }
 
@@ -269,7 +269,7 @@ namespace zero.core.network.ip
                 //fast path: no timeout
                 if (timeout == 0)
                 {
-                    return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token);
+                    return await NativeSocket.ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).FastPath().ConfigureAwait(false);
                 }
 
                 //slow path: timeout
@@ -295,18 +295,17 @@ namespace zero.core.network.ip
                     _logger.Trace(e, $"[FAILED], {Description}, length = `{length}', offset = `{offset}' :");
                 }
 
-                await ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).ConfigureAwait(false);
+                await ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).FastPath().ConfigureAwait(false);
             }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to read from socket {Description}, length = `{length}', offset = `{offset}' :");
-                await ZeroAsync(this).ConfigureAwait(false);
+                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
 
             return 0;
         }
 
-        private readonly byte[] _sentinelBuffer = new byte[0];
         /// <inheritdoc />
         /// <summary>
         /// Connection status

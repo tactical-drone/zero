@@ -3,10 +3,12 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.network.extensions;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.network.ip
@@ -36,7 +38,7 @@ namespace zero.core.network.ip
             remoteEndPoint)
         {
             Proxy = true;
-            Init(16);
+            Init(concurrencyLevel);
         }
 
 
@@ -61,23 +63,23 @@ namespace zero.core.network.ip
         /// </summary>
         private void InitHeap(int concurrencyLevel)
         {
-            //concurrencyLevel *= 2;
+            concurrencyLevel *= 2;
 
-            _argsIoHeap = new IoHeap<SocketAsyncEventArgsExt>(concurrencyLevel)
+            _argsIoHeap = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {
                 Make = o =>
                 {
-                    var args = new SocketAsyncEventArgsExt();
+                    var args = new SocketAsyncEventArgs();
                     args.Completed += Signal;
                     return args;
                 }
             };
 
-            _argsIoHeapOnce = new IoHeap<SocketAsyncEventArgsExt>(concurrencyLevel)
+            _argsIoHeapOnce = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {
                 Make = o =>
                 {
-                    var args = new SocketAsyncEventArgsExt();
+                    var args = new SocketAsyncEventArgs();
                     args.Completed += Signal;
                     return args;
                 }
@@ -106,7 +108,7 @@ namespace zero.core.network.ip
             _argsIoHeap = null;
             _argsIoHeapOnce = null;
             _tcsHeap = null;
-            RemoteNodeAddress = null;
+            //RemoteNodeAddress = null;
             _sendSync = null;
             _rcvSync = null;
 #endif
@@ -115,32 +117,38 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        public override ValueTask ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
-            _argsIoHeap.ZeroManaged(o =>
+            await _argsIoHeap.ZeroManaged(o =>
             {
                 o.Completed -= Signal;
                 o.UserToken = null;
-                o.RemoteEndPoint = null;
+                //o.RemoteEndPoint = null;
                 o.SetBuffer(null,0,0);
-                ((IDisposable) o).Dispose();
-            });
+                //((IDisposable) o).Dispose();
+                return ValueTask.CompletedTask;
+            }).FastPath().ConfigureAwait(false);
 
-            _argsIoHeapOnce.ZeroManaged(o =>
+            await _argsIoHeapOnce.ZeroManaged(o =>
             {
                 o.Completed -= Signal;
                 o.UserToken = null;
-                o.RemoteEndPoint = null;
+                //o.RemoteEndPoint = null;
                 o.SetBuffer(null, 0, 0);
-                ((IDisposable) o).Dispose();
-            });
+                //((IDisposable) o).Dispose();
+                return ValueTask.CompletedTask;
+            }).FastPath().ConfigureAwait(false);
 
-            _tcsHeap.ZeroManaged(o => o.Zero());
+            await _tcsHeap.ZeroManaged(o =>
+            {
+                o.Zero();
+                return ValueTask.CompletedTask;
+            }).FastPath().ConfigureAwait(false);
 
             _sendSync.Zero();
             _rcvSync.Zero();
 
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -318,6 +326,9 @@ namespace zero.core.network.ip
         {
             try
             {
+                if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(false))
+                    return 0;
+
                 //fail fast
                 if (Zeroed() || NativeSocket == null || !(NativeSocket.IsBound))
                 {
@@ -332,9 +343,6 @@ namespace zero.core.network.ip
                     _logger.Fatal("No endpoint supplied!");
                     return 0;
                 }
-
-                if (!await _sendSync.WaitAsync().ConfigureAwait(false))
-                    return 0;
 
 
                 //if (MemoryMarshal.TryGetArray(buffer, out var buf))
@@ -355,7 +363,7 @@ namespace zero.core.network.ip
                     if (args == null)
                         throw new OutOfMemoryException(nameof(_argsIoHeapOnce));
 
-                    while (args.Disposed ||
+                    while (/*args.Disposed ||*/
                            args.LastOperation != SocketAsyncOperation.None &&
                            args.LastOperation != SocketAsyncOperation.SendTo ||
                            args.SocketError != SocketError.Success)
@@ -382,7 +390,7 @@ namespace zero.core.network.ip
                         args.UserToken = tcs;
 
                         //receive
-                        if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().ConfigureAwait(false))
+                        if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
                         {
                             return 0;
                         }
@@ -396,9 +404,9 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        var dispose = args.SocketError != SocketError.Success || args.Disposed;
+                        var dispose = args.SocketError != SocketError.Success;//|| args.Disposed;
 
-                        if (dispose && !args.Disposed)
+                        if (dispose /*&& !args.Disposed*/)
                         {
                             args.SetBuffer(null, 0, 0);
                             args.Completed -= Signal;
@@ -439,12 +447,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgsExt> _argsIoHeap;
+        private IoHeap<SocketAsyncEventArgs> _argsIoHeap;
 
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgsExt> _argsIoHeapOnce;
+        private IoHeap<SocketAsyncEventArgs> _argsIoHeapOnce;
 
         /// <summary>
         /// task completion source
@@ -458,10 +466,12 @@ namespace zero.core.network.ip
             {
                 //var s = ((IIoZeroSemaphore) eventArgs!.UserToken)!;
                 //if (s!.ReadyCount == 0)
-                ((IIoZeroSemaphore) eventArgs!.UserToken)!.Release();
+                if(eventArgs is {UserToken: IIoZeroSemaphore})
+                    ((IIoZeroSemaphore) eventArgs.UserToken).Release();
             }
-            catch
+            catch(Exception e)
             {
+                _logger.Fatal(e,$"{Description}");
                 // ignored
             }
         }
@@ -481,12 +491,12 @@ namespace zero.core.network.ip
         {
             try
             {
-                //fail fast
-                if (Zeroed())
+                //concurrency
+                if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;
 
-                //concurrency
-                if (!await _rcvSync.WaitAsync().ConfigureAwait(false))
+                //fail fast
+                if (Zeroed())
                     return 0;
 
                 if (timeout == 0)
@@ -496,6 +506,9 @@ namespace zero.core.network.ip
                     try
                     {
                         //var args = new SocketAsyncEventArgs();
+                        //args.Completed += Signal;
+
+                        //args = new SocketAsyncEventArgsExt();
                         //args.Completed += Signal;
 
                         if (args == null)
@@ -512,9 +525,10 @@ namespace zero.core.network.ip
                             args.SetBuffer(buffer.Slice(offset, length));
 
                             args.RemoteEndPoint = RemoteNodeAddress.IpEndPoint;
+
                             args.UserToken = tcs;
 
-                            if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().ConfigureAwait(false))
+                            if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
                             {
                                 return 0;
                             }
@@ -569,7 +583,7 @@ namespace zero.core.network.ip
                         
                         //args.SetBuffer(null, 0, 0);
 
-                        var dispose = args.Disposed || args.SocketError != SocketError.Success;
+                        var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
                         if (dispose)
                         {
                             args.SetBuffer(null, 0, 0);

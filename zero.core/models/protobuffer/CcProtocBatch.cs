@@ -8,6 +8,7 @@ using zero.core.core;
 using zero.core.models.protobuffer.sources;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.models.protobuffer
 {
@@ -59,9 +60,9 @@ namespace zero.core.models.protobuffer
         /// zero managed
         /// </summary>
         /// <returns></returns>
-        public override async ValueTask ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -92,12 +93,12 @@ namespace zero.core.models.protobuffer
             {
                 var _this = (CcProtocBatch<TModel, TBatch>)ioJob;
                 
-                if (!await backPressure(ioJob, ioZero).ConfigureAwait(false))
+                if (!await backPressure(ioJob, ioZero).FastPath().ConfigureAwait(false))
                     return false;
 
                 try
                 {
-                    _this.Batch = await ((CcProtocBatchSource<TModel, TBatch>) _this.Source).DequeueAsync().ConfigureAwait(false);
+                    _this.Batch = await ((CcProtocBatchSource<TModel, TBatch>) _this.Source).DequeueAsync().FastPath().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
@@ -107,7 +108,7 @@ namespace zero.core.models.protobuffer
                 _this.State = _this.Batch != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProdCancel;
 
                 return true;
-            }, barrier, zeroClosure, this).ConfigureAwait(false))
+            }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false))
             {
                 State = IoJobMeta.JobState.ProduceTo;
             }

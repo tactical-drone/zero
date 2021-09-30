@@ -107,11 +107,6 @@ namespace zero.core.patterns.bushes.contracts
         int PrefetchSize { get; }
 
         /// <summary>
-        /// The max number of concurrent waiters
-        /// </summary>
-        int ConcurrencyLevel { get; }
-
-        /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="callback">The function.</param>

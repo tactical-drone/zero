@@ -203,7 +203,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             _connectionAttempts.Clear();
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

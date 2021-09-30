@@ -82,5 +82,11 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns></returns>
         ValueTask ZeroManagedAsync();
+
+        /// <summary>
+        /// Returns the objects concurrency level
+        /// </summary>
+        /// <returns></returns>
+        int ZeroConcurrencyLevel();
     }
 }

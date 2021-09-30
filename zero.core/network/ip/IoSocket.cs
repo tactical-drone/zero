@@ -198,7 +198,7 @@ namespace zero.core.network.ip
 #if SAFE_RELEASE
             _logger = null;
             LocalNodeAddress = null;
-            RemoteNodeAddress = null;
+            //RemoteNodeAddress = null;
             NativeSocket = null;
 #endif
         }
@@ -225,7 +225,7 @@ namespace zero.core.network.ip
             if (!Proxy)
                 NativeSocket.Close();
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
             _logger.Trace($"Closed {Description}");
         }
 

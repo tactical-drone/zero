@@ -1,6 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes
 {
@@ -72,9 +73,9 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// ZeroAsync managed
         /// </summary>
-        public override async ValueTask ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>

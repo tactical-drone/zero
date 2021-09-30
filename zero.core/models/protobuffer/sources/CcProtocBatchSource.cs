@@ -112,7 +112,8 @@ namespace zero.core.models.protobuffer.sources
             _queuePressure.Zero();
             _queueBackPressure.Zero();
             MessageQueue.Clear();
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -151,7 +152,7 @@ namespace zero.core.models.protobuffer.sources
         /// </summary>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async Task<TBatch[]> DequeueAsync()
+        public async ValueTask<TBatch[]> DequeueAsync()
         {
             try
             {
@@ -196,7 +197,7 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                return await callback(this, barrier, zeroClosure, jobClosure).ConfigureAwait(false);
+                return await callback(this, barrier, zeroClosure, jobClosure).FastPath().ConfigureAwait(false);
             }
             catch (TimeoutException e)
             {

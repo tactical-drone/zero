@@ -33,8 +33,9 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: invalid {nameof(maxCount)} = {maxCount} specified, value must be larger than 0");
             if(initialCount < 0)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
-            if(initialCount > maxCount)
-                throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxCount)} = {maxCount}");
+
+            //if(initialCount > maxCount)
+            //    throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxCount)} = {maxCount}");
 
             _maxCount = maxCount;
             _useMemoryBarrier = enableFairQ;
@@ -63,19 +64,16 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private readonly bool _useMemoryBarrier;
 
-        /// <summary>
-        /// Max number of times a spinlock can be tested before throttling 
-        /// </summary>
-        private const int MaxSpin = 5;
-
         #endregion
 
-        #region properties
+#region properties
 
+#if TOKEN
         /// <summary>
         /// The current token
         /// </summary>
         private short _currentToken;
+#endif
 
         /// <summary>
         /// A semaphore description
@@ -95,7 +93,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The number of waiters that can enter the semaphore without blocking 
         /// </summary>
-        private int _signalCount;
+        private volatile int _signalCount;
 
         /// <summary>
         /// The number of waiters that can enter the semaphore without blocking 
@@ -130,12 +128,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private uint _head;
+        private volatile uint _head;
 
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private uint _tail;
+        private volatile uint _tail;
 
         /// <summary>
         /// Whether this semaphore has been cleared out
@@ -143,18 +141,13 @@ namespace zero.core.patterns.semaphore.core
         private volatile int _zeroed;
 
         /// <summary>
-        /// Max error tolerance, should be set > 2
-        /// </summary>
-        private const int MaxTolerance = 4;
-
-        /// <summary>
         /// Organic Manifold
         /// </summary>
         //private volatile int _manifold; 
 
-        #endregion
+#endregion
 
-        #region core
+#region core
 
         /// <summary>
         /// Validation failed exception
@@ -296,7 +289,7 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         //private readonly Action<object> _latched;
 
-        #endregion
+#endregion
 
         /// <summary>
         /// Returns true if exit is clean, false otherwise
@@ -551,8 +544,11 @@ namespace zero.core.patterns.semaphore.core
         public int Release(int releaseCount = 1)
         {
             //preconditions
-            if(releaseCount < 1 || releaseCount + _signalCount > _maxCount)
-                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxCount)}({_maxCount})");
+            //if(releaseCount < 1 || releaseCount + _signalCount > _maxCount)
+            //    throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxCount)}({_maxCount})");
+
+            if(releaseCount < 1 )
+                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0");
 
             //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
@@ -629,12 +625,12 @@ namespace zero.core.patterns.semaphore.core
             //update current count
             Interlocked.Add(ref _signalCount, releaseCount - released);
 
-            //validate releaseCount
-            if (_maxCount - _signalCount < 0)
-            {
-                //throw when the semaphore runs out of capacity
-                throw new ZeroSemaphoreFullException($"${Description}, {nameof(_signalCount)} = {_signalCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
-            }
+            ////validate releaseCount
+            //if (_maxCount - _signalCount < 0)
+            //{
+            //    //throw when the semaphore runs out of capacity
+            //    throw new ZeroSemaphoreFullException($"${Description}, {nameof(_signalCount)} = {_signalCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
+            //}
 
             //return previous number of waiters
             return returnCount;

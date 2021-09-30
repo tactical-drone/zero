@@ -47,7 +47,7 @@ namespace zero.cocoon
                     if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Peering)
                     {
                         _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}, {Adjunct?.MetaDesc}");
-                        await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).ConfigureAwait(false);
+                        await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
                     }
                 }
             }, AsyncTasks.Token, TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Current);
@@ -131,11 +131,6 @@ namespace zero.cocoon
         protected IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoNetClient;
 
         /// <summary>
-        /// 
-        /// </summary>
-        private long _isTesting = 0;
-
-        /// <summary>
         /// Grace time for sanity checks
         /// </summary>
         [IoParameter]
@@ -162,7 +157,7 @@ namespace zero.cocoon
         {
             try
             {
-                await DetachNeighborAsync().ConfigureAwait(false);
+                await DetachNeighborAsync().FastPath().ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -180,7 +175,7 @@ namespace zero.cocoon
             }
 
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
 
@@ -201,7 +196,7 @@ namespace zero.cocoon
                 return false;
 
             //Attach the other way
-            var attached = await Adjunct.AttachPeerAsync(this, direction).ConfigureAwait(false);
+            var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(false);
 
             if (attached)
             {
@@ -233,10 +228,10 @@ namespace zero.cocoon
                 }
 
                 return new ValueTask<bool>(true);
-            }).ConfigureAwait(false);
+            }).FastPath().ConfigureAwait(false);
 
             if(latch != null)
-                await latch.DetachPeerAsync().ConfigureAwait(false);
+                await latch.DetachPeerAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -267,11 +262,10 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        var sentTask = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) Source).IoNetSocket.SendAsync(buf, 0, buf.Length);
-                        if (!sentTask.IsCompletedSuccessfully)
-                            await sentTask.ConfigureAwait(false);
+                        ;
+                        
 
-                        if(sentTask.Result > 0)
+                        if(await ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.SendAsync(buf, 0, buf.Length).FastPath().ConfigureAwait(false) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent

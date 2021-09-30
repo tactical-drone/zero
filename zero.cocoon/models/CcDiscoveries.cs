@@ -31,20 +31,20 @@ namespace zero.cocoon.models
 
         public override async ValueTask<bool> ConstructAsync()
         {
-            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcProtocMessage<Packet, CcDiscoveryBatch>)}"))
+            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcDiscoveries)}"))
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
 
                 //Transfer ownership
-                if (await MessageService.ZeroAtomicAsync((s, u, d) =>
+                if (await MessageService.ZeroAtomicAsync(async (s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, _concurrencyLevel);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcProtocBatchSource<Packet, CcDiscoveryBatch>), channelSource))
-                        return ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource, true).success);
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, _concurrencyLevel, _concurrencyLevel);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcDiscoveries), channelSource))
+                        return await ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource, true).success);
                     else
-                        channelSource.ZeroAsync(this).ConfigureAwait(false);
+                        await channelSource.ZeroAsync(this).FastPath().ConfigureAwait(false);
                     
-                    return ValueTask.FromResult(false);
+                    return false;
                 }).FastPath().ConfigureAwait(false))
                 {
                     ProtocolConduit = await MessageService.AttachConduitAsync(
@@ -56,10 +56,17 @@ namespace zero.cocoon.models
 
                     //get reference to a central mem pool
                     if (ProtocolConduit != null)
+                    {
                         _arrayPool = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)ProtocolConduit.Source).ArrayPool;
+                        if (_arrayPool != null)
+                            return true;
+                        
+                        _logger.Fatal($"{Description}: {nameof(_arrayPool)} is null");
+                    }
                     else
-                        return false;
-                    
+                        _logger.Fatal($"{Description}: {nameof(ProtocolConduit)} is null");
+
+                    return false;
                 }
                 else
                 {
@@ -71,6 +78,38 @@ namespace zero.cocoon.models
                 ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
             }
             return await base.ConstructAsync() && ProtocolConduit != null;
+        }
+
+        /// <summary>
+        /// zero unmanaged
+        /// </summary>
+        public override void ZeroUnmanaged()
+        {
+            base.ZeroUnmanaged();
+#if SAFE_RELEASE
+            _protocolMsgBatch = null;
+            _arrayPool = null;
+#endif
+        }
+
+        /// <summary>
+        /// zero managed
+        /// </summary>
+        public override async ValueTask ZeroManagedAsync()
+        {
+            if (_protocolMsgBatch != null)
+                _arrayPool.Return(_protocolMsgBatch, true);
+
+            await _batchMsgHeap.ZeroManaged(batch =>
+            {
+                batch.Zero = null;
+                batch.Message = null;
+                batch.EmbeddedMsg = null;
+                batch.HeapRef = null;
+                return ValueTask.CompletedTask;
+            }).FastPath().ConfigureAwait(false);
+
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -93,7 +132,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// Batch of messages
         /// </summary>
-        private volatile CcDiscoveryBatch[] _protocolMsgBatch;
+        private CcDiscoveryBatch[] _protocolMsgBatch;
 
         /// <summary>
         /// Batch heap items
@@ -103,7 +142,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// message heap
         /// </summary>
-        private ArrayPool<CcDiscoveryBatch> _arrayPool = ArrayPool<CcDiscoveryBatch>.Create();
+        private ArrayPool<CcDiscoveryBatch> _arrayPool = ArrayPool<CcDiscoveryBatch>.Shared;
 
         /// <summary>
         /// The concurrency level
@@ -120,36 +159,6 @@ namespace zero.cocoon.models
         ///// </summary>
         public CcDesignation CcId => CcCollective.CcId;
 
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-#if SAFE_RELEASE
-            _protocolMsgBatch = null;
-            _arrayPool = null;
-#endif
-        }
-
-        /// <summary>
-        /// zero managed
-        /// </summary>
-        public override async ValueTask ZeroManagedAsync()
-        {
-            if (_protocolMsgBatch != null)
-                _arrayPool.Return(_protocolMsgBatch, true);
-
-            _batchMsgHeap.ZeroManaged(batch =>
-            {
-                batch.Zero = null;
-                batch.Message = null;
-                batch.EmbeddedMsg = null;
-                batch.HeapRef = null;
-            });
-
-            await base.ZeroManagedAsync().ConfigureAwait(false);
-        }
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -343,8 +352,10 @@ namespace zero.cocoon.models
 
                 }
 
+                if(CurrBatchSlot > 1)
+                    _logger.Fatal($"{CurrBatchSlot}");
                 //Release a waiter
-                await ForwardToNeighborAsync().ConfigureAwait(false);
+                await ForwardToNeighborAsync().FastPath().ConfigureAwait(false);
             }
             catch (NullReferenceException e)
             {
@@ -421,7 +432,6 @@ namespace zero.cocoon.models
                     batchMsg.UserData = remoteEp;
                     batchMsg.Message = packet;
                     batchMsg.HeapRef = _batchMsgHeap;
-                    
 
                     _protocolMsgBatch[CurrBatchSlot] = batchMsg;
 
@@ -474,7 +484,8 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
+                        if(!_this.Zeroed())
+                            _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
                         return false;
                     }
 

@@ -125,16 +125,16 @@ namespace zero.tangle.api.controllers.generic
                                 await relaySource.ConsumeAsync((message,_) =>
                                 {
                                     if (message == null)
-                                        return Task.CompletedTask;
+                                        return ValueTask.CompletedTask;
 
 
                                     var msg = ((IoTangleTransaction<TKey>)message);
 
                                     if (count > 50)
-                                        return Task.CompletedTask;
+                                        return ValueTask.CompletedTask;
 
                                     if (msg.Transactions == null)
-                                        return Task.CompletedTask;
+                                        return ValueTask.CompletedTask;
                                     try
                                     {
                                         foreach (var t in msg.Transactions)
@@ -161,7 +161,7 @@ namespace zero.tangle.api.controllers.generic
                                             msg.State = IoJobMeta.JobState.ConsumeErr;
                                     }
 
-                                    return Task.CompletedTask;                                    
+                                    return ValueTask.CompletedTask;                                    
                                 });
                             }
                             stopwatch.Stop();

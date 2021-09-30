@@ -33,7 +33,7 @@ namespace zero.core.patterns.bushes
         /// <param name="producers">Nr of concurrent producers</param>
         /// <param name="consumers">Nr of concurrent consumers</param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob,
-            bool enableSync, bool sourceZeroCascade = false) : base($"{nameof(IoSink<TJob>)}")
+            bool enableSync, bool sourceZeroCascade = false) : base($"{nameof(IoSink<TJob>)}", source.ZeroConcurrencyLevel())
         {
             
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
@@ -266,13 +266,13 @@ namespace zero.core.patterns.bushes
 
             _previousJobFragment.Clear();
 
-            JobHeap.ZeroManaged(async sink =>
+            await JobHeap.ZeroManaged(async sink =>
             {
                 
                 await sink.ZeroAsync(this).ConfigureAwait(false);
-            });
+            }).FastPath().ConfigureAwait(false);
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
         }
@@ -297,7 +297,7 @@ namespace zero.core.patterns.bushes
                         {
                             load.IoZero = (IIoZero) closure;
                             return new ValueTask<IoSink<TJob>>(load);
-                        }, this).ConfigureAwait(false);
+                        }, this).FastPath().ConfigureAwait(false);
 
                         //Allocate a job from the heap
                         if (!Zeroed() && nextJob != null)
@@ -311,7 +311,7 @@ namespace zero.core.patterns.bushes
                             //wait for prefetch pressure
                             if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
                             {
-                                if (!await nextJob.Source.WaitForPrefetchPressureAsync().ConfigureAwait(false))
+                                if (!await nextJob.Source.WaitForPrefetchPressureAsync().FastPath().ConfigureAwait(false))
                                 {
                                     return false;
                                 }
@@ -355,7 +355,7 @@ namespace zero.core.patterns.bushes
                                     //Block on producer back pressure
                                     try
                                     {
-                                        var backPressure = await job.Source.WaitForBackPressureAsync().ConfigureAwait(false);
+                                        var backPressure = await job.Source.WaitForBackPressureAsync().FastPath().ConfigureAwait(false);
 
                                         if (!backPressure)
                                         {
@@ -375,7 +375,7 @@ namespace zero.core.patterns.bushes
                                     }
 
                                     return true;
-                                }, this).ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
+                                }, this).FastPath().ConfigureAwait(false) == IoJobMeta.JobState.Produced && !Zeroed())
                                 {
                                     _producerStopwatch.Stop();
                                     IsArbitrating = true;
@@ -416,7 +416,7 @@ namespace zero.core.patterns.bushes
                                     {
                                         //FreeAsync job
                                         nextJob.State = IoJobMeta.JobState.Reject;
-                                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                        nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                                         return false;
                                     }
                                     
@@ -438,11 +438,11 @@ namespace zero.core.patterns.bushes
 
                                         //FreeAsync job
                                         nextJob.State = IoJobMeta.JobState.Reject;
-                                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                        nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                                         IsArbitrating = false;
 
                                         //TEARDOWN
-                                        await ZeroAsync(this).ConfigureAwait(false);
+                                        await ZeroAsync(this).FastPath().ConfigureAwait(false);
                                         return false;
                                     }
                                     
@@ -452,7 +452,7 @@ namespace zero.core.patterns.bushes
 
                                     //FreeAsync job
                                     nextJob.State = IoJobMeta.JobState.Reject;
-                                    nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                    nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
 
                                     // Signal prefetch back pressure
                                     if (nextJob.Source.PrefetchEnabled  && enablePrefetchOption)
@@ -468,7 +468,7 @@ namespace zero.core.patterns.bushes
                             if (nextJob != null)
                             {
                                 nextJob.State = IoJobMeta.JobState.ProdCancel;
-                                nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                                nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                             }
                             
                             //Are we in teardown?
@@ -490,7 +490,7 @@ namespace zero.core.patterns.bushes
                     catch (Exception e)
                     {
                         _logger.Error(e, $"{GetType().Name}: Producing `{Description}' returned with errors:");
-                        nextJob = await FreeAsync(nextJob, true).ConfigureAwait(false);
+                        nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                         return false;
                     }
                     finally
@@ -508,7 +508,7 @@ namespace zero.core.patterns.bushes
                                 nextJob.State = IoJobMeta.JobState.Reject;
                             }
                             
-                            await FreeAsync(nextJob, true).ConfigureAwait(false);
+                            await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                         }
                     }
                 }
@@ -539,7 +539,7 @@ namespace zero.core.patterns.bushes
             return false;
         }
 
-        private async Task<IoSink<TJob>> FreeAsync(IoSink<TJob> job, bool parent = false)
+        private async ValueTask<IoSink<TJob>> FreeAsync(IoSink<TJob> job, bool parent = false)
         {
             try
             {
@@ -567,7 +567,7 @@ namespace zero.core.patterns.bushes
                 {
                     var reuse = job.FinalState == IoJobMeta.JobState.Accept;
                     if (!reuse)
-                        await job.ZeroAsync(this).ConfigureAwait(false);
+                        await job.ZeroAsync(this).FastPath().ConfigureAwait(false);
                     JobHeap.Return(job, !reuse);
                 }
             }
@@ -594,7 +594,7 @@ namespace zero.core.patterns.bushes
         /// <param name="inlineCallback">The inline callback.</param>
         /// <param name="zeroClosure"></param>
         /// <returns>True if consumption happened</returns>
-        public async ValueTask<bool> ConsumeAsync(Func<IoSink<TJob>, IIoZero, Task> inlineCallback = null, IIoZero zeroClosure = null)
+        public async ValueTask<bool> ConsumeAsync(Func<IoSink<TJob>, IIoZero, ValueTask> inlineCallback = null, IIoZero zeroClosure = null)
         {
             try
             {
@@ -608,7 +608,7 @@ namespace zero.core.patterns.bushes
                 {
                     //wait for the producer pressure
                     //Wait for producer pressure
-                    if (!await Source.WaitForPressureAsync().ConfigureAwait(false))
+                    if (!await Source.WaitForPressureAsync().FastPath().ConfigureAwait(false))
                     {
                         //Was shutdown requested?
                         if (Zeroed() || AsyncTasks.IsCancellationRequested)
@@ -638,16 +638,18 @@ namespace zero.core.patterns.bushes
                             curJob.SyncPrevJob();
 
                         //Consume the job
-                        if (await curJob.ConsumeAsync().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
+                        if (await curJob.ConsumeAsync().FastPath().ConfigureAwait(false) == IoJobMeta.JobState.Consumed ||
                             curJob.State == IoJobMeta.JobState.ConInlined ||
                             curJob.State == IoJobMeta.JobState.FastDup 
                             &&
                             !Zeroed())
                         {
+
+                            //if (inlineCallback != null)
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
                                 //forward any jobs                                                                             
-                                await inlineCallback(curJob, zeroClosure).ConfigureAwait(false);
+                                await inlineCallback(curJob, zeroClosure).FastPath().ConfigureAwait(false);
                             }
 
                             curJob.State = IoJobMeta.JobState.Consumed;
@@ -708,7 +710,7 @@ namespace zero.core.patterns.bushes
                                 }
                             }
                                 
-                            curJob = await FreeAsync(curJob).ConfigureAwait(false);
+                            curJob = await FreeAsync(curJob).FastPath().ConfigureAwait(false);
                         }
                         catch
                         {
@@ -741,73 +743,85 @@ namespace zero.core.patterns.bushes
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             //Producer
-            _producerTask = Task.Factory.StartNew(async () =>
+            _producerTask = Task.Factory.StartNew(async _this =>
             {
+                var @this = (IoZero<TJob>)_this;
                 //While supposed to be working
-                ValueTask<bool>[] pcTasks = new ValueTask<bool>[2]{ ValueTask.FromResult(true), ValueTask.FromResult(true) };
-                var i = 0;
                 try
                 {
                     //Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
-                    while (!Zeroed())
+                    var produceTask = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
+                    while (!@this.Zeroed())
                     {
-                        try
+                        for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
                         {
-                            var produceTask = ProduceAsync();
-
-                            if (!await produceTask.FastPath().ConfigureAwait(false))
-                                break;
-
-                            //if (!produceTask.IsCompletedSuccessfully && !await produceTask.ConfigureAwait(false) || !produceTask.Result)
-                            //    break;
-
-                            //pcTasks[0] = ProduceAsync();
-                            //pcTasks[1] = ConsumeAsync();
-
-                            //if (!pcTasks[0].IsCompletedSuccessfully)
-                            //    await pcTasks[0].ConfigureAwait(false);
-
-                            //if (!pcTasks[1].IsCompletedSuccessfully)
-                            //    await pcTasks[1].ConfigureAwait(false);
-
-
-                            //if (!pcTasks[0].Result || !pcTasks[1].Result)
-                            //    break;
-                            //i++;
+                            try
+                            {
+                                produceTask[i] = @this.ProduceAsync();
+                            }
+                            catch (Exception e)
+                            {
+                                @this._logger.Error(e, $"Production failed [{i}]: {@this.Description}");
+                            }
                         }
-                        catch (Exception e)
+
+                        for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
                         {
-                            _logger.Error(e, $"Production failed [{i}]: {Description}");
+                            try
+                            {
+                                if (!await produceTask[i].FastPath().ConfigureAwait(false))
+                                    return;
+                            }
+                            catch (Exception e)
+                            {
+                                @this._logger.Error(e, $"sProduction failed {@this.Description}");
+                            }
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"{Description}");
+                    @this._logger.Error(e, $"{@this.Description}");
                 }
-            }, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            },this, AsyncTasks.Token,TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
 
             //Consumer
-            _consumerTask = Task.Factory.StartNew(async () =>
+            _consumerTask = Task.Factory.StartNew(async _this =>
             {
-                Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
+                var @this = (IoZero<TJob>)_this;
+                //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working
-                while (!Zeroed())
+                while (!@this.Zeroed())
                 {
-                    try
+                    var consumeTask = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
+                    for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
                     {
-                        var consumeTask = ConsumeAsync();
-                        if (!await consumeTask.FastPath().ConfigureAwait(false))
-                            break;
+                        try
+                        {
+                            consumeTask[i] = @this.ConsumeAsync();
+                        }
+                        catch (Exception e)
+                        {
+                            @this._logger.Error(e, $"Consumption failed {@this.Description}");
+                        }
+                    }
 
-                    }
-                    catch (Exception e)
+                    for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
                     {
-                        _logger.Error(e, $"Consumption failed {Description}");
+                        try
+                        {
+                            if (!await consumeTask[i].FastPath().ConfigureAwait(false))
+                                return;
+                        }
+                        catch (Exception e)
+                        {
+                            @this._logger.Error(e, $"Consumption failed {@this.Description}");
+                        }
                     }
+
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent, TaskScheduler.Current);
+            }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);

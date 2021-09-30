@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -29,10 +28,11 @@ namespace zero.core.patterns.misc
         /// Constructs a nano probe
         /// </summary>
         /// <param name="description">A description</param>
-        /// <param name="maxConcurrency">Maximum internal concurrency allowed. Consumption: 128 bits per tick.</param>
-        public IoNanoprobe(string description, int maxConcurrency = 1)
+        /// <param name="concurrencyLevel">Maximum internal concurrency allowed. Consumption: 128 bits per tick.</param>
+        public IoNanoprobe(string description, int concurrencyLevel = 1)
         {
             Description = description ?? GetType().Name;
+            _concurrencyLevel = concurrencyLevel;
 
             _zeroSubs = new ConcurrentBag<IoZeroSub>();
             _zeroed = 0;
@@ -49,7 +49,7 @@ namespace zero.core.patterns.misc
             enableDeadlockDetection = false;
 #endif
 
-            _nanoMutex = new IoZeroSemaphore(description, initialCount: 1, enableAutoScale:false, maxCount: maxConcurrency, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
+            _nanoMutex = new IoZeroSemaphore(description, initialCount: 1, enableAutoScale:false, maxCount: _concurrencyLevel * 2, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 
@@ -132,6 +132,8 @@ namespace zero.core.patterns.misc
         /// </summary>
         private ConcurrentBag<IoZeroSub> _zeroSubs;
 
+        private readonly int _concurrencyLevel;
+
         /// <summary>
         /// A secondary constructor for async stuff
         /// </summary>
@@ -167,7 +169,7 @@ namespace zero.core.patterns.misc
 
             //ZeroedFrom = !@from.Equals(this) ? @from : new IoNanoprobe("self");
 
-            await ZeroAsync(true).ConfigureAwait(false);
+            await ZeroAsync(true).FastPath().ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
 
@@ -245,10 +247,10 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return (default, false);
 
-            ZeroSubscribe(async from => await target.ZeroAsync(from).ConfigureAwait(false));
+            ZeroSubscribe(async from => await target.ZeroAsync(from).FastPath().ConfigureAwait(false));
 
             if (twoWay) //zero
-                target.ZeroSubscribe(async from => await ZeroAsync(target).ConfigureAwait(false));
+                target.ZeroSubscribe(async from => await ZeroAsync(target).FastPath().ConfigureAwait(false));
             
             return (target, true);
         }
@@ -289,8 +291,8 @@ namespace zero.core.patterns.misc
                         if (zeroSub.Action != null)
                         {
                             var zeroAction = zeroSub.Action;
-                            Unsubscribe(zeroSub);
-                            await zeroAction(ZeroedFrom ?? this).ConfigureAwait(false);
+                            var u = Unsubscribe(zeroSub).FastPath().ConfigureAwait(false);
+                            await zeroAction(ZeroedFrom ?? this).FastPath().ConfigureAwait(false);
                         }
                     }
                     //catch (NullReferenceException e)
@@ -318,7 +320,7 @@ namespace zero.core.patterns.misc
                     //Dispose managed
                     try
                     {
-                        await @this.ZeroManagedAsync().ConfigureAwait(false);
+                        await @this.ZeroManagedAsync().FastPath().ConfigureAwait(false);
                     }
                     //catch (NullReferenceException) { }
                     catch (Exception e)
@@ -392,6 +394,16 @@ namespace zero.core.patterns.misc
             return ValueTask.CompletedTask;
         }
 
+        /// <summary>
+        /// Returns the concurrency level
+        /// </summary>
+        /// <returns>The concurrency level</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ZeroConcurrencyLevel()
+        {
+            return _concurrencyLevel;
+        }
+
         ///  <summary>
         ///  Ensures that a ownership transfer action is synchronized
         ///  </summary>
@@ -417,10 +429,10 @@ namespace zero.core.patterns.misc
                         //lock (_nanoMutex)
                         try
                         {
-                            if (await _nanoMutex.WaitAsync().ConfigureAwait(false))
+                            if (await _nanoMutex.WaitAsync().FastPath().ConfigureAwait(false))
                             {
                                 return (_zeroed == 0) &&
-                                       await ownershipAction(this, userData, disposing).ConfigureAwait(false);
+                                       await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(false);
                             }
                         }
                         catch (Exception e)
@@ -436,7 +448,7 @@ namespace zero.core.patterns.misc
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing).ConfigureAwait(false);
+                        return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(false);
                     }
                 }
                 catch (Exception e)

@@ -63,7 +63,7 @@ namespace zero.core.data.providers.redis
         /// </summary>
         /// <param name="hosts">A list of hosts to connect to</param>
         /// <returns>True if connected, false otherwise</returns>
-        public async Task<bool> ConnectAsync(List<IoNodeAddress> hosts)
+        public async ValueTask<bool> ConnectAsync(List<IoNodeAddress> hosts)
         {
             //Used for now to ignore missing redis hosts
             if (_connectionAttempts >= MaxConnectionAttempts) //TODO remove for production
@@ -95,7 +95,7 @@ namespace zero.core.data.providers.redis
         /// Checks whether redis is up
         /// </summary>
         /// <returns>true if it is up</returns>
-        public async Task<bool> EnsureConnectionAsync()
+        public async ValueTask<bool> EnsureConnectionAsync()
         {
             if (IsConnected)
                 return true;

@@ -21,7 +21,7 @@ namespace zero.core.data.contracts
         /// </summary>
         /// <param name="key">The key to be tested</param>
         /// <returns>True if the key exists, false otherwise</returns>
-        Task<bool> KeyExistsAsync(string key);
+        ValueTask<bool> KeyExistsAsync(string key);
 
         /// <summary>
         /// Deletes a key from the store

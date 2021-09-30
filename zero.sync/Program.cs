@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2000;
+            var total = 200;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -112,7 +112,7 @@ namespace zero.sync
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
-                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning|TaskCreationOptions.DenyChildAttach);
+                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
                     if (c % injectionCount == 0)
                     {
                         await Task.Delay(rateLimit += 10).ConfigureAwait(false);
@@ -650,8 +650,8 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                0, 0, 2
-                , 1);
+                2, 1, 2
+                , 1); 
 
             _nodes.Add(cocoon);
 

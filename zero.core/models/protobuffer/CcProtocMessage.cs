@@ -10,6 +10,7 @@ using zero.core.conf;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.models.protobuffer
 {
@@ -71,13 +72,7 @@ namespace zero.core.models.protobuffer
         // ReSharper disable once InconsistentNaming
         public int parm_datums_per_buffer = 5;
 
-        /// <summary>
-        /// Maximum number of datums this buffer can hold
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_ave_sec_ms = 2000;
-
+        
         /// <summary>
         /// Maximum number of datums this buffer can hold
         /// </summary>
@@ -90,7 +85,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 64;//TODO
+        public int parm_max_msg_batch_size = 16;//TODO
 
         /// <summary>
         /// Message rate
@@ -133,7 +128,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         private readonly IPEndPoint _remoteEp = new IPEndPoint(IPAddress.Any, 0);
@@ -155,13 +150,13 @@ namespace zero.core.models.protobuffer
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
+                        if (!await producerPressure(ioJob, ioZero).FastPath().ConfigureAwait(false))
                             return false;
                     
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational && !Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this._remoteEp).ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this._remoteEp).FastPath().ConfigureAwait(false);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -233,7 +228,7 @@ namespace zero.core.models.protobuffer
                             _logger.Warn(
                                 $"Source {_this.MessageService.Description} produce failed!");
                             _this.State = IoJobMeta.JobState.Cancelled;
-                            await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
+                            await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         }
 
                         if (_this.Zeroed())
@@ -268,10 +263,10 @@ namespace zero.core.models.protobuffer
                     {
                         _this.State = IoJobMeta.JobState.ProduceErr;
                         _logger.Error(e, $"ReadAsync {_this.Description}:");
-                        await _this.MessageService.ZeroAsync(_this).ConfigureAwait(false);
+                        await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         return false;
                     }
-                }, barrier, zeroClosure, this).ConfigureAwait(false);
+                }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false);
             }
             catch (TaskCanceledException e)
             {

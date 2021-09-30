@@ -24,10 +24,11 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1) : base($"{nameof(IoSource<TJob>)}")
+        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1) : base($"{nameof(IoSource<TJob>)}", concurrencyLevel)
         {
+            _logger = LogManager.GetCurrentClassLogger();
+
             PrefetchSize = prefetchSize;
-            ConcurrencyLevel = concurrencyLevel;
 
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -36,11 +37,23 @@ namespace zero.core.patterns.bushes
 #endif
             
             //todo GENERALIZE
-            _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false, maxCount:concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
-            _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount:concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
-            _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}", initialCount: concurrencyLevel, enableAutoScale: false, maxCount: concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+            try
+            {
+                _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false,
+                    maxCount: concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
 
-            _logger = LogManager.GetCurrentClassLogger();
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}",
+                    initialCount: concurrencyLevel, maxCount: concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+
+                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}",
+                    initialCount: PrefetchSize, maxCount: PrefetchSize, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+            }
+            catch (Exception e)
+            {
+                _logger.Fatal(e, $"CRITICAL! Failed to configure semaphores! Aborting!");
+                throw;
+            }
+
         }
 
         /// <summary>
@@ -122,10 +135,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public int PrefetchSize { get; protected set; }
         
-        /// <summary>
-        /// The amount of productions that can be made while consumption is behind
-        /// </summary>
-        public int ConcurrencyLevel { get; protected set; }
 
         /// <summary>
         /// Used to identify work that was done recently
@@ -190,7 +199,16 @@ namespace zero.core.patterns.bushes
             _backPressure.Zero();
             _prefetchPressure.Zero();
 
+            foreach (var o in ObjectStorage)
+            {
+                if (o.Value is IIoNanite ioNanite)
+                    await ioNanite.ZeroAsync(this).FastPath().ConfigureAwait(false);
+            }
             ObjectStorage.Clear();
+
+            foreach (var ioConduit in IoConduits.Values)
+                await ioConduit.ZeroAsync(this).FastPath().ConfigureAwait(false);
+            
             IoConduits.Clear();
 
             try
@@ -199,7 +217,7 @@ namespace zero.core.patterns.bushes
             }
             catch { }
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
             _logger.Trace($"Closed {Description} from {ZeroedFrom}");
         }

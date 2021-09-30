@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 
 namespace zero.core.models
 {
@@ -140,7 +141,7 @@ namespace zero.core.models
         /// <returns></returns>
         public async Task<bool> WasProcessedRecentlyAsync(string key)
         {            
-            return await Source.RecentlyProcessed.KeyExistsAsync(key).ConfigureAwait(false);
+            return await Source.RecentlyProcessed.KeyExistsAsync(key).FastPath().ConfigureAwait(false);
         }
 
         public override void ZeroUnmanaged()

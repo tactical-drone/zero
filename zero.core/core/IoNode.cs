@@ -23,12 +23,11 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, int zeroAtomicConcurrency) : base($"{nameof(IoNode<TJob>)}", zeroAtomicConcurrency)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, int zeroAtomicConcurrency) : base($"{nameof(IoNode<TJob>)}", Math.Max(concurrencyLevel, zeroAtomicConcurrency))
         {
             _address = address;
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
-            _concurrencyLevel = concurrencyLevel;
             _zeroAtomicConcurrency = zeroAtomicConcurrency;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
@@ -110,12 +109,6 @@ namespace zero.core.core
         private readonly int _preFetch;
 
         /// <summary>
-        /// TCP read ahead
-        /// </summary>
-        private int _concurrencyLevel;
-
-
-        /// <summary>
         /// 
         /// </summary>
         private Task _listenerTask;
@@ -134,7 +127,7 @@ namespace zero.core.core
                 throw new ConstraintException("The network has already been started");
 
             //_netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel), true).target;
-            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel);
+            _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             _netServer.ZeroOnCascade(this);
 
             await _netServer.ListenAsync(async ioNetClient =>
@@ -431,7 +424,7 @@ namespace zero.core.core
             }
             NeighborTasks.Clear();
 
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
             _logger.Info($"- {Description}");
         }
 

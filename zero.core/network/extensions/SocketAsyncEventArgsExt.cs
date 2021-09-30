@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace zero.core.network.extensions
 {
-    public class SocketAsyncEventArgsExt : SocketAsyncEventArgs, IDisposable
+    public sealed class SocketAsyncEventArgsExt : SocketAsyncEventArgs, IDisposable
     {
         public SocketAsyncEventArgsExt():base(false)
         {
@@ -18,7 +18,7 @@ namespace zero.core.network.extensions
             base.Dispose();
         }
 
-        protected virtual void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
             if( Interlocked.CompareExchange(ref _disposed, 1, 0) == 0 ) 
                 ReleaseUnmanagedResources();

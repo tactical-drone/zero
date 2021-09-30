@@ -7,6 +7,7 @@ using zero.core.conf;
 using zero.core.data.contracts;
 using zero.core.data.providers.redis;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 
 namespace zero.tangle.data.redis.configurations.tangle
 {
@@ -48,10 +49,10 @@ namespace zero.tangle.data.redis.configurations.tangle
         /// </summary>
         /// <param name="key">The key</param>
         /// <returns>true if it exists, false otherwise</returns>
-        public async Task<bool> KeyExistsAsync(string key)
+        public async ValueTask<bool> KeyExistsAsync(string key)
         {
-            if( await EnsureConnectionAsync() )
-                return !await _db.StringSetAsync(key, 0, TimeSpan.FromHours(DupCheckWindowInHours), When.NotExists);
+            if( await EnsureConnectionAsync().FastPath().ConfigureAwait(false) )
+                return !await _db.StringSetAsync(key, 0, TimeSpan.FromHours(DupCheckWindowInHours), When.NotExists).ConfigureAwait(false);
             return false;
         }
 

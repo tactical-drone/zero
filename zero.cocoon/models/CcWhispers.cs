@@ -24,7 +24,6 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
-            _concurrencyLevel = concurrencyLevel;
 
             //_protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
             //_batchMsgHeap = new IoHeap<CcGossipBatch>(concurrencyLevel) { Make = o => new CcGossipBatch() };
@@ -65,20 +64,20 @@ namespace zero.cocoon.models
         public override void ZeroUnmanaged()
         {
             _dupHeap = null;
-            _arrayPool = null;
-            _batchMsgHeap = null;
+            //_arrayPool = null;
+            //_batchMsgHeap = null;
             base.ZeroUnmanaged();
         }
 
-        /// <summary>
-        /// Batch of messages
-        /// </summary>
-        private volatile CcGossipBatch[] _protocolMsgBatch;
+        ///// <summary>
+        ///// Batch of messages
+        ///// </summary>
+        //private volatile CcGossipBatch[] _protocolMsgBatch;
 
-        /// <summary>
-        /// Batch heap items
-        /// </summary>
-        private IoHeap<CcGossipBatch> _batchMsgHeap;
+        ///// <summary>
+        ///// Batch heap items
+        ///// </summary>
+        //private IoHeap<CcGossipBatch> _batchMsgHeap;
 
         /// <summary>
         /// CC Node
@@ -99,8 +98,8 @@ namespace zero.cocoon.models
         private int _poolSize = 1000;
         private long _maxReq = int.MinValue;
 
-        private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Create();
-        private readonly int _concurrencyLevel;
+        // private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Shared;
+        // private readonly int _concurrencyLevel;
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -212,11 +211,10 @@ namespace zero.cocoon.models
                                 dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
                                 return;
                             
-                            var sentTask = source.IoNetSocket.SendAsync(Buffer, BufferOffset - BytesRead, BytesRead);
-                            if (!sentTask.IsCompletedSuccessfully)
-                                await sentTask.ConfigureAwait(false);
+                            ;
+                            
                     
-                            if (sentTask.Result <= 0)
+                            if (await source.IoNetSocket.SendAsync(Buffer, BufferOffset - BytesRead, BytesRead).FastPath().ConfigureAwait(false) <= 0)
                             {
                                 _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
                             }
@@ -255,7 +253,10 @@ namespace zero.cocoon.models
                     if (architect > 0)
                         await Forward(architect).ConfigureAwait(false);
                     else
-                        Forward();
+                    {
+                        var f = Forward();
+                    }
+                        
                 }
             }
             catch (NullReferenceException e)
@@ -294,7 +295,7 @@ namespace zero.cocoon.models
         /// <param name="packet">The packet</param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private async ValueTask ProcessRequestAsync<T>(CcWhisperMsg packet)
+        private ValueTask ProcessRequestAsync<T>(CcWhisperMsg packet)
             where T : IMessage<T>, IMessage, new()
         {
             //try
@@ -326,6 +327,7 @@ namespace zero.cocoon.models
             //    _logger.Error(e,
             //        $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             //}
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

@@ -67,7 +67,7 @@ namespace zero.core.misc
         public override async ValueTask ZeroManagedAsync()
         {
             _matcherMutex.Zero();
-            await base.ZeroManagedAsync().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

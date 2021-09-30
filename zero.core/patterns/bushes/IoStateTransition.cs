@@ -13,25 +13,11 @@ namespace zero.core.patterns.bushes
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
     /// <typeparam name="TState">The state enum</typeparam>
-    public class IoStateTransition<TState> : IoNanoprobe, IIoHeapItem
+    public class IoStateTransition<TState> : IIoHeapItem
         where TState : Enum {
-        public IoStateTransition() : base($"{nameof(IoStateTransition<TState>)}")
+        public IoStateTransition()
         {
             ConstructorAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public override ValueTask ZeroManagedAsync()
-        {
-            return base.ZeroManagedAsync();
-        }
-
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-
-            Previous = null;
-            Next = null;
-            Repeat = null;
         }
 
         /// <summary>
@@ -158,12 +144,6 @@ namespace zero.core.patterns.bushes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Exit(IoStateTransition<TState> nextState)
         {
-            if (Zeroed())
-            {
-                Value = FinalState;
-                return;
-            }
-
             if (Value.Equals(FinalState))
             {
                 throw new ApplicationException($"Cannot transition from `{FinalState}' to `{nextState}'");
