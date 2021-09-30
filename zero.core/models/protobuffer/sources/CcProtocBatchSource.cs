@@ -122,7 +122,7 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async Task<bool> EnqueueAsync(TBatch[] item)
+        public async ValueTask<bool> EnqueueAsync(TBatch[] item)
         {
             ValueTask<bool> backPressure = default;
             try

@@ -28,7 +28,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoJob(string desc, IoSource<TJob> source) : base($"{nameof(IoJob<TJob>)}")
+        protected IoJob(string desc, IoSource<TJob> source) : base($"{nameof(IoJob<TJob>)}", source.ZeroConcurrencyLevel())
         {
             Source = source;
             _jobDesc = desc;

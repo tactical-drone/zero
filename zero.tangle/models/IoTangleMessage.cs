@@ -240,7 +240,7 @@ namespace zero.tangle.models
                         if (Source.RecentlyProcessed != null) //TODO, dupchecker should always be available, maybe mock it
                         {
                             var stopwatch = Stopwatch.StartNew();                                                        
-                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)))
+                            if (await WasProcessedRecentlyAsync(interopTx.AsTrytes(interopTx.HashBuffer)).ConfigureAwait(false))
                             {
                                 stopwatch.Stop();
                                 State = IoJobMeta.JobState.FastDup;                                

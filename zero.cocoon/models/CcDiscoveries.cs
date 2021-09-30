@@ -22,11 +22,10 @@ namespace zero.cocoon.models
 {
     public class CcDiscoveries : CcProtocMessage<Packet, CcDiscoveryBatch>
     {
-        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
+        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _concurrencyLevel = concurrencyLevel;
-            _protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
-            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(concurrencyLevel) {Make = o => new CcDiscoveryBatch()};
+            _protocolMsgBatch = _arrayPool.Rent(source.ZeroConcurrencyLevel() * 2);
+            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(source.ZeroConcurrencyLevel() + 1) {Make = o => new CcDiscoveryBatch()};
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -38,7 +37,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (await MessageService.ZeroAtomicAsync(async (s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, _concurrencyLevel, _concurrencyLevel);
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, ZeroConcurrencyLevel()*2, ZeroConcurrencyLevel()*2);
                     if (MessageService.ObjectStorage.TryAdd(nameof(CcDiscoveries), channelSource))
                         return await ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource, true).success);
                     else
@@ -77,7 +76,7 @@ namespace zero.cocoon.models
             {
                 ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
             }
-            return await base.ConstructAsync() && ProtocolConduit != null;
+            return await base.ConstructAsync().FastPath().ConfigureAwait(false) && ProtocolConduit != null;
         }
 
         /// <summary>
@@ -143,11 +142,6 @@ namespace zero.cocoon.models
         /// message heap
         /// </summary>
         private ArrayPool<CcDiscoveryBatch> _arrayPool = ArrayPool<CcDiscoveryBatch>.Shared;
-
-        /// <summary>
-        /// The concurrency level
-        /// </summary>
-        private readonly int _concurrencyLevel;
 
         /// <summary>
         /// CC Node
@@ -325,25 +319,25 @@ namespace zero.cocoon.models
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Ping:
-                            await ProcessRequestAsync<Ping>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<Ping>(packet).FastPath().ConfigureAwait(false);
                             break;
                         case MessageTypes.Pong:
-                            await ProcessRequestAsync<Pong>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<Pong>(packet).FastPath().ConfigureAwait(false);
                             break;
                         case MessageTypes.DiscoveryRequest:
-                            await ProcessRequestAsync<DiscoveryRequest>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<DiscoveryRequest>(packet).FastPath().ConfigureAwait(false);
                             break;
                         case MessageTypes.DiscoveryResponse:
-                            await ProcessRequestAsync<DiscoveryResponse>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<DiscoveryResponse>(packet).FastPath().ConfigureAwait(false);
                             break;
                         case MessageTypes.PeeringRequest:
-                            await ProcessRequestAsync<PeeringRequest>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<PeeringRequest>(packet).FastPath().ConfigureAwait(false);
                             break;
                         case MessageTypes.PeeringResponse:
-                            await ProcessRequestAsync<PeeringResponse>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<PeeringResponse>(packet).FastPath().ConfigureAwait(false);
                             break;
                         case MessageTypes.PeeringDrop:
-                            await ProcessRequestAsync<PeeringDrop>(packet).ConfigureAwait(false);
+                            await ProcessRequestAsync<PeeringDrop>(packet).FastPath().ConfigureAwait(false);
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -419,9 +413,7 @@ namespace zero.cocoon.models
                     //    zero = IoZero;
 
                     if (CurrBatchSlot == parm_max_msg_batch_size - 1)
-                        await ForwardToNeighborAsync().ConfigureAwait(false);
-
-                    var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
+                        await ForwardToNeighborAsync().FastPath().ConfigureAwait(false);
 
                     _batchMsgHeap.Take(out var batchMsg);
                     if (batchMsg == null)
@@ -429,7 +421,7 @@ namespace zero.cocoon.models
 
                     batchMsg.Zero = zero;
                     batchMsg.EmbeddedMsg = request;
-                    batchMsg.UserData = remoteEp;
+                    batchMsg.UserData = (IPEndPoint)ProducerExtraData;
                     batchMsg.Message = packet;
                     batchMsg.HeapRef = _batchMsgHeap;
 
@@ -470,7 +462,7 @@ namespace zero.cocoon.models
                 {
                     var _this = (CcDiscoveries)ioJob;
 
-                    if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+                    if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(_this._protocolMsgBatch).FastPath().ConfigureAwait(false))
                     {
                         if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
                             _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
@@ -492,7 +484,7 @@ namespace zero.cocoon.models
                     _this.CurrBatchSlot = 0;
 
                     return true;
-                }, jobClosure: this).ConfigureAwait(false);
+                }, jobClosure: this).FastPath().ConfigureAwait(false);
 
                 ////forward transactions
                 // if (cogSuccess)

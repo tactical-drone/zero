@@ -40,7 +40,7 @@ namespace zero.core.patterns.heap
                     return null;
 
                 //ConstructAsync
-                next = (T) await next.ConstructorAsync().ConfigureAwait(false);
+                next = (T) await next.ConstructorAsync().FastPath().ConfigureAwait(false);
 
                 //Custom constructor
                 parms?.Invoke((T) next, userData);
@@ -60,7 +60,7 @@ namespace zero.core.patterns.heap
                     }
 
                     //Try the next one
-                    next = (T) await next.ConstructorAsync().ConfigureAwait(false);
+                    next = (T) await next.ConstructorAsync().FastPath().ConfigureAwait(false);
                 }
             }
             catch (NullReferenceException e)

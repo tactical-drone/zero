@@ -139,7 +139,7 @@ namespace zero.core.models
         /// Does dup checking on this transaction
         /// </summary>        
         /// <returns></returns>
-        public async Task<bool> WasProcessedRecentlyAsync(string key)
+        public async ValueTask<bool> WasProcessedRecentlyAsync(string key)
         {            
             return await Source.RecentlyProcessed.KeyExistsAsync(key).FastPath().ConfigureAwait(false);
         }
