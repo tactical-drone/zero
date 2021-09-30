@@ -785,7 +785,7 @@ namespace zero.core.patterns.bushes
                 {
                     _logger.Error(e, $"{Description}");
                 }
-            }, AsyncTasks.Token,/*TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness |*/ TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            }, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
 
 
             //Consumer
@@ -807,7 +807,7 @@ namespace zero.core.patterns.bushes
                         _logger.Error(e, $"Consumption failed {Description}");
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+            }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent, TaskScheduler.Current);
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);

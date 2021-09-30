@@ -47,7 +47,7 @@ namespace zero.core.patterns.semaphore.core
             if(_enableAutoScale)
                 _lock = new SpinLock(enableDeadlockDetection);
 
-            _latched = o => { };
+            //_latched = o => { };
             
             _signalAwaiter = new Action<object>[_maxCount];
             _signalAwaiterState = new object[_maxCount];
@@ -294,7 +294,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Used for latching 
         /// </summary>
-        private readonly Action<object> _latched;
+        //private readonly Action<object> _latched;
 
         #endregion
 
@@ -419,7 +419,6 @@ namespace zero.core.patterns.semaphore.core
             while (slot != null && c < _maxCount)
             {
                 Volatile.Write(ref _signalAwaiter[headIdx], slot);
-                //_signalAwaiter[headIdx] = slot;
                 Interlocked.Decrement(ref _head);
                 headIdx = (Interlocked.Increment(ref _head) - 1) % _maxCount;
                 slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null);
@@ -440,7 +439,6 @@ namespace zero.core.patterns.semaphore.core
             else //if(_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
             {
                 Volatile.Write(ref _signalAwaiter[headIdx], slot);
-                Thread.MemoryBarrier();
                 Interlocked.Decrement(ref _head);
 
                 //release lock
@@ -600,9 +598,7 @@ namespace zero.core.patterns.semaphore.core
                 {
                     //prevent deadlock
                     Volatile.Write(ref _signalAwaiterState[tailIdx], state);
-                    //_signalAwaiterState[tailIdx] = state;
 
-                    Thread.MemoryBarrier();
                     //restore the latch
                     Interlocked.Decrement(ref _tail);
 

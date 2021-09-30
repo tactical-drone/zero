@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 20;
+            var total = 2000;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -108,14 +108,14 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
-                var rateLimit = 10000;
+                var rateLimit = 15000;
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning|TaskCreationOptions.DenyChildAttach);
                     if (c % injectionCount == 0)
                     {
-                        await Task.Delay(rateLimit += 100).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 10).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");

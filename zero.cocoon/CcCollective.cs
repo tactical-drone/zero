@@ -891,7 +891,7 @@ namespace zero.cocoon
             }
             else
             {
-                _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.TickSec()}");
+                _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.ElapsedMs()}");
                 return false;
             }
         }

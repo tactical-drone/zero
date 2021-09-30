@@ -171,7 +171,7 @@ namespace zero.cocoon
 
             try
             {
-                if ((Adjunct?.Assimilated??false) && Uptime.TickSec() > parm_min_uptime)
+                if ((Adjunct?.Assimilated??false) && Uptime.Elapsed() > parm_min_uptime)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
             }
             catch

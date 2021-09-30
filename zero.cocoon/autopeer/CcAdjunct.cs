@@ -1596,7 +1596,7 @@ namespace zero.cocoon.autopeer
                             ((CcAdjunct) n).Proxy &&
                             ((CcAdjunct) n).Direction == Heading.Undefined &&
                             ((CcAdjunct) n).State < AdjunctState.Peering &&
-                            ((CcAdjunct) n).Uptime.TickMs() > _this.parm_max_network_latency * 2);
+                            ((CcAdjunct) n).Uptime.ElapsedMs() > _this.parm_max_network_latency * 2);
                     
                         var assimilated = q.Where(n =>
                                 ((CcAdjunct) n).Assimilating &&

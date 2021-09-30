@@ -219,7 +219,7 @@ namespace zero.core.network.ip
                             // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
                             )
                         {
-                            if(Uptime.TickSec() > 5)
+                            if(Uptime.Elapsed() > 5)
                                 _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
 
                             //Do cleanup

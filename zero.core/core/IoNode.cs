@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.market;
+using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
@@ -313,7 +314,7 @@ namespace zero.core.core
                     }
 
                     //Existing and not broken neighbor?
-                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime > parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
+                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.Elapsed() > parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
                     {
                         return false;
                     }
