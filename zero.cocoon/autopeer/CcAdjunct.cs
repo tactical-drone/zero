@@ -915,14 +915,15 @@ namespace zero.cocoon.autopeer
                     {
                         while (!@this.Zeroed())
                         {
-                            for (int i = 0; i < @this.ZeroConcurrencyLevel(); i++)
+                            for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
                             {
                                 @this._produceTasks[i] = @this._protocolConduit.ProduceAsync();
                             }
 
                             for (var i = 0; i < @this._produceTasks.Length; i++)
                             {
-                                await @this._produceTasks[i].FastPath().ConfigureAwait(false);
+                                if (!await @this._produceTasks[i].FastPath().ConfigureAwait(false))
+                                    return;
                             }
                         }
                     }
@@ -931,7 +932,7 @@ namespace zero.cocoon.autopeer
                         @this._logger.Fatal(e, $"{@this.Description}");
                     }
                     
-                },this, AsyncTasks.Token,TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                },this, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
 
                 //the consumer
                 while (!Zeroed())
@@ -942,7 +943,7 @@ namespace zero.cocoon.autopeer
                     //_produceTasks[0] = _protocolConduit.ProduceAsync();
 
                     //produce
-                    for (int i = 0; i < ZeroConcurrencyLevel(); i++)
+                    for (var i = 0; i < ZeroConcurrencyLevel(); i++)
                     {
                         try
                         {
@@ -1066,7 +1067,10 @@ namespace zero.cocoon.autopeer
 
                     for (var i = 0; i < _consumeTasks.Length; i++)
                     {
-                        await _consumeTasks[i].FastPath().ConfigureAwait(false);
+                        if (!await _consumeTasks[i].FastPath().ConfigureAwait(false))
+                        {
+                            return;
+                        }
                     }
                 }
             }
@@ -1460,7 +1464,7 @@ namespace zero.cocoon.autopeer
                 if (services == null || services.CcRecord.Endpoints.Count == 0)
                     continue;
 
-                if (count < 1)
+                if (count < 2)
                 {
                     if (await CollectAsync(newRemoteEp, id, services).FastPath().ConfigureAwait(false))
                         count++;

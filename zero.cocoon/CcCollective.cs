@@ -918,7 +918,7 @@ namespace zero.cocoon
 
                         var droneTask = Task.Factory.StartNew(async () =>
                         {
-                            await drone.AssimilateAsync();
+                            await drone.AssimilateAsync().ConfigureAwait(false);
                         }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
 
                         NeighborTasks.Add(droneTask);
