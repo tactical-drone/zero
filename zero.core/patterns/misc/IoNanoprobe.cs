@@ -214,6 +214,12 @@ namespace zero.core.patterns.misc
                 Schedule = true
             });
 
+            //regular cleanups
+            const int bufSize = 25;
+            const double cleanThreshold = 0.33;
+            if (_zeroSubs.Count > bufSize && _zeroSubs.Count(zeroSub => !zeroSub.Schedule) > bufSize * cleanThreshold)
+                _zeroSubs = new ConcurrentBag<IoZeroSub>(_zeroSubs.Where(z => z.Schedule).ToList());
+
             return newSub;
         }
 
@@ -222,10 +228,11 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Unsubscribe(IoZeroSub sub)
+        public ValueTask Unsubscribe(IoZeroSub sub)
         {
             sub.Schedule = false;
             sub.Action = null;
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>
