@@ -52,7 +52,7 @@ namespace zero.cocoon
             _autoPeering = new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroOnCascade(this);
 
-            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token, nameof(DupSyncRoot), parm_max_drone * tpcConcurrencyLevel);
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token, nameof(DupSyncRoot), parm_max_drone * tpcConcurrencyLevel * 2);
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
             {
@@ -115,9 +115,9 @@ namespace zero.cocoon
                         
                         //Attempt to peer with standbys
                         if (totalConnections < MaxDrones * scanRatio &&
-                            secondsSinceEnsured.Elapsed() > parm_mean_pat_delay / 3)
+                            secondsSinceEnsured.Elapsed() > parm_mean_pat_delay / 4)
                         {
-                            if (Neighbors.Count > 1)
+                            if (Neighbors.Count > 1 && EgressConnections < parm_max_outbound)
                             {
                                 _logger.Trace($"Scanning {Neighbors.Count} < {MaxDrones * scanRatio:0}, {Description}");
 
@@ -125,14 +125,9 @@ namespace zero.cocoon
                                 {
                                     //Send peer requests
                                     foreach (var adjunct in _autoPeering.Neighbors.Values.Where(n =>
-                                            ((CcAdjunct) n).Assimilating &&
                                             ((CcAdjunct) n).Direction == CcAdjunct.Heading.Undefined &&
-                                            ((CcAdjunct) n).State > CcAdjunct.AdjunctState.Unverified &&
-                                            ((CcAdjunct) n).State < CcAdjunct.AdjunctState.Peering &&
-                                            ((CcAdjunct) n).TotalPats >
-                                            ((CcAdjunct) n).parm_zombie_max_connection_attempts &&
-                                            ((CcAdjunct) n).SecondsSincePat < parm_mean_pat_delay * 4)
-                                        .OrderBy(n => ((CcAdjunct) n).Priority))
+                                            ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified)
+                                        .OrderBy(n => ((CcAdjunct) n).Priority).Take(parm_max_outbound - EgressConnections))
                                     {
                                         if (Zeroed())
                                             break;
@@ -149,7 +144,6 @@ namespace zero.cocoon
                                                 .FastPath().ConfigureAwait(false))
                                             {
                                                 peerAttempts++;
-                                                await Task.Delay(_random.Next(parm_scan_throttle), AsyncTasks.Token).ConfigureAwait(false);
                                             }
                                         }
                                     }
@@ -157,14 +151,22 @@ namespace zero.cocoon
 
                                 if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
-                                    var newConnections = TotalConnections - totalConnections;
-                                    //if we are not able to peer, use long range scanners
-                                    if (susceptible != null && peerAttempts == 0 && newConnections == 0)
+                                    var c = 0;
+                                    while (c++ < parm_max_adjunct)
                                     {
-                                        if (await susceptible.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
+                                        var adjunct = _autoPeering.Neighbors.Values.Where(n =>
+                                                ((CcAdjunct)n).State is > CcAdjunct.AdjunctState.Unverified)
+                                            .OrderBy(n => ((CcAdjunct)n).Priority)
+                                            .Skip(_random.Next(_autoPeering.Neighbors.Count-2)).FirstOrDefault();
+
+                                        if (adjunct != default)
                                         {
-                                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                            _logger.Debug($"& {susceptible.Description}");
+                                            if (await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
+                                            {
+                                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                                                _logger.Debug($"& {adjunct.Description}");
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -176,7 +178,7 @@ namespace zero.cocoon
                                     secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 }
                             }
-                            else
+                            else if(Neighbors.Count == 0)
                             {
                                 //bootstrap if alone
                                 if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
@@ -532,12 +534,12 @@ namespace zero.cocoon
             var sent = 0;
             if ((sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(false)) == protocolRaw.Length)
             {
-                _logger.Trace($"{type}: Sent {sent} bytes to {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
+                _logger.Trace($"~/> {type}({sent}): {drone.IoSource.IoNetSocket.LocalAddress} ~> {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
             }
             else
             {
-                _logger.Error($"{type}: Sent {sent}/{protocolRaw.Length}...");
+                _logger.Error($"~/> {type}({sent}):  {drone.IoSource.IoNetSocket.LocalAddress} ~> {drone.IoSource.IoNetSocket.RemoteAddress}");
                 return 0;
             }
         }

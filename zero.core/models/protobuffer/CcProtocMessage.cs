@@ -93,11 +93,6 @@ namespace zero.core.models.protobuffer
         private long _msgRateCheckpoint = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         /// <summary>
-        /// User data in the source
-        /// </summary>
-        protected volatile object ProducerExtraData = new IPEndPoint(0, 0);
-
-        /// <summary>
         /// How long to wait for the consumer before timing out
         /// </summary>
         public override int WaitForConsumerTimeout => parm_producer_wait_for_consumer_timeout;
@@ -111,7 +106,6 @@ namespace zero.core.models.protobuffer
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             MemoryOwner = null;
-            ProducerExtraData = null;
             ProtocolConduit = null;
             ArraySegment = null;
 
@@ -131,7 +125,11 @@ namespace zero.core.models.protobuffer
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
-        private readonly IPEndPoint _remoteEp = new IPEndPoint(IPAddress.Any, 0);
+        /// <summary>
+        /// User data in the source
+        /// </summary>
+        protected IPEndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0);
+
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
             IIoZero zeroClosure)
         {
@@ -156,7 +154,7 @@ namespace zero.core.models.protobuffer
                         //Async read the message from the message stream
                         if (_this.MessageService.IsOperational && !Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this._remoteEp).FastPath().ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -177,12 +175,6 @@ namespace zero.core.models.protobuffer
                             //await readTask.OverBoostAsync().ConfigureAwait(false);
 
                             //rx = readTask.Result;
-
-                            //Success
-                            //UDP signals source ip
-
-                            ((IPEndPoint)_this.ProducerExtraData).Address = _this._remoteEp.Address;
-                            ((IPEndPoint)_this.ProducerExtraData).Port = _this._remoteEp.Port;
 
                             //Drop zero reads
                             if (bytesRead == 0)

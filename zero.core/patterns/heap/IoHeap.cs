@@ -37,7 +37,7 @@ namespace zero.core.patterns.heap
             _buffer = new ConcurrentBag<T>();
             CurrentHeapSize = 0;
             ReferenceCount = 0;
-            IoFpsCounter = new IoFpsCounter(500, 5000);
+            //IoFpsCounter = new IoFpsCounter(500, 5000);
             Make = default;
         }
 
@@ -69,7 +69,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Jobs per second
         /// </summary>
-        public IoFpsCounter IoFpsCounter;
+        //public IoFpsCounter IoFpsCounter;
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
@@ -195,7 +195,7 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                IoFpsCounter.TickAsync().ConfigureAwait(false).GetAwaiter();
+                //IoFpsCounter.TickAsync().ConfigureAwait(false).GetAwaiter();
                 if (!destroy)
                     _buffer.Add(item);
                 else

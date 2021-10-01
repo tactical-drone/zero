@@ -44,13 +44,13 @@ namespace zero.cocoon
                 while (!Zeroed())
                 {
                     await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token).ConfigureAwait(false);
-                    if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Peering)
+                    if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Verified)
                     {
                         _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}, {Adjunct?.MetaDesc}");
                         await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Current);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Default);
         }
 
         /// <summary>
@@ -135,7 +135,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_insane_checks_delay = 5;
+        public int parm_insane_checks_delay = 30;
 
         /// <summary>
         /// zero unmanaged

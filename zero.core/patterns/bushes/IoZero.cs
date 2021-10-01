@@ -695,7 +695,7 @@ namespace zero.core.patterns.bushes
                         try
                         {
                             
-                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 && JobHeap.IoFpsCounter.Fps() < 10000000 &&
+                            if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 &&
                                 _lastStat.ElapsedDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
                             {
                                 lock (Environment.Version)
@@ -704,7 +704,7 @@ namespace zero.core.patterns.bushes
                                     //_logger.Info(
                                     //    "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                                     _logger.Info(
-                                        $"{Description} {JobHeap.IoFpsCounter.Fps():F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                        $"{Description} {0/*JobHeap.IoFpsCounter.Fps()*/:F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();
                                     //_logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                                 }

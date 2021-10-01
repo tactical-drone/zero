@@ -51,7 +51,7 @@ namespace zero.cocoon.models
             //{
             //    batchMsg.Zero = null;
             //    batchMsg.Message = null;
-            //    batchMsg.UserData = null;
+            //    batchMsg.RemoteEndPoint = null;
             //});
 
             _dupHeap.Clear();
@@ -313,7 +313,7 @@ namespace zero.cocoon.models
             //        if (CurrBatchSlot >= parm_max_msg_batch_size)
             //            await ForwardToNeighborAsync().ConfigureAwait(false);
 
-            //        var remoteEp = new IPEndPoint(((IPEndPoint)ProducerExtraData).Address, ((IPEndPoint)ProducerExtraData).Port);
+            //        var remoteEp = new IPEndPoint(((IPEndPoint)RemoteEndPoint).Address, ((IPEndPoint)RemoteEndPoint).Port);
             //        ProtocolMsgBatch[CurrBatchSlot] = ValueTuple.Create(zero, request, remoteEp, packet);
             //        Interlocked.Increment(ref CurrBatchSlot);
             //    }

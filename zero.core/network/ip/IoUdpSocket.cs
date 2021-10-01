@@ -65,17 +65,17 @@ namespace zero.core.network.ip
         {
             concurrencyLevel *= 2;
 
-            _argsIoHeap = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
+            _recvArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {
                 Make = o =>
                 {
-                    var args = new SocketAsyncEventArgs();
+                    var args = new SocketAsyncEventArgs{ RemoteEndPoint = new IPEndPoint(0, 0)};
                     args.Completed += Signal;
                     return args;
                 }
             };
 
-            _argsIoHeapOnce = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -105,8 +105,8 @@ namespace zero.core.network.ip
 
 #if SAFE_RELEASE
             _logger = null;
-            _argsIoHeap = null;
-            _argsIoHeapOnce = null;
+            _recvArgs = null;
+            _sendArgs = null;
             _tcsHeap = null;
             //RemoteNodeAddress = null;
             _sendSync = null;
@@ -119,7 +119,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _argsIoHeap.ZeroManaged(o =>
+            await _recvArgs.ZeroManaged(o =>
             {
                 o.Completed -= Signal;
                 o.UserToken = null;
@@ -129,7 +129,7 @@ namespace zero.core.network.ip
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
-            await _argsIoHeapOnce.ZeroManaged(o =>
+            await _sendArgs.ZeroManaged(o =>
             {
                 o.Completed -= Signal;
                 o.UserToken = null;
@@ -358,18 +358,22 @@ namespace zero.core.network.ip
 
                     //return sendTask.Result;
 
-                    _argsIoHeapOnce.Take(out var args);
-                    
+                    //_sendArgs.Take(out var args);
+
+                    var alloc = true;
+                    var args = new SocketAsyncEventArgs();
+                    args.Completed += Signal;
+
                     if (args == null)
-                        throw new OutOfMemoryException(nameof(_argsIoHeapOnce));
+                        throw new OutOfMemoryException(nameof(_sendArgs));
 
                     while (/*args.Disposed ||*/
                            args.LastOperation != SocketAsyncOperation.None &&
                            args.LastOperation != SocketAsyncOperation.SendTo ||
                            args.SocketError != SocketError.Success)
                     {
-                        _argsIoHeapOnce.Return(args, true);
-                        _argsIoHeapOnce.Take(out args);
+                        _sendArgs.Return(args, true);
+                        _sendArgs.Take(out args);
                     }
 
                     _tcsHeap.Take(out var tcs);
@@ -404,16 +408,24 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        var dispose = args.SocketError != SocketError.Success;//|| args.Disposed;
-
-                        if (dispose /*&& !args.Disposed*/)
+                        if (!alloc)
                         {
-                            args.SetBuffer(null, 0, 0);
+                            var dispose = args.SocketError != SocketError.Success;//|| args.Disposed;
+
+                            if (dispose /*&& !args.Disposed*/)
+                            {
+                                args.SetBuffer(null, 0, 0);
+                                args.Completed -= Signal;
+                                args.Dispose();
+                            }
+
+                            _sendArgs.Return(args, dispose);
+                        }
+                        else
+                        {
                             args.Completed -= Signal;
-                            args.Dispose();
                         }
 
-                        _argsIoHeapOnce.Return(args, dispose);
                         _tcsHeap.Return(tcs);
                     }
                 }
@@ -447,12 +459,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs> _argsIoHeap;
+        private IoHeap<SocketAsyncEventArgs> _recvArgs;
 
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs> _argsIoHeapOnce;
+        private IoHeap<SocketAsyncEventArgs> _sendArgs;
 
         /// <summary>
         /// task completion source
@@ -501,7 +513,7 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    _argsIoHeap.Take(out var args);
+                    _recvArgs.Take(out var args);
                     _tcsHeap.Take(out var tcs);
                     try
                     {
@@ -512,7 +524,7 @@ namespace zero.core.network.ip
                         //args.Completed += Signal;
 
                         if (args == null)
-                            throw new OutOfMemoryException(nameof(_argsIoHeap));
+                            throw new OutOfMemoryException(nameof(_recvArgs));
 
                         if (tcs == null)
                             throw new OutOfMemoryException(nameof(_tcsHeap));
@@ -523,8 +535,6 @@ namespace zero.core.network.ip
                             args.SocketFlags = SocketFlags.None;
 
                             args.SetBuffer(buffer.Slice(offset, length));
-
-                            args.RemoteEndPoint = RemoteNodeAddress.IpEndPoint;
 
                             args.UserToken = tcs;
 
@@ -591,7 +601,7 @@ namespace zero.core.network.ip
                             args.Dispose();
                         }
 
-                        _argsIoHeap.Return(args, dispose);
+                        _recvArgs.Return(args, dispose);
                         _tcsHeap.Return(tcs);
                     }
                 }

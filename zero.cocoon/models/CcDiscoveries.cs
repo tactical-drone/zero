@@ -308,7 +308,7 @@ namespace zero.cocoon.models
                     }
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
-                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {ProducerExtraData} /> {MessageService.IoNetSocket.LocalNodeAddress}<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, id = {Id}, o = {CurrBatchSlot}, r = {BytesRead}");
+                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {RemoteEndPoint} ~> {MessageService.IoNetSocket.LocalNodeAddress} ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, <{MessageService.Description}> id = {Id}, o = {CurrBatchSlot}, r = {BytesRead}");
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)
@@ -421,7 +421,7 @@ namespace zero.cocoon.models
 
                     batchMsg.Zero = zero;
                     batchMsg.EmbeddedMsg = request;
-                    batchMsg.UserData = (IPEndPoint)ProducerExtraData;
+                    batchMsg.RemoteEndPoint = RemoteEndPoint.ToString();
                     batchMsg.Message = packet;
                     batchMsg.HeapRef = _batchMsgHeap;
 

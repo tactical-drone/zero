@@ -45,7 +45,7 @@ namespace zero.core.misc
 
 
 
-#if DEBUG || RELEASE
+#if DEBUG //|| RELEASE //TODO remove release
         public static SHA256 Sha256 = new SHA256CryptoServiceProvider();
 
         public static string PayloadSig(this byte[] payload)
@@ -55,6 +55,11 @@ namespace zero.core.misc
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
             return memory.AsArray().PayloadSig();
+        }
+
+        public static string PayloadSig(this ReadOnlySpan<byte> span)
+        {
+            return span.ToArray().PayloadSig();
         }
 
         public static string HashSig(this byte[] hash)
@@ -69,22 +74,27 @@ namespace zero.core.misc
 #else
         public static string PayloadSig(this byte[] payload)
         {
-            return "";
+            return null;
         }
 
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
-            return "";
+            return null;
         }
 
         public static string HashSig(this byte[] hash)
         {
-            return $"";
+            return null;
         }
 
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
-            return "";
+            return null;
+        }
+
+         public static string PayloadSig(this ReadOnlySpan<byte> span)
+        {
+            return null;
         }
 #endif
 
