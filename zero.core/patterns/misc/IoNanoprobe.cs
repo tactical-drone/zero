@@ -273,7 +273,8 @@ namespace zero.core.patterns.misc
             @this.CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    @this.AsyncTasks.Cancel();
+                    if(!@this.AsyncTasks.IsCancellationRequested)
+                        @this.AsyncTasks.Cancel();
                 }
                 catch (Exception e)
                 {

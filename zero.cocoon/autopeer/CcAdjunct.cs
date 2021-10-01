@@ -76,11 +76,20 @@ namespace zero.cocoon.autopeer
                 {
                     while (!Zeroed())
                     {
-                        var patTime = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2: CcCollective.parm_mean_pat_delay;
-                        await WatchdogAsync().FastPath().ConfigureAwait(false);
-                        await Task.Delay(patTime / 3 * 1000,AsyncTasks.Token).ConfigureAwait(false);
+                        var patTime = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
+                        await Task.Delay(patTime / 3 * 1000, AsyncTasks.Token).ConfigureAwait(false);
+
+                        try
+                        {
+                            await WatchdogAsync().FastPath().ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            if(Collected)
+                                _logger.Fatal(e, $"{Description}: Watchdog down!");
+                        }
                     }
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             }
             else
             {
@@ -686,27 +695,15 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async ValueTask WatchdogAsync()
         {
+            
             // Verify request
             if (!Assimilating)
             {
                 return;
             }
             
-            //Moderate requests if we ensured at least once
-            //if (SecondsSincePat < parm_zombie_max_ttl / 2)
-            //{
-            //    return;
-            //}
-            
-            //Are we limping?
-            if (!Proxy && Hub.Neighbors.Count < 1)
-            {
-                await CcCollective.BootAsync().FastPath().ConfigureAwait(false);
-                return;
-            }
-
             var threshold = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
-            threshold *= 2;
+            //threshold *= 2;
 
             //Watchdog failure
             //if (SecondsSincePat > CcNode.parm_mean_pat_delay * 400 || (_dropOne == 0 && _random.Next(0) == 0 && Interlocked.CompareExchange(ref _dropOne, 1, 0) == 0) )
@@ -731,8 +728,8 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                if (Collected && !(_pingRequest.Peek(RemoteAddress.IpPort) || Router._pingRequest.Peek(RemoteAddress.IpPort)))
-                    _logger.Fatal($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
+                if (Collected)
+                    _logger.Error($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
             }
         }
 
@@ -794,7 +791,6 @@ namespace zero.cocoon.autopeer
 
             State = Assimilated ? AdjunctState.Reconnecting : AdjunctState.Connecting;
 
-            
             if (CcCollective.Neighbors.TryGetValue(Key, out var existingNeighbor))
             {
                 if(IsDroneConnected)
@@ -1110,20 +1106,12 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            //only verified nodes get to drop
-            if (!Verified || _drone == null)
+            if(!IsDroneAttached)
                 return;
-
+            
             _logger.Trace($"{nameof(PeeringDrop)}: {Direction} Peer = {_drone.Key}: {Description}, {MetaDesc}");
 
-            try
-            {
-                await _drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
-            }
-            catch
-            {
-                // ignored
-            }
+            await DetachPeerAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -1505,12 +1493,16 @@ namespace zero.cocoon.autopeer
                             ((CcAdjunct) n).Direction == Heading.Undefined &&
                             ((CcAdjunct) n).Uptime.ElapsedMs() > _this.parm_max_network_latency * 2 &&
                             ((CcAdjunct) n).State < AdjunctState.Verified);
-                    
-                        var good = bad.Where(n =>
-                                ((CcAdjunct) n).Assimilating &&
-                                ((CcAdjunct) n)._totalPats > _this.parm_min_pats_before_shuffle &&
-                                ((CcAdjunct) n).PeerRequests > 0)
-                            .OrderBy(n => ((CcAdjunct) n).Priority);
+
+                        var good = _this.Hub.Neighbors.Values.Where(n =>
+                            ((CcAdjunct)n).State < AdjunctState.Local ||
+                            ((CcAdjunct)n).Proxy &&
+                            ((CcAdjunct)n).Direction == Heading.Undefined &&
+                            ((CcAdjunct)n).Uptime.ElapsedMs() > _this.parm_max_network_latency * 2 &&
+                            ((CcAdjunct)n).State < AdjunctState.Peering &&
+                            ((CcAdjunct)n)._totalPats > _this.parm_min_pats_before_shuffle &&
+                            ((CcAdjunct)n).PeerRequests > 0)
+                            .OrderBy(n => ((CcAdjunct)n).Priority);
 
                         var badList = bad.ToList();
                         if (badList.Count > 0)
@@ -1834,6 +1826,8 @@ namespace zero.cocoon.autopeer
             {
                 //var ackTask = Task.Factory.StartNew(async () =>
                 {
+                    LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
                     var sent = 0;
                     if ((sent = await SendMessageAsync(data: pong.ToByteString(), type: CcDiscoveries.MessageTypes.Pong)
                         .FastPath().ConfigureAwait(false)) > 0)
@@ -1937,24 +1931,26 @@ namespace zero.cocoon.autopeer
 
                 Verified = true;
 
-                _logger.Debug($"<\\- {nameof(Pong)}: ACK SYN: {Description}");
+                _logger.Trace($"<\\- {nameof(Pong)}: ACK SYN: {Description}");
                 
                 //we need this peer request even if we are full. Verification needs this signal
                 //if (CcCollective.EgressConnections < CcCollective.parm_max_outbound)
                 {
-                    _logger.Trace($"{(Proxy ? "V>" : "X>")}(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
-                    var peerRequestTask = Task.Factory.StartNew(async () =>
+                    //_logger.Trace($"(acksyn): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
+                    //var peerRequestTask = Task.Factory.StartNew(async () =>
+                    //{
+                    //    await Task.Delay(_random.Next(parm_max_network_latency), AsyncTasks.Token).ConfigureAwait(false);
+                    //    var s = SendPeerRequestAsync();
+                    //}, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);                  
+                    if (!await SendPeerRequestAsync().FastPath().ConfigureAwait(false))
                     {
-                        await Task.Delay(_random.Next(parm_max_network_latency), AsyncTasks.Token).ConfigureAwait(false);
-                        var s = SendPeerRequestAsync();
-                    }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);                  
-                    
+                        _logger.Error($"{nameof(SendDiscoveryRequestAsync)}: Failed!");
+                    }
                 }
             }
             else //sometimes drones we know prod us for connections
             {
                 _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
-                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 Interlocked.Increment(ref _totalPats);
 
                 if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound && PeeringAttempts < parm_zombie_max_connection_attempts)

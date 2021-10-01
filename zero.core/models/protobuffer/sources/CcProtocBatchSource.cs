@@ -8,6 +8,7 @@ using NLog;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 
 namespace zero.core.models.protobuffer.sources
@@ -33,7 +34,7 @@ namespace zero.core.models.protobuffer.sources
             Upstream = ioSource;
             ArrayPool = arrayPool;
 
-            MessageQueue = new ConcurrentQueue<TBatch[]>();
+            MessageQueue = new IoZeroQueue<TBatch[]>(ioSource.Description);
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -58,7 +59,7 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected ConcurrentQueue<TBatch[]> MessageQueue;
+        protected IoZeroQueue<TBatch[]> MessageQueue;
 
         /// <summary>
         /// Sync used to access the Q
@@ -111,7 +112,7 @@ namespace zero.core.models.protobuffer.sources
         {
             _queuePressure.Zero();
             _queueBackPressure.Zero();
-            MessageQueue.Clear();
+            await MessageQueue.ZeroManagedAsync().FastPath().ConfigureAwait(false);
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
@@ -130,7 +131,10 @@ namespace zero.core.models.protobuffer.sources
                 if (!await backPressure.FastPath().ConfigureAwait(false))
                     return false;
 
-                MessageQueue.Enqueue(item);
+                if (await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(false) == null)
+                {
+                    return false;
+                }
 
                 return _queuePressure.Release() != -1;
             }
@@ -154,22 +158,21 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                var batch = default(TBatch[]);
-                var checkQ = _queuePressure.WaitAsync();
+                if (!await _queuePressure.WaitAsync().FastPath().ConfigureAwait(false))
+                    return null;
 
-                while (!Zeroed() && await checkQ.FastPath().ConfigureAwait(false) && !MessageQueue.TryDequeue(out batch))
-                {
-                }
-
-                _queueBackPressure.Release();
-                return batch;
+                return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                _logger.Trace(e,$"{Description}");
+                _logger.Trace(e, $"{Description}");
+            }
+            finally
+            {
+                _queueBackPressure.Release();
             }
 
-            return default(TBatch[]);
+            return null;
         }
 
         /// <summary>

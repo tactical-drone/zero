@@ -101,7 +101,7 @@ namespace zero.core.models.protobuffer
                 }
                 catch (Exception e)
                 {
-                    _logger.Fatal(e,$"MessageQueue.DequeueAsync failed: {_this.Description}"); 
+                    _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {_this.Description}"); 
                 }
 
                 _this.State = _this.Batch != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProdCancel;

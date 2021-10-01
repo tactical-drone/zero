@@ -11,6 +11,7 @@ using zero.core.misc;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.bushes
 {
@@ -36,6 +37,7 @@ namespace zero.core.patterns.bushes
             bool enableSync, bool sourceZeroCascade = false) : base($"{nameof(IoSink<TJob>)}", source.ZeroConcurrencyLevel())
         {
             
+
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -78,6 +80,8 @@ namespace zero.core.patterns.bushes
 
             Source = source;
 
+            _queue = new IoZeroQueue<IoSink<TJob>>(description);
+
             ZeroOnCascade(Source, sourceZeroCascade);
         }
 
@@ -105,12 +109,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Upstream <see cref="Source"/> reference
         /// </summary>
-        public IIoSource IoSource => Source; 
+        public IIoSource IoSource => Source;
 
         /// <summary>
         /// The job queue
         /// </summary>
-        private ConcurrentQueue<IoSink<TJob>> _queue = new ConcurrentQueue<IoSink<TJob>>();
+        private IoZeroQueue<IoSink<TJob>> _queue;
         
         /// <summary>
         /// The heap where new consumable meta data is allocated from
@@ -259,8 +263,7 @@ namespace zero.core.patterns.bushes
                 // ignored
             }
 
-            _queue.ToList().ForEach(q => q.ZeroAsync(this).ConfigureAwait(false));
-            _queue.Clear();
+            await _queue.ZeroManagedAsync(async sink => await sink.ZeroAsync(this).FastPath().ConfigureAwait(false)).FastPath().ConfigureAwait(false);
 
             _previousJobFragment.ToList().ForEach(job => job.ZeroAsync(this).ConfigureAwait(false));
 
@@ -392,7 +395,8 @@ namespace zero.core.patterns.bushes
                             
                                     //if (!_queue.Contains(nextJob))
                                     {
-                                        _queue.Enqueue(nextJob);
+                                        if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(false) == null)
+                                            return false;
                                         nextJob = null;
                                     }                                
                                     //else
@@ -627,7 +631,8 @@ namespace zero.core.patterns.bushes
                 }
 
                 //A job was produced. Dequeue it and process
-                if (!Zeroed() && _queue.TryDequeue(out var curJob))
+                var curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(false);
+                if (!Zeroed() && (curJob != null))
                 {
                     curJob.State = IoJobMeta.JobState.Consuming;
                     try
