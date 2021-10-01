@@ -167,13 +167,15 @@ namespace zero.core.patterns.queue
                 if (p != null)
                     p.Next = null;
 
+                Interlocked.Decrement(ref _count);
+
                 //plumbing
                 if (_head == _tail)
                     _head = _tail = null;
-                else
+                else if(_count > 1)
                     _tail = p;
-
-                Interlocked.Decrement(ref _count);
+                else
+                    _tail = _head;
             }
             finally
             {
