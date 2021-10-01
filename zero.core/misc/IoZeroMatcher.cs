@@ -23,7 +23,7 @@ namespace zero.core.misc
             _capacity = capacity;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
-            _matcherMutex = new IoZeroSemaphore($"{nameof(_matcherMutex)}[{_description}]", concurrencyLevel, 1);
+            _matcherMutex = new IoZeroSemaphore($"{nameof(_matcherMutex)}[{_description}]", concurrencyLevel*2, 1);
             _matcherMutex.ZeroRef(ref _matcherMutex, AsyncTasks.Token);
         }
 
@@ -41,7 +41,7 @@ namespace zero.core.misc
         /// Holds requests
         /// </summary>
         //private readonly ConcurrentDictionary<string, System.Collections.Generic.List<TemporalValue>> _challenge = new ConcurrentDictionary<string, System.Collections.Generic.List<TemporalValue>>();
-        List<TemporalValue> _challenge = new List<TemporalValue>();
+        volatile List<TemporalValue> _challenge = new List<TemporalValue>();
 
         /// <summary>
         /// Time to live
@@ -135,13 +135,13 @@ namespace zero.core.misc
         public async ValueTask<TemporalValue> ResponseAsync(string key, ByteString reqHash)
         {
             TemporalValue response = default;
+            var cmp = reqHash.Memory;
             try
             {
-                var hashMatch = MemoryMarshal.Read<long>(reqHash.Memory.AsArray());
                 if (await _matcherMutex.WaitAsync().ConfigureAwait(false))
                 {
-                    response = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
-                    while (response?.Key != null)
+                    response = _challenge.AsParallel().FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
+                    while (response != null)
                     {
 
                         if (response.Hash == 0)
@@ -151,14 +151,15 @@ namespace zero.core.misc
                             response.Hash = MemoryMarshal.Read<long>(hash);
                         }
 
-                        if (response.Hash == hashMatch)
+                        if (response.Hash != 0 && response.Hash == MemoryMarshal.Read<long>(cmp.Span))
                         {
                             response.Collected = true;
+                            response.Scanned = true;
                             return response;
                         }
 
                         response.Scanned = true;
-                        response = _challenge.FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
+                        response = _challenge.AsParallel().FirstOrDefault(v => !v.Collected && !v.Scanned && v.Key == key);
                     }
                 }
                 else

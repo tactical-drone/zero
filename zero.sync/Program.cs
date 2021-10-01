@@ -112,7 +112,7 @@ namespace zero.sync
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
-                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
+                    var h = Task.Factory.StartNew(() => task.Start());
                     if (c % injectionCount == 0)
                     {
                         await Task.Delay(rateLimit += 10).ConfigureAwait(false);
@@ -145,7 +145,7 @@ namespace zero.sync
                     foreach (var task in tasks)
                     {
                         //continue;
-                        if (await task.Result.BootAsync(v).ConfigureAwait(false))
+                        if (await task.Result.BootAsync(v).FastPath().ConfigureAwait(false))
                         {
                             v++;
                             break;
@@ -230,7 +230,7 @@ namespace zero.sync
                                 foreach (var d in ioCcNode.Neighbors.Values)
                                 {
                                     var drone = (CcDrone) d;
-                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.TickSec():0.00}");
+                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedSec():0.0}s");
                                 }
                             }
                                 
@@ -239,7 +239,7 @@ namespace zero.sync
                             oinBound += i;
                             oavailable += ioCcNode.Hub.Neighbors.Values.Count(n => ((CcAdjunct)n).Proxy);
                             if (ioCcNode.Hub.Neighbors.Count > 0)
-                                uptime += (long)(ioCcNode.Hub.Neighbors.Values.Select(n =>
+                                uptime += ioCcNode.Hub.Neighbors.Values.Select(n =>
                                 {
                                     if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
                                     {
@@ -247,7 +247,7 @@ namespace zero.sync
                                         return ((CcAdjunct)n).AttachTimestamp.Elapsed();
                                     }
                                     return 0;
-                                }).Sum());
+                                }).Sum();
                         }
 
 

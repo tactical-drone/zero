@@ -480,7 +480,7 @@ namespace zero.cocoon
         /// <param name="acceptConnection"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
         {
             _autoPeeringTask?.Dispose();
             _autoPeeringTask = _autoPeering.StartAsync(BootStrapAsync);
@@ -957,10 +957,9 @@ namespace zero.cocoon
         public async ValueTask<bool> BootAsync(long v = 0)
         {
             Interlocked.Exchange(ref Testing, 1);
-            var s = 0;
             foreach (var ioNeighbor in Drones)
             {
-                s = _poisson.Sample();
+                var s = _poisson.Sample();
                 if (Math.Abs(s - _lambda) < 46)
                 {
                     continue;
@@ -983,7 +982,7 @@ namespace zero.cocoon
         /// Boostrap node
         /// </summary>
         /// <returns></returns>
-        private async Task BootStrapAsync()
+        private async ValueTask BootStrapAsync()
         {
             _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
             if (BootstrapAddress != null)

@@ -129,7 +129,7 @@ namespace zero.core.network.ip
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {            
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress).ConfigureAwait(false); 
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false); 
 
             if(connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', {Description}");
@@ -153,7 +153,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                return await callback((IIoSourceBase) IoNetSocket, barrier, zeroClosure, jobClosure).ConfigureAwait(false);
+                return await callback((IIoSourceBase) IoNetSocket, barrier, zeroClosure, jobClosure).FastPath().ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -219,7 +219,7 @@ namespace zero.core.network.ip
                             // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
                             )
                         {
-                            if(Uptime.Elapsed() > 5)
+                            if(Uptime.ElapsedSec() > 5)
                                 _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
 
                             //Do cleanup

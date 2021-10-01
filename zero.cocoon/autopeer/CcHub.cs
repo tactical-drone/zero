@@ -79,7 +79,7 @@ namespace zero.cocoon.autopeer
             return base.ZeroManagedAsync();
         }
 
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
         {
             await base.SpawnListenerAsync(async router =>
             {

@@ -121,7 +121,6 @@ namespace zero.core.models.protobuffer.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<bool> EnqueueAsync(TBatch[] item)
         {
             ValueTask<bool> backPressure = default;
@@ -151,18 +150,18 @@ namespace zero.core.models.protobuffer.sources
         /// Dequeue item
         /// </summary>
         /// <returns></returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<TBatch[]> DequeueAsync()
         {
             try
             {
                 var batch = default(TBatch[]);
-                while (!Zeroed() && !MessageQueue.TryDequeue(out batch))
+                var checkQ = _queuePressure.WaitAsync();
+
+                while (!Zeroed() && await checkQ.FastPath().ConfigureAwait(false) && !MessageQueue.TryDequeue(out batch))
                 {
-                    var checkQ = _queuePressure.WaitAsync();
-                    if (!await checkQ.FastPath().ConfigureAwait(false) || _queueBackPressure.Release() < 0 )
-                        break;
                 }
+
+                _queueBackPressure.Release();
                 return batch;
             }
             catch (Exception e)

@@ -354,7 +354,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    if (@this.Uptime.Elapsed() > 10 && @this.CascadeTime > @this.TearDownTime * 2 && @this.TearDownTime > 0)
+                    if (@this.Uptime.ElapsedSec() > 10 && @this.CascadeTime > @this.TearDownTime * 2 && @this.TearDownTime > 0)
                         _logger.Fatal(
                             $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, c = {@this.CascadeTime:0.0}ms, t = {@this.TearDownTime:0.0}ms, count = {_zeroSubs.Count}");
                 }

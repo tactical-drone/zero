@@ -43,9 +43,9 @@ namespace zero.core.misc
             }
         }
 
-        
 
-#if DEBUG
+
+#if DEBUG || RELEASE
         public static SHA256 Sha256 = new SHA256CryptoServiceProvider();
 
         public static string PayloadSig(this byte[] payload)

@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -41,10 +40,10 @@ namespace zero.core.network.ip
         /// <returns>
         /// True on success, false otherwise
         /// </returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction,
-            Func<Task> bootstrapAsync = null)
+        public override async ValueTask ListenAsync(Func<IoNetClient<TJob>, ValueTask> connectionReceivedAction,
+            Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).FastPath().ConfigureAwait(false);
 
             while (!Zeroed())
             {
@@ -55,7 +54,7 @@ namespace zero.core.network.ip
                 {
                     try
                     { //creates a new udp client
-                        connectionReceivedAction?.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
+                        await connectionReceivedAction.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).target).FastPath().ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
@@ -68,7 +67,7 @@ namespace zero.core.network.ip
                 if(!Zeroed())
                     _logger.Warn($"Listener stopped, restarting: {Description}");
 
-                await IoListenSocket.ZeroAsync(this).ConfigureAwait(false);
+                await IoListenSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
         }
 

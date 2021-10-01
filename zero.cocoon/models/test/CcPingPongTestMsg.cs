@@ -162,7 +162,7 @@ namespace zero.cocoon.models.test
                         }
                         else
                         {
-                            await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
+                            await _this.Source.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         }
 
                         if (_this.Zeroed())

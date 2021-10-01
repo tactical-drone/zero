@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using NLog;
 using zero.core.core;
 using zero.core.models.protobuffer.sources;
 using zero.core.patterns.bushes;

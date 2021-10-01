@@ -2,6 +2,7 @@
 using NLog;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -49,7 +50,7 @@ namespace zero.core.network.ip
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
             IoNetSocket = ZeroOnCascade(new IoTcpSocket(), true).target;
-            return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
+            return await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

@@ -155,7 +155,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_uptime = 10;
+        public int parm_min_uptime = 2;
 
         /// <summary>
         /// Debug output rate
@@ -783,8 +783,7 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"{@this.Description}");
                 }
-            },this, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
-
+            },this, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
 
             //Consumer
             _consumerTask = Task.Factory.StartNew(async _this =>

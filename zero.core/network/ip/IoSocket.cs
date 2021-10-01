@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
@@ -12,8 +11,7 @@ namespace zero.core.network.ip
     /// <summary>
     /// Abstracts TCP and UDP
     /// </summary>
-    public abstract class
-        IoSocket : IoNanoprobe
+    public abstract class IoSocket : IoNanoprobe
     {
         /// <inheritdoc />
         /// <summary>
@@ -129,9 +127,9 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual Task ListenAsync(IoNodeAddress listeningAddress,
-            Func<IoSocket, Task> acceptConnectionHandler,
-            Func<Task> bootstrapAsync = null)
+        public virtual ValueTask ListenAsync(IoNodeAddress listeningAddress,
+            Func<IoSocket, ValueTask> acceptConnectionHandler,
+            Func<ValueTask> bootstrapAsync = null)
         {
             //If there was a coding mistake throw
             if (NativeSocket.IsBound)
@@ -155,10 +153,10 @@ namespace zero.core.network.ip
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to bind socket at {listeningAddress}: {Description}");
-                return Task.FromException(e);
+                return ValueTask.FromException(e);
             }
 
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

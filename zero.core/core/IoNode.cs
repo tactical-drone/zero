@@ -111,7 +111,7 @@ namespace zero.core.core
         /// <summary>
         /// 
         /// </summary>
-        private Task _listenerTask;
+        private ValueTask _listenerTask;
 
         /// <summary>
         /// A set of all node tasks that are currently running
@@ -121,7 +121,7 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async Task SpawnListenerAsync(Func<IoNeighbor<TJob>, Task<bool>> acceptConnection = null, Func<Task> bootstrapAsync = null)
+        protected virtual async ValueTask SpawnListenerAsync(Func<IoNeighbor<TJob>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
@@ -140,7 +140,7 @@ namespace zero.core.core
                 //superclass specific mutations
                 try
                 {
-                    if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).ConfigureAwait(false))
+                    if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).FastPath().ConfigureAwait(false))
                     {
                         _logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
                         await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
@@ -212,7 +212,7 @@ namespace zero.core.core
                                 }
                             });
                             return ValueTask.FromResult(true);
-                        }).ConfigureAwait(false);
+                        }).FastPath().ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
                     catch (TaskCanceledException) { return false; }
@@ -230,7 +230,7 @@ namespace zero.core.core
                 {
                     await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
                 }
-            }, bootstrapAsync).ConfigureAwait(false);
+            }, bootstrapAsync).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -247,7 +247,7 @@ namespace zero.core.core
                 var assimilation = Task.Factory.StartNew(async () =>
                 {
                     await newNeighbor.AssimilateAsync();
-                }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent, TaskScheduler.Current);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Current);
 
                 NeighborTasks.Add(assimilation);
 
@@ -307,7 +307,7 @@ namespace zero.core.core
                     }
 
                     //Existing and not broken neighbor?
-                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.Elapsed() > parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
+                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedSec() > parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
                     {
                         return false;
                     }
@@ -362,17 +362,15 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async Task StartAsync(Func<Task> bootstrapFunc = null)
+        public async Task StartAsync(Func<ValueTask> bootstrapFunc = null)
         {
             _logger.Trace($"Unimatrix Zero: {Description}");
             try
             {
                 _listenerTask = SpawnListenerAsync(bootstrapAsync: bootstrapFunc);
-
-                var nodeTask = _listenerTask;
-                await nodeTask.ConfigureAwait(false);
-
-                _logger.Trace($"You will be assimilated! Resistance is futile, {(_listenerTask.GetAwaiter().IsCompleted ? "clean" : "dirty")} exit ({_listenerTask.Status}): {Description}");
+                await _listenerTask.FastPath().ConfigureAwait(false);
+                
+                _logger.Trace($"You will be assimilated! Resistance is futile, {(_listenerTask.IsCompletedSuccessfully? "clean" : "dirty")} exit ({_listenerTask}): {Description}");
             }
             catch (Exception e)
             {

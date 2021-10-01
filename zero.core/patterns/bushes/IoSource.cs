@@ -46,7 +46,7 @@ namespace zero.core.patterns.bushes
                     initialCount: concurrencyLevel, maxCount: concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
 
                 _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}",
-                    initialCount: PrefetchSize, maxCount: PrefetchSize, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+                    initialCount: concurrencyLevel*2, maxCount: concurrencyLevel*2, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
             }
             catch (Exception e)
             {

@@ -166,9 +166,9 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
         /// <param name="bootstrapAsync">Bootstrap callback invoked when a listener has started</param>
         /// <returns>True if successful, false otherwise</returns>
-        public override async Task ListenAsync(IoNodeAddress listeningAddress,
-            Func<IoSocket, Task> acceptConnectionHandler,
-            Func<Task> bootstrapAsync = null)
+        public override async ValueTask ListenAsync(IoNodeAddress listeningAddress,
+            Func<IoSocket, ValueTask> acceptConnectionHandler,
+            Func<ValueTask> bootstrapAsync = null)
         {
             //base
             await base.ListenAsync(listeningAddress, acceptConnectionHandler, bootstrapAsync).ConfigureAwait(false);

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -38,10 +39,10 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async Task ListenAsync(Func<IoNetClient<TJob>, Task> connectionReceivedAction,
-            Func<Task> bootstrapAsync = null)
+        public override async ValueTask ListenAsync(Func<IoNetClient<TJob>, ValueTask> connectionReceivedAction,
+            Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).FastPath().ConfigureAwait(false);
 
             IoListenSocket = ZeroOnCascade(new IoTcpSocket(), true).target;
 
@@ -55,10 +56,10 @@ namespace zero.core.network.ip
                 {
                     _logger.Error(e, $"Connection received handler returned with errors:");
 
-                    await newConnectionSocket.ZeroAsync(this).ConfigureAwait(false);
+                    await newConnectionSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
 
                 }
-            }, bootstrapAsync).ConfigureAwait(false);
+            }, bootstrapAsync).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

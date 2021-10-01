@@ -7,6 +7,7 @@ using zero.core.conf;
 using zero.core.core;
 using zero.core.network.ip;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 using zero.tangle.data.redis.configurations.tangle;
 using zero.tangle.models;
 using zero.tangle.utils;
@@ -43,7 +44,7 @@ namespace zero.tangle
         /// Start listener and connect back to any new connections
         /// </summary>
         /// <returns>Task</returns>
-        protected override async Task SpawnListenerAsync(Func<IoNeighbor<TJob>, Task<bool>> connectionReceivedAction = null, Func<Task> bootstrapAsync = null)
+        protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<TJob>, ValueTask<bool>> connectionReceivedAction = null, Func<ValueTask> bootstrapAsync = null)
         {
             //ConnectedEvent += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
 
@@ -94,7 +95,7 @@ namespace zero.tangle
                             ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
                                 Encoding.ASCII.GetBytes("0000015600").Length);
                             return new ValueTask<bool>(true);
-                        });
+                        }).FastPath().ConfigureAwait(false);
                 }
                 else
                 {

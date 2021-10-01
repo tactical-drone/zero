@@ -30,16 +30,16 @@ namespace zero.cocoon.models
 
         public override async ValueTask<bool> ConstructAsync()
         {
-            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcDiscoveries)}"))
+            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcAdjunct)}"))
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
 
                 //Transfer ownership
                 if (await MessageService.ZeroAtomicAsync(async (s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, ZeroConcurrencyLevel()*2, ZeroConcurrencyLevel()*2);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcDiscoveries), channelSource))
-                        return await ValueTask.FromResult(MessageService.ZeroOnCascade(channelSource, true).success);
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, ZeroConcurrencyLevel()*2);
+                    if (MessageService.ObjectStorage.TryAdd(nameof(CcAdjunct), channelSource))
+                        return true;
                     else
                         await channelSource.ZeroAsync(this).FastPath().ConfigureAwait(false);
                     
