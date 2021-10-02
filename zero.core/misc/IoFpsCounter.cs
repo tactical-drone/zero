@@ -62,7 +62,7 @@ namespace zero.core.misc
         }
 
         /// <summary>
-        /// Return current fps
+        /// ReturnAsync current fps
         /// </summary>
         /// <returns></returns>
         public double Fps()

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Google.Protobuf.WellKnownTypes;
 using NLog;
 using zero.core.misc;
 using zero.core.patterns.misc;
@@ -111,22 +112,22 @@ namespace zero.core.patterns.heap
         /// </summary>
         public async ValueTask ZeroManaged(Func<T,ValueTask> zeroAction = null)
         {
-
-            try
+            if (zeroAction != null)
             {
-                //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
-                // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
-                // to zero eventually?
-
-                if(zeroAction != null)
-                    foreach (var h in _buffer)
+                foreach (var h in _buffer)
+                {
+                    try
+                    {
+                        //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
+                        // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
+                        // to zero eventually?
                         await zeroAction.Invoke(h).FastPath().ConfigureAwait(false);
-                
-                _buffer.Clear();
+                    }
+                    catch { }
+                }
             }
-            catch { }
-
-            //await base.ZeroManaged().ConfigureAwait(false);
+            
+            _buffer.Clear();
             return;
         }
 
@@ -187,7 +188,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="destroy">Whether to destroy this object</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Return(T item, bool destroy = false)
+        public virtual ValueTask ReturnAsync(T item, bool destroy = false)
         {
 #if DEBUG
              if (item == null)
@@ -201,14 +202,14 @@ namespace zero.core.patterns.heap
                 else
                     Interlocked.Decrement(ref CurrentHeapSize);
                 
-                    
-
                 Interlocked.Decrement(ref ReferenceCount);
             }
             catch (NullReferenceException)
             {
-                _logger.Fatal($"Unexpected error while returning item to the heap: ");
+                _logger.Fatal($"Unexpected error while returning item to the heap! ");
             }
+
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

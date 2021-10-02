@@ -30,6 +30,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using Logger = NLog.Logger;
 
 namespace zero.cocoon.autopeer
@@ -1050,7 +1051,7 @@ namespace zero.cocoon.autopeer
                                                 }
                                                 finally
                                                 {
-                                                    msgBatch.HeapRef.Return(msgBatch);
+                                                    await msgBatch.HeapRef.ReturnAsync(msgBatch).FastPath().ConfigureAwait(false);
                                                 }
                                             }, @this).FastPath().ConfigureAwait(false);
                                     }
@@ -2008,7 +2009,8 @@ namespace zero.cocoon.autopeer
                 if (Proxy)
                 {
                     //send
-                    LinkedListNode<IoZeroMatcher<ByteString>.IoChallenge> challenge;
+
+                    IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                     if ((challenge = await _pingRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
                         .FastPath().ConfigureAwait(false)) == null) 
                         return false;
@@ -2046,7 +2048,7 @@ namespace zero.cocoon.autopeer
                 {
                     var router = Hub.Router;
 
-                    LinkedListNode<IoZeroMatcher<ByteString>.IoChallenge> challenge;
+                    IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                     if ((challenge = await router._pingRequest.ChallengeAsync(dest.IpPort, reqBuf).FastPath().ConfigureAwait(false)) == null)
                         return false;
 
@@ -2130,7 +2132,8 @@ namespace zero.cocoon.autopeer
                 };
 
                 var reqBuf = discoveryRequest.ToByteString();
-                LinkedListNode<IoZeroMatcher<ByteString>.IoChallenge> challenge;
+
+                IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                 if ((challenge = await _discoveryRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
                     .FastPath().ConfigureAwait(false)) == null)
                 {
@@ -2219,7 +2222,8 @@ namespace zero.cocoon.autopeer
                 };
 
                 var peerRequestRaw = peerRequest.ToByteString();
-                LinkedListNode<IoZeroMatcher<ByteString>.IoChallenge> challenge;
+
+                IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                 if ((challenge = await _peerRequest.ChallengeAsync(RemoteAddress.IpPort, peerRequestRaw).FastPath().ConfigureAwait(false)) == null)
                 {
                     return false;

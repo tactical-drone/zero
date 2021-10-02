@@ -121,15 +121,15 @@ namespace zero.core.patterns.bushes
                 {
                     var r = c;
                     c = c.Repeat;
-                    //await _stateHeap.Return(r).ConfigureAwait(false);
-                    _stateHeap.Return(r);
+                    //await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
+                    _stateHeap.ReturnAsync(r);
                 }
             }
 
 
             if (_stateMeta != null)
             {
-                _stateHeap.Return(_stateMeta);
+                _stateHeap.ReturnAsync(_stateMeta);
                 _stateMeta = null;
             }
 
@@ -184,7 +184,7 @@ namespace zero.core.patterns.bushes
         {
 #if DEBUG
             if(_stateMeta != null)
-                _stateHeap.Return(_stateMeta);
+                _stateHeap.ReturnAsync(_stateMeta);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
             await _stateHeap.ZeroManaged().FastPath().ConfigureAwait(false);
 #endif

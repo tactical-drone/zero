@@ -370,7 +370,7 @@ namespace zero.core.network.ip
                            args.LastOperation != SocketAsyncOperation.SendTo ||
                            args.SocketError != SocketError.Success)
                     {
-                        _sendArgs.Return(args, true);
+                        await _sendArgs.ReturnAsync(args, true).FastPath().ConfigureAwait(false); ;
                         _sendArgs.Take(out args);
                     }
 
@@ -417,14 +417,14 @@ namespace zero.core.network.ip
                                 args.Dispose();
                             }
 
-                            _sendArgs.Return(args, dispose);
+                            await _sendArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false); ;
                         }
                         else
                         {
                             args.Completed -= Signal;
                         }
 
-                        _tcsHeap.Return(tcs);
+                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false); ;
                     }
                 }
             }
@@ -599,8 +599,8 @@ namespace zero.core.network.ip
                             args.Dispose();
                         }
 
-                        _recvArgs.Return(args, dispose);
-                        _tcsHeap.Return(tcs);
+                        await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false); ;
+                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false); ;
                     }
                 }
 

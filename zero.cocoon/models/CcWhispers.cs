@@ -45,7 +45,7 @@ namespace zero.cocoon.models
         public override ValueTask ZeroManagedAsync()
         {
             //if (_protocolMsgBatch != null)
-            //    _arrayPool.Return(_protocolMsgBatch, true);
+            //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
 
             //_batchMsgHeap.ZeroManaged(batchMsg =>
             //{
@@ -167,7 +167,7 @@ namespace zero.cocoon.models
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
                                 {
                                     del.Clear();
-                                    _dupHeap.Return(del);
+                                    _dupHeap.ReturnAsync(del);
                                 }
                             }    
                         }
@@ -187,7 +187,7 @@ namespace zero.cocoon.models
                     if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                     {
                         dupEndpoints.Clear();
-                        _dupHeap.Return(dupEndpoints);
+                        _dupHeap.ReturnAsync(dupEndpoints);
                         
                         //best effort
                         if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))

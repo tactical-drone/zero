@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.misc
@@ -25,8 +26,9 @@ namespace zero.core.misc
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
-            _matcherMutex = new IoZeroSemaphore($"{nameof(_matcherMutex)}[{_description}]", concurrencyLevel*2, 1);
-            _matcherMutex.ZeroRef(ref _matcherMutex, AsyncTasks.Token);
+
+            _challenges = new IoZeroQueue<IoChallenge>(description, capacity);
+
             _heap = new IoHeap<IoChallenge>(_capacity)
             {
                 Make = _ => new IoChallenge()
@@ -38,16 +40,12 @@ namespace zero.core.misc
         /// </summary>
         private string _description;
 
-        /// <summary>
-        /// Used to sync the list of challanges 
-        /// </summary>
-        private IIoZeroSemaphore _matcherMutex;
 
         /// <summary>
         /// Holds requests
         /// </summary>
         //private readonly ConcurrentDictionary<string, System.Collections.Generic.List<IoChallenge>> _challenges = new ConcurrentDictionary<string, System.Collections.Generic.List<IoChallenge>>();
-        volatile LinkedList<IoChallenge> _challenges = new LinkedList<IoChallenge>();
+        private IoZeroQueue<IoChallenge> _challenges;
 
         /// <summary>
         /// Time to live
@@ -69,7 +67,7 @@ namespace zero.core.misc
             _heap.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _matcherMutex = null;
+            _challenges = null;
             _heap = null;
 #endif
         }
@@ -87,9 +85,10 @@ namespace zero.core.misc
             //    return ValueTask.CompletedTask;
             //}).FastPath().ConfigureAwait(false);
 
+            await _challenges.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+
             await _heap.ZeroManaged().FastPath().ConfigureAwait(false);
 
-            _matcherMutex.Zero();
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
@@ -101,40 +100,29 @@ namespace zero.core.misc
         /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<LinkedListNode<IoChallenge>> ChallengeAsync(string key, T body, bool bump = true)
+        public async ValueTask<IoZeroQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
         {
-            var added = false;
-            IoChallenge challenge = null;
             try
             {
-                _heap.Take(out challenge);
+                _heap.Take(out var challenge);
 
                 if (challenge == null)
-                    throw new OutOfMemoryException($"{Description}: {nameof(_heap)} - heapSize = {_heap.CurrentHeapSize}, ref = {_heap.ReferenceCount}");
+                    throw new OutOfMemoryException(
+                        $"{Description}: {nameof(_heap)} - heapSize = {_heap.CurrentHeapSize}, ref = {_heap.ReferenceCount}");
 
                 challenge.Payload = body;
                 challenge.Key = key;
                 challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 challenge.Hash = 0;
 
-                if (await _matcherMutex.WaitAsync().FastPath().ConfigureAwait(false))
-                {
-                    var p = (challenge.Payload as ByteString)!.Memory;
-                    added = true;
-                    return _challenges.AddFirst(challenge);
-                }
-                else
-                {
-                    return null;
-                }
+                return await _challenges.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
             }
-            finally
+            catch
             {
-                if (!added && challenge != null)
-                    _heap.Return(challenge);
-
-                _matcherMutex.Release();
+                // ignored
             }
+
+            return null;
         }
         
         [ThreadStatic]
@@ -160,36 +148,28 @@ namespace zero.core.misc
 
             try
             {
-                if (await _matcherMutex.WaitAsync().FastPath().ConfigureAwait(false))
+                var cur = _challenges.Last;
+                while(cur != null)
                 {
-                    var cur = _challenges.Last;
-                    while(cur != null)
+                    if (cur.Value.Key == key)
                     {
-                        if (cur.Value.Key == key)
+                        potential = cur.Value;
+                        if (potential.Hash == 0)
                         {
-                            potential = cur.Value;
-                            if (potential.Hash == 0)
-                            {
-                                var hash = Sha256.ComputeHash((potential.Payload as ByteString)?.Memory.AsArray() ?? Array.Empty<byte>());
-                                potential.Payload = default;
-                                potential.Hash = MemoryMarshal.Read<long>(hash);
-                            }
-
-                            if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
-                            {
-
-                                _challenges.Remove(potential);
-                                _heap.Return(potential);
-                                return true;
-                            }
+                            var hash = Sha256.ComputeHash((potential.Payload as ByteString)?.Memory.AsArray() ?? Array.Empty<byte>());
+                            potential.Payload = default;
+                            potential.Hash = MemoryMarshal.Read<long>(hash);
                         }
 
-                        cur = cur.Previous;
+                        if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
+                        {
+                            await _challenges.RemoveAsync(cur).FastPath().ConfigureAwait(false);
+                            await _heap.ReturnAsync(potential).FastPath().ConfigureAwait(false);
+                            return true;
+                        }
                     }
-                }
-                else
-                {
-                    return false;
+
+                    cur = cur.Prev;
                 }
             }
             finally
@@ -198,48 +178,32 @@ namespace zero.core.misc
                 {
                     if (_challenges.Count > _capacity / 2)
                     {
-                        for (var n = _challenges.Last; n != null; n = n.Previous)
+                        for (var n = _challenges.Last; n != null; n = n.Prev)
                         {
                             
                             if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                             {
-                                _challenges.Remove(n);
-                                _heap.Return(n.Value);
+                                await _challenges.RemoveAsync(n).ConfigureAwait(false);
+                                await _heap.ReturnAsync(n.Value).FastPath().ConfigureAwait(false); ;
                             }
                             else if (potential?.Key != null && potential.Key == n.Value.Key &&
                                      n.Value.TimestampMs < potential.TimestampMs)
                             {
-                                _challenges.Remove(n);
-                                _heap.Return(n.Value);
+                                await _challenges.RemoveAsync(n).ConfigureAwait(false);
+                                await _heap.ReturnAsync(n.Value).FastPath().ConfigureAwait(false); ;
                             }
                         }
                     }
                 }
-                catch (Exception e)
+                catch
                 {
-                    Console.WriteLine(e);
-                }
-                finally
-                {
-                    _matcherMutex.Release();    
+                    // ignored
                 }
             }
             return false;
         }
 
-
-        /// <summary>
-        /// Peeks for a challenge
-        /// </summary>
-        /// <param name="key">They key</param>
-        /// <returns>True if the challenge exists</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Peek(string key)
-        {
-            return _challenges.FirstOrDefault(v => v.Key == key)?.Key != null;
-        }
-
-        /// <summary>
+/// <summary>
         /// Dump challenges into target matcher
         /// </summary>
         /// <param name="target"></param>
@@ -248,33 +212,18 @@ namespace zero.core.misc
         {
             if(target == null)
                 return;
-            
             try
             {
-                if (await target._matcherMutex.WaitAsync().ConfigureAwait(false))
+                var cur = _challenges.First;
+                while (cur != null)
                 {
-                    var cur = _challenges.First;
-                    while (cur != null)
-                    {
-                        target._challenges.AddFirst(cur.Value);
-                        cur = cur.Next;
-                    }
+                    await target._challenges.EnqueueAsync(cur.Value).FastPath().ConfigureAwait(false);
+                    cur = cur.Next;
                 }
             }
             catch 
             {
                 //
-            }
-            finally
-            {
-                try
-                {
-                    target._matcherMutex.Release();
-                }
-                catch
-                {
-                    // ignored
-                }
             }
         }
 
@@ -284,29 +233,18 @@ namespace zero.core.misc
         /// </summary>
         /// <param name="node">The challenge to remove</param>
         /// <returns>true on success, false otherwise</returns>
-        public async ValueTask<bool> RemoveAsync(LinkedListNode<IoChallenge> node)
+        public async ValueTask<bool> RemoveAsync(IoZeroQueue<IoChallenge>.IoZNode node)
         {
-            try
-            {
-                if(!await _matcherMutex.WaitAsync().FastPath().ConfigureAwait(false))
-                    return false;
+            await _challenges.RemoveAsync(node).FastPath().ConfigureAwait(false);
+            await _heap.ReturnAsync(node.Value).FastPath().ConfigureAwait(false); ;
 
-                _challenges.Remove(node);
-                _heap.Return(node.Value);
-
-                return true;
-            }
-            finally
-            {
-                _matcherMutex.Release();
-            }
+            return true;
         }
 
         /// <summary>
         /// Challenges held
         /// </summary>
         public int Count => _challenges.Count;
-
 
 #if DEBUG
         /// <summary>

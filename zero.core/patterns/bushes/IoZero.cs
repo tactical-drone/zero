@@ -272,7 +272,7 @@ namespace zero.core.patterns.bushes
             await JobHeap.ZeroManaged(async sink =>
             {
                 
-                await sink.ZeroAsync(this).ConfigureAwait(false);
+                await sink.ZeroAsync(this).FastPath().ConfigureAwait(false);
             }).FastPath().ConfigureAwait(false);
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
@@ -558,7 +558,7 @@ namespace zero.core.patterns.bushes
                     //    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
                     //}
 #endif
-                    JobHeap.Return((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept);
+                    await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(false); ;
                     job.PreviousJob = null;
                     return null;
                 }
@@ -568,12 +568,8 @@ namespace zero.core.patterns.bushes
                 //}
 
                 if (parent || !SyncRecoveryModeEnabled)
-                {
-                    var reuse = job.FinalState == IoJobMeta.JobState.Accept;
-                    if (!reuse)
-                        await job.ZeroAsync(this).FastPath().ConfigureAwait(false);
-                    JobHeap.Return(job, !reuse);
-                }
+                    await JobHeap.ReturnAsync(job, job.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(false); ;
+                
             }
             catch (NullReferenceException e)
             {

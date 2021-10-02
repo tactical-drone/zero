@@ -72,7 +72,7 @@ namespace zero.core.patterns.heap
                 if (next != null)
                 {
                     _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                    Return((T)next);
+                    ReturnAsync((T)next);
                     return null;
                 }                    
                 else
@@ -83,6 +83,14 @@ namespace zero.core.patterns.heap
             }                        
 
             return (T)next;
+        }
+
+        public override async ValueTask ReturnAsync(T item, bool destroy = false)
+        {
+            await base.ReturnAsync(item, destroy).FastPath().ConfigureAwait(false);
+
+            if (destroy)
+                await item.ZeroAsync(new IoNanoprobe($"{GetType()}")).FastPath().ConfigureAwait(false);
         }
     }
 }

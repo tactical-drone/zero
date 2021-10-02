@@ -113,7 +113,7 @@ namespace zero.core.patterns.queue
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
                 {
-                    _nodeHeap.Return(node);
+                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
                     return null;
                 }
                 
@@ -187,7 +187,7 @@ namespace zero.core.patterns.queue
             {
                 dq.Prev = null;
                 var retVal = dq.Value;
-                _nodeHeap.Return(dq);
+                await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(false); ;
                 return retVal;
             }
 
