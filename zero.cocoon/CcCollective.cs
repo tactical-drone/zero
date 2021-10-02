@@ -835,7 +835,7 @@ namespace zero.cocoon
                         }
                         else if (__peer.IoSource.IoNetSocket.Ingress)
                         {
-                            drone.ZeroSubscribe(nanite =>
+                            drone.ZeroSubscribe( _=>
                             {
                                 Interlocked.Decrement(ref IngressConnections);
                                 return ValueTask.CompletedTask;

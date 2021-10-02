@@ -77,5 +77,9 @@ namespace zero.core.patterns.semaphore
         }
 
         public int ReadyCount => _semaphore.ReadyCount;
+        public void SignalWorker()
+        {
+            _semaphore.SignalWorker();
+        }
     }
 }

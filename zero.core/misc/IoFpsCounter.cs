@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.misc

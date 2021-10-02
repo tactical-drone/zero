@@ -7,6 +7,8 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using NLog;
+using NLog.Fluent;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
@@ -117,8 +119,9 @@ namespace zero.core.misc
 
                 return await _challenges.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
             }
-            catch
+            catch(Exception e)
             {
+                LogManager.GetCurrentClassLogger().Fatal(e);
                 // ignored
             }
 

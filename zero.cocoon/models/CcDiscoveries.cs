@@ -37,7 +37,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (await MessageService.ZeroAtomicAsync(async (s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool, Source.PrefetchSize, ZeroConcurrencyLevel()*2);
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool, ZeroConcurrencyLevel() * 2, ZeroConcurrencyLevel()*2);
                     if (MessageService.ObjectStorage.TryAdd(nameof(CcAdjunct), channelSource))
                         return true;
                     else
@@ -51,7 +51,7 @@ namespace zero.cocoon.models
                         true,
                         channelSource,
                         userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource)
-                    );
+                    ).FastPath().ConfigureAwait(false);
 
                     //get reference to a central mem pool
                     if (ProtocolConduit != null)

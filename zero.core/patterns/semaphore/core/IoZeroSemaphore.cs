@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -21,7 +20,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="maxBlockers"> The maximum number of requests for the semaphore that can be granted concurrently.</param>
         /// <param name="initialCount">The initial number non blocking requests</param>
         /// <param name="maxAsyncWork"></param>
-        /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="maxCount"/> more accurately to compensate</param>
+        /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="maxBlockers"/> more accurately to compensate</param>
         /// <param name="enableFairQ">Enable fair queueing at the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(
@@ -89,7 +88,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_signalCount}, qSize = {_maxBlockers}, h = {_head}, t = {_tail}";
+        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_signalCount}, qSize = {_maxBlockers}, h = {_head}, t = {_tail}";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -117,7 +116,7 @@ namespace zero.core.patterns.semaphore.core
         /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
         public int ReadyCount => _signalCount;
-
+        
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted
         /// </summary>
@@ -157,20 +156,14 @@ namespace zero.core.patterns.semaphore.core
         /// Whether this semaphore has been cleared out
         /// </summary>
         private volatile int _zeroed;
-
-        /// <summary>
-        /// Organic Manifold
-        /// </summary>
-        //private volatile int _manifold; 
-
-#endregion
+        #endregion
 
 #region core
 
         /// <summary>
         /// Validation failed exception
         /// </summary>
-        public class ZeroValidationException : InvalidOperationException
+        private class ZeroValidationException : InvalidOperationException
         {
             public ZeroValidationException(string description) : base(description)
             {
@@ -293,11 +286,6 @@ namespace zero.core.patterns.semaphore.core
         private readonly bool _enableAutoScale;
 
         /// <summary>
-        /// A enter sentinel
-        /// </summary>
-        private static readonly ValueTask<bool> ZeroEnter = new(true);
-
-        /// <summary>
         /// A wait sentinel
         /// </summary>
         private ValueTask<bool> _zeroWait;
@@ -307,12 +295,7 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private volatile uint _waitCount;
 
-        /// <summary>
-        /// Used for latching 
-        /// </summary>
-        //private readonly Action<object> _latched;
-
-#endregion
+        #endregion
 
         /// <summary>
         /// Returns true if exit is clean, false otherwise
@@ -583,7 +566,7 @@ namespace zero.core.patterns.semaphore.core
             var c = 0;
 
             IoZeroWorker worker;
-            worker.Semaphore = (IoZeroSemaphore) _zeroRef;
+            worker.Semaphore = _zeroRef;
 
             //awaiter entries
             while (released < releaseCount && c++ < _maxBlockers)
@@ -642,26 +625,32 @@ namespace zero.core.patterns.semaphore.core
                 //release the lock
                 ZeroUnlock();
 
-                var queued = false;
+                //async workers
+                var parallelized = false;
                 if (async && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
                 {
-                    ThreadPool.UnsafeQueueUserWorkItem(ioZeroWorker =>
+                    ThreadPool.QueueUserWorkItem(ioZeroWorker =>
                     {
                         try
                         {
                             ioZeroWorker.Continuation(ioZeroWorker.State);
-                            Interlocked.Decrement(ref ioZeroWorker.Semaphore._asyncWorkerCount);
+                            ioZeroWorker.Semaphore.SignalWorker();
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine(e);
                             throw;
                         }
-                    }, worker, true);
-                    queued = true;
+                    }, worker, false);
+                    parallelized = true;
+                }
+                else
+                {
+                    Interlocked.Decrement(ref _asyncWorkerCount);
                 }
                 
-                if(!queued)
+                //sync workers
+                if(!parallelized)
                 {
                     try
                     {
@@ -714,14 +703,21 @@ namespace zero.core.patterns.semaphore.core
             Interlocked.Increment(ref _waitCount);
             return _zeroWait;
         }
-
-
+        
+        /// <summary>
+        /// Increment free worker threads by 1
+        /// </summary>
+        public void SignalWorker()
+        {
+            Interlocked.Decrement(ref _asyncWorkerCount);
+        }
+        
         /// <summary>
         /// Worker info
         /// </summary>
         struct IoZeroWorker 
         {
-            public IoZeroSemaphore Semaphore;
+            public IIoZeroSemaphore Semaphore;
             public Action<object> Continuation;
             public object State;
         }

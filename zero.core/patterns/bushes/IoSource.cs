@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Data;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MathNet.Numerics;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
@@ -42,6 +39,8 @@ namespace zero.core.patterns.bushes
             PrefetchSize = prefetchSize;
             MaxAsyncSinks = maxAsyncSinks;
             MaxAsyncSources = maxAsyncSources;
+
+            AsyncEnabled = MaxAsyncSinks > 0 || MaxAsyncSources > 0;
 
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -164,6 +163,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public int MaxAsyncSources { get; protected set; }
 
+        /// <summary>
+        /// If async workers are enabled
+        /// </summary>
+        public bool AsyncEnabled { get; protected set; }
 
         /// <summary>
         /// Used to identify work that was done recently
@@ -262,7 +265,7 @@ namespace zero.core.patterns.bushes
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// ///
         /// <returns></returns>
-        public async Task<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
+        public async ValueTask<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
             IoSource<TFJob> channelSource = null,
             Func<object, IoSink<TFJob>> jobMalloc = null)
         where TFJob : IIoJob
@@ -408,9 +411,9 @@ namespace zero.core.patterns.bushes
         /// Signal source pressure
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Pressure()
+        public void Pressure(int releaseCount = 1)
         {
-            _pressure.Release();
+            _pressure.Release(releaseCount, MaxAsyncSources > 0);
         }
 
         /// <summary>
@@ -431,7 +434,7 @@ namespace zero.core.patterns.bushes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BackPressure(int releaseCount = 1)
         {
-            _backPressure.Release(releaseCount);
+            _backPressure.Release(releaseCount, MaxAsyncSinks > 0);
         }
 
         /// <summary>
@@ -449,9 +452,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PrefetchPressure()
+        public void PrefetchPressure(int releaseCount = 1)
         {
-            _prefetchPressure.Release();
+            _prefetchPressure.Release(releaseCount, MaxAsyncSources > 0);
         }
 
         /// <summary>

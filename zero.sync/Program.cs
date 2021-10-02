@@ -333,8 +333,8 @@ namespace zero.sync
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
-            var capacity = 1000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, initialCount: 10, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var capacity = 10;
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 10, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
             var releaseCount = 1;
@@ -475,7 +475,7 @@ namespace zero.sync
 
                         try
                         {
-                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
+                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount, true));
                         }
                         catch (SemaphoreFullException)
                         {
@@ -526,7 +526,7 @@ namespace zero.sync
 
                         try
                         {
-                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
+                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount, true));
                         }
                         catch (SemaphoreFullException)
                         {

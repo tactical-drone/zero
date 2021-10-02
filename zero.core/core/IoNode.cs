@@ -246,8 +246,8 @@ namespace zero.core.core
 
                 var assimilation = Task.Factory.StartNew(async () =>
                 {
-                    await newNeighbor.AssimilateAsync();
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Current);
+                    await newNeighbor.AssimilateAsync().ConfigureAwait(false);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
 
                 NeighborTasks.Add(assimilation);
 

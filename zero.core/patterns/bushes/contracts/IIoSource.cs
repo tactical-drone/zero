@@ -20,7 +20,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Apply source pressure
         /// </summary>
-        public void Pressure();
+        public void Pressure(int releaseCount = 1);
 
         /// <summary>
         /// Wait for source pressure
@@ -31,7 +31,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Apply sink pressure
         /// </summary>
-        public void BackPressure(int releaseCount);
+        public void BackPressure(int releaseCount = 1);
 
         /// <summary>
         /// Wait for sink back pressure
@@ -47,7 +47,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Apply prefetch pressure
         /// </summary>
-        public void PrefetchPressure();
+        public void PrefetchPressure(int releaseCount = 1);
         
         /// <summary>
         /// Wait on prefetch pressure
@@ -117,6 +117,11 @@ namespace zero.core.patterns.bushes.contracts
         int MaxAsyncSources { get; }
 
         /// <summary>
+        /// If async workers are currently enabled
+        /// </summary>
+        public bool AsyncEnabled { get; }
+
+        /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="callback">The function.</param>
@@ -137,9 +142,8 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="cascade"></param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
-        /// <param name="producers">Nr of concurrent producers</param>
-        /// <param name="consumers">Nr of concurrent consumers</param>
         /// <returns></returns>
-        Task<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false, IoSource<TFJob> channelSource = null, Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
+        ValueTask<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
+            IoSource<TFJob> channelSource = null, Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
     }
 }

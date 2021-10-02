@@ -134,7 +134,7 @@ namespace zero.core.patterns.queue
                 _nodeHeap.Take(out var node);
 
                 if (node == null)
-                    throw new OutOfMemoryException($"{_description}");
+                    throw new OutOfMemoryException($"{_description} - size = {_nodeHeap.CurrentHeapSize}, refs = {_nodeHeap.ReferenceCount}, count = {_count}");
 
                 //set value
                 node.Value = item;
@@ -274,6 +274,8 @@ namespace zero.core.patterns.queue
                 node!.Next = null;
                 _syncRoot.Release();
             }
+
+            await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false);
         }
     }
 }

@@ -593,11 +593,6 @@ namespace zero.core.patterns.bushes
         {
             try
             {
-                //_logger.Fatal($"{nameof(ConsumeAsync)}: `{Description}' [ENTER]");
-
-                if (Volatile.Read(ref Source) == null) //TODO why does this happen so often?
-                    return false;
-                
                 //Waiting for a job to be produced. Did production fail?
                 //if (_queue.IsEmpty) //TODO autoresetevent
                 {
@@ -758,6 +753,7 @@ namespace zero.core.patterns.bushes
                             catch (Exception e)
                             {
                                 @this._logger.Error(e, $"Production failed [{i}]: {@this.Description}");
+                                return;
                             }
                         }
 
@@ -770,14 +766,15 @@ namespace zero.core.patterns.bushes
                             }
                             catch (Exception e)
                             {
-                                @this._logger.Error(e, $"sProduction failed {@this.Description}");
+                                @this._logger.Error(e, $"Production failed! {@this.Description}");
+                                return;
                             }
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    @this._logger.Error(e, $"{@this.Description}");
+                    @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
             },this, AsyncTasks.Token,TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
@@ -789,16 +786,17 @@ namespace zero.core.patterns.bushes
                 //While supposed to be working
                 while (!@this.Zeroed())
                 {
-                    var consumeTask = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
+                    var consumeTaskPool = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
                     for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
                     {
                         try
                         {
-                            consumeTask[i] = @this.ConsumeAsync(null,null);
+                            consumeTaskPool[i] = @this.ConsumeAsync();
                         }
                         catch (Exception e)
                         {
                             @this._logger.Error(e, $"Consumption failed {@this.Description}");
+                            return;
                         }
                     }
 
@@ -806,12 +804,13 @@ namespace zero.core.patterns.bushes
                     {
                         try
                         {
-                            if (!await consumeTask[i].FastPath().ConfigureAwait(false))
+                            if (!await consumeTaskPool[i].FastPath().ConfigureAwait(false))
                                 return;
                         }
                         catch (Exception e)
                         {
                             @this._logger.Error(e, $"Consumption failed {@this.Description}");
+                            return;
                         }
                     }
 
@@ -820,8 +819,6 @@ namespace zero.core.patterns.bushes
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);
-
-            await ZeroAsync(this).ConfigureAwait(false);
 
             _logger.Trace($"{GetType().Name}: Processing for `{Description}' stopped");
         }
