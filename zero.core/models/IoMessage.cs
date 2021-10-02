@@ -70,7 +70,7 @@ namespace zero.core.models
         /// Coded Stream
         /// </summary>
         public CodedInputStream CodedStream;
-        
+
         /// <summary>
         /// Read only sequence wrapped for protobuf API
         /// </summary>

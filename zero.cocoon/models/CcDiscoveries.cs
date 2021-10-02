@@ -213,10 +213,8 @@ namespace zero.cocoon.models
                         {
                             //try
                             {
-                                var s = new MemoryStream(Buffer);
-                                s.Seek(currentOffset, SeekOrigin.Begin);
-                                curPos = s.Position;
-                                CodedStream = new CodedInputStream(s);
+                                ByteStream.Seek(currentOffset, SeekOrigin.Begin);
+                                curPos = ByteStream.Position;
 
                                 packet = Packet.Parser.ParseFrom(CodedStream);
                                 read = (int)(CodedStream.Position - curPos);

@@ -217,20 +217,21 @@ namespace zero.core.patterns.queue
 
                     if (next != null)
                         next.Prev = node.Prev;
-
                 }
                 
                 //plumbing
                 if (_head == node)
-                    _head = _head.Next;
+                    _head = node.Next;
 
                 if (_tail == node)
-                    _tail = _tail.Prev;
+                    _tail = node.Prev;
 
                 Interlocked.Decrement(ref _count);
             }
             finally
             {
+                node!.Prev = null;
+                node!.Next = null;
                 _syncRoot.Release();
             }
         }

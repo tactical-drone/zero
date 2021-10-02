@@ -70,7 +70,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 100;
+            var total = 2000;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -108,14 +108,14 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
-                var rateLimit = 10000;
+                var rateLimit = 12000;
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
                     var h = Task.Factory.StartNew(() => task.Start());
                     if (c % injectionCount == 0)
                     {
-                        await Task.Delay(rateLimit += 10).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 100).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -650,7 +650,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 1, 2
+                1, 1, 3
                 , 1); 
 
             _nodes.Add(cocoon);

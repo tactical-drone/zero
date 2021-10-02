@@ -45,6 +45,7 @@ namespace zero.core.models.protobuffer
                 ReadOnlySequence = new ReadOnlySequence<byte>(Buffer!);
                 MemoryBuffer = new Memory<byte>(Buffer);
                 ByteStream = new MemoryStream(Buffer);
+                CodedStream = new CodedInputStream(ByteStream);
             }
         }
 

@@ -788,7 +788,7 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"{@this.Description}");
                 }
-            },this, AsyncTasks.Token,TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
+            },this, AsyncTasks.Token,TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             //Consumer
             _consumerTask = Task.Factory.StartNew(async _this =>
@@ -825,7 +825,7 @@ namespace zero.core.patterns.bushes
                     }
 
                 }
-            }, this, AsyncTasks.Token, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness, TaskScheduler.Current);
+            }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);

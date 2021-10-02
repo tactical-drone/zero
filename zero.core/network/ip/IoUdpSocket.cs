@@ -3,10 +3,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.network.extensions;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
@@ -175,7 +173,7 @@ namespace zero.core.network.ip
 
 
             //set some socket options
-            NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+            //NativeSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
 
             //TODO sec
             NativeSocket.IOControl(
@@ -506,7 +504,7 @@ namespace zero.core.network.ip
                 //concurrency
                 if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;
-
+                
                 //fail fast
                 if (Zeroed())
                     return 0;
@@ -705,19 +703,19 @@ namespace zero.core.network.ip
 
             // Set the receive buffer size to 32k
             //NativeSocket.ReceiveBufferSize = 8192 * 4;
-            NativeSocket.ReceiveBufferSize = 8192 * 4;
+            NativeSocket.ReceiveBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
-            NativeSocket.ReceiveTimeout = 10000;
+            NativeSocket.ReceiveTimeout = 100;
 
             // Set the send buffer size to 8k.
             //NativeSocket.SendBufferSize = 8192 * 2;
-            NativeSocket.SendBufferSize = 8192 * 4;
+            NativeSocket.SendBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous send methods
             // to 1 second (1000 milliseconds.)
-            NativeSocket.SendTimeout = 1000;
+            NativeSocket.SendTimeout = 2000;
 
             // Set the Time To Live (TTL) to 42 router hops.
             NativeSocket.Ttl = 64;
