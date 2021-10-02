@@ -34,7 +34,7 @@ namespace zero.core.models.protobuffer.sources
             Upstream = ioSource;
             ArrayPool = arrayPool;
 
-            MessageQueue = new IoZeroQueue<TBatch[]>(ioSource.Description);
+            MessageQueue = new IoZeroQueue<TBatch[]>(ioSource.Description, ioSource.ZeroConcurrencyLevel());
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;

@@ -80,7 +80,7 @@ namespace zero.core.patterns.bushes
 
             Source = source;
 
-            _queue = new IoZeroQueue<IoSink<TJob>>(description);
+            _queue = new IoZeroQueue<IoSink<TJob>>(description, ZeroConcurrencyLevel());
 
             ZeroOnCascade(Source, sourceZeroCascade);
         }

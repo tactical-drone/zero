@@ -452,7 +452,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 60 * 5;
+        public int parm_mean_pat_delay = 30;
 
 
         /// <summary>

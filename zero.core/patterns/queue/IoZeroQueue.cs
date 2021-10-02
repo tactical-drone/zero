@@ -26,16 +26,20 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoZeroQueue(string description, int heapSize = 16)
+        public IoZeroQueue(string description, int concurrencyLevel, int capacity = 16)
         {
             _description = description;
-            _nodeHeap = new IoHeap<IoZNode>(heapSize){Make = o => new IoZNode()};
-            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description, initialCount: 1);
+            _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
+            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description, initialCount: concurrencyLevel, maxCount:concurrencyLevel);
+            _pressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q pressure at {description}", maxCount: capacity);
+            _backPressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q back pressure at {description}", initialCount:capacity, maxCount: capacity);
         }
 
         private readonly string _description; 
         private volatile bool _zeroed;
         private IoZeroSemaphoreSlim _syncRoot;
+        private IoZeroSemaphoreSlim _pressure;
+        private IoZeroSemaphoreSlim _backPressure;
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
 
@@ -83,7 +87,17 @@ namespace zero.core.patterns.queue
 
                 _asyncTasks.Dispose();
                 _asyncTasks = null;
+
+                var from = new IoNanoprobe($"{_description}");
+                await _syncRoot.ZeroAsync(from).ConfigureAwait(false);
+                await _pressure.ZeroAsync(from).ConfigureAwait(false);
+                await _backPressure.ZeroAsync(from).ConfigureAwait(false);
                 _zeroed = true;
+
+                //unmanaged
+                _syncRoot = null;
+                _pressure = null;
+                _backPressure = null;
             }
             finally
             {
@@ -95,7 +109,7 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Enqueue item
+        /// Blocking enqueue item
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The enqueued item node</returns>
@@ -103,6 +117,13 @@ namespace zero.core.patterns.queue
         {
             try
             {
+                if (item == null)
+                    return null;
+
+                //wait on back pressure
+                if (!await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
+                    return null;
+
                 _nodeHeap.Take(out var node);
 
                 if (node == null)
@@ -139,19 +160,23 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
+                _pressure.Release();
             }
         }
 
         /// <summary>
-        /// Dequeue item
+        /// Blocking dequeue item
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The dequeued item</returns>
         public async ValueTask<T> DequeueAsync()
         {
             IoZNode dq = null;
             try
             {
                 if (_count == 0)
+                    return default;
+
+                if (!await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
                     return default;
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
@@ -185,10 +210,17 @@ namespace zero.core.patterns.queue
             //return dequeued item
             if (dq != null)
             {
-                dq.Prev = null;
-                var retVal = dq.Value;
-                await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(false); ;
-                return retVal;
+                try
+                {
+                    dq.Prev = null;
+                    var retVal = dq.Value;
+                    await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(false); ;
+                    return retVal;
+                }
+                finally
+                {
+                    _backPressure.Release();
+                }
             }
 
             return default;
