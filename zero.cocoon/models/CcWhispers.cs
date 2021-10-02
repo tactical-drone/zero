@@ -167,7 +167,7 @@ namespace zero.cocoon.models
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
                                 {
                                     del.Clear();
-                                    _dupHeap.ReturnAsync(del);
+                                    await _dupHeap.ReturnAsync(del).FastPath().ConfigureAwait(false);
                                 }
                             }    
                         }
@@ -187,7 +187,7 @@ namespace zero.cocoon.models
                     if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                     {
                         dupEndpoints.Clear();
-                        _dupHeap.ReturnAsync(dupEndpoints);
+                        await _dupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(false);
                         
                         //best effort
                         if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))

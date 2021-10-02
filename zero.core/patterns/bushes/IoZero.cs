@@ -80,7 +80,7 @@ namespace zero.core.patterns.bushes
 
             Source = source;
 
-            _queue = new IoZeroQueue<IoSink<TJob>>(description, ZeroConcurrencyLevel());
+            _queue = new IoZeroQueue<IoSink<TJob>>($"zero Q: {_description}", ZeroConcurrencyLevel());
 
             ZeroOnCascade(Source, sourceZeroCascade);
         }
@@ -583,11 +583,6 @@ namespace zero.core.patterns.bushes
         private Task<Task> _producerTask;
         private Task<Task> _consumerTask;
 
-        public ValueTask<bool> ConsumeAsync()
-        {
-            return ConsumeAsync(null, null);
-        }
-
         /// <summary>
         /// Consume 
         /// </summary>
@@ -799,7 +794,7 @@ namespace zero.core.patterns.bushes
                     {
                         try
                         {
-                            consumeTask[i] = @this.ConsumeAsync();
+                            consumeTask[i] = @this.ConsumeAsync(null,null);
                         }
                         catch (Exception e)
                         {

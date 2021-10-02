@@ -22,19 +22,21 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// ctor
         /// </summary>
+        /// <param name="description">A description</param>
         /// <param name="ioSource">The source of this model</param>
         /// <param name="arrayPool">Used to establish a pool</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel">The level of concurrency when producing and consuming on this source</param>
-        public CcProtocBatchSource(IIoSource ioSource,ArrayPool<TBatch> arrayPool, int prefetchSize, int concurrencyLevel) 
-            : base(prefetchSize, concurrencyLevel)//TODO config
+        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, int prefetchSize, int concurrencyLevel) 
+            : base(description, prefetchSize, concurrencyLevel)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
             Upstream = ioSource;
             ArrayPool = arrayPool;
 
-            MessageQueue = new IoZeroQueue<TBatch[]>(ioSource.Description, ioSource.ZeroConcurrencyLevel());
+            //Set Q to be blocking
+            MessageQueue = new IoZeroQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", ioSource.ZeroConcurrencyLevel(), true);
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -42,8 +44,8 @@ namespace zero.core.models.protobuffer.sources
             enableDeadlockDetection = false;
 #endif
             
-            _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}", concurrencyLevel, 0, false,  enableFairQ, enableDeadlockDetection);
-            _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queueBackPressure)}", concurrencyLevel, concurrencyLevel, false, enableFairQ, enableDeadlockDetection);
+            _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}", maxBlockers: concurrencyLevel, initialCount: 0, maxAsyncWork:0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+            _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"{GetType().Name}: {nameof(_queueBackPressure)}", maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
         }
 
         /// <summary>

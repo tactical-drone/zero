@@ -25,7 +25,7 @@ namespace zero.cocoon.models
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             _protocolMsgBatch = _arrayPool.Rent(source.ZeroConcurrencyLevel() * 2);
-            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(source.ZeroConcurrencyLevel() + 1) {Make = o => new CcDiscoveryBatch()};
+            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(source.ZeroConcurrencyLevel() * 2) {Make = o => new CcDiscoveryBatch()};
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -37,7 +37,7 @@ namespace zero.cocoon.models
                 //Transfer ownership
                 if (await MessageService.ZeroAtomicAsync(async (s, u, d) =>
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(MessageService, _arrayPool, 0, ZeroConcurrencyLevel()*2);
+                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool, Source.PrefetchSize, ZeroConcurrencyLevel()*2);
                     if (MessageService.ObjectStorage.TryAdd(nameof(CcAdjunct), channelSource))
                         return true;
                     else
@@ -96,11 +96,14 @@ namespace zero.cocoon.models
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+
             if (_protocolMsgBatch != null)
                 _arrayPool.Return(_protocolMsgBatch, true);
 
             await _batchMsgHeap.ZeroManaged(batch =>
             {
+                batch.RemoteEndPoint = null;
                 batch.Zero = null;
                 batch.Message = null;
                 batch.EmbeddedMsg = null;
@@ -108,7 +111,7 @@ namespace zero.cocoon.models
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            
         }
 
         /// <summary>

@@ -334,7 +334,7 @@ namespace zero.sync
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 1000;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", capacity, 10, false, false, true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, initialCount: 10, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
             var releaseCount = 1;
@@ -650,7 +650,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                1, 1, 3
+                1, 1, 1
                 , 1); 
 
             _nodes.Add(cocoon);

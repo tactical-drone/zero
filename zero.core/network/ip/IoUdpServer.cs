@@ -54,7 +54,7 @@ namespace zero.core.network.ip
                 {
                     try
                     { //creates a new udp client
-                        await connectionReceivedAction.Invoke(ZeroOnCascade(new IoUdpClient<TJob>(ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).target).FastPath().ConfigureAwait(false);
+                        await connectionReceivedAction.Invoke(ZeroOnCascade(new IoUdpClient<TJob>($"{nameof(IoUdpClient<TJob>)} ~> {Description}", ioSocket, ReadAheadBufferSize, ConcurrencyLevel)).target).FastPath().ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
@@ -81,7 +81,7 @@ namespace zero.core.network.ip
         public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _)
         {
             //ZEROd later on inside net server once we know the connection succeeded
-            var ioUdpClient = new IoUdpClient<TJob>(ReadAheadBufferSize, ConcurrencyLevel);
+            var ioUdpClient = new IoUdpClient<TJob>($"{nameof(IoUdpServer<TJob>)} ~> {Description}",ReadAheadBufferSize, ConcurrencyLevel);
             return await base.ConnectAsync(remoteAddress, ioUdpClient).ConfigureAwait(false);
         }
 

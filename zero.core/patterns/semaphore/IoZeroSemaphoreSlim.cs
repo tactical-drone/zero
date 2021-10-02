@@ -13,10 +13,11 @@ namespace zero.core.patterns.semaphore
     /// </summary>
     public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
     {
-        public IoZeroSemaphoreSlim(CancellationToken asyncTasks, string description = "IoZeroSemaphoreSlim", int maxCount = 1, int initialCount = 0,
+        public IoZeroSemaphoreSlim(CancellationToken asyncTasks, 
+            string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int maxAsyncWork = 0, int initialCount = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}")
         {
-            _semaphore = new IoZeroSemaphore(description, maxCount, initialCount, enableAutoScale, enableFairQ, enableDeadlockDetection);
+            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             _semaphore.ZeroRef(ref _semaphore, asyncTasks);
         }
 
@@ -58,9 +59,9 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1)
+        public int Release(int releaseCount = 1, bool async = false)
         {
-            return _semaphore.Release(releaseCount);
+            return _semaphore.Release(releaseCount, async);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

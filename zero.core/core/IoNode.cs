@@ -369,12 +369,17 @@ namespace zero.core.core
             {
                 _listenerTask = SpawnListenerAsync(bootstrapAsync: bootstrapFunc);
                 await _listenerTask.FastPath().ConfigureAwait(false);
-                
-                _logger.Trace($"You will be assimilated! Resistance is futile, {(_listenerTask.IsCompletedSuccessfully? "clean" : "dirty")} exit ({_listenerTask}): {Description}");
+
+                _logger.Trace(
+                    $"You will be assimilated! Resistance is futile, {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}): {Description}");
             }
+            //catch (InvalidOperationException e)
+            //{
+            //    _logger.Trace(e, $"Unimatrix Failed ~> {Description}");
+            //}
             catch (Exception e)
             {
-                _logger.Error(e, $"Unimatrix Failed");
+                _logger.Error(e, $"Unimatrix Failed ~> {Description}");
             }
         }
 

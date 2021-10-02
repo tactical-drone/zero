@@ -3,9 +3,11 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MathNet.Numerics;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
@@ -24,29 +26,46 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(int prefetchSize = 1, int concurrencyLevel = 1) : base($"{nameof(IoSource<TJob>)}", concurrencyLevel)
+        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSinks = 0, int maxAsyncSources = 0) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
 
+            if (prefetchSize > concurrencyLevel)
+                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(prefetchSize)} = {prefetchSize}");
+
+            if (maxAsyncSinks > concurrencyLevel)
+                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSinks)} = {maxAsyncSinks}");
+
+            if (maxAsyncSources > concurrencyLevel)
+                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
+
             PrefetchSize = prefetchSize;
+            MaxAsyncSinks = maxAsyncSinks;
+            MaxAsyncSources = maxAsyncSources;
 
             var enableFairQ = false;
             var enableDeadlockDetection = true;
 #if RELEASE
             enableDeadlockDetection = false;
 #endif
-            
+
             //todo GENERALIZE
             try
             {
-                _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_pressure).Trim('_')}", enableAutoScale:false,
-                    maxCount: concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+                _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_pressure).Trim('_')}",
+                    maxBlockers: concurrencyLevel, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_backPressure).Trim('_')}",
-                    initialCount: concurrencyLevel, maxCount: concurrencyLevel, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_backPressure).Trim('_')}",
+                    maxBlockers: concurrencyLevel,
+                    maxAsyncWork: MaxAsyncSources,
+                    initialCount: prefetchSize,
+                    enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
-                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,$"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}",
-                    initialCount: concurrencyLevel*2, maxCount: concurrencyLevel*2, enableDeadlockDetection:enableDeadlockDetection, enableFairQ:enableFairQ);
+                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}"
+                    , maxBlockers: concurrencyLevel,
+                    maxAsyncWork: MaxAsyncSources,
+                    initialCount: prefetchSize,
+                    enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             }
             catch (Exception e)
             {
@@ -131,10 +150,20 @@ namespace zero.core.patterns.bushes
         public abstract bool IsOperational { get; }
 
         /// <summary>
-        /// The amount of productions that can be made while consumption is behind
+        /// Initial productions, typically larger than 0 for sources
         /// </summary>
         public int PrefetchSize { get; protected set; }
-        
+
+        /// <summary>
+        /// The number of concurrent sinks allowed
+        /// </summary>
+        public int MaxAsyncSinks { get; protected set; }
+
+        /// <summary>
+        /// The number of concurrent sources allowed
+        /// </summary>
+        public int MaxAsyncSources { get; protected set; }
+
 
         /// <summary>
         /// Used to identify work that was done recently

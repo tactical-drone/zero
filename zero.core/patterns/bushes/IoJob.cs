@@ -111,7 +111,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns>This instance</returns>
         
-        public virtual ValueTask<IIoHeapItem> ConstructorAsync()
+        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
         {
 #if DEBUG
             foreach (var ioWorkStateTransition in StateTransitionHistory)
@@ -122,14 +122,14 @@ namespace zero.core.patterns.bushes
                     var r = c;
                     c = c.Repeat;
                     //await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
-                    _stateHeap.ReturnAsync(r);
+                    await _stateHeap.ReturnAsync(r).FastPath().ConfigureAwait(false);
                 }
             }
 
 
             if (_stateMeta != null)
             {
-                _stateHeap.ReturnAsync(_stateMeta);
+                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(false);
                 _stateMeta = null;
             }
 
@@ -152,7 +152,7 @@ namespace zero.core.patterns.bushes
             //    StateTransitionHistory[prevState] = null;
             //}
 
-            return ValueTask.FromResult((IIoHeapItem)this);
+            return this;
         }
 
         /// <summary>
@@ -184,7 +184,7 @@ namespace zero.core.patterns.bushes
         {
 #if DEBUG
             if(_stateMeta != null)
-                _stateHeap.ReturnAsync(_stateMeta);
+                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(false);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
             await _stateHeap.ZeroManaged().FastPath().ConfigureAwait(false);
 #endif

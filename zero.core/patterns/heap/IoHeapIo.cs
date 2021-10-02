@@ -43,7 +43,7 @@ namespace zero.core.patterns.heap
                 next = (T) await next.ConstructorAsync().FastPath().ConfigureAwait(false);
 
                 //Custom constructor
-                parms?.Invoke((T) next, userData);
+                parms?.Invoke(next, userData);
 
                 //The constructor signals a flush by returning null
                 while (next == null)
@@ -51,7 +51,7 @@ namespace zero.core.patterns.heap
                     Interlocked.Increment(ref CurrentHeapSize);
                     _logger.Trace($"Flushing `{GetType()}'");
 
-                    base.Take(out next, userData);
+                    Take(out next, userData);
                     //Return another item from the heap
                     if (next == null)
                     {
@@ -72,7 +72,7 @@ namespace zero.core.patterns.heap
                 if (next != null)
                 {
                     _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                    ReturnAsync((T)next);
+                        await ReturnAsync(next).FastPath().ConfigureAwait(false);
                     return null;
                 }                    
                 else

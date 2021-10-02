@@ -47,10 +47,10 @@ namespace zero.core.network.ip
         public void Init(int concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1);
+            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
             _sendSync.ZeroRef(ref _sendSync, AsyncTasks.Token);
 
-            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1);
+            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);
             _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks.Token);
 
             InitHeap(concurrencyLevel);
@@ -87,7 +87,7 @@ namespace zero.core.network.ip
             {
                 Make = o =>
                 {
-                    IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", concurrencyLevel);
+                    IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", concurrencyLevel, 0, 0);
                     tcs.ZeroRef(ref tcs, AsyncTasks.Token);
                     return tcs;
                 }

@@ -26,7 +26,7 @@ namespace zero.core.network.ip
         /// <param name="remote">The tcp client to be wrapped</param>
         /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        public IoTcpClient(IoNetSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base(remote, prefetchSize,  concurrencyLevel)
+        public IoTcpClient(string description, IoNetSocket remote, int prefetchSize = 1,  int concurrencyLevel = 1) : base(description, remote, prefetchSize,  concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -36,7 +36,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        public IoTcpClient(int prefetchSize,  int concurrencyLevel) : base(prefetchSize,  concurrencyLevel)
+        public IoTcpClient(string description, int prefetchSize,  int concurrencyLevel) : base(description, prefetchSize,  concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

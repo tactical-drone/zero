@@ -18,27 +18,33 @@ namespace zero.core.patterns.semaphore.core
         /// Constructor
         /// </summary>
         /// <param name="description">A description of this mutex</param>
-        /// <param name="maxCount">The maximum number of requests for the semaphore that can be granted concurrently.</param>
-        /// <param name="initialCount">The initial number of requests for the semaphore that can be granted concurrently.</param>
+        /// <param name="maxBlockers"> The maximum number of requests for the semaphore that can be granted concurrently.</param>
+        /// <param name="initialCount">The initial number non blocking requests</param>
+        /// <param name="maxAsyncWork"></param>
         /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="maxCount"/> more accurately to compensate</param>
         /// <param name="enableFairQ">Enable fair queueing at the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
-        public IoZeroSemaphore(string description = "", int maxCount = 1, int initialCount = 0, 
+        public IoZeroSemaphore(
+            string description = "", 
+            int maxBlockers = 1, 
+            int initialCount = 0,
+            int maxAsyncWork = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
             
             //validation
-            if(maxCount < 1)
-                throw new ZeroValidationException($"{Description}: invalid {nameof(maxCount)} = {maxCount} specified, value must be larger than 0");
+            if(maxBlockers < 1)
+                throw new ZeroValidationException($"{Description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
             if(initialCount < 0)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
 
-            //if(initialCount > maxCount)
-            //    throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxCount)} = {maxCount}");
+            //if(initialCount > maxBlockers)
+            //    throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} = {maxBlockers}");
 
-            _maxCount = maxCount;
+            _maxBlockers = maxBlockers;
             _useMemoryBarrier = enableFairQ;
+            _maxAsyncWorkers = maxAsyncWork;
             _signalCount = initialCount;
             _zeroRef = null;
             _asyncToken = default;
@@ -50,8 +56,8 @@ namespace zero.core.patterns.semaphore.core
 
             //_latched = o => { };
             
-            _signalAwaiter = new Action<object>[_maxCount];
-            _signalAwaiterState = new object[_maxCount];
+            _signalAwaiter = new Action<object>[_maxBlockers];
+            _signalAwaiterState = new object[_maxBlockers];
             _head = 0;
             _tail = 0;
             //_manifold = MaxTolerance;
@@ -83,20 +89,32 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_signalCount}, qSize = {_maxCount}, h = {_head}, t = {_tail}";
+        public string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_signalCount}, qSize = {_maxBlockers}, h = {_head}, t = {_tail}";
 
         /// <summary>
-        /// The semaphore capacity 
+        /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
+        /// and cannot be dynamically adjusted without adding massive runtime costs. Knowing and
+        /// controlling this value upfront is the key
         /// </summary>
-        private int _maxCount;
-        
+        private int _maxBlockers;
+
         /// <summary>
-        /// The number of waiters that can enter the semaphore without blocking 
+        /// Max number of async workers
+        /// </summary>
+        private readonly int _maxAsyncWorkers;
+
+        /// <summary>
+        /// Current number of async workers
+        /// </summary>
+        private volatile int _asyncWorkerCount;
+
+        /// <summary>
+        /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
         private volatile int _signalCount;
 
         /// <summary>
-        /// The number of waiters that can enter the semaphore without blocking 
+        /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
         public int ReadyCount => _signalCount;
 
@@ -223,8 +241,8 @@ namespace zero.core.patterns.semaphore.core
                 i++;
             }
 
-            Array.Clear(_signalAwaiter, 0, _maxCount);
-            Array.Clear(_signalAwaiterState, 0, _maxCount);
+            Array.Clear(_signalAwaiter, 0, _maxBlockers);
+            Array.Clear(_signalAwaiterState, 0, _maxBlockers);
         }
 
         /// <summary>
@@ -277,12 +295,17 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A enter sentinel
         /// </summary>
-        private static readonly ValueTask<bool> ZeroEnter = new ValueTask<bool>(true);
+        private static readonly ValueTask<bool> ZeroEnter = new(true);
 
         /// <summary>
         /// A wait sentinel
         /// </summary>
         private ValueTask<bool> _zeroWait;
+
+        /// <summary>
+        /// Number of threads currently waiting on this semaphore
+        /// </summary>
+        private volatile uint _waitCount;
 
         /// <summary>
         /// Used for latching 
@@ -401,19 +424,19 @@ namespace zero.core.patterns.semaphore.core
             
             
             var c = 0;
-            //while (Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null && c++ < _maxCount)
+            //while (Interlocked.CompareExchange(ref _signalAwaiter[head], _latched, null) != null && c++ < _maxBlockers)
             //{
-            //    head = (Interlocked.Increment(ref _head) - 1) % _maxCount;
+            //    head = (Interlocked.Increment(ref _head) - 1) % _maxBlockers;
             //}
 
-            var headIdx = (Interlocked.Increment(ref _head) - 1) % _maxCount;
+            var headIdx = (Interlocked.Increment(ref _head) - 1) % _maxBlockers;
             var slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null);
 
-            while (slot != null && c < _maxCount)
+            while (slot != null && c < _maxBlockers)
             {
                 Volatile.Write(ref _signalAwaiter[headIdx], slot);
                 Interlocked.Decrement(ref _head);
-                headIdx = (Interlocked.Increment(ref _head) - 1) % _maxCount;
+                headIdx = (Interlocked.Increment(ref _head) - 1) % _maxBlockers;
                 slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null);
                 c++;
             }
@@ -450,7 +473,7 @@ namespace zero.core.patterns.semaphore.core
                 // }
                 else
                 {
-                    throw new ZeroValidationException($"{Description}: w[{headIdx % _maxCount}] = {_signalAwaiter[headIdx]} : {_signalAwaiterState[headIdx]}, Unable to handle concurrent call, enable auto scale or increase expectedNrOfWaiters");
+                    throw new ZeroValidationException($"{Description}: w[{headIdx % _maxBlockers}] = {_signalAwaiter[headIdx]} : {_signalAwaiterState[headIdx]}, Unable to handle concurrent call, enable auto scale or increase expectedNrOfWaiters");
                 }
             }
         }
@@ -488,9 +511,9 @@ namespace zero.core.patterns.semaphore.core
             var prevZeroState = _signalAwaiterState;
             
             //allocate memory
-            _maxCount *= 2;
-            _signalAwaiter = new Action<object>[_maxCount];
-            _signalAwaiterState = new object[_maxCount];
+            _maxBlockers *= 2;
+            _signalAwaiter = new Action<object>[_maxBlockers];
+            _signalAwaiterState = new object[_maxBlockers];
             
             //copy Q
             
@@ -504,7 +527,7 @@ namespace zero.core.patterns.semaphore.core
             }
             else
             {
-                for (var i = _tail; i != _head || prevZeroState[i] != null && j < _maxCount; i = (i + 1) % (uint)prevZeroQ.Length)
+                for (var i = _tail; i != _head || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % (uint)prevZeroQ.Length)
                 {
                     _signalAwaiter[j] = prevZeroQ[i];
                     _signalAwaiterState[j] = prevZeroState[i];
@@ -533,19 +556,20 @@ namespace zero.core.patterns.semaphore.core
 
             Console.WriteLine($"Scaled {Description}");
         }
-        
+
         /// <summary>
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
+        /// <param name="async"></param>
         /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1)
+        public int Release(int releaseCount = 1, bool async = false)
         {
             //preconditions
-            //if(releaseCount < 1 || releaseCount + _signalCount > _maxCount)
-            //    throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxCount)}({_maxCount})");
+            //if(releaseCount < 1 || releaseCount + _signalCount > _maxBlockers)
+            //    throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxBlockers)}({_maxBlockers})");
 
             if(releaseCount < 1 )
                 throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0");
@@ -555,24 +579,27 @@ namespace zero.core.patterns.semaphore.core
                 return -1;
             
             //lock in return value
-            var returnCount = _signalCount;
             var released = 0;
             var c = 0;
+
+            IoZeroWorker worker;
+            worker.Semaphore = (IoZeroSemaphore) _zeroRef;
+
             //awaiter entries
-            while (released < releaseCount && c++ < _maxCount)
+            while (released < releaseCount && c++ < _maxBlockers)
             {
                 //Lock
                 ZeroLock();
 
                 //choose a tail index
                 var origTail = Interlocked.Increment(ref _tail);
-                var tailIdx = (origTail - 1) % _maxCount;
+                var tailIdx = (origTail - 1) % _maxBlockers;
 
                 ////latch a chosen tail state
-                var state = Interlocked.CompareExchange(ref _signalAwaiterState[tailIdx], null, _signalAwaiterState[tailIdx]);
+                worker.State = Interlocked.CompareExchange(ref _signalAwaiterState[tailIdx], null, _signalAwaiterState[tailIdx]);
 
                 //Did we loose?
-                if (state == null)
+                if (worker.State == null)
                 {
                     //restore the latch
                     var reset =  origTail == Interlocked.Decrement(ref _tail);
@@ -589,11 +616,11 @@ namespace zero.core.patterns.semaphore.core
 
                 //latch a chosen tail
                 //var targetWaiter = _signalAwaiter[tailIdx];
-                var targetWaiter = Interlocked.CompareExchange(ref _signalAwaiter[tailIdx], null, _signalAwaiter[tailIdx]);
-                if (targetWaiter == null)
+                worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[tailIdx], null, _signalAwaiter[tailIdx]);
+                if (worker.Continuation == null)
                 {
                     //prevent deadlock
-                    Volatile.Write(ref _signalAwaiterState[tailIdx], state);
+                    Volatile.Write(ref _signalAwaiterState[tailIdx], worker.State);
 
                     //restore the latch
                     Interlocked.Decrement(ref _tail);
@@ -608,32 +635,64 @@ namespace zero.core.patterns.semaphore.core
                 //_signalAwaiter[tailIdx] = null;
 #if DEBUG
                 //validate
-                if (state == null)
-                    throw new ArgumentNullException($"-> {nameof(state)}");
+                if (worker.State == null)
+                    throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
                 
                 //release the lock
                 ZeroUnlock();
 
-                //release a waiter
-                targetWaiter(state);
+                var queued = false;
+                if (async && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem(ioZeroWorker =>
+                    {
+                        try
+                        {
+                            ioZeroWorker.Continuation(ioZeroWorker.State);
+                            Interlocked.Decrement(ref ioZeroWorker.Semaphore._asyncWorkerCount);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            throw;
+                        }
+                    }, worker, true);
+                    queued = true;
+                }
+                
+                if(!queued)
+                {
+                    try
+                    {
+                        worker.Continuation(worker.State);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
+                    }
+                }
 
                 //count the number of waiters released
                 released++;
+
+                //count the number of overall waiters
+                Interlocked.Decrement(ref _waitCount);
             }
-            
+
             //update current count
             Interlocked.Add(ref _signalCount, releaseCount - released);
 
             ////validate releaseCount
-            //if (_maxCount - _signalCount < 0)
+            //if (_maxBlockers - _signalCount < 0)
             //{
             //    //throw when the semaphore runs out of capacity
-            //    throw new ZeroSemaphoreFullException($"${Description}, {nameof(_signalCount)} = {_signalCount}, {nameof(_maxCount)} = {_maxCount}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
+            //    throw new ZeroSemaphoreFullException($"${Description}, {nameof(_signalCount)} = {_signalCount}, {nameof(_maxBlockers)} = {_maxBlockers}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
             //}
 
             //return previous number of waiters
-            return returnCount;
+            return _signalCount;
         }
         
         /// <summary>
@@ -648,7 +707,23 @@ namespace zero.core.patterns.semaphore.core
                 return ValueTask.FromResult(false);
 
             //Enter on fast path if signalled or wait
-            return Signalled() ? ZeroEnter : _zeroWait;
+            //return Signalled() ? : _zeroWait;
+            if (Signalled())
+                return new ValueTask<bool>(!_asyncToken.IsCancellationRequested || _zeroed > 0);
+
+            Interlocked.Increment(ref _waitCount);
+            return _zeroWait;
+        }
+
+
+        /// <summary>
+        /// Worker info
+        /// </summary>
+        struct IoZeroWorker 
+        {
+            public IoZeroSemaphore Semaphore;
+            public Action<object> Continuation;
+            public object State;
         }
     }
 }

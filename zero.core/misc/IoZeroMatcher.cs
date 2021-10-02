@@ -21,13 +21,13 @@ namespace zero.core.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}")
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _challenges = new IoZeroQueue<IoChallenge>(description, capacity);
+            _challenges = new IoZeroQueue<IoChallenge>($"Matcher: {description}", concurrencyLevel * 2);
 
             _heap = new IoHeap<IoChallenge>(_capacity)
             {

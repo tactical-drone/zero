@@ -28,10 +28,11 @@ namespace zero.core.patterns.misc
         /// Constructs a nano probe
         /// </summary>
         /// <param name="description">A description</param>
-        /// <param name="concurrencyLevel">Maximum internal concurrency allowed. Consumption: 128 bits per tick.</param>
+        /// <param name="concurrencyLevel">Maximum blockers allowed. Consumption: 128 bits per tick.</param>
         public IoNanoprobe(string description, int concurrencyLevel = 1)
         {
             Description = description ?? GetType().Name;
+
             _concurrencyLevel = concurrencyLevel;
 
             _zeroSubs = new ConcurrentBag<IoZeroSub>();
@@ -49,7 +50,7 @@ namespace zero.core.patterns.misc
             enableDeadlockDetection = false;
 #endif
 
-            _nanoMutex = new IoZeroSemaphore(description, initialCount: 1, enableAutoScale:false, maxCount: _concurrencyLevel * 2, enableDeadlockDetection: enableDeadlockDetection, enableFairQ:enableFairQ);
+            _nanoMutex = new IoZeroSemaphore(description, maxBlockers: _concurrencyLevel * 2, initialCount: 1, maxAsyncWork:0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
         }
 
@@ -132,8 +133,12 @@ namespace zero.core.patterns.misc
         /// </summary>
         private ConcurrentBag<IoZeroSub> _zeroSubs;
 
+        /// <summary>
+        /// Max number of blockers
+        /// </summary>
         private readonly int _concurrencyLevel;
 
+        
         /// <summary>
         /// A secondary constructor for async stuff
         /// </summary>

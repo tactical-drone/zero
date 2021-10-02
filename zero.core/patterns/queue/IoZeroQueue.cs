@@ -26,13 +26,17 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoZeroQueue(string description, int concurrencyLevel, int capacity = 16)
+        public IoZeroQueue(string description, int concurrencyLevel, bool enableBackPressure = false)
         {
             _description = description;
-            _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
-            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description, initialCount: concurrencyLevel, maxCount:concurrencyLevel);
-            _pressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q pressure at {description}", maxCount: capacity);
-            _backPressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q back pressure at {description}", initialCount:capacity, maxCount: capacity);
+            _nodeHeap = new IoHeap<IoZNode>(concurrencyLevel * 2) {Make = o => new IoZNode()};
+            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description, maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
+
+            _pressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q pressure at {description}", maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 0);
+
+            _enableBackPressure = enableBackPressure;
+            if(_enableBackPressure)
+                _backPressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q back pressure at {description}", maxBlockers: concurrencyLevel*2,maxAsyncWork:0, initialCount: 1);
         }
 
         private readonly string _description; 
@@ -46,6 +50,7 @@ namespace zero.core.patterns.queue
         private volatile IoZNode _head = null;
         private volatile IoZNode _tail = null;
         private volatile int _count;
+        private readonly bool _enableBackPressure;
         public int Count => _count;
         public IoZNode First => _head;
         public IoZNode Last => _tail;
@@ -54,7 +59,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                if (_zeroed || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
                     return;
                 
                 if(!_asyncTasks.IsCancellationRequested)
@@ -89,22 +94,24 @@ namespace zero.core.patterns.queue
                 _asyncTasks = null;
 
                 var from = new IoNanoprobe($"{_description}");
-                await _syncRoot.ZeroAsync(from).ConfigureAwait(false);
                 await _pressure.ZeroAsync(from).ConfigureAwait(false);
-                await _backPressure.ZeroAsync(from).ConfigureAwait(false);
-                _zeroed = true;
+
+                if(_enableBackPressure)
+                    await _backPressure.ZeroAsync(from).ConfigureAwait(false);
 
                 //unmanaged
-                _syncRoot = null;
                 _pressure = null;
                 _backPressure = null;
+
+                //zeroed
+                _zeroed = true;
             }
             finally
             {
                 _syncRoot.Release();
             }
 
-            _syncRoot.Zero();
+            await _syncRoot.ZeroAsync(new IoNanoprobe($"{_description}")).ConfigureAwait(false);
             _syncRoot = null;
         }
 
@@ -117,12 +124,12 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (item == null)
+                if (_zeroed || item == null)
                     return null;
 
                 //wait on back pressure
-                if (!await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
-                    return null;
+                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
+                        return null;
 
                 _nodeHeap.Take(out var node);
 
@@ -173,7 +180,7 @@ namespace zero.core.patterns.queue
             IoZNode dq = null;
             try
             {
-                if (_count == 0)
+                if (_zeroed || _count == 0)
                     return default;
 
                 if (!await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
@@ -219,7 +226,8 @@ namespace zero.core.patterns.queue
                 }
                 finally
                 {
-                    _backPressure.Release();
+                    if(_enableBackPressure)
+                        _backPressure.Release();
                 }
             }
 
@@ -235,7 +243,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if(node == null)
+                if(_zeroed || node == null)
                     return;
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)

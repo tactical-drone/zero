@@ -887,8 +887,7 @@ namespace zero.cocoon.autopeer
                 //Init the conduit
                 if (_protocolConduit != null)
                 {
-                    ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source)
-                        .ArrayPool;
+                    ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
                     _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                     _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                 }
@@ -1487,7 +1486,7 @@ namespace zero.cocoon.autopeer
             
             CcAdjunct newAdjunct = null;
 
-            var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>(MessageService, newRemoteEp);
+            var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
             newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source, Tuple.Create(id, services, newRemoteEp));
 
             if (!Zeroed() && await Hub.ZeroAtomicAsync(async (s, u, ___) =>

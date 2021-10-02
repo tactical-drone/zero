@@ -50,7 +50,7 @@ namespace zero.core.network.ip
             {
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>((IoNetSocket) newConnectionSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
+                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", (IoNetSocket) newConnectionSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
                 }
                 catch (Exception e)
                 {
@@ -74,7 +74,7 @@ namespace zero.core.network.ip
                 return null;
 
             //ZEROd later on inside net server once we know the connection succeeded 
-            return await base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>(ReadAheadBufferSize, ConcurrencyLevel)).ConfigureAwait(false);
+            return await base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", ReadAheadBufferSize, ConcurrencyLevel)).ConfigureAwait(false);
         }
     }
 }
