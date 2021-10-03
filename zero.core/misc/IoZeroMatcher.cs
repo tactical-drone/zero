@@ -168,7 +168,7 @@ namespace zero.core.misc
                         {
                             await _challenges.RemoveAsync(cur).FastPath().ConfigureAwait(false);
                             await _heap.ReturnAsync(potential).FastPath().ConfigureAwait(false);
-                            return true;
+                            return  potential.TimestampMs.ElapsedMs() < _ttlMs;
                         }
                     }
 

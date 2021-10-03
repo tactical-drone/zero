@@ -18,6 +18,7 @@ namespace zero.core.models.protobuffer.sources
     /// </summary>
     public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatch<TModel, TBatch>>
     where TModel : IMessage
+    where TBatch : IoNanoprobe
     {
         /// <summary>
         /// ctor
@@ -49,7 +50,7 @@ namespace zero.core.models.protobuffer.sources
             
             //TODO tuning
             _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}",
-                maxBlockers: ioSource.ZeroConcurrencyLevel()*2, initialCount: 0, maxAsyncWork:0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                maxBlockers: concurrencyLevel, initialCount: 0, maxAsyncWork:0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             
             // _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"{GetType().Name}: {nameof(_queueBackPressure)}", 
             //     maxBlockers: ioSource.ZeroConcurrencyLevel(), initialCount: 1, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
@@ -121,7 +122,18 @@ namespace zero.core.models.protobuffer.sources
         {
             _queuePressure.Zero();
             //_queueBackPressure.Zero();
-            await MessageQueue.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await MessageQueue.ZeroManagedAsync(async msgBatch =>
+            {
+                foreach (var msg in msgBatch)
+                {
+                    if(msg == null)
+                        break;
+                    
+
+                    await msg.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                }
+                    
+            }).FastPath().ConfigureAwait(false);
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
@@ -134,22 +146,22 @@ namespace zero.core.models.protobuffer.sources
         public async ValueTask<bool> EnqueueAsync(TBatch[] item)
         {
             ValueTask<bool> backPressure = default;
+            bool plugged = false;
             try
             {
                 // backPressure = _queueBackPressure.WaitAsync();
                 // if (!await backPressure.FastPath().ConfigureAwait(false))
                 //     return false;
 
-                if (await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(false) == null)
-                {
-                    return false;
-                }
+                plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(false) != null;
 
-                return _queuePressure.Release() != -1;
+                _queuePressure.Release();
+
+                return plugged;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                if(!Zeroed())
+                if (!Zeroed())
                     _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
                 return false;
             }

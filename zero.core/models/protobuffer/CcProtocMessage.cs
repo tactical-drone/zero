@@ -15,7 +15,7 @@ using zero.core.patterns.misc;
 namespace zero.core.models.protobuffer
 {
     public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessage<TModel, TBatch>>
-    where TModel:IMessage
+    where TModel:IMessage where TBatch : IoNanoprobe
     {
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)

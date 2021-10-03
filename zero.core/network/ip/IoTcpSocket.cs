@@ -315,7 +315,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                return NativeSocket != null && NativeSocket.IsBound;//&& NativeSocket.Connected;//&& NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
+                return NativeSocket != null && NativeSocket.IsBound && NativeSocket.Connected;//&& NativeSocket.Connected;//&& NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
             }
             catch (Exception e)
             {

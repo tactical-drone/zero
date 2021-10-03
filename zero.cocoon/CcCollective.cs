@@ -453,7 +453,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 60;
+        public int parm_mean_pat_delay = 30;
 
 
         /// <summary>
@@ -899,7 +899,7 @@ namespace zero.cocoon
                     EgressConnections < parm_max_outbound &&
                     //TODO add distance calc
                     adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)&&
-                    _currentOutboundConnectionAttempts < _maxOutboundConnectionAttempts
+                    _currentOutboundConnectionAttempts < _maxAsyncConnectionAttempts
                 )
             {
                 try
@@ -948,7 +948,7 @@ namespace zero.cocoon
         }
 
         private static readonly float _lambda = 100;
-        private static readonly int _maxOutboundConnectionAttempts = 2;
+        private static readonly int _maxAsyncConnectionAttempts = 3;
         private static readonly int _zeroAtomicConcurrency = 16;
 
         private int _currentOutboundConnectionAttempts;
@@ -959,6 +959,7 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0)
         {
+            return true;
             Interlocked.Exchange(ref Testing, 1);
             foreach (var ioNeighbor in Drones)
             {

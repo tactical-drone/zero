@@ -454,6 +454,14 @@ namespace zero.cocoon.models
 
                     if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(_this._protocolMsgBatch).FastPath().ConfigureAwait(false))
                     {
+                        foreach (var ccDiscoveryBatch in _this._protocolMsgBatch)
+                        {
+                            if(ccDiscoveryBatch == default)
+                                break;
+                            
+                            await _this._batchMsgHeap.ReturnAsync(ccDiscoveryBatch).FastPath().ConfigureAwait(false);    
+                        }
+                        
                         if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
                             _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
                         return false;

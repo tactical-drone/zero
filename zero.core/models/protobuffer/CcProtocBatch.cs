@@ -28,7 +28,7 @@ namespace zero.core.models.protobuffer
     /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch{TModel,TBatch}"/> <- <see cref="CcProtocBatchSource{TModel,TBatch}"/> <- <see cref="IoConduit{TJob}"/>
     /// </summary>
     public class CcProtocBatch<TModel, TBatch> : IoSink<CcProtocBatch<TModel, TBatch>>
-    where TModel:IMessage
+    where TModel:IMessage where TBatch : IoNanoprobe
     {
         /// <summary>
         /// ctor
@@ -50,7 +50,7 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        public volatile TBatch[] Batch;
+        private volatile TBatch[] _batch;
         
         /// <summary>
         /// zero unmanaged
@@ -58,16 +58,50 @@ namespace zero.core.models.protobuffer
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-            Batch = null;
+            _batch = null;
         }
 
         /// <summary>
         /// zero managed
         /// </summary>
         /// <returns></returns>
-        public override ValueTask ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
-            return base.ZeroManagedAsync();
+            await ClearAsync().FastPath().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// get
+        /// </summary>
+        /// <returns>The current batch</returns>
+        public TBatch[] Get()
+        {
+            var tmp = _batch;
+            _batch = null;
+            return tmp;
+        }
+
+        /// <summary>
+        /// set
+        /// </summary>
+        /// <param name="batch">The current batch</param>
+        public async ValueTask SetAsync(TBatch[] batch)
+        {
+            if (_batch != null)
+                await ClearAsync().FastPath().ConfigureAwait(false);
+                    
+            _batch = batch;
+        }
+        
+        private async ValueTask ClearAsync()
+        {
+            foreach (var ioNanoprobe in _batch)
+            {
+                if (ioNanoprobe == null)
+                    break;
+                await ioNanoprobe.ZeroAsync(this).ConfigureAwait(false);
+            }
         }
 
         /// <summary>
@@ -103,14 +137,14 @@ namespace zero.core.models.protobuffer
 
                 try
                 {
-                    _this.Batch = await ((CcProtocBatchSource<TModel, TBatch>) _this.Source).DequeueAsync().FastPath().ConfigureAwait(false);
+                    _this._batch = await ((CcProtocBatchSource<TModel, TBatch>) _this.Source).DequeueAsync().FastPath().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {_this.Description}"); 
                 }
                 
-                return _this.Batch != null;
+                return _this._batch != null;
             }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false))
             {
                 return State = IoJobMeta.JobState.Error;

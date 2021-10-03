@@ -63,7 +63,7 @@ namespace zero.core.network.ip
         private void InitHeap(int concurrencyLevel)
         {
             //TODO tuning
-            concurrencyLevel *= 4;
+            concurrencyLevel = 32;
 
             _recvArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {

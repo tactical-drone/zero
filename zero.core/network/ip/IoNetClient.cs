@@ -182,7 +182,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Backing variable
         /// </summary>
-        private bool _operational = false;
+        private volatile bool _operational = false;
 
         /// <summary>
         /// Rate limit socket health checks
@@ -207,8 +207,8 @@ namespace zero.core.network.ip
                     if (IoNetSocket.IsTcpSocket)
                     {
                         //rate limit
-                        //if (_lastSocketHealthCheck.ElapsedMsDelta() < 5000)
-                        //    return _operational && IoNetSocket.NativeSocket.Connected;
+                        if (_lastSocketHealthCheck.ElapsedMsDelta() < 5000)
+                            return _operational && IoNetSocket.NativeSocket.Connected;
                         
                         _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         //TODO more checks?

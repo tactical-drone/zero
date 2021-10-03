@@ -315,7 +315,7 @@ namespace zero.core.patterns.misc
                         {
                             var zeroAction = zeroSub.Action;
                             var u = Unsubscribe(zeroSub).FastPath().ConfigureAwait(false);
-                            await zeroAction(ZeroedFrom ?? this).FastPath().ConfigureAwait(false);
+                            await zeroAction(this).FastPath().ConfigureAwait(false);
                         }
                     }
                     //catch (NullReferenceException e)
