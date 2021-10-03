@@ -141,7 +141,10 @@ namespace zero.cocoon.autopeer
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
+                    if(Proxy)
+                        return _description = $"`proxy({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
+                    else
+                        return _description = $"`adjunct({(Verified ? "+v" : "-v")},{(Assimilated ? "C" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation.IdString()}]'";
                 }
                 catch (Exception e)
                 {
@@ -622,8 +625,7 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                
-                    
+                _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
             }
 
             State = AdjunctState.ZeroState;
@@ -883,43 +885,43 @@ namespace zero.cocoon.autopeer
         private async Task ProcessMessagesAsync()
         {
             _logger.Debug($"$ {Description}");
-
-            //ensure the channel
-            do
+            try
             {
-                if (_protocolConduit == null)
+                //ensure the channel
+                do
                 {
-                    _protocolConduit = MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
+                    if (_protocolConduit == null)
+                    {
+                        _protocolConduit = MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
 
+                        if (_protocolConduit != null)
+                        {
+                            ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
+                            _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
+                            _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
+                            break;
+                        }
+                    }
+                
+                    if(_protocolConduit != null)
+                        break;
+
+                    //Get the conduit
+                    _logger.Trace($"Waiting for {Description} stream to spin up...");
+                
+
+                    //Init the conduit
                     if (_protocolConduit != null)
                     {
                         ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
                         _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                         _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                        break;
                     }
-                }
-                
-                if(_protocolConduit != null)
-                    break;
 
-                //Get the conduit
-                _logger.Trace($"Waiting for {Description} stream to spin up...");
-                
+                    await Task.Delay(200, AsyncTasks.Token).ConfigureAwait(false); //TODO config
+                } while (_protocolConduit == null && !Zeroed());
 
-                //Init the conduit
-                if (_protocolConduit != null)
-                {
-                    ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
-                    _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                    _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
-                }
-
-                await Task.Delay(200, AsyncTasks.Token).ConfigureAwait(false); //TODO config
-            } while (_protocolConduit == null && !Zeroed());
-
-            try
-            {
+            
                 //The producer
                 var producer = Task.Factory.StartNew(async _this =>
                 {
@@ -1120,27 +1122,27 @@ namespace zero.cocoon.autopeer
             }
             catch (TaskCanceledException e)
             {
-                _logger.Trace(e, Description);
+                _logger?.Trace(e, Description);
             }
             catch (OperationCanceledException e)
             {
-                _logger.Trace(e, Description);
+                _logger?.Trace(e, Description);
             }
             catch (NullReferenceException e)
             {
-                _logger.Trace(e, Description);
+                _logger?.Trace(e, Description);
             }
             catch (ObjectDisposedException e)
             {
-                _logger.Trace(e, Description);
+                _logger?.Trace(e, Description);
             }
             catch (Exception e)
             {
                 if (Collected)
-                    _logger.Debug(e, $"Error processing {Description}");
+                    _logger?.Debug(e, $"Error processing {Description}");
             }
 
-            _logger.Debug($"Stopped processing messages from {Description}!");
+            _logger?.Debug($"Stopped processing messages from {Description}!");
         }
 
         /// <summary>
@@ -1621,6 +1623,10 @@ namespace zero.cocoon.autopeer
                                 }
                             });
 
+                            if (newAdjunct != n)
+                            {
+                                _logger.Fatal($"{Description}: Removing incorrect id = {n.Key}, wanted = {newAdjunct.Key}");
+                            }
                             //n.ZeroedFrom ??= @from;
                             if (((CcAdjunct) n).Assimilated)
                             {

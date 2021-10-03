@@ -40,7 +40,7 @@ namespace zero.cocoon.models
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitName,
                     Source.ZeroConcurrencyLevel(),
-                    false,
+                    true,
                     channelSource,
                     userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource, channelSource.ZeroConcurrencyLevel())
                 ).FastPath().ConfigureAwait(false);

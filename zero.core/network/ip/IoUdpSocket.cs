@@ -430,16 +430,14 @@ namespace zero.core.network.ip
                 }
             }
             //catch (NullReferenceException e) { _logger.Trace(e, Description); }
-            //catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
+            catch (ObjectDisposedException e) { _logger?.Trace(e, Description); }
             //catch (TaskCanceledException e) { _logger.Trace(e, Description); }
             //catch (OperationCanceledException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
                 if (!Zeroed())
                 {
-                    if (!(e is ObjectDisposedException))
-                        _logger.Fatal(e,
-                            $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
+                    _logger.Error(e,$"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
 
                     await ZeroAsync(this).ConfigureAwait(false);
                 }
@@ -635,19 +633,17 @@ namespace zero.core.network.ip
             }
             catch (ObjectDisposedException e)
             {
-                _logger.Trace(e, Description);
+                _logger?.Trace(e, Description);
             }
-            //catch (SocketException e)
-            //{
-            //    _logger.Trace(e, $"Unable to read from socket `udp://{LocalIpAndPort}':");
-            //}
+            catch (SocketException e)
+            {
+                _logger.Trace(e, $"Unable to read from socket `udp://{RemoteAddress??LocalAddress}':");
+            }
             catch (Exception e)
             {
                 if (!Zeroed())
                 {
-                    if (!(e is ObjectDisposedException))
-                        _logger.Error(e, $"Unable to read from socket: {Description}");
-
+                    _logger.Error(e, $"Unable to read from socket: {Description}");
                     await ZeroAsync(this).ConfigureAwait(false);
                 }
             }
