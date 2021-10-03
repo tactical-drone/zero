@@ -93,7 +93,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Sets an upstream source
         /// </summary>
-        public IIoSource Upstream { get; protected set; }
+        public IIoSource Upstream { get; set; }
         
         /// <summary>
         /// Counters for <see cref="IoJobMeta.JobState"/>
@@ -216,6 +216,7 @@ namespace zero.core.patterns.bushes
             _pressure = null;
             _backPressure = null;
             _prefetchPressure = null;
+            Upstream = null;
             RecentlyProcessed = null;
             IoConduits = null;
             ObjectStorage = null;
@@ -292,15 +293,16 @@ namespace zero.core.patterns.bushes
                         return false;
                     }
 
-                    if (!ZeroOnCascade(newChannel, cascade).success)
-                    {
-                        _logger.Trace($"Failed to set cascade on newly formed channel {id}");
-                        return false;
-                    }
-                    else
-                    {
-                        return true;
-                    }
+                    return true;
+                    // if (!ZeroOnCascade(newChannel, cascade).success)
+                    // {
+                    //     _logger.Trace($"Failed to set cascade on newly formed channel {id}");
+                    //     return false;
+                    // }
+                    // else
+                    // {
+                    //     return true;
+                    // }
                 }).ConfigureAwait(false))
                 {
                     if (!Zeroed())

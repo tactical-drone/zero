@@ -62,7 +62,8 @@ namespace zero.core.network.ip
         /// </summary>
         private void InitHeap(int concurrencyLevel)
         {
-            concurrencyLevel *= 2;
+            //TODO tuning
+            concurrencyLevel *= 4;
 
             _recvArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {
@@ -429,10 +430,10 @@ namespace zero.core.network.ip
                     }
                 }
             }
-            //catch (NullReferenceException e) { _logger.Trace(e, Description); }
+            catch (NullReferenceException e) { _logger?.Trace(e, Description); }
             catch (ObjectDisposedException e) { _logger?.Trace(e, Description); }
-            //catch (TaskCanceledException e) { _logger.Trace(e, Description); }
-            //catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger?.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger?.Trace(e, Description); }
             catch (Exception e)
             {
                 if (!Zeroed())

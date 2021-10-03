@@ -618,8 +618,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(null).ConfigureAwait(false);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(null).ConfigureAwait(false);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(false);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(false);
                 tangleNodeTask.Wait();
             }
             else
@@ -633,8 +633,8 @@ namespace zero.sync
 
 
 #pragma warning disable 4014
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(null).ConfigureAwait(false);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(null).ConfigureAwait(false);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(false);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(false);
 #pragma warning restore 4014
                 tangleNodeTask.Wait();
             }

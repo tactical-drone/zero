@@ -625,7 +625,7 @@ namespace zero.cocoon.autopeer
             }
             else
             {
-                _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
+                _logger.Info($"~> {Description}, from: {ZeroedFrom?.Description}");
             }
 
             State = AdjunctState.ZeroState;
@@ -744,10 +744,11 @@ namespace zero.cocoon.autopeer
             //TODO NEXT
             if (Proxy)
             {
-                _protocolTask = Task.Factory.StartNew(async () =>
-                {
-                    await ProcessMessagesAsync().ConfigureAwait(false);
-                }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent, TaskScheduler.Current).Unwrap();    
+                await ProcessMessagesAsync().ConfigureAwait(false);
+                // _protocolTask = Task.Factory.StartNew(async () =>
+                // {
+                //     await ProcessMessagesAsync().ConfigureAwait(false);
+                // }, AsyncTasks.Token, TaskCreationOptions.AttachedToParent, TaskScheduler.Current).Unwrap();    
             }
             else
             {
@@ -778,7 +779,7 @@ namespace zero.cocoon.autopeer
                 //     await ZeroAsync(new IoNanoprobe($"protocol.IsFaulted")).FastPath().ConfigureAwait(false);
                 // }
 
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
+                await ZeroAsync(new IoNanoprobe("assimilation complete!")).FastPath().ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -1565,7 +1566,7 @@ namespace zero.cocoon.autopeer
                             var dropped = badList.Skip(_random.Next(badList.Count)).Take(1).FirstOrDefault();
                             if (dropped != default)
                             {
-                                await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(false);
+                                await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("got collected")).FastPath().ConfigureAwait(false);
                                 _this._logger.Info($"~ {dropped.Description}");
                             }
                         }
@@ -1771,7 +1772,7 @@ namespace zero.cocoon.autopeer
             //Drop old messages
             if (ping.Timestamp.ElapsedMs() > parm_max_network_latency * 2) //TODO params
             {
-                _logger.Trace($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.Elapsed()}s");
+                _logger.Trace($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.ElapsedSec()}s");
                 return;
             }
 

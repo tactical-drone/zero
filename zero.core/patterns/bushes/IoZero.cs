@@ -660,20 +660,20 @@ namespace zero.core.patterns.bushes
                     }
                     catch (TaskCanceledException e)
                     {
-                        _logger.Trace(e, Description);
+                        _logger?.Trace(e, Description);
                     }
                     catch (NullReferenceException e)
                     {
-                        _logger.Trace(e, Description);
+                        _logger?.Trace(e, Description);
                     }
                     catch (ArgumentNullException e)
                     {
-                        _logger.Trace(e.InnerException ?? e,
+                        _logger?.Trace(e.InnerException ?? e,
                             $"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' returned with errors:");
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e.InnerException ?? e,
+                        _logger?.Error(e.InnerException ?? e,
                             $"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' returned with errors:");
                     }
                     finally

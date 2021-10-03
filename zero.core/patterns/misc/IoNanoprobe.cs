@@ -152,6 +152,12 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual ValueTask<bool> ConstructAsync() {return new ValueTask<bool>(true);}
 
+        
+        /// <summary>
+        /// Teardown termination sentinel
+        /// </summary>
+        private static readonly IoNanoprobe Sentinel = new  IoNanoprobe("self");
+        
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
@@ -175,14 +181,17 @@ namespace zero.core.patterns.misc
                 throw new NullReferenceException(nameof(from));
             }
 #endif
-            ZeroedFrom ??= !@from.Equals(this) ? @from : new IoNanoprobe("self");
-
+            ZeroedFrom ??= !@from.Equals(this) ? @from : Sentinel;
+            
             if (_zeroed > 0)
                 return;
-
+            
+            //ZeroedFrom ??= !@from.Equals(this) ? @from : new IoNanoprobe("sentinel");
+            
             //ZeroedFrom = !@from.Equals(this) ? @from : new IoNanoprobe("self");
 
             await ZeroAsync(true).FastPath().ConfigureAwait(false);
+            
             GC.SuppressFinalize(this);
         }
 
