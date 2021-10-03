@@ -21,8 +21,7 @@ namespace zero.core.models
     /// An abstract message carrier used by a network stream to fill the <see cref="F:zero.core.models.IoMessage`2.Buffer" />
     /// </summary>
     public abstract class IoMessage<TJob> : IoSink<TJob>        
-        where TJob : IIoJob 
-        
+        where TJob : IIoJob
     {
         /// <summary>
         /// Initializes the buffer size to fill
@@ -40,6 +39,10 @@ namespace zero.core.models
             //};            
         }
 
+        /// <summary>
+        /// Empty
+        /// </summary>
+        public IoMessage(){}
 
         /// <summary>
         /// buffer owner
@@ -159,7 +162,7 @@ namespace zero.core.models
         /// </summary>
         public override void SyncPrevJob()
         {
-            if (!IoZero.SyncRecoveryModeEnabled || !(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
+            if (!IoZero.SyncRecoveryModeEnabled || !(PreviousJob?.Syncing ?? false)) return;
 
             var p = (IoMessage<TJob>)PreviousJob;
             try
@@ -182,7 +185,7 @@ namespace zero.core.models
                 BytesRead = 0;
                 State = IoJobMeta.JobState.ConInvalid;
                 DatumFragmentLength = 0;
-                StillHasUnprocessedFragments = false;
+                Syncing = false;
             }
         }
 
@@ -196,7 +199,7 @@ namespace zero.core.models
             DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            StillHasUnprocessedFragments = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State == IoJobMeta.JobState.Consumed;
+            Syncing = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State == IoJobMeta.JobState.Consumed;
         }
     }
 }

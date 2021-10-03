@@ -63,7 +63,7 @@ namespace zero.tangle.models
                 }
             }
 
-            NodeServicesArbiter = await Source.AttachConduitAsync(nameof(IoNodeServices<TKey>), false, _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy)).ConfigureAwait(false);
+            NodeServicesArbiter = await Source.CreateConduitOnceAsync(nameof(IoNodeServices<TKey>),1,false, _nodeServicesProxy, userData => new IoTangleTransaction<TKey>(_nodeServicesProxy)).ConfigureAwait(false);
 
             NodeServicesArbiter.parm_consumer_wait_for_producer_timeout = 0;
             NodeServicesArbiter.parm_producer_start_retry_time = 0;
@@ -78,7 +78,7 @@ namespace zero.tangle.models
                 }
             }
 
-            NeighborServicesArbiter = await Source.AttachConduitAsync(nameof(TanglePeer<IoTangleTransaction<TKey>>), false, _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/)).ConfigureAwait(false);
+            NeighborServicesArbiter = await Source.CreateConduitOnceAsync(nameof(TanglePeer<IoTangleTransaction<TKey>>),1,false, _neighborProducer, userData => new IoTangleTransaction<TKey>(_neighborProducer, -1 /*We block to control congestion*/)).ConfigureAwait(false);
             NeighborServicesArbiter.parm_consumer_wait_for_producer_timeout = -1; //We block and never report slow production
             NeighborServicesArbiter.parm_producer_start_retry_time = 0;
 
@@ -398,7 +398,7 @@ namespace zero.tangle.models
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;                 
+                    Syncing = DatumFragmentLength > 0;                 
                 }
 
                 stopwatch.Stop();
@@ -418,7 +418,7 @@ namespace zero.tangle.models
 
         private void TransferPreviousBits()
         {
-            if (PreviousJob?.StillHasUnprocessedFragments ?? false)
+            if (PreviousJob?.Syncing ?? false)
             {
                 var previousJobFragment = (IoMessage<IoTangleMessage<TKey>>)PreviousJob;
                 try
@@ -428,7 +428,7 @@ namespace zero.tangle.models
                     //DatumProvisionLength -= bytesToTransfer;
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                    Syncing = DatumFragmentLength > 0;
 
                     Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
                 }
@@ -441,7 +441,7 @@ namespace zero.tangle.models
                     BytesRead = 0;
                     State = IoJobMeta.JobState.Consumed;
                     DatumFragmentLength = 0;
-                    StillHasUnprocessedFragments = false;                    
+                    Syncing = false;                    
                 }
             }
             
@@ -525,7 +525,7 @@ namespace zero.tangle.models
                                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
 
                                     //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                                    Syncing = DatumFragmentLength > 0;
 
                                     State = IoJobMeta.JobState.Produced;
 

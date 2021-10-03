@@ -193,8 +193,11 @@ namespace zero.core.patterns.semaphore.core
 
             _asyncTokenReg = asyncToken.Register(s =>
             {
-                ((IIoZeroSemaphore)s).Zero();
-            }, _zeroRef);
+                var (z, t, r) = (Tuple<IIoZeroSemaphore,CancellationToken,CancellationTokenRegistration>)s;
+                z.Zero();
+                r.Unregister();
+                r.Dispose();
+            }, Tuple.Create(_zeroRef,_asyncToken, _asyncTokenReg));
         }
 
         /// <summary>
@@ -456,7 +459,8 @@ namespace zero.core.patterns.semaphore.core
                 // }
                 else
                 {
-                    throw new ZeroValidationException($"{Description}: w[{headIdx % _maxBlockers}] = {_signalAwaiter[headIdx]} : {_signalAwaiterState[headIdx]}, Unable to handle concurrent call, enable auto scale or increase expectedNrOfWaiters");
+                    //throw new ZeroValidationException($"{Description}: semaphore DRAINED!!! {_waitCount}/{_maxBlockers} w[{headIdx % _maxBlockers}] = {_signalAwaiter[headIdx]} : {_signalAwaiterState[headIdx]}");
+                    throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_waitCount)} = {_waitCount}/{_maxBlockers}, {nameof(_asyncWorkerCount)} = {_asyncWorkerCount}/{_maxAsyncWorkers}");
                 }
             }
         }
@@ -613,7 +617,7 @@ namespace zero.core.patterns.semaphore.core
                     //try again
                     continue;
                 }
-
+                
                 Volatile.Write(ref _signalAwaiter[tailIdx], null);
                 //_signalAwaiter[tailIdx] = null;
 #if DEBUG
@@ -624,11 +628,15 @@ namespace zero.core.patterns.semaphore.core
                 
                 //release the lock
                 ZeroUnlock();
+                
+                //count the number of overall waiters
+                Interlocked.Decrement(ref _waitCount);
 
                 //async workers
                 var parallelized = false;
                 if (async && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
                 {
+                    throw new Exception("Not supported");
                     ThreadPool.QueueUserWorkItem(ioZeroWorker =>
                     {
                         try
@@ -638,15 +646,18 @@ namespace zero.core.patterns.semaphore.core
                         }
                         catch (Exception e)
                         {
+                            Console.WriteLine($"c = {ioZeroWorker.Continuation}, s = {ioZeroWorker.State}");
                             Console.WriteLine(e);
-                            throw;
+                            if(e.InnerException !=null)
+                                Console.WriteLine(e.InnerException);
+                            //throw;
                         }
                     }, worker, false);
                     parallelized = true;
                 }
                 else
                 {
-                    Interlocked.Decrement(ref _asyncWorkerCount);
+                    if( async) Interlocked.Decrement(ref _asyncWorkerCount);
                 }
                 
                 //sync workers
@@ -665,9 +676,6 @@ namespace zero.core.patterns.semaphore.core
 
                 //count the number of waiters released
                 released++;
-
-                //count the number of overall waiters
-                Interlocked.Decrement(ref _waitCount);
             }
 
             //update current count
@@ -694,6 +702,9 @@ namespace zero.core.patterns.semaphore.core
             //fail fast 
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
                 return ValueTask.FromResult(false);
+
+            if (_waitCount >= _maxBlockers)
+                throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_waitCount)} = {_waitCount}/{_maxBlockers}, {nameof(_asyncWorkerCount)} = {_asyncWorkerCount}/{_maxAsyncWorkers}");
 
             //Enter on fast path if signalled or wait
             //return Signalled() ? : _zeroWait;

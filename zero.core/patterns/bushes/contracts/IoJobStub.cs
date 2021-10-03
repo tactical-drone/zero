@@ -12,15 +12,13 @@ namespace zero.core.patterns.bushes.contracts
     public class IoJobStub: IoNanoprobe, IIoJob
     {
         private readonly string _description = "Job Stub";
-
         public override string Description => _description;
-
         public long Id { get; } = -1;
         public IoJobMeta.JobState FinalState { get; set; }
         public IoJobMeta.JobState State { get; set; }
         public IIoJob PreviousJob { get; } = null;
         public IIoSource Source { get; } = null;
-        public bool StillHasUnprocessedFragments { get; } = false;
+        public bool Syncing { get; } = false;
 
         public ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
         {

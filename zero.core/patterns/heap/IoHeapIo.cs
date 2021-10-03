@@ -32,10 +32,11 @@ namespace zero.core.patterns.heap
             T next = null;
             try
             {
+                //Take from heap
                 if (Take(out next, userData) && next != null && !await next.ConstructAsync())
                     return null;
-
-                //Take from heap
+                
+                //fail
                 if (next == null)
                     return null;
 
@@ -82,7 +83,7 @@ namespace zero.core.patterns.heap
                 }              
             }                        
 
-            return (T)next;
+            return next;
         }
 
         public override async ValueTask ReturnAsync(T item, bool destroy = false)

@@ -25,6 +25,14 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
+        /// Empty constructor
+        /// </summary>
+        public IoNanoprobe()
+        {
+            
+        }
+
+        /// <summary>
         /// Constructs a nano probe
         /// </summary>
         /// <param name="description">A description</param>

@@ -49,6 +49,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
             //_autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
+            //TODO tuning
             _autoPeering = new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroOnCascade(this);
 
@@ -174,7 +175,7 @@ namespace zero.cocoon
                                 //bootstrap every now and again
                                 if (secondsSinceBoot.Elapsed() > parm_mean_pat_delay * 4)
                                 {
-                                    await BootStrapAsync().ConfigureAwait(false);
+                                    await DeepScanAsync().ConfigureAwait(false);
                                     secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 }
                             }
@@ -183,7 +184,7 @@ namespace zero.cocoon
                                 //bootstrap if alone
                                 if (secondsSinceEnsured.Elapsed() > parm_mean_pat_delay)
                                 {
-                                    await BootStrapAsync().ConfigureAwait(false);
+                                    await DeepScanAsync().ConfigureAwait(false);
                                     secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 }
                             }
@@ -452,7 +453,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 30;
+        public int parm_mean_pat_delay = 60;
 
 
         /// <summary>
@@ -485,7 +486,7 @@ namespace zero.cocoon
         protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
         {
             _autoPeeringTask?.Dispose();
-            _autoPeeringTask = _autoPeering.StartAsync(BootStrapAsync);
+            _autoPeeringTask = _autoPeering.StartAsync(DeepScanAsync);
 
             //start node listener
             await base.SpawnListenerAsync(async drone =>
@@ -984,8 +985,36 @@ namespace zero.cocoon
         /// Boostrap node
         /// </summary>
         /// <returns></returns>
-        private async ValueTask BootStrapAsync()
+        public async ValueTask DeepScanAsync()
         {
+            if (Hub.Neighbors.Count > 1)
+            {
+                var c = 0;
+                foreach (var vector in Hub.Neighbors.Values.TakeWhile(n=>((CcAdjunct)n).Assimilating))
+                {
+                    var adjunct = (CcAdjunct)vector;
+
+                    //Only probe when we are running lean
+                    if (adjunct.CcCollective.Hub.Neighbors.Count > adjunct.CcCollective.MaxAdjuncts)
+                        break;
+                
+                    //probe
+                    if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
+                    {
+                        if(!Zeroed())
+                            _logger.Trace($"{nameof(DeepScanAsync)}: Unable to probe adjuncts");
+                    }
+                    else
+                    {
+                        _logger.Debug($"? {nameof(adjunct.SendDiscoveryRequestAsync)}");
+                    }
+                
+                    await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(false);
+                }
+                
+                return;
+            }
+            
             _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
             if (BootstrapAddress != null)
             {
@@ -1002,7 +1031,7 @@ namespace zero.cocoon
                         if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).FastPath().ConfigureAwait(false))
                         {
                             if(!Hub.Router.Zeroed())
-                                _logger.Trace($"{nameof(BootStrapAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                                _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
                         }
                     }
                 }

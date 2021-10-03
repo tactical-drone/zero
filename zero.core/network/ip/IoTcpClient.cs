@@ -12,7 +12,7 @@ namespace zero.core.network.ip
     /// <seealso cref="IoNetClient{TJob}" />
     public class IoTcpClient<TJob> : IoNetClient<TJob>
         where TJob : IIoJob
-        
+
     {
 
         /// <summary>

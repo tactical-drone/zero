@@ -47,7 +47,8 @@ namespace zero.core.network.ip
         public void Init(int concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
+            //TODO tuning
+            _sendSync = new IoZeroSemaphore("udp send lock", 128, 1, 0);
             _sendSync.ZeroRef(ref _sendSync, AsyncTasks.Token);
 
             _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);

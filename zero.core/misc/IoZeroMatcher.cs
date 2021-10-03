@@ -29,7 +29,7 @@ namespace zero.core.misc
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _challenges = new IoZeroQueue<IoChallenge>($"Matcher: {description}", concurrencyLevel * 2);
+            _challenges = new IoZeroQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
 
             _heap = new IoHeap<IoChallenge>(_capacity)
             {

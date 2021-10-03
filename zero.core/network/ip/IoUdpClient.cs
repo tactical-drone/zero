@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using zero.core.patterns.bushes;
@@ -14,7 +15,7 @@ namespace zero.core.network.ip
     /// <seealso cref="zero.core.network.ip.IoNetClient{TJob}" />
     public class IoUdpClient<TJob> : IoNetClient<TJob>
         where TJob : IIoJob
-        
+
     {
         /// <summary>
         /// Base constructor

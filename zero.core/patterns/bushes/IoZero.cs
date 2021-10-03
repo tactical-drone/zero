@@ -31,10 +31,8 @@ namespace zero.core.patterns.bushes
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// <param name="enableSync"></param>
         /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
-        /// <param name="producers">Nr of concurrent producers</param>
-        /// <param name="consumers">Nr of concurrent consumers</param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob,
-            bool enableSync, bool sourceZeroCascade = false) : base($"{nameof(IoSink<TJob>)}", source.ZeroConcurrencyLevel())
+            bool enableSync, bool sourceZeroCascade = false, int concurrencyLevel = -1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
         {
             
 
@@ -80,7 +78,7 @@ namespace zero.core.patterns.bushes
 
             Source = source;
 
-            _queue = new IoZeroQueue<IoSink<TJob>>($"zero Q: {_description}", ZeroConcurrencyLevel());
+            _queue = new IoZeroQueue<IoSink<TJob>>($"zero Q: {_description}", ZeroConcurrencyLevel(), ZeroConcurrencyLevel());
 
             ZeroOnCascade(Source, sourceZeroCascade);
         }
@@ -493,7 +491,9 @@ namespace zero.core.patterns.bushes
                     catch (OperationCanceledException) {  }
                     catch (Exception e)
                     {
-                        _logger.Error(e, $"{GetType().Name}: Producing `{Description}' returned with errors:");
+                        if(!Zeroed())
+                            _logger?.Error(e, $"{GetType().Name}: Producing `{Description}' returned with errors:");
+                        
                         nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                         return false;
                     }
@@ -526,13 +526,13 @@ namespace zero.core.patterns.bushes
                 }                
             }
 
-            catch(TaskCanceledException e) { _logger.Trace(e,Description); }
-            catch(OperationCanceledException e){ _logger.Trace(e,Description); }
-            catch(ObjectDisposedException e){ _logger.Trace(e,Description); }
-            catch(NullReferenceException e){ _logger.Trace(e,Description); }
+            catch(TaskCanceledException e) { _logger?.Trace(e,Description); }
+            catch(OperationCanceledException e){ _logger?.Trace(e,Description); }
+            catch(ObjectDisposedException e){ _logger?.Trace(e,Description); }
+            catch(NullReferenceException e){ _logger?.Trace(e,Description); }
             catch(Exception e)
             {
-                _logger.Fatal(e, $"{GetType().Name}: {Description}: ");
+                _logger?.Fatal(e, $"{GetType().Name}: {Description??"N/A"}: ");
             }
             finally
             {
@@ -713,14 +713,14 @@ namespace zero.core.patterns.bushes
                 }
                 return false;
             }
-            catch (NullReferenceException e) { _logger.Trace(e, Description);}
-            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
-            catch (TimeoutException e) { _logger.Trace(e, Description); }
-            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
-            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch (NullReferenceException e) { _logger?.Trace(e, Description);}
+            catch (ObjectDisposedException e) { _logger?.Trace(e, Description); }
+            catch (TimeoutException e) { _logger?.Trace(e, Description); }
+            catch (TaskCanceledException e) { _logger?.Trace(e, Description); }
+            catch (OperationCanceledException e) { _logger?.Trace(e, Description); }
             catch (Exception e)
             {
-                _logger.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
+                _logger?.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
             }
 
             return false;

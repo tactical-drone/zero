@@ -26,7 +26,7 @@ namespace zero.core.patterns.bushes
         protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSinks = 0, int maxAsyncSources = 0) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
-
+            
             if (prefetchSize > concurrencyLevel)
                 throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(prefetchSize)} = {prefetchSize}");
 
@@ -51,16 +51,16 @@ namespace zero.core.patterns.bushes
             //todo GENERALIZE
             try
             {
-                _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_pressure).Trim('_')}",
+                _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_pressure)}, {description}",
                     maxBlockers: concurrencyLevel, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_backPressure).Trim('_')}",
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_backPressure)}, {description}",
                     maxBlockers: concurrencyLevel,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
                     enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
-                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_prefetchPressure).Trim('_')}"
+                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_prefetchPressure)}, {description}"
                     , maxBlockers: concurrencyLevel,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
@@ -82,7 +82,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A dictionary of downstream channels
         /// </summary>
-        protected internal ConcurrentDictionary<string, IIoConduit> IoConduits = new ConcurrentDictionary<string, IIoConduit>();
+        public ConcurrentDictionary<string, IIoConduit> IoConduits { get; protected set; }  = new();
 
         /// <summary>
         /// Keys this instance.
@@ -260,15 +260,16 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The conduit id</param>
+        /// <param name="concurrencyLevel"></param>
         /// <param name="cascade">ZeroOnCascade close events</param>
         /// <param name="channelSource">The source of this conduit, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// ///
         /// <returns></returns>
-        public async ValueTask<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
+        public async ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
+            int concurrencyLevel = -1, bool cascade = false,
             IoSource<TFJob> channelSource = null,
-            Func<object, IoSink<TFJob>> jobMalloc = null)
-        where TFJob : IIoJob
+            Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
         {
             if (!IoConduits.ContainsKey(id))
             {
@@ -282,7 +283,7 @@ namespace zero.core.patterns.bushes
                 {
                     var newChannel =
                         new IoConduit<TFJob>($"`conduit({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'",
-                            channelSource, jobMalloc);
+                            channelSource, jobMalloc, concurrencyLevel);
 
                     if (!IoConduits.TryAdd(id, newChannel))
                     {
@@ -332,6 +333,7 @@ namespace zero.core.patterns.bushes
             }
         }
 
+        
         /// <summary>
         /// Gets a conduit with a certain Id
         /// </summary>

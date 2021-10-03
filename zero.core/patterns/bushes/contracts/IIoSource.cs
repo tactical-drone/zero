@@ -139,11 +139,14 @@ namespace zero.core.patterns.bushes.contracts
         /// </summary>
         /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
+        /// <param name="concurrencyLevel"></param>
         /// <param name="cascade"></param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        ValueTask<IoConduit<TFJob>> AttachConduitAsync<TFJob>(string id, bool cascade = false,
+        ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
+            int concurrencyLevel = 1, bool cascade = false,
             IoSource<TFJob> channelSource = null, Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
+        
     }
 }

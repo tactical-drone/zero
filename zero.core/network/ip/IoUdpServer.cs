@@ -12,7 +12,7 @@ namespace zero.core.network.ip
     /// <seealso cref="zero.core.network.ip.IoNetServer{TJob}" />
     class IoUdpServer<TJob> : IoNetServer<TJob>
         where TJob : IIoJob
-        
+
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="IoUdpServer{TJob}"/> class.

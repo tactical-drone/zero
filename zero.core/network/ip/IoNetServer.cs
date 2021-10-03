@@ -67,7 +67,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// A set of currently connecting net clients
         /// </summary>
-        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new ConcurrentDictionary<string, IoNetClient<TJob>>();
+        private ConcurrentDictionary<string, IoNetClient<TJob>> _connectionAttempts = new();
 
         /// <summary>
         /// The amount of socket reads the producer is allowed to lead the consumer

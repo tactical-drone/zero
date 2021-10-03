@@ -30,22 +30,28 @@ namespace zero.core.models.protobuffer
     public class CcProtocBatch<TModel, TBatch> : IoSink<CcProtocBatch<TModel, TBatch>>
     where TModel:IMessage
     {
-        
         /// <summary>
         /// ctor
         /// </summary>
         /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource{TModel,TBatch}"/></param>
-        public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource)
-            : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource)
+        /// <param name="concurrencyLevel"></param>
+        public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource, int concurrencyLevel = 1)
+            : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource, concurrencyLevel)
         {
             
         }
+        
+        /// <summary>
+        /// Empty constructor
+        /// </summary>
+        public CcProtocBatch(){}
+
 
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
         public volatile TBatch[] Batch;
-
+        
         /// <summary>
         /// zero unmanaged
         /// </summary>
@@ -103,17 +109,15 @@ namespace zero.core.models.protobuffer
                 {
                     _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {_this.Description}"); 
                 }
-
-                _this.State = _this.Batch != null ? IoJobMeta.JobState.Produced : IoJobMeta.JobState.ProdCancel;
-
-                return true;
+                
+                return _this.Batch != null;
             }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false))
             {
-                State = IoJobMeta.JobState.ProduceTo;
+                return State = IoJobMeta.JobState.Error;
             }
             
             //If the originatingSource gave us nothing, mark this production to be skipped            
-            return State;
+            return State = IoJobMeta.JobState.Produced;
         }
 
         /// <summary>

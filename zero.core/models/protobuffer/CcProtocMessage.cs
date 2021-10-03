@@ -23,13 +23,13 @@ namespace zero.core.models.protobuffer
 
             //ProtocolMsgBatch = ArrayPool<ValueTuple<IIoZero, TModel, object, TModel>>.Shared.Rent(parm_max_msg_batch_size);
 
-            DatumSize = 508;
-
-            MemoryOwner = MemoryPool<byte>.Shared.Rent();
-
+            DatumSize = 1492; //SET to MTU
+            
             //Init buffers
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
+            
+            MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
 
             //Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
@@ -48,6 +48,11 @@ namespace zero.core.models.protobuffer
                 CodedStream = new CodedInputStream(ByteStream);
             }
         }
+
+        /// <summary>
+        /// Empty
+        /// </summary>
+        public CcProtocMessage(){}
 
         /// <summary>
         /// Message batch broadcast channel
@@ -86,7 +91,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 16;//TODO
+        public int parm_max_msg_batch_size = 64;//TODO
 
         /// <summary>
         /// Message rate
@@ -221,7 +226,7 @@ namespace zero.core.models.protobuffer
                             _logger.Warn(
                                 $"Source {_this.MessageService.Description} produce failed!");
                             _this.State = IoJobMeta.JobState.Cancelled;
-                            await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
+                            //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         }
 
                         if (_this.Zeroed())
@@ -256,7 +261,7 @@ namespace zero.core.models.protobuffer
                     {
                         _this.State = IoJobMeta.JobState.ProduceErr;
                         _logger.Error(e, $"ReadAsync {_this.Description}:");
-                        await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
+                        //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         return false;
                     }
                 }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false);

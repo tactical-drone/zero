@@ -25,10 +25,11 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="description">A description</param>
         /// <param name="ioSource">The source of this model</param>
         /// <param name="arrayPool">Used to establish a pool</param>
+        /// <param name="batchSize">Batch size</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
-        /// <param name="concurrencyLevel">The level of concurrency when producing and consuming on this source</param>
-        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, int prefetchSize, int concurrencyLevel) 
-            : base(description, prefetchSize, concurrencyLevel, maxAsyncSources:2, maxAsyncSinks:2)//TODO config
+        /// <param name="concurrencyLevel"></param>
+        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSinks = 0, int maxAsyncSources = 0) 
+            : base(description, prefetchSize, concurrencyLevel, maxAsyncSinks, maxAsyncSources)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -36,7 +37,9 @@ namespace zero.core.models.protobuffer.sources
             ArrayPool = arrayPool;
 
             //Set Q to be blocking
-            MessageQueue = new IoZeroQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", ioSource.ZeroConcurrencyLevel(), true);
+            //TODO tuning
+
+            MessageQueue = new IoZeroQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true);
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -44,8 +47,12 @@ namespace zero.core.models.protobuffer.sources
             enableDeadlockDetection = false;
 #endif
             
-            _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}", maxBlockers: concurrencyLevel, initialCount: 0, maxAsyncWork:0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"{GetType().Name}: {nameof(_queueBackPressure)}", maxBlockers: concurrencyLevel, initialCount: concurrencyLevel, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+            //TODO tuning
+            _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{GetType().Name}: {nameof(_queuePressure)}",
+                maxBlockers: ioSource.ZeroConcurrencyLevel()*2, initialCount: 0, maxAsyncWork:0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+            
+            // _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"{GetType().Name}: {nameof(_queueBackPressure)}", 
+            //     maxBlockers: ioSource.ZeroConcurrencyLevel(), initialCount: 1, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
         }
 
         /// <summary>
@@ -68,10 +75,10 @@ namespace zero.core.models.protobuffer.sources
         /// </summary>
         private IoZeroSemaphoreSlim _queuePressure;
 
-        /// <summary>
-        /// Sync used to access the Q
-        /// </summary>
-        private IoZeroSemaphoreSlim _queueBackPressure;
+        // /// <summary>
+        // /// Sync used to access the Q
+        // /// </summary>
+        // private IoZeroSemaphoreSlim _queueBackPressure;
 
         /// <summary>
         /// Keys this instance.
@@ -101,7 +108,7 @@ namespace zero.core.models.protobuffer.sources
 #if SAFE_RELEASE
             _logger = null;
             _queuePressure = null;
-            _queueBackPressure = null;
+            //_queueBackPressure = null;
             MessageQueue = null;
             ArrayPool = null;
 #endif
@@ -113,7 +120,7 @@ namespace zero.core.models.protobuffer.sources
         public override async ValueTask ZeroManagedAsync()
         {
             _queuePressure.Zero();
-            _queueBackPressure.Zero();
+            //_queueBackPressure.Zero();
             await MessageQueue.ZeroManagedAsync().FastPath().ConfigureAwait(false);
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
@@ -129,9 +136,9 @@ namespace zero.core.models.protobuffer.sources
             ValueTask<bool> backPressure = default;
             try
             {
-                backPressure = _queueBackPressure.WaitAsync();
-                if (!await backPressure.FastPath().ConfigureAwait(false))
-                    return false;
+                // backPressure = _queueBackPressure.WaitAsync();
+                // if (!await backPressure.FastPath().ConfigureAwait(false))
+                //     return false;
 
                 if (await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(false) == null)
                 {
@@ -142,9 +149,6 @@ namespace zero.core.models.protobuffer.sources
             }
             catch(Exception e)
             {
-                if(backPressure.IsCompleted)
-                    _queueBackPressure.Release();
-
                 if(!Zeroed())
                     _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
                 return false;
@@ -171,7 +175,14 @@ namespace zero.core.models.protobuffer.sources
             }
             finally
             {
-                _queueBackPressure.Release();
+                try
+                {
+                    //_queueBackPressure.Release();
+                }
+                catch
+                {
+                    // ignored
+                }
             }
 
             return null;
@@ -225,7 +236,7 @@ namespace zero.core.models.protobuffer.sources
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"Source `{Description}' callback failed:");
+                _logger.Error(e, $"Source `{Description??"N/A"}' callback failed:");
                 return false;
             }
         }

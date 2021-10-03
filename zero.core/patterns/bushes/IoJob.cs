@@ -24,11 +24,16 @@ namespace zero.core.patterns.bushes
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
+
+        protected IoJob()
+        {
+            
+        }
         
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoJob(string desc, IoSource<TJob> source) : base($"{nameof(IoJob<TJob>)}", source.ZeroConcurrencyLevel())
+        protected IoJob(string desc, IoSource<TJob> source, int concurrencyLevel = 1) : base($"{nameof(IoJob<TJob>)}", concurrencyLevel)
         {
             Source = source;
             _jobDesc = desc;
@@ -96,8 +101,8 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Indicates that this job contains unprocessed fragments
         /// </summary>
-        public bool StillHasUnprocessedFragments { get; protected set; }
-
+        public bool Syncing { get; protected set; }
+        
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job
         /// </summary>
@@ -139,7 +144,7 @@ namespace zero.core.patterns.bushes
 #endif
 
             FinalState = State = IoJobMeta.JobState.Undefined;
-            StillHasUnprocessedFragments = false;
+            Syncing = false;
 
             //var curState = 0;
 #if DEBUG

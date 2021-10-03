@@ -11,15 +11,19 @@ namespace zero.core.patterns.bushes
     /// <typeparam name="TJob">The type of the job</typeparam>
     public abstract class IoSink<TJob> : IoJob<TJob>
         where TJob : IIoJob
-        
+
     {
+        /// <summary>
+        /// Empty ctor
+        /// </summary>
+        protected IoSink()
+        {
+            
+        } 
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="sinkDesc"></param>
-        /// <param name="jobDesc"></param>
-        /// <param name="source"></param>
-        protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source) : base(jobDesc, source)
+        protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source, int concurrencyLevel = 1) : base(jobDesc, source, concurrencyLevel)
         {
             _sinkDesc = sinkDesc;
         }

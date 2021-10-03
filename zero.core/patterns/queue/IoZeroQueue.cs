@@ -26,17 +26,22 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoZeroQueue(string description, int concurrencyLevel, bool enableBackPressure = false)
+        public IoZeroQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false)
         {
             _description = description;
-            _nodeHeap = new IoHeap<IoZNode>(concurrencyLevel * 2) {Make = o => new IoZNode()};
-            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description, maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
+            
+            _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
+            
+            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description,
+                maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
 
-            _pressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q pressure at {description}", maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 0);
+            _pressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q pressure at {description}",
+                maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 0);
 
             _enableBackPressure = enableBackPressure;
             if(_enableBackPressure)
-                _backPressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q back pressure at {description}", maxBlockers: concurrencyLevel*2,maxAsyncWork:0, initialCount: 1);
+                _backPressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q back pressure at {description}",
+                    maxBlockers: concurrencyLevel*2,maxAsyncWork:0, initialCount: 1);
         }
 
         private readonly string _description; 
@@ -134,7 +139,7 @@ namespace zero.core.patterns.queue
                 _nodeHeap.Take(out var node);
 
                 if (node == null)
-                    throw new OutOfMemoryException($"{_description} - size = {_nodeHeap.CurrentHeapSize}, refs = {_nodeHeap.ReferenceCount}, count = {_count}");
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.CurrentHeapSize} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
                 //set value
                 node.Value = item;

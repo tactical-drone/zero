@@ -116,7 +116,7 @@ namespace zero.core.core
         /// <summary>
         /// A set of all node tasks that are currently running
         /// </summary>
-        protected ConcurrentBag<Task> NeighborTasks = new ConcurrentBag<Task>();
+        protected ConcurrentBag<Task> NeighborTasks = new();
 
         /// <summary>
         /// Starts the node's listener
@@ -241,13 +241,12 @@ namespace zero.core.core
         {
             try
             {
-                
                 //DefaultScheduler.Instance.AsLongRunning(newNeighbor.AssimilateAsync());
 
                 var assimilation = Task.Factory.StartNew(async () =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
                 NeighborTasks.Add(assimilation);
 

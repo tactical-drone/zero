@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -24,58 +23,48 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _protocolMsgBatch = _arrayPool.Rent(source.ZeroConcurrencyLevel() * 2);
-            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(source.ZeroConcurrencyLevel() * 2) {Make = o => new CcDiscoveryBatch()};
+            _protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
+            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(parm_max_msg_batch_size) {Make = o => new CcDiscoveryBatch()};//TODO config
         }
 
         public override async ValueTask<bool> ConstructAsync()
         {
-            if (!MessageService.ObjectStorage.ContainsKey($"{nameof(CcAdjunct)}"))
+            var conduitName = nameof(CcAdjunct);
+            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(conduitName).FastPath().ConfigureAwait(false);
+            
+            if (ProtocolConduit == null)
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
+                //TODO tuning
+                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool , BufferSize/DatumSize, Source.PrefetchSize,Source.ZeroConcurrencyLevel()*64);
+                ProtocolConduit = await MessageService.CreateConduitOnceAsync(
+                    conduitName,
+                    Source.ZeroConcurrencyLevel(),
+                    false,
+                    channelSource,
+                    userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource, channelSource.ZeroConcurrencyLevel())
+                ).FastPath().ConfigureAwait(false);
 
-                //Transfer ownership
-                if (await MessageService.ZeroAtomicAsync(async (s, u, d) =>
+                //get reference to a central mem pool
+                if (ProtocolConduit != null)
                 {
-                    channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool, ZeroConcurrencyLevel() * 2, ZeroConcurrencyLevel()*2);
-                    if (MessageService.ObjectStorage.TryAdd(nameof(CcAdjunct), channelSource))
+                    _arrayPool = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)ProtocolConduit.Source).ArrayPool;
+                    if (_arrayPool != null)
                         return true;
-                    else
-                        await channelSource.ZeroAsync(this).FastPath().ConfigureAwait(false);
                     
-                    return false;
-                }).FastPath().ConfigureAwait(false))
-                {
-                    ProtocolConduit = await MessageService.AttachConduitAsync(
-                        nameof(CcAdjunct),
-                        true,
-                        channelSource,
-                        userData => new CcProtocBatch<Packet, CcDiscoveryBatch>(channelSource)
-                    ).FastPath().ConfigureAwait(false);
-
-                    //get reference to a central mem pool
-                    if (ProtocolConduit != null)
-                    {
-                        _arrayPool = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)ProtocolConduit.Source).ArrayPool;
-                        if (_arrayPool != null)
-                            return true;
-                        
-                        _logger.Fatal($"{Description}: {nameof(_arrayPool)} is null");
-                    }
-                    else
-                        _logger.Fatal($"{Description}: {nameof(ProtocolConduit)} is null");
-
-                    return false;
+                    _logger.Fatal($"{Description}: {nameof(_arrayPool)} is null");
                 }
                 else
-                {
-                    ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
-                }
+                    _logger.Fatal($"{Description}: {nameof(ProtocolConduit)} is null");
+
+                if (ProtocolConduit != null) 
+                    await ProtocolConduit.ZeroAsync(this).FastPath().ConfigureAwait(false);
+
+                ProtocolConduit = null;
+                
+                return false;
             }
-            else
-            {
-                ProtocolConduit = await MessageService.AttachConduitAsync<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
-            }
+            
             return await base.ConstructAsync().FastPath().ConfigureAwait(false) && ProtocolConduit != null;
         }
 
@@ -110,7 +99,6 @@ namespace zero.cocoon.models
                 batch.HeapRef = null;
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
-
             
         }
 
@@ -347,8 +335,9 @@ namespace zero.cocoon.models
 
                 }
 
-                if(CurrBatchSlot > 1)
-                    _logger.Fatal($"{CurrBatchSlot}");
+                //TODO tuning
+                if(CurrBatchSlot > _batchMsgHeap.MaxSize * 3 / 2)
+                    _logger.Warn($"{nameof(_batchMsgHeap)} running lean {CurrBatchSlot}/{_batchMsgHeap.MaxSize}");
                 //Release a waiter
                 await ForwardToNeighborAsync().FastPath().ConfigureAwait(false);
             }
@@ -376,7 +365,7 @@ namespace zero.cocoon.models
             {
                 if (State != IoJobMeta.JobState.Consumed)
                 {
-                    if (PreviousJob.StillHasUnprocessedFragments)
+                    if (PreviousJob.Syncing)
                     {
                         State = IoJobMeta.JobState.ConsumeErr;
                     }

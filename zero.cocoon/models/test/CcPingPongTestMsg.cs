@@ -58,7 +58,7 @@ namespace zero.cocoon.models.test
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 100;
+        public int parm_datums_per_buffer = 4;
 
         /// <summary>
         /// Max gossip message size
@@ -153,7 +153,7 @@ namespace zero.cocoon.models.test
                             _this.DatumFragmentLength = _this.BytesLeftToProcess % _this.DatumSize;
 
                             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                            _this.StillHasUnprocessedFragments = _this.DatumFragmentLength > 0;
+                            _this.Syncing = _this.DatumFragmentLength > 0;
 
                             _this.State = IoJobMeta.JobState.Produced;
 
@@ -221,7 +221,7 @@ namespace zero.cocoon.models.test
         /// </summary>
         private void TransferPreviousBits()
         {
-            if (PreviousJob?.StillHasUnprocessedFragments ?? false)
+            if (PreviousJob?.Syncing ?? false)
             {
                 var previousJobFragment = (IoMessage<CcPingPongTestMsg>)PreviousJob;
                 try
@@ -231,7 +231,7 @@ namespace zero.cocoon.models.test
                     //Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
-                    StillHasUnprocessedFragments = DatumFragmentLength > 0;
+                    Syncing = DatumFragmentLength > 0;
 
                     //TODO
                     Array.Copy(previousJobFragment.Buffer, previousJobFragment.BufferOffset, Buffer, BufferOffset, bytesToTransfer);
@@ -245,7 +245,7 @@ namespace zero.cocoon.models.test
                     BytesRead = 0;
                     State = IoJobMeta.JobState.Consumed;
                     DatumFragmentLength = 0;
-                    StillHasUnprocessedFragments = false;
+                    Syncing = false;
                 }
             }
 
