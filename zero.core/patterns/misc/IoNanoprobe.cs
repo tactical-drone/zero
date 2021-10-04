@@ -217,7 +217,7 @@ namespace zero.core.patterns.misc
             await ZeroAsync(static async @this =>
             {
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);    
-            }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).ConfigureAwait(false);
+            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -353,7 +353,7 @@ namespace zero.core.patterns.misc
                 //{
                 //    _logger.Trace(e, @this.Description);
                 //}
-                catch (Exception e)
+                catch (Exception e) when (!Zeroed())
                 {
 
                     try
@@ -541,22 +541,37 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected async ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            var nanite = continuation.Target as IoNanoprobe;
+            var nanite = state as IoNanoprobe;
             try
             {
                 await Task.Factory.StartNew(static async nanite =>
                     {
                         var (@this, action, state, fileName, methodName, lineNumber, scheduler) =
                             (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int, TaskScheduler>)nanite;
+
+                        var nanoprobe = state as IoNanoprobe;
                         try
                         {
                             await action(state).FastPath().ConfigureAwait(false);
                         }
-                        catch (Exception e)
+                        catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
+                                                   nanoprobe == null && @this._zeroed == 0)
                         {
-                            if (@this._zeroed == 0)
-                                _logger.Error(e,
-                                    $"{Path.GetFileName(fileName)}:{methodName}() {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                            #if DEBUG
+                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                            #endif
+                        }
+                        catch (NullReferenceException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
+                                                               nanoprobe == null && @this._zeroed == 0)
+                        {
+#if DEBUG
+                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+#endif
+                        }
+                        catch (Exception e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
+                                                   nanoprobe == null && @this._zeroed == 0)
+                        {
+                            _logger.Error(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
                         }
                     }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber, scheduler),
                     asyncToken, options, scheduler ?? TaskScheduler.Current);

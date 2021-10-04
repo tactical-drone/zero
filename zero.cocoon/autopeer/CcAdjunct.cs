@@ -84,7 +84,7 @@ namespace zero.cocoon.autopeer
 
                             if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts > targetDelay * 1.1)
                             {
-                                @this._logger.Warn($"{@this.Description}: WATCHDOG is popping slow, {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts}ms");
+                                @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts)/1000.0:0.0}s");
                             }
                         
                             try
@@ -729,7 +729,7 @@ namespace zero.cocoon.autopeer
                         await @this.CcCollective.DeepScanAsync().ConfigureAwait(false);
                         return;
                     }
-                }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).FastPath().ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -751,7 +751,7 @@ namespace zero.cocoon.autopeer
                 await ZeroAsync(static async collective =>
                 {
                     await collective.DeepScanAsync().FastPath().ConfigureAwait(false);
-                },CcCollective, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                },CcCollective, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).FastPath().ConfigureAwait(false);
                 
                 await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs()).TotalHours:0.00}h"));
             }
