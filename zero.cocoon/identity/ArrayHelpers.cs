@@ -12,7 +12,7 @@ namespace Base58Check
 
       foreach (var arr in arrays)
       {
-        Buffer.BlockCopy(arr, 0, result, offset, arr.Length);
+        Buffer.BlockCopy(arr, 0, result, offset, arr.Count());
         offset += arr.Length;
       }
 
@@ -22,8 +22,9 @@ namespace Base58Check
     public static T[] ConcatArrays<T>(T[] arr1, T[] arr2)
     {
       var result = new T[arr1.Length + arr2.Length];
-      Buffer.BlockCopy(arr1, 0, result, 0, arr1.Length);
-      Buffer.BlockCopy(arr2, 0, result, arr1.Length, arr2.Length);
+      //TODO investigate Length vs Count
+      Buffer.BlockCopy(arr1, 0, result, 0, arr1.Count());
+      Buffer.BlockCopy(arr2, 0, result, arr1.Length, arr2.Count());
 
       return result;
     }

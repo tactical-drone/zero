@@ -145,7 +145,7 @@ namespace zero.core.misc
         
         [ThreadStatic]
         private static SHA256 _sha256;
-        public static SHA256 Sha256 => _sha256 ??= new SHA256Managed();
+        public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
         
         /// <summary>
         /// The bucket capacity this matcher targets

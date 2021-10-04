@@ -418,9 +418,8 @@ namespace zero.cocoon.autopeer
             {
                 if (_curSalt != null && _curSaltStamp.Elapsed() <= parm_salt_ttl) return _curSalt;
                 
-                using var rand = new RNGCryptoServiceProvider();
                 _curSalt = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(new byte[parm_salt_length]));
-                rand.GetNonZeroBytes(_curSalt.ToByteArray());
+                RandomNumberGenerator.Fill(_curSalt.ToByteArray());
                 _curSaltStamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 return _curSalt;

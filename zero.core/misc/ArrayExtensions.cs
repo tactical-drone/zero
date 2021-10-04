@@ -46,7 +46,7 @@ namespace zero.core.misc
 
 
 #if DEBUG //|| RELEASE //TODO remove release
-        public static SHA256 Sha256 = new SHA256CryptoServiceProvider();
+        public static SHA256 Sha256 = SHA256.Create();
 
         public static string PayloadSig(this byte[] payload)
         {
