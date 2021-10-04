@@ -825,12 +825,12 @@ namespace zero.cocoon.autopeer
         /// <param name="msg">The consumer that need processing</param>
         /// <param name="msgArbiter">The arbiter</param>
         /// <param name="processCallback">The process callback</param>
-        /// <param name="zeroClosure"></param>
+        /// <param name="nanite"></param>
         /// <returns>Task</returns>
-        private async ValueTask ProcessMsgBatchAsync(IoSink<CcProtocBatch<Packet, CcDiscoveryBatch>> msg,
+        private async ValueTask ProcessMsgBatchAsync<T>(IoSink<CcProtocBatch<Packet, CcDiscoveryBatch>> msg,
             IoConduit<CcProtocBatch<Packet, CcDiscoveryBatch>> msgArbiter,
-            Func<CcDiscoveryBatch, IoConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>, IIoZero, ValueTask>
-                processCallback, IIoZero zeroClosure)
+            Func<CcDiscoveryBatch, IoConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>, T, ValueTask>
+                processCallback, T nanite)
         {
             if (msg == null)
                 return;
@@ -847,7 +847,7 @@ namespace zero.cocoon.autopeer
 
                     try
                     {
-                        await processCallback(message, msgArbiter, zeroClosure).FastPath().ConfigureAwait(false);
+                        await processCallback(message, msgArbiter, nanite).FastPath().ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
@@ -919,9 +919,8 @@ namespace zero.cocoon.autopeer
 
             
                 //The producer
-                var producer = Task.Factory.StartNew(async _this =>
+                var producer = ZeroAsync(static async @this =>
                 {
-                    var @this = (CcAdjunct)_this;
                     try
                     {
                         while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
@@ -934,7 +933,7 @@ namespace zero.cocoon.autopeer
                                 }
                                 catch (Exception e)
                                 {
-                                    _logger.Error(e, $"Production failed for {Description}");
+                                    @this._logger.Error(e, $"Production failed for {@this.Description}");
                                     return;
                                 }
                             }
@@ -955,31 +954,28 @@ namespace zero.cocoon.autopeer
                         @this._logger?.Fatal(e, $"{@this.Description}");
                     }
                     
-                },this, AsyncTasks.Token,TaskCreationOptions.LongRunning , TaskScheduler.Default).Unwrap();
+                },this, AsyncTasks.Token,TaskCreationOptions.LongRunning , TaskScheduler.Default);
 
-                var consumer = Task.Factory.StartNew(async _this =>
+                var consumer = ZeroAsync(static async @this  =>
                 {
-                    var @this = (CcAdjunct)_this;
                     //the consumer
                     try
                     {
                         while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
                         {
                             //consume
-                            for (var i = 0; i < _consumeTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
+                            for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
                             {
                                 try
                                 {
-                                    @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(async (msg, ioZero) =>
+                                    @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (msg, @this) =>
                                     {
-                                        var zeroClosure = (CcAdjunct) ioZero;
                                         try
                                         {
                                             //Console.WriteLine("d");
-                                            await zeroClosure.ProcessMsgBatchAsync(msg, zeroClosure._protocolConduit,
-                                                async (msgBatch, forward, iioZero) =>
+                                            await @this.ProcessMsgBatchAsync(msg, @this._protocolConduit,
+                                                static async (msgBatch, forward, @this) =>
                                                 {
-                                                    var __this = (CcAdjunct) iioZero;
                                                     IMessage message = default;
                                                     Packet packet = default;
                                                     try
@@ -988,14 +984,14 @@ namespace zero.cocoon.autopeer
                                                         packet = msgBatch.Message;
                                                         
                                                         var extraData = IPEndPoint.Parse(msgBatch.RemoteEndPoint);
-                                                        var routed = __this.Router._routingTable[extraData.Port] != null;
+                                                        var routed = @this.Router._routingTable[extraData.Port] != null;
 
                                                         CcAdjunct ccNeighbor = null;
                                                         try
                                                         {
                                                             ccNeighbor =
-                                                                __this.Router._routingTable[extraData.Port] ??
-                                                                (CcAdjunct) __this.Hub.Neighbors.Values.FirstOrDefault(n =>
+                                                                @this.Router._routingTable[extraData.Port] ??
+                                                                (CcAdjunct) @this.Hub.Neighbors.Values.FirstOrDefault(n =>
                                                                     ((IoNetClient<CcProtocMessage<Packet,
                                                                             CcDiscoveryBatch>>)
                                                                         ((CcAdjunct) n).Source).IoNetSocket
@@ -1004,16 +1000,16 @@ namespace zero.cocoon.autopeer
                                                         }
                                                         catch (Exception e)
                                                         {
-                                                            if (!Zeroed())
-                                                                _logger.Trace(e, Description);
+                                                            if (!@this.Zeroed())
+                                                                @this._logger.Trace(e, @this.Description);
                                                             return;
                                                         }
 
-                                                        __this.Router._routingTable[extraData.Port] ??=
+                                                        @this.Router._routingTable[extraData.Port] ??=
                                                             ccNeighbor;
 
 
-                                                        ccNeighbor ??= __this.Hub.Router;
+                                                        ccNeighbor ??= @this.Hub.Router;
 
                                                         if (!routed && ccNeighbor.Proxy)
                                                             ccNeighbor._routingIndex = extraData.Port;
@@ -1062,48 +1058,48 @@ namespace zero.cocoon.autopeer
                                                     }
                                                     catch (TaskCanceledException e)
                                                     {
-                                                        __this._logger.Trace(e, __this.Description);
+                                                        @this._logger?.Trace(e, @this.Description);
                                                     }
                                                     catch (OperationCanceledException e)
                                                     {
-                                                        __this._logger.Trace(e, __this.Description);
+                                                        @this._logger?.Trace(e, @this.Description);
                                                     }
                                                     catch (NullReferenceException e)
                                                     {
-                                                        __this._logger.Trace(e, __this.Description);
+                                                        @this._logger?.Trace(e, @this.Description);
                                                     }
                                                     catch (ObjectDisposedException e)
                                                     {
-                                                        __this._logger.Trace(e, __this.Description);
+                                                        @this._logger?.Trace(e, @this.Description);
                                                     }
                                                     catch (Exception e)
                                                     {
-                                                        __this._logger.Debug(e,
-                                                            $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {__this.Key}");
+                                                        @this._logger?.Debug(e,
+                                                            $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
                                                     }
                                                     finally
                                                     {
                                                         await msgBatch.HeapRef.ReturnAsync(msgBatch).FastPath().ConfigureAwait(false);
                                                     }
-                                                }, zeroClosure).FastPath().ConfigureAwait(false);
+                                                }, @this).FastPath().ConfigureAwait(false);
                                         }
                                         finally
                                         {
                                             if (msg != null && msg.State != IoJobMeta.JobState.Consumed)
                                                 msg.State = IoJobMeta.JobState.ConsumeErr;
                                         }
-                                    }, this);
+                                    }, @this);
                                 }
                                 catch (Exception e)
                                 {
-                                    _logger?.Error(e, $"Consumption failed for {Description}");
+                                    @this._logger?.Error(e, $"Consumption failed for {@this.Description}");
                                     return;
                                 }
                             }
 
-                            for (var i = 0; i < _consumeTaskPool.Length; i++)
+                            for (var i = 0; i < @this._consumeTaskPool.Length; i++)
                             {
-                                if (!await _consumeTaskPool[i].FastPath().ConfigureAwait(false))
+                                if (!await @this._consumeTaskPool[i].FastPath().ConfigureAwait(false))
                                     return;
                             }
                         }
@@ -1114,11 +1110,11 @@ namespace zero.cocoon.autopeer
                     }
                     catch (Exception e)
                     {
-                        _logger?.Error(e, $"{Description}");
+                        @this._logger?.Error(e, $"{@this.Description}");
                     }
-                }, this,AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+                }, this, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-                await Task.WhenAll(producer, consumer);
+                await Task.WhenAll(producer.AsTask(), consumer.AsTask());
             }
             catch (TaskCanceledException e)
             {
@@ -1546,58 +1542,57 @@ namespace zero.cocoon.autopeer
             var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
             newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source, Tuple.Create(id, services, newRemoteEp));
 
-            if (!Zeroed() && await Hub.ZeroAtomicAsync(async (s, u, ___) =>
+            if (!Zeroed() && await Hub.ZeroAtomicAsync(static async (s, state, ___) =>
             {
+                var (@this, newAdjunct, synAck) = state;
                 try
                 {
-                    var (_this, __newNeighbor, __synAck) = (ValueTuple<CcAdjunct, CcAdjunct, bool>) u;
-
-                    if (_this.Hub.Neighbors.Count > _this.CcCollective.MaxAdjuncts)
+                    if (@this.Hub.Neighbors.Count > @this.CcCollective.MaxAdjuncts)
                     {
                         //drop something
-                        var bad = _this.Hub.Neighbors.Values.Where(n =>
+                        var bad = @this.Hub.Neighbors.Values.Where(n =>
                             ((CcAdjunct) n).Proxy &&
                             !((CcAdjunct)n).IsDroneConnected &&
                             ((CcAdjunct) n).Direction == Heading.Undefined &&
-                            ((CcAdjunct) n).Uptime.ElapsedMs() > _this.parm_max_network_latency * 2 &&
+                            ((CcAdjunct) n).Uptime.ElapsedMs() > @this.parm_max_network_latency * 2 &&
                             ((CcAdjunct) n).State < AdjunctState.Verified);
 
-                        var good = _this.Hub.Neighbors.Values.Where(n =>
+                        var good = @this.Hub.Neighbors.Values.Where(n =>
                                 ((CcAdjunct)n).Proxy &&
                                 !((CcAdjunct)n).IsDroneConnected &&
                                 ((CcAdjunct)n).Direction == Heading.Undefined &&
-                                ((CcAdjunct)n).Uptime.ElapsedMs() > _this.parm_max_network_latency * 2 &&
+                                ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_max_network_latency * 2 &&
                                 ((CcAdjunct)n).State < AdjunctState.Peering &&
-                                ((CcAdjunct)n)._totalPats > _this.parm_min_pats_before_shuffle &&
+                                ((CcAdjunct)n)._totalPats > @this.parm_min_pats_before_shuffle &&
                                 ((CcAdjunct)n).PeerRequests > 0)
                             .OrderBy(n => ((CcAdjunct)n).Priority);
 
                         var badList = bad.ToList();
                         if (badList.Count > 0)
                         {
-                            var dropped = badList.Skip(_random.Next(badList.Count)).FirstOrDefault();
+                            var dropped = badList.Skip(@this._random.Next(badList.Count)).FirstOrDefault();
                             if (dropped != default) 
                             {
                                 await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("got collected")).FastPath().ConfigureAwait(false);
-                                _this._logger.Info($"~ {dropped.Description}");
+                                @this._logger.Info($"~ {dropped.Description}");
                             }
                         }
-                        else if (__synAck) //try harder when this comes from a synack 
+                        else if (synAck) //try harder when this comes from a synack 
                         {
                             var goodList = good.TakeWhile(dropped=>((CcAdjunct)dropped).State < AdjunctState.Peering).ToList();
-                            var dropped = goodList.Skip(_random.Next(goodList.Count)).FirstOrDefault();
+                            var dropped = goodList.Skip(@this._random.Next(goodList.Count)).FirstOrDefault();
                             if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Peering)
                             {
                                 await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(false);
-                                _this._logger.Info($"@ {dropped.Description}");
+                                @this._logger.Info($"@ {dropped.Description}");
                             }
                         }
                     }
 
                     //Transfer?
-                    if (!_this.Hub.Neighbors.TryAdd(__newNeighbor.Key, __newNeighbor))
+                    if (!@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                     {
-                        await newAdjunct.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        await newAdjunct.ZeroAsync(@this).FastPath().ConfigureAwait(false);
                         return false;    
                     }
                     
@@ -1606,8 +1601,8 @@ namespace zero.cocoon.autopeer
                 }
                 catch (Exception e)
                 {
-                    if(!Zeroed())
-                        _logger.Error(e, $"{Description??"N/A"}");
+                    if(!@this.Zeroed())
+                        @this._logger.Error(e, $"{@this.Description??"N/A"}");
                 }
 
                 return false;
@@ -2397,35 +2392,32 @@ namespace zero.cocoon.autopeer
                 if (IsDroneAttached)
                     return false;
 
-                if (!await ZeroAtomicAsync( (s, u, d) =>
+                if (!await ZeroAtomicAsync( static (_, state, _) =>
                 {
-                    var _this = (CcAdjunct) s;
-                    var t = (ValueTuple<CcDrone, Heading>) u;
-                    var __ioCcDrone = t.Item1;
-                    var __direction = t.Item2;
+                    var (@this, ioCcDrone, direction) = state;
 
                     //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
-                    if (direction == Heading.Ingress && _this.CcCollective.IngressConnections >= _this.CcCollective.parm_max_inbound || 
-                        direction == Heading.Egress && _this.CcCollective.EgressConnections >= _this.CcCollective.parm_max_outbound)
+                    if (direction == Heading.Ingress && @this.CcCollective.IngressConnections >= @this.CcCollective.parm_max_inbound || 
+                        direction == Heading.Egress && @this.CcCollective.EgressConnections >= @this.CcCollective.parm_max_outbound)
                     {
                         return new ValueTask<bool>(false);
                     }
 
                     //Race for direction
-                    if (Interlocked.CompareExchange(ref _this._direction, (int) __direction, (int) Heading.Undefined) !=
+                    if (Interlocked.CompareExchange(ref @this._direction, (int) direction, (int) Heading.Undefined) !=
                         (int) Heading.Undefined)
                     {
-                        _this._logger.Warn(
-                            $"oz: race for {__direction} lost {__ioCcDrone.Description}, current = {_this.Direction}, {_this._drone?.Description}");
+                        @this._logger.Warn(
+                            $"oz: race for {direction} lost {ioCcDrone.Description}, current = {@this.Direction}, {@this._drone?.Description}");
                         return new ValueTask<bool>(false);
                     }
                     
-                    _this._drone = __ioCcDrone ?? throw new ArgumentNullException($"{nameof(__ioCcDrone)}");
-                    _this.State = AdjunctState.Connected;
-                    _this.WasAttached = true;
+                    @this._drone = ioCcDrone ?? throw new ArgumentNullException($"{nameof(ioCcDrone)}");
+                    @this.State = AdjunctState.Connected;
+                    @this.WasAttached = true;
 
                     return new ValueTask<bool>(true);
-                }, ValueTuple.Create(ccDrone, direction)))
+                }, ValueTuple.Create(this, ccDrone, direction)))
                 {
                     return false;
                 }
@@ -2483,17 +2475,20 @@ namespace zero.cocoon.autopeer
         public async ValueTask DetachPeerAsync()
         {
             CcDrone latch = null;
-            if (!await ZeroAtomicAsync((s, u, d) =>
+            var state = ValueTuple.Create(this, latch);
+            
+            if (!await ZeroAtomicAsync(static (s, state, d) =>
             {
-                var _this = (CcAdjunct) s;
-                latch = ((CcAdjunct) s)._drone;
+                state.Item2 = ((CcAdjunct) s)._drone;
                 ((CcAdjunct)s)._drone = null;
 
-                return ValueTask.FromResult(latch != null);
-            }).FastPath().ConfigureAwait(false))
+                return ValueTask.FromResult(state.Item2 != null);
+            },state).FastPath().ConfigureAwait(false))
             {
                 return;
             }
+
+            latch = state.Item2;
 
             var direction = Direction;
             _logger.Warn($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {latch?.Description ?? Description}");
@@ -2502,7 +2497,7 @@ namespace zero.cocoon.autopeer
             Unsubscribe(_zeroCascadeSub);
             _zeroCascadeSub = default;
 
-            await latch.ZeroAsync(this).FastPath().ConfigureAwait(false);
+            await latch!.ZeroAsync(this).FastPath().ConfigureAwait(false);
             
             Interlocked.Exchange(ref _direction, 0);
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

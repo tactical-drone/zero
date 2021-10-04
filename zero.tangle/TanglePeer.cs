@@ -97,7 +97,7 @@ namespace zero.tangle
                     continue;
                 }
 
-                await transactionArbiter.ConsumeAsync(async (batch, _) =>
+                await transactionArbiter.ConsumeAsync<object>(async (batch, _) =>
                 {
                     try
                     {

@@ -122,7 +122,7 @@ namespace zero.tangle.api.controllers.generic
                             count = 0;
                             while (Interlocked.Read(ref relaySource.JobHeap.ReferenceCount) > 0)
                             {
-                                await relaySource.ConsumeAsync((message,_) =>
+                                await relaySource.ConsumeAsync<object>((message,_) =>
                                 {
                                     if (message == null)
                                         return ValueTask.CompletedTask;

@@ -39,18 +39,18 @@ namespace zero.cocoon
             //Testing
             var rand = new Random((int) DateTimeOffset.Now.Ticks);
 
-            var t = Task.Factory.StartNew(async () =>
+            var t = ZeroAsync(static async @this  =>
             {
-                while (!Zeroed())
+                while (!@this.Zeroed())
                 {
-                    await Task.Delay(parm_insane_checks_delay * 1000, AsyncTasks.Token).ConfigureAwait(false);
-                    if (!Zeroed() && Adjunct == null || Adjunct?.Direction == CcAdjunct.Heading.Undefined || Adjunct?.State < CcAdjunct.AdjunctState.Verified)
+                    await Task.Delay(@this.parm_insane_checks_delay * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
+                    if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Verified)
                     {
-                        _logger.Debug($"! {Description} - n = {Adjunct}, d = {Adjunct?.Direction}, s = {Adjunct?.State}, {Adjunct?.MetaDesc}");
-                        await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
+                        @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State}, {@this.Adjunct?.MetaDesc}");
+                        await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
+            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach| TaskCreationOptions.PreferFairness, TaskScheduler.Default);
         }
 
         /// <summary>
@@ -218,20 +218,21 @@ namespace zero.cocoon
         public async ValueTask DetachNeighborAsync()
         {
             CcAdjunct latch = null;
-
-            await ZeroAtomicAsync((nanite, o, arg3) =>
+            var state = ValueTuple.Create(this, latch);
+            await ZeroAtomicAsync(static (_, state, _) =>
             {
-                if (Adjunct != null)
+                var (@this, latch) = state;
+                if (@this.Adjunct != null)
                 {
-                    latch = Adjunct;
-                    Adjunct = null;
+                    state.Item2 = @this.Adjunct;
+                    @this.Adjunct = null;
                 }
 
                 return new ValueTask<bool>(true);
-            }).FastPath().ConfigureAwait(false);
+            },state).FastPath().ConfigureAwait(false);
 
-            if(latch != null)
-                await latch.DetachPeerAsync().FastPath().ConfigureAwait(false);
+            if(state.Item2 != null)
+                await state.Item2.DetachPeerAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

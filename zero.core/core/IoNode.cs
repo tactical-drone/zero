@@ -155,25 +155,26 @@ namespace zero.core.core
                     return;
                 }
 
-                if (await ZeroAtomicAsync(async (s,u, d) =>
+                if (await ZeroAtomicAsync(static async (_,state, _) =>
                 {
+                    var (@this, newNeighbor) = state;
                     try
                     {
                         // Does this neighbor already exist?
-                        if (!Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                        if (!@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
                         {
                             //Drop incoming //TODO? Drop existing? No because of race.
-                            if (Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
+                            if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
                             {
                                 //Only drop incoming if the existing one is working
                                 if (existingNeighbor.Source.IsOperational)
                                 {
-                                    _logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                    @this._logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                     return false;
                                 }
                                 else//else drop existing
                                 {
-                                    _logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
+                                    @this._logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
                                     await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).FastPath().ConfigureAwait(false);
                                 }
                             }
@@ -182,8 +183,9 @@ namespace zero.core.core
                         //ZeroOnCascade(newNeighbor); 
 
                         //Add new neighbor
-                        return await newNeighbor.ZeroAtomicAsync((s2, u2, d2) =>
+                        return await newNeighbor.ZeroAtomicAsync((_, state, _) =>
                         {
+                            var (@this, newNeighbor) = state;
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
                             // Remove from lists if closed
@@ -192,33 +194,33 @@ namespace zero.core.core
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
                                 try
                                 {
-                                    if (Neighbors.TryRemove(id, out var zeroNeighbor))
+                                    if (@this.Neighbors.TryRemove(id, out var zeroNeighbor))
                                     {
-                                        await zeroNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                                        _logger.Trace($"Removed {zeroNeighbor?.Description}");
+                                        await zeroNeighbor.ZeroAsync(@this).ConfigureAwait(false);
+                                        @this._logger.Trace($"Removed {zeroNeighbor?.Description}");
                                     }
                                     else
                                     {
-                                        _logger.Trace($"Cannot remove neighbor {id} not found!");
+                                        @this._logger.Trace($"Cannot remove neighbor {id} not found!");
                                     }
                                 }
                                 catch (NullReferenceException e)
                                 {
-                                    _logger.Trace(e, Description);
+                                    @this._logger?.Trace(e, @this.Description);
                                 }
                                 catch (Exception e)
                                 {
-                                    _logger.Trace(e, $"Removing {newNeighbor.Description} from {Description}");
+                                    @this._logger?.Trace(e, $"Removing {newNeighbor.Description} from {@this.Description}");
                                 }
                             });
                             return ValueTask.FromResult(true);
-                        }).FastPath().ConfigureAwait(false);
+                        }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
                     catch (TaskCanceledException) { return false; }
                     catch (OperationCanceledException) { return false; }
                     catch (ObjectDisposedException) { return false; }
-                }).ConfigureAwait(false))
+                },ValueTuple.Create(this, newNeighbor)).ConfigureAwait(false))
                 {
                     //New peer connection event
                     //ConnectedEvent?.Invoke(this, newNeighbor);
@@ -277,44 +279,27 @@ namespace zero.core.core
 
                 //We capture a local variable here as newNeighbor.Id disappears on zero
                 var id = newNeighbor.Key;
-
-                //if (Neighbors.TryGetValue(newNeighbor.Key, out var staleNeighbor))
-                //{
-                //    if (staleNeighbor.Uptime.Elapsed() > parm_zombie_connect_time_threshold)
-                //    {
-                //        if (Neighbors.TryRemove(staleNeighbor.Key, out _))
-                //        {
-                //            await staleNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                //            _logger.Warn($"Neighbor with id = {newNeighbor.Key} already exists! Replacing connection...");
-                //        }
-                //        else
-                //        {
-                //            return null;
-                //        }
-                //    }
-                //}
-
-                async ValueTask<bool> OwnershipAction(IIoNanite z, object userData, bool b)
+                
+                if (await ZeroAtomicAsync(static async (_,state,_) =>
                 {
+                    var (@this, newNeighbor) = state;
                     //New neighbor?
-                    if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                    if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
                     {
                         //ZeroOnCascade(newNeighbor);
                         return true;
                     }
 
                     //Existing and not broken neighbor?
-                    if(Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedSec() > parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
+                    if(@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedSec() > @this.parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
                     {
                         return false;
                     }
                     
                     //Existing broken neighbor...
-                    if (existingNeighbor != null) await existingNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                    if (existingNeighbor != null) await existingNeighbor.ZeroAsync(@this).ConfigureAwait(false);
                     return true;
-                }
-
-                if (await ZeroAtomicAsync(OwnershipAction).ConfigureAwait(false))
+                }, ValueTuple.Create(this,newNeighbor)).ConfigureAwait(false))
                 {
                     newNeighbor.ZeroSubscribe(async s =>
                     {

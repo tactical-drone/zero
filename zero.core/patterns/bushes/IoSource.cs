@@ -280,16 +280,17 @@ namespace zero.core.patterns.bushes
                     return null;
                 }
 
-                if (!await ZeroAtomicAsync(async (nanite, u, disposed) =>
+                if (!await ZeroAtomicAsync(static async (nanite, parms, disposed) =>
                 {
+                    var (@this, id, channelSource, jobMalloc, concurrencyLevel) = parms;
                     var newChannel =
                         new IoConduit<TFJob>($"`conduit({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'",
                             channelSource, jobMalloc, concurrencyLevel);
 
-                    if (!IoConduits.TryAdd(id, newChannel))
+                    if (!@this.IoConduits.TryAdd(id, newChannel))
                     {
                         await newChannel.ZeroAsync(new IoNanoprobe("lost race")).FastPath().ConfigureAwait(false);
-                        _logger.Trace($"Could not add {id}, already exists = {IoConduits.ContainsKey(id)}");
+                        @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
                         return false;
                     }
 
@@ -303,7 +304,7 @@ namespace zero.core.patterns.bushes
                     // {
                     //     return true;
                     // }
-                }).ConfigureAwait(false))
+                }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).ConfigureAwait(false))
                 {
                     if (!Zeroed())
                     {

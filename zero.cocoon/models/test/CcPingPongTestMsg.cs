@@ -121,7 +121,7 @@ namespace zero.cocoon.models.test
                 if (Zeroed())
                     return State = IoJobMeta.JobState.ProdCancel;
 
-                var produced = await Source.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
+                var produced = await Source.ProduceAsync(static async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var _this = (CcPingPongTestMsg)ioJob;
                     

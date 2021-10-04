@@ -68,8 +68,8 @@ namespace zero.core.patterns.misc
         /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction,
-            object userData = null,
+        ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
+            T userData = default,
             bool disposing = false, bool force = false);
         
         /// <summary>

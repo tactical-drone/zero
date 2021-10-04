@@ -129,7 +129,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns></returns>
-        ValueTask<bool> ProduceAsync(
+        ValueTask<bool> ProduceAsync<T>(
             Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, ValueTask<bool>> callback,
             Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
 

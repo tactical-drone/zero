@@ -243,24 +243,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            try
-            {
-                _producerTask.Dispose();
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                _consumerTask.Dispose();
-            }
-            catch
-            {
-                // ignored
-            }
-
             await _queue.ZeroManagedAsync(async sink => await sink.ZeroAsync(this).FastPath().ConfigureAwait(false)).FastPath().ConfigureAwait(false);
 
             _previousJobFragment.ToList().ForEach(job => job.ZeroAsync(this).ConfigureAwait(false));
@@ -580,16 +562,16 @@ namespace zero.core.patterns.bushes
         }
 
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        private Task<Task> _producerTask;
-        private Task<Task> _consumerTask;
-
+        private ValueTask _producerTask;
+        private ValueTask _consumerTask;
+        
         /// <summary>
         /// Consume 
         /// </summary>
         /// <param name="inlineCallback">The inline callback.</param>
-        /// <param name="zeroClosure"></param>
+        /// <param name="nanite"></param>
         /// <returns>True if consumption happened</returns>
-        public async ValueTask<bool> ConsumeAsync(Func<IoSink<TJob>, IIoZero, ValueTask> inlineCallback = null, IIoZero zeroClosure = null)
+        public async ValueTask<bool> ConsumeAsync<T>(Func<IoSink<TJob>, T, ValueTask> inlineCallback = null, T nanite = default)
         {
             try
             {
@@ -640,7 +622,7 @@ namespace zero.core.patterns.bushes
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
                                 //forward any jobs                                                                             
-                                await inlineCallback(curJob, zeroClosure).FastPath().ConfigureAwait(false);
+                                await inlineCallback(curJob, nanite).FastPath().ConfigureAwait(false);
                             }
 
                             curJob.State = IoJobMeta.JobState.Consumed;
@@ -734,9 +716,8 @@ namespace zero.core.patterns.bushes
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             //Producer
-            _producerTask = Task.Factory.StartNew(async _this =>
+            _producerTask = ZeroAsync(static async @this =>
             {
-                var @this = (IoZero<TJob>)_this;
                 //While supposed to be working
                 try
                 {
@@ -776,12 +757,11 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Consumer
-            _consumerTask = Task.Factory.StartNew(async _this =>
+            _consumerTask = ZeroAsync(static async @this =>
             {
-                var @this = (IoZero<TJob>)_this;
                 //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working
                 while (!@this.Zeroed())
@@ -791,7 +771,7 @@ namespace zero.core.patterns.bushes
                     {
                         try
                         {
-                            consumeTaskPool[i] = @this.ConsumeAsync();
+                            consumeTaskPool[i] = @this.ConsumeAsync<object>();
                         }
                         catch (Exception e)
                         {
@@ -818,7 +798,7 @@ namespace zero.core.patterns.bushes
             }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Wait for tear down                
-            await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);
+            await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(false);
 
             _logger.Trace($"{GetType().Name}: Processing for `{Description}' stopped");
         }
