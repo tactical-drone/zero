@@ -77,7 +77,7 @@ namespace zero.cocoon.autopeer
                         while (!@this.Zeroed())
                         {
                             var patTime = @this.IsDroneConnected ? @this.CcCollective.parm_mean_pat_delay * 2 : @this.CcCollective.parm_mean_pat_delay;
-                            var targetDelay = @this._random.Next(patTime / 2 * 1000) + patTime * 1000 / 5;
+                            var targetDelay = @this._random.Next(patTime / 2 * 1000) + patTime * 1000 / 4;
                         
                             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(false);
@@ -713,7 +713,7 @@ namespace zero.cocoon.autopeer
             {
                 await ZeroAsync(static async @this =>
                 {
-                    if (await @this.SendPingAsync().FastPath().ConfigureAwait(false))
+                    if (!@this.Zeroed() && await @this.SendPingAsync().FastPath().ConfigureAwait(false))
                     {
                         @this._logger.Trace($"-/> {nameof(WatchdogAsync)}: PAT to = {@this.Description}");
                     }
