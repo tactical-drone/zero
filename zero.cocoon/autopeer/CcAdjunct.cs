@@ -70,43 +70,43 @@ namespace zero.cocoon.autopeer
             if (Proxy)
             {
                 State = AdjunctState.Unverified;
-                Task.Factory.StartNew(async () =>
+                var z = ZeroAsync(static async @this =>
                 {
                     try
                     {
-                        while (!Zeroed())
+                        while (!@this.Zeroed())
                         {
-                            var patTime = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
-                            var targetDelay = _random.Next(patTime / 2 * 1000) + patTime * 1000 / 5;
+                            var patTime = @this.IsDroneConnected ? @this.CcCollective.parm_mean_pat_delay * 2 : @this.CcCollective.parm_mean_pat_delay;
+                            var targetDelay = @this._random.Next(patTime / 2 * 1000) + patTime * 1000 / 5;
                         
                             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                            await Task.Delay(targetDelay, AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(false);
 
                             if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts > targetDelay * 1.1)
                             {
-                                _logger.Warn($"{Description}: WATCHDOG is popping slow, {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts}ms");
+                                @this._logger.Warn($"{@this.Description}: WATCHDOG is popping slow, {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts}ms");
                             }
                         
                             try
                             {
-                                await WatchdogAsync().FastPath().ConfigureAwait(false);
+                                await @this.WatchdogAsync().FastPath().ConfigureAwait(false);
                             }
                             catch (Exception e)
                             {
-                                if(Collected)
-                                    _logger.Fatal(e, $"{Description}: Watchdog down!");
+                                if(@this.Collected)
+                                    @this._logger.Fatal(e, $"{@this.Description}: Watchdog down!");
                             }
                         }
                     }
                     finally
                     {
-                        if (!Zeroed())
+                        if (!@this.Zeroed())
                         {
-                            _logger.Fatal($"{Description}: WATCHDOG died!!!");
+                            @this._logger.Fatal($"{@this.Description}: WATCHDOG died!!!");
                         }
                     }
                     
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default).Unwrap();
+                }, this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
             }
             else
             {
@@ -431,17 +431,7 @@ namespace zero.cocoon.autopeer
         /// Message heap
         /// </summary>
         public ArrayPool<CcDiscoveryBatch> ArrayPoolProxy { get; protected set; }
-
-        /// <summary>
-        /// base task
-        /// </summary>
-        private Task _baseTask;
-
-        /// <summary>
-        /// protocol task
-        /// </summary>
-        private Task _protocolTask;
-
+        
         /// <summary>
         /// Producer tasks
         /// </summary>
@@ -723,13 +713,6 @@ namespace zero.cocoon.autopeer
             {
                 await ZeroAsync(static async @this =>
                 {
-                    //Are we limping?
-                    if (@this.Hub.Neighbors.Count <= 2)
-                    {
-                        await @this.CcCollective.DeepScanAsync().ConfigureAwait(false);
-                        return;
-                    }
-                
                     if (await @this.SendPingAsync().FastPath().ConfigureAwait(false))
                     {
                         @this._logger.Trace($"-/> {nameof(WatchdogAsync)}: PAT to = {@this.Description}");
@@ -739,7 +722,13 @@ namespace zero.cocoon.autopeer
                         if (@this.Collected)
                             @this._logger.Error($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {@this.Description}, {@this.MetaDesc}");
                     }
-                
+                    
+                    //Are we limping?
+                    if (@this.Hub.Neighbors.Count <= 2)
+                    {
+                        await @this.CcCollective.DeepScanAsync().ConfigureAwait(false);
+                        return;
+                    }
                 }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
             }
             catch (Exception e)
@@ -782,10 +771,10 @@ namespace zero.cocoon.autopeer
                 }
                 else
                 {
-                    _protocolTask = Task.Factory.StartNew(async () =>
+                    await ZeroAsync(static async @this =>
                     {
-                        await ProcessMessagesAsync().ConfigureAwait(false);
-                    }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+                        await @this.ProcessMessagesAsync().ConfigureAwait(false);
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                 
                     await base.AssimilateAsync().ConfigureAwait(false);
                 }
@@ -799,7 +788,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Connect to an adjunct, turning it into a drone for use
         /// </summary>
-        /// <returns></returns>
+        /// <returns>True on success, false otherwise</returns>
         protected async ValueTask<bool> ConnectAsync()
         {
             //Validate request
@@ -821,11 +810,11 @@ namespace zero.cocoon.autopeer
                 await existingNeighbor.ZeroAsync(new IoNanoprobe("Dropped because reconnect?")).FastPath().ConfigureAwait(false);
             }
             
-            Task.Factory.StartNew(async () =>
+            await ZeroAsync(static async @this =>
             {
                 //Attempt the connection, race to win
-                await CcCollective.ConnectToDroneAsync(this).FastPath().ConfigureAwait(false);
-            }, TaskCreationOptions.LongRunning);
+                await @this.CcCollective.ConnectToDroneAsync(@this).FastPath().ConfigureAwait(false);
+            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default).FastPath().ConfigureAwait(false);
             
             return true;
         }
@@ -1325,13 +1314,13 @@ namespace zero.cocoon.autopeer
                 //at least probe
                 case false when Hub.Neighbors.Count < CcCollective.MaxAdjuncts:
                 {
-                    Task.Factory.StartNew(async () =>
+                    await ZeroAsync(static async @this =>
                     {
-                        if (!await SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
+                        if (!await @this.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
                         {
-                            _logger.Debug($"{Description}: {nameof(SendDiscoveryRequestAsync)} did not execute...");
+                            @this._logger.Debug($"{@this.Description}: {nameof(SendDiscoveryRequestAsync)} did not execute...");
                         }
-                    }, TaskCreationOptions.LongRunning);
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness,TaskScheduler.Default);
                     
                     break;
                 }

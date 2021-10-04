@@ -541,24 +541,34 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected async ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
+            var nanite = continuation.Target as IoNanoprobe;
             try
             {
                 await Task.Factory.StartNew(static async nanite =>
-                {
-                    var (@this, action, state,fileName, methodName,lineNumber, scheduler) = (ValueTuple<IoNanoprobe,Func<T,ValueTask>,T,string,string,int, TaskScheduler>)nanite;
-                    try
                     {
-                        await action(state).FastPath().ConfigureAwait(false);
-                    }
-                    catch (Exception e)
-                    {
-                        if (@this._zeroed == 0)
-                            _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-                    }
-                },ValueTuple.Create(this,continuation,state, filePath, methodName, lineNumber, scheduler), asyncToken, options, scheduler??TaskScheduler.Current);
+                        var (@this, action, state, fileName, methodName, lineNumber, scheduler) =
+                            (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int, TaskScheduler>)nanite;
+                        try
+                        {
+                            await action(state).FastPath().ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            if (@this._zeroed == 0)
+                                _logger.Error(e,
+                                    $"{Path.GetFileName(fileName)}:{methodName}() {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        }
+                    }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber, scheduler),
+                    asyncToken, options, scheduler ?? TaskScheduler.Current);
             }
-            catch (TaskCanceledException e){_logger.Trace(e, Description);}
-            catch (Exception e)
+            catch (TaskCanceledException e) when (nanite != null && !nanite.Zeroed()
+                                                  || nanite == null)
+            {
+                if(nanite != null)
+                    _logger.Error(e, Description);
+            }
+            catch (Exception e) when (nanite != null && !nanite.Zeroed()
+                                      || nanite == null)
             {
                 throw ZeroException.ErrorReport(this, $"{nameof(ZeroAsync)} returned with errors!", e);
             }

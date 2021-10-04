@@ -112,7 +112,7 @@ namespace zero.sync
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
-                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
                     if (c % injectionCount == 0)
                     {
                         await Task.Delay(rateLimit += 100).ConfigureAwait(false);
