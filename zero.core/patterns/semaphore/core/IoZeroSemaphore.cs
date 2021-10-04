@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore.core
 {
@@ -59,7 +61,6 @@ namespace zero.core.patterns.semaphore.core
             _signalAwaiterState = new object[_maxBlockers];
             _head = 0;
             _tail = 0;
-            //_manifold = MaxTolerance;
         }
 
         #region settings
@@ -116,6 +117,11 @@ namespace zero.core.patterns.semaphore.core
         /// The number of threads that can enter the semaphore without blocking 
         /// </summary>
         public int ReadyCount => _signalCount;
+
+        /// <summary>
+        /// Nr of threads currently blocking on this
+        /// </summary>
+        public uint NrOfBlockers => _waitCount;
         
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted
@@ -156,6 +162,7 @@ namespace zero.core.patterns.semaphore.core
         /// Whether this semaphore has been cleared out
         /// </summary>
         private volatile int _zeroed;
+        
         #endregion
 
 #region core
@@ -636,21 +643,30 @@ namespace zero.core.patterns.semaphore.core
                 var parallelized = false;
                 if (async && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
                 {
-                    throw new Exception("Not supported");
                     ThreadPool.QueueUserWorkItem(ioZeroWorker =>
                     {
+                        var nanite = ioZeroWorker.Continuation.Target as IoNanoprobe;
                         try
                         {
-                            ioZeroWorker.Continuation(ioZeroWorker.State);
-                            ioZeroWorker.Semaphore.SignalWorker();
+                            //execute continuation
+                            if(nanite!=null && !nanite.Zeroed())
+                                ioZeroWorker.Continuation(ioZeroWorker.State);
+                            else
+                                ioZeroWorker.Continuation(ioZeroWorker.State);
                         }
-                        catch (Exception e)
+                        catch (NullReferenceException e) when (nanite == null && !ioZeroWorker.Semaphore.Zeroed() ||
+                                                               nanite != null && nanite.Zeroed())
                         {
-                            Console.WriteLine($"c = {ioZeroWorker.Continuation}, s = {ioZeroWorker.State}");
-                            Console.WriteLine(e);
-                            if(e.InnerException !=null)
-                                Console.WriteLine(e.InnerException);
-                            //throw;
+                            throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
+                                $"{nameof(ioZeroWorker.Continuation)} = {ioZeroWorker.Continuation}, " +
+                                $"{nameof(ioZeroWorker.State)} = {ioZeroWorker.State}", e);
+                        }
+                        catch (Exception e) when (nanite == null && !ioZeroWorker.Semaphore.Zeroed() ||
+                                                 nanite != null && nanite.Zeroed())
+                        {
+                            throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
+                                $"{nameof(ioZeroWorker.Continuation)} = {ioZeroWorker.Continuation}, " +
+                                $"{nameof(ioZeroWorker.State)} = {ioZeroWorker.State}",e);
                         }
                     }, worker, false);
                     parallelized = true;
@@ -663,14 +679,28 @@ namespace zero.core.patterns.semaphore.core
                 //sync workers
                 if(!parallelized)
                 {
+                    var nanite = worker.Continuation.Target as IoNanoprobe;
                     try
                     {
-                        worker.Continuation(worker.State);
+                        //execute continuation
+                        if(nanite!=null && !nanite.Zeroed())
+                            worker.Continuation(worker.State);
+                        else
+                            worker.Continuation(worker.State);
                     }
-                    catch (Exception e)
+                    catch (NullReferenceException e) when (nanite == null && _zeroed == 0 ||
+                                                           nanite != null && nanite.Zeroed())
                     {
-                        Console.WriteLine(e);
-                        throw;
+                        throw IoNanoprobe.ZeroException.ErrorReport(this, 
+                                $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
+                                $"{nameof(worker.State)} = {worker.State}", e);
+                    }
+                    catch (Exception e) when (nanite == null && _zeroed == 0 ||
+                                             nanite != null && nanite.Zeroed())
+                    {
+                        throw IoNanoprobe.ZeroException.ErrorReport(this, 
+                            $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
+                            $"{nameof(worker.State)} = {worker.State}",e);
                     }
                 }
 
@@ -680,14 +710,7 @@ namespace zero.core.patterns.semaphore.core
 
             //update current count
             Interlocked.Add(ref _signalCount, releaseCount - released);
-
-            ////validate releaseCount
-            //if (_maxBlockers - _signalCount < 0)
-            //{
-            //    //throw when the semaphore runs out of capacity
-            //    throw new ZeroSemaphoreFullException($"${Description}, {nameof(_signalCount)} = {_signalCount}, {nameof(_maxBlockers)} = {_maxBlockers}, rem/> {nameof(releaseCount)} = {releaseCount - released}");
-            //}
-
+            
             //return previous number of waiters
             return _signalCount;
         }
@@ -718,11 +741,18 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Increment free worker threads by 1
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SignalWorker()
         {
             Interlocked.Decrement(ref _asyncWorkerCount);
         }
-        
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Zeroed()
+        {
+            return _zeroed > 0;
+        }
+
         /// <summary>
         /// Worker info
         /// </summary>

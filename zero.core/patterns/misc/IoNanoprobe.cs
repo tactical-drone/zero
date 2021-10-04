@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -27,9 +28,18 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Empty constructor
         /// </summary>
-        public IoNanoprobe()
+        protected IoNanoprobe()
         {
             
+        }
+
+        /// <summary>
+        /// Used as destruction sentinels
+        /// </summary>
+        /// <param name="reason">The teardown reason</param>
+        public IoNanoprobe(string reason)
+        {
+            Description = reason;
         }
 
         /// <summary>
@@ -37,7 +47,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="description">A description</param>
         /// <param name="concurrencyLevel">Maximum blockers allowed. Consumption: 128 bits per tick.</param>
-        public IoNanoprobe(string description, int concurrencyLevel = 1)
+        protected IoNanoprobe(string description, int concurrencyLevel)
         {
             Description = description ?? GetType().Name;
 
@@ -132,9 +142,19 @@ namespace zero.core.patterns.misc
         // public CancellationToken ZeroToken;
 
         /// <summary>
-        /// Are we disposed?
+        /// Are we zeroed?
         /// </summary>
         private volatile int _zeroed;
+
+        /// <summary>
+        /// Are we disposed
+        /// </summary>
+        private volatile bool _disposed;
+
+        /// <summary>
+        /// Are we disposed
+        /// </summary>
+        public bool Disposed => _disposed;
 
         /// <summary>
         /// All subscriptions
@@ -159,13 +179,17 @@ namespace zero.core.patterns.misc
         private static readonly IoNanoprobe Sentinel = new  IoNanoprobe("self");
         
         /// <summary>
+        /// Teardown termination sentinel
+        /// </summary>
+        private static readonly IoNanoprobe DisposeSentinel = new  IoNanoprobe($"{nameof(IDisposable.Dispose)}");
+
+        /// <summary>
         /// ZeroAsync pattern
         /// </summary>
         public void Dispose()
         {
-            ZeroedFrom = new IoNanoprobe("Dispose");
 #pragma warning disable 4014
-            ZeroAsync(true);
+            var z =  ZeroAsync(true).FastPath().ConfigureAwait(false);
 #pragma warning restore 4014
             GC.SuppressFinalize(this);
         }
@@ -181,7 +205,7 @@ namespace zero.core.patterns.misc
                 throw new NullReferenceException(nameof(from));
             }
 #endif
-            ZeroedFrom ??= !@from.Equals(this) ? @from : Sentinel;
+            ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
             
             if (_zeroed > 0)
                 return;
@@ -190,9 +214,10 @@ namespace zero.core.patterns.misc
             
             //ZeroedFrom = !@from.Equals(this) ? @from : new IoNanoprobe("self");
 
-            await ZeroAsync(true).FastPath().ConfigureAwait(false);
-            
-            GC.SuppressFinalize(this);
+            await ZeroAsync(static async @this =>
+            {
+                await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);    
+            }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -205,7 +230,7 @@ namespace zero.core.patterns.misc
             while (cur?.Zeroed() ?? false)
             {
                 builder.Append($"/> {cur.GetType().Name}({cur.Description})");
-                if (cur == this as IIoNanite)
+                if (cur == this)
                     break;
                 cur = cur.ZeroedFrom;
             }
@@ -221,7 +246,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Zeroed()
         {
-            return _zeroed > 0 || AsyncTasks.IsCancellationRequested;
+            return _disposed || _zeroed > 0 || AsyncTasks.IsCancellationRequested;
         }
 
         /// <summary>
@@ -231,14 +256,26 @@ namespace zero.core.patterns.misc
         /// <returns>The handler</returns>
         public IoZeroSub ZeroSubscribe(Func<IIoNanite, ValueTask> sub)
         {
+            if (_zeroSubs == null)
+                return null;
+                    
             IoZeroSub newSub;
-            _zeroSubs.Add(newSub = new IoZeroSub
+            try
             {
-                Action = sub,
-                Schedule = true
-            });
+                _zeroSubs.Add(newSub = new IoZeroSub
+                {
+                    Action = sub,
+                    Schedule = true
+                });
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
 
             //regular cleanups
+            //TODO tuning
             const int bufSize = 25;
             const double cleanThreshold = 0.33;
             if (_zeroSubs.Count > bufSize && _zeroSubs.Count(zeroSub => !zeroSub.Schedule) > bufSize * cleanThreshold)
@@ -252,11 +289,10 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask Unsubscribe(IoZeroSub sub)
+        public void Unsubscribe(IoZeroSub sub)
         {
             sub.Schedule = false;
             sub.Action = null;
-            return ValueTask.CompletedTask;
         }
 
         /// <summary>
@@ -286,108 +322,106 @@ namespace zero.core.patterns.misc
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
+            
+            CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            try
+            {
+                if(!AsyncTasks.IsCancellationRequested)
+                    AsyncTasks.Cancel();
+            }
+            catch (Exception e)
+            {
+                _logger.Debug(e, $"Cancel async tasks failed for {Description}");
+            }
 
-            // No races allowed between shutting down and starting up
-            //await ZeroAtomicAsync(async (s, u, isDisposing) =>
-            //{
-            //var @this = (IoNanoprobe) s;
-            var @this = (IoNanoprobe)this;
-            @this.CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            //emit zero event
+            foreach(var zeroSub in _zeroSubs)
+            {
                 try
                 {
-                    if(!@this.AsyncTasks.IsCancellationRequested)
-                        @this.AsyncTasks.Cancel();
+                    if (!zeroSub.Schedule)
+                        continue;
+
+                    if (zeroSub.Action != null)
+                    {
+                        var zeroAction = zeroSub.Action;
+                        Unsubscribe(zeroSub);
+                        await zeroAction(this).FastPath().ConfigureAwait(false);
+                    }
                 }
+                //catch (NullReferenceException e)
+                //{
+                //    _logger.Trace(e, @this.Description);
+                //}
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Cancel async tasks failed for {@this.Description}");
-                }
 
-                //emit zero event
-                foreach(var zeroSub in _zeroSubs)
-                {
                     try
                     {
-                        if (!zeroSub.Schedule)
-                            continue;
-
-                        if (zeroSub.Action != null)
-                        {
-                            var zeroAction = zeroSub.Action;
-                            var u = Unsubscribe(zeroSub).FastPath().ConfigureAwait(false);
-                            await zeroAction(this).FastPath().ConfigureAwait(false);
-                        }
+                        _logger.Fatal(e, $"zero sub {((IIoNanite) zeroSub?.Action?.Target)?.Description} on {Description} returned with errors!");
                     }
-                    //catch (NullReferenceException e)
-                    //{
-                    //    _logger.Trace(e, @this.Description);
-                    //}
-                    catch (Exception e)
+                    catch
                     {
-
-                        try
-                        {
-                            _logger.Fatal(e, $"zero sub {((IIoNanite) zeroSub?.Action?.Target)?.Description} on {@this.Description} returned with errors!");
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
+                        // ignored
                     }
                 }
+            }
 
-                @this.CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - @this.CascadeTime;
-                @this.TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                if (disposing)
-                {
-                    //Dispose managed
-                    try
-                    {
-                        await @this.ZeroManagedAsync().FastPath().ConfigureAwait(false);
-                    }
-                    //catch (NullReferenceException) { }
-                    catch (Exception e)
-                    {
-                        _logger.Error(e, $"[{@this}] {nameof(ZeroManagedAsync)} returned with errors!");
-                    }
-                }
-
-                //Dispose unmanaged
+            CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;
+            TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (disposing)
+            {
+                //Dispose managed
                 try
                 {
-                    @this.AsyncTasks.Dispose();
-
-                    @this.ZeroUnmanaged();
-
-                    @this.AsyncTasks = null;
-                    @this.ZeroedFrom = null;
-                    @this._zeroSubs = null;
+                    await ZeroManagedAsync().FastPath().ConfigureAwait(false);
                 }
-                catch (NullReferenceException)
-                {
-                }
+                //catch (NullReferenceException) { }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"ZeroAsync [Un]managed errors: {@this.Description}");
+                    _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
                 }
+            }
+            
+            //Dispose unmanaged
+            try
+            {
+                ZeroUnmanaged();
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
+            }
+            
+            //Dispose async task cancellation token registrations etc.
+            try
+            {
+                AsyncTasks.Dispose();
+            }
+            catch (NullReferenceException)
+            {
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
+            }
 
-                @this.TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - @this.TearDownTime;
-                //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
-                //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
+            AsyncTasks = null;
 
-                try
-                {
-                    if (@this.Uptime.ElapsedSec() > 10 && @this.CascadeTime > @this.TearDownTime * 2 && @this.TearDownTime > 0)
-                        _logger.Fatal(
-                            $"{@this.GetType().Name}:Z/{@this.Description}> SLOW TEARDOWN!, c = {@this.CascadeTime:0.0}ms, t = {@this.TearDownTime:0.0}ms, count = {_zeroSubs.Count}");
-                }
-                catch
-                {
-                    // ignored
-                }
+            TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - TearDownTime;
+            //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
+            //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
 
-            //    return true;
-            //}, disposing: disposing, force: false).ConfigureAwait(false);
+            try
+            {
+                if (Uptime.ElapsedSec() > 10 && CascadeTime > TearDownTime * 2 && TearDownTime > 0)
+                    _logger.Fatal(
+                        $"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms, count = {_zeroSubs.Count}");
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
 
@@ -404,6 +438,7 @@ namespace zero.core.patterns.misc
         {
             _nanoMutex = null;
             _zeroSubs = null;
+            _disposed = true;
         }
 
         /// <summary>
@@ -492,6 +527,88 @@ namespace zero.core.patterns.misc
             return false;
         }
 
+        /// <summary>
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// </summary>
+        /// <param name="continuation">The continuation</param>
+        /// <param name="asyncToken">The async cancellation token</param>
+        /// <param name="options">Task options</param>
+        /// <param name="state">user state</param>
+        /// <param name="scheduler">The scheduler</param>
+        /// <param name="filePath"></param>
+        /// <param name="methodName"></param>
+        /// <param name="lineNumber"></param>
+        /// <returns>A ValueTask</returns>
+        protected async ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        {
+            try
+            {
+                await Task.Factory.StartNew(static async nanite =>
+                {
+                    var (@this, action, state,fileName, methodName,lineNumber, scheduler) = (ValueTuple<IoNanoprobe,Func<T,ValueTask>,T,string,string,int, TaskScheduler>)nanite;
+                    try
+                    {
+                        await action(state).FastPath().ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        if (@this._zeroed == 0)
+                            _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                    }
+                },ValueTuple.Create(this,continuation,state, filePath, methodName, lineNumber, scheduler), asyncToken, options, scheduler??TaskScheduler.Current);
+            }
+            catch (TaskCanceledException e){_logger.Trace(e, Description);}
+            catch (Exception e)
+            {
+                throw ZeroException.ErrorReport(this, $"{nameof(ZeroAsync)} returned with errors!", e);
+            }
+        }
+        
+        /// <summary>
+        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// </summary>
+        /// <param name="continuation">The continuation</param>
+        /// <param name="options">Task options</param>
+        /// <param name="state">user state</param>
+        /// <param name="scheduler">The scheduler</param>
+        /// <param name="methodName"></param>
+        /// <param name="lineNumber"></param>
+        /// <returns>A ValueTask</returns>
+        protected ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        {
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, TaskScheduler.Current, filePath, methodName, lineNumber);
+        }
+        public class ZeroException:ApplicationException
+        {
+            private ZeroException(string message, Exception innerException)
+            :base(message, innerException)
+            {
+                
+            }
+
+            /// <summary>
+            /// Create a new exceptions
+            /// </summary>
+            /// <param name="state">Extra info</param>
+            /// <param name="message">The error message</param>
+            /// <param name="innerException">The inner Exception</param>
+            /// <param name="methodName">The calling method name</param>
+            /// <param name="lineNumber">The calling method line number</param>
+            /// <returns>The new exception</returns>
+            public static ZeroException ErrorReport(object state, string message = null, Exception innerException = null, [CallerMemberName] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+            {
+#if DEBUG
+                if (state == null)
+                    throw new NullReferenceException($"{nameof(state)}");
+#endif
+                
+                var nanite = state as IoNanoprobe;
+                var description = nanite?.Description ?? $"{state}";
+                
+                return new ZeroException($"{Path.GetFileName(filePath)}:{methodName}() {lineNumber} - [{description}]: {message}", innerException);
+            }
+        }
+        
         /// <summary>
         /// Equals
         /// </summary>

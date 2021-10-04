@@ -50,7 +50,7 @@ namespace zero.cocoon
                         await ZeroAsync(new IoNanoprobe($"Invalid state after {parm_insane_checks_delay}: {Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
                     }
                 }
-            }, AsyncTasks.Token, TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Default);
+            }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
         }
 
         /// <summary>

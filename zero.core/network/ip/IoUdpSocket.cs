@@ -21,7 +21,7 @@ namespace zero.core.network.ip
         /// Constructs the UDP socket
         /// </summary>
         /// <param name="concurrencyLevel"></param>
-        public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp)
+        public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
         {
             Init(concurrencyLevel);
         }
@@ -51,7 +51,7 @@ namespace zero.core.network.ip
             _sendSync = new IoZeroSemaphore("udp send lock", 128, 1, 0);
             _sendSync.ZeroRef(ref _sendSync, AsyncTasks.Token);
 
-            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);
+            _rcvSync = new IoZeroSemaphore("udp receive lock", 128, 1, 0);
             _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks.Token);
 
             InitHeap(concurrencyLevel);
@@ -63,7 +63,7 @@ namespace zero.core.network.ip
         private void InitHeap(int concurrencyLevel)
         {
             //TODO tuning
-            concurrencyLevel = 32;
+            concurrencyLevel = 128;
 
             _recvArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
             {
@@ -326,6 +326,11 @@ namespace zero.core.network.ip
         {
             try
             {
+                #if DEBUG
+                if (_sendSync.NrOfBlockers >= _sendArgs.MaxSize / 2)
+                    _logger.Warn($"{Description}: Send semaphore is running lean {_sendSync.NrOfBlockers}/{_sendArgs.MaxSize}");
+                #endif
+
                 if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;
 
@@ -358,23 +363,23 @@ namespace zero.core.network.ip
 
                     //return sendTask.Result;
 
-                    //_sendArgs.Take(out var args);
+                    _sendArgs.Take(out var args);
 
-                    var alloc = true;
-                    var args = new SocketAsyncEventArgs();
-                    args.Completed += Signal;
+                    // var alloc = true;
+                    // var args = new SocketAsyncEventArgs();
+                    // args.Completed += Signal;
 
                     if (args == null)
                         throw new OutOfMemoryException(nameof(_sendArgs));
 
-                    while (/*args.Disposed ||*/
-                           args.LastOperation != SocketAsyncOperation.None &&
-                           args.LastOperation != SocketAsyncOperation.SendTo ||
-                           args.SocketError != SocketError.Success)
-                    {
-                        await _sendArgs.ReturnAsync(args, true).FastPath().ConfigureAwait(false); ;
-                        _sendArgs.Take(out args);
-                    }
+                    // while (/*args.Disposed ||*/
+                    //        args.LastOperation != SocketAsyncOperation.None &&
+                    //        args.LastOperation != SocketAsyncOperation.SendTo ||
+                    //        args.SocketError != SocketError.Success)
+                    // {
+                    //     await _sendArgs.ReturnAsync(args, true).FastPath().ConfigureAwait(false); ;
+                    //     _sendArgs.Take(out args);
+                    // }
 
                     _tcsHeap.Take(out var tcs);
 
@@ -408,25 +413,26 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        if (!alloc)
-                        {
-                            var dispose = args.SocketError != SocketError.Success;//|| args.Disposed;
+                        // if (!alloc)
+                        // {
+                        //     var dispose = args.SocketError != SocketError.Success;//|| args.Disposed;
+                        //
+                        //     if (dispose /*&& !args.Disposed*/)
+                        //     {
+                        //         args.SetBuffer(null, 0, 0);
+                        //         args.Completed -= Signal;
+                        //         args.Dispose();
+                        //     }
+                        //
+                        //     await _sendArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false); ;
+                        // }
+                        // else
+                        // {
+                        //     args.Completed -= Signal;
+                        // }
 
-                            if (dispose /*&& !args.Disposed*/)
-                            {
-                                args.SetBuffer(null, 0, 0);
-                                args.Completed -= Signal;
-                                args.Dispose();
-                            }
-
-                            await _sendArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false); ;
-                        }
-                        else
-                        {
-                            args.Completed -= Signal;
-                        }
-
-                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false); ;
+                        await _sendArgs.ReturnAsync(args).FastPath().ConfigureAwait(false);
+                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
                     }
                 }
             }
@@ -440,7 +446,7 @@ namespace zero.core.network.ip
                 {
                     _logger.Error(e,$"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
 
-                    await ZeroAsync(this).ConfigureAwait(false);
+                    //await ZeroAsync(this).ConfigureAwait(false);
                 }
             }
             finally
@@ -495,7 +501,7 @@ namespace zero.core.network.ip
         /// <param name="remoteEp"></param>
         /// <param name="blacklist"></param>
         /// <param name="timeout">Timeout after ms</param>
-        /// <returns></returns>
+        /// <returns></returns>a
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
             IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
@@ -645,7 +651,7 @@ namespace zero.core.network.ip
                 if (!Zeroed())
                 {
                     _logger.Error(e, $"Unable to read from socket: {Description}");
-                    await ZeroAsync(this).ConfigureAwait(false);
+                    //await ZeroAsync(this).ConfigureAwait(false);
                 }
             }
             finally

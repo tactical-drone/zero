@@ -67,13 +67,22 @@ namespace zero.core.network.ip
         /// </summary>
         private Logger _logger;
 
+        private string _key;
         /// <summary>
         /// Keys this instance.
         /// </summary>
         /// <returns>
         /// The unique key of this instance
         /// </returns>
-        public override string Key => IoNetSocket.Key;
+        public override string Key
+        {
+            get
+            {
+                if (_key != null)
+                    return _key;
+                return _key = IoNetSocket.Key;
+            }
+        }
 
         /// <summary>
         /// A description of this client. Currently the remote address
@@ -85,8 +94,7 @@ namespace zero.core.network.ip
         /// Abstracted dotnet udp and tcp socket
         /// </summary>
         public IoNetSocket IoNetSocket { get; protected set; }
-
-
+        
         /// <summary>
         /// Transmit timeout in ms
         /// </summary>

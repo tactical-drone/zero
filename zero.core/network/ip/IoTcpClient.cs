@@ -49,7 +49,7 @@ namespace zero.core.network.ip
         /// </returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            IoNetSocket = ZeroOnCascade(new IoTcpSocket(), true).target;
+            IoNetSocket = ZeroOnCascade(new IoTcpSocket(ZeroConcurrencyLevel()), true).target;
             return await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false);
         }
 

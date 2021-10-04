@@ -776,7 +776,7 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, AsyncTasks.Token,TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            },this, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Consumer
             _consumerTask = Task.Factory.StartNew(async _this =>
@@ -815,7 +815,7 @@ namespace zero.core.patterns.bushes
                     }
 
                 }
-            }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            }, this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.Unwrap(), _consumerTask.Unwrap()).ConfigureAwait(false);

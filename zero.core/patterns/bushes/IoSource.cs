@@ -52,16 +52,16 @@ namespace zero.core.patterns.bushes
             try
             {
                 _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_pressure)}, {description}",
-                    maxBlockers: concurrencyLevel, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                    maxBlockers: concurrencyLevel*2, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
                 _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_backPressure)}, {description}",
-                    maxBlockers: concurrencyLevel,
+                    maxBlockers: concurrencyLevel*2,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
                     enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
                 _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_prefetchPressure)}, {description}"
-                    , maxBlockers: concurrencyLevel,
+                    , maxBlockers: concurrencyLevel*2,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
                     enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
@@ -288,7 +288,7 @@ namespace zero.core.patterns.bushes
 
                     if (!IoConduits.TryAdd(id, newChannel))
                     {
-                        await newChannel.ZeroAsync(new IoNanoprobe("lost race")).ConfigureAwait(false);
+                        await newChannel.ZeroAsync(new IoNanoprobe("lost race")).FastPath().ConfigureAwait(false);
                         _logger.Trace($"Could not add {id}, already exists = {IoConduits.ContainsKey(id)}");
                         return false;
                     }

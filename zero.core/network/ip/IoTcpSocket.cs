@@ -19,7 +19,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructs a new TCP socket from connection
         /// </summary>
-        public IoTcpSocket() : base(SocketType.Stream, ProtocolType.Tcp)
+        public IoTcpSocket(int concurrencyLevel) : base(SocketType.Stream, ProtocolType.Tcp, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

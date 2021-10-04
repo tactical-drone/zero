@@ -78,7 +78,15 @@ namespace zero.core.models.protobuffer
         public TBatch[] Get()
         {
             var tmp = _batch;
-            _batch = null;
+            if (_batch != null)
+            {
+                _batch = null;
+            }
+            else
+            {
+                throw new NullReferenceException($"{Description}: Unable to fetch batch. Non set!");
+            }
+            
             return tmp;
         }
 
@@ -96,11 +104,22 @@ namespace zero.core.models.protobuffer
         
         private async ValueTask ClearAsync()
         {
-            foreach (var ioNanoprobe in _batch)
+            if (_batch != null)
             {
-                if (ioNanoprobe == null)
-                    break;
-                await ioNanoprobe.ZeroAsync(this).ConfigureAwait(false);
+                foreach (var msg in _batch)
+                {
+                    if (msg == default)
+                        break;
+
+                    try
+                    {
+                        await msg.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Trace(e, $"{Description}");
+                    }
+                }    
             }
         }
 

@@ -18,7 +18,7 @@ namespace zero.core.data.providers.redis
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoRedisBase() : base($"{nameof(IoRedisBase)}")
+        public IoRedisBase() : base($"{nameof(IoRedisBase)}", 1)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

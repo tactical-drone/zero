@@ -15,7 +15,7 @@ namespace zero.core.patterns.semaphore
     {
         public IoZeroSemaphoreSlim(CancellationToken asyncTasks, 
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int maxAsyncWork = 0, int initialCount = 0,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}")
+            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}", maxBlockers)
         {
             _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             _semaphore.ZeroRef(ref _semaphore, asyncTasks);
@@ -77,6 +77,9 @@ namespace zero.core.patterns.semaphore
         }
 
         public int ReadyCount => _semaphore.ReadyCount;
+        
+        public uint NrOfBlockers => _semaphore.NrOfBlockers;
+
         public void SignalWorker()
         {
             _semaphore.SignalWorker();

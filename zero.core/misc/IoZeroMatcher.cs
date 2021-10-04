@@ -29,9 +29,9 @@ namespace zero.core.misc
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _challenges = new IoZeroQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
+            _lut = new IoZeroQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
 
-            _heap = new IoHeap<IoChallenge>(_capacity)
+            _valHeap = new IoHeap<IoChallenge>(_capacity)
             {
                 Make = _ => new IoChallenge()
             };
@@ -47,7 +47,7 @@ namespace zero.core.misc
         /// Holds requests
         /// </summary>
         //private readonly ConcurrentDictionary<string, System.Collections.Generic.List<IoChallenge>> _challenges = new ConcurrentDictionary<string, System.Collections.Generic.List<IoChallenge>>();
-        private IoZeroQueue<IoChallenge> _challenges;
+        private IoZeroQueue<IoChallenge> _lut;
 
         /// <summary>
         /// Time to live
@@ -58,7 +58,7 @@ namespace zero.core.misc
         /// <summary>
         /// The heap
         /// </summary>
-        private IoHeap<IoChallenge> _heap;
+        private IoHeap<IoChallenge> _valHeap;
 
         /// <summary>
         /// zero unmanaged
@@ -66,11 +66,11 @@ namespace zero.core.misc
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-            _heap.ZeroUnmanaged();
+            _valHeap.ZeroUnmanaged();
 
 #if SAFE_RELEASE
-            _challenges = null;
-            _heap = null;
+            _lut = null;
+            _valHeap = null;
 #endif
         }
 
@@ -87,9 +87,9 @@ namespace zero.core.misc
             //    return ValueTask.CompletedTask;
             //}).FastPath().ConfigureAwait(false);
 
-            await _challenges.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await _lut.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
-            await _heap.ZeroManaged().FastPath().ConfigureAwait(false);
+            await _valHeap.ZeroManaged().FastPath().ConfigureAwait(false);
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
@@ -106,18 +106,18 @@ namespace zero.core.misc
         {
             try
             {
-                _heap.Take(out var challenge);
+                _valHeap.Take(out var challenge);
 
                 if (challenge == null)
                     throw new OutOfMemoryException(
-                        $"{Description}: {nameof(_heap)} - heapSize = {_heap.CurrentHeapSize}, ref = {_heap.ReferenceCount}");
+                        $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.CurrentHeapSize}, ref = {_valHeap.ReferenceCount}");
 
                 challenge.Payload = body;
                 challenge.Key = key;
                 challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 challenge.Hash = 0;
 
-                return await _challenges.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
+                return await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
             }
             catch(Exception e)
             {
@@ -148,13 +148,14 @@ namespace zero.core.misc
         {
             IoChallenge potential = default;
             var cmp = reqHash.Memory;
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             try
             {
-                var cur = _challenges.Last;
+                var cur = _lut.Last;
                 while(cur != null)
                 {
-                    if (cur.Value.Key == key)
+                    if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
                     {
                         potential = cur.Value;
                         if (potential.Hash == 0)
@@ -166,10 +167,17 @@ namespace zero.core.misc
 
                         if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
                         {
-                            await _challenges.RemoveAsync(cur).FastPath().ConfigureAwait(false);
-                            await _heap.ReturnAsync(potential).FastPath().ConfigureAwait(false);
+                            await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(false);
+                            await _valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(false);
                             return  potential.TimestampMs.ElapsedMs() < _ttlMs;
                         }
+                    }
+                    
+                    //drop old ones while we are at it
+                    if (cur.Value.TimestampMs.ElapsedMs() > _ttlMs)
+                    {
+                        await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(false);
+                        await _valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(false);
                     }
 
                     cur = cur.Prev;
@@ -179,34 +187,34 @@ namespace zero.core.misc
             {
                 try
                 {
-                    if (_challenges.Count > _capacity / 2)
+                    if (_lut.Count > _capacity / 2)
                     {
-                        for (var n = _challenges.Last; n != null; n = n.Prev)
+                        for (var n = _lut.Last; n != null; n = n.Prev)
                         {
-                            
                             if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                             {
-                                await _challenges.RemoveAsync(n).ConfigureAwait(false);
-                                await _heap.ReturnAsync(n.Value).FastPath().ConfigureAwait(false); ;
+                                await _lut.RemoveAsync(n).ConfigureAwait(false);
+                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(false); ;
                             }
                             else if (potential?.Key != null && potential.Key == n.Value.Key &&
                                      n.Value.TimestampMs < potential.TimestampMs)
                             {
-                                await _challenges.RemoveAsync(n).ConfigureAwait(false);
-                                await _heap.ReturnAsync(n.Value).FastPath().ConfigureAwait(false); ;
+                                await _lut.RemoveAsync(n).ConfigureAwait(false);
+                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(false); ;
                             }
                         }
                     }
                 }
-                catch
+                catch(Exception e)
                 {
+                    Console.WriteLine(e);
                     // ignored
                 }
             }
             return false;
         }
 
-/// <summary>
+        /// <summary>
         /// Dump challenges into target matcher
         /// </summary>
         /// <param name="target"></param>
@@ -217,10 +225,10 @@ namespace zero.core.misc
                 return;
             try
             {
-                var cur = _challenges.First;
+                var cur = _lut.First;
                 while (cur != null)
                 {
-                    await target._challenges.EnqueueAsync(cur.Value).FastPath().ConfigureAwait(false);
+                    await target._lut.EnqueueAsync(cur.Value).FastPath().ConfigureAwait(false);
                     cur = cur.Next;
                 }
             }
@@ -238,8 +246,8 @@ namespace zero.core.misc
         /// <returns>true on success, false otherwise</returns>
         public async ValueTask<bool> RemoveAsync(IoZeroQueue<IoChallenge>.IoZNode node)
         {
-            await _challenges.RemoveAsync(node).FastPath().ConfigureAwait(false);
-            await _heap.ReturnAsync(node.Value).FastPath().ConfigureAwait(false); ;
+            await _lut.RemoveAsync(node).FastPath().ConfigureAwait(false);
+            await _valHeap.ReturnAsync(node.Value).FastPath().ConfigureAwait(false); ;
 
             return true;
         }
@@ -247,7 +255,7 @@ namespace zero.core.misc
         /// <summary>
         /// Challenges held
         /// </summary>
-        public int Count => _challenges.Count;
+        public int Count => _lut.Count;
 
 #if DEBUG
         /// <summary>

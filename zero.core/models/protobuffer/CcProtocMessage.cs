@@ -91,7 +91,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 64;//TODO
+        public int parm_max_msg_batch_size = 256;//TODO tuning
 
         /// <summary>
         /// Message rate

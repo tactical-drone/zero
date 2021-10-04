@@ -145,7 +145,6 @@ namespace zero.core.models.protobuffer.sources
         /// <returns>Async task</returns>
         public async ValueTask<bool> EnqueueAsync(TBatch[] item)
         {
-            ValueTask<bool> backPressure = default;
             bool plugged = false;
             try
             {
@@ -156,7 +155,8 @@ namespace zero.core.models.protobuffer.sources
                 plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(false) != null;
 
                 _queuePressure.Release();
-
+                
+                //Console.WriteLine("e");
                 return plugged;
             }
             catch (Exception e)
@@ -178,7 +178,7 @@ namespace zero.core.models.protobuffer.sources
             {
                 if (!await _queuePressure.WaitAsync().FastPath().ConfigureAwait(false))
                     return null;
-
+                
                 return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(false);
             }
             catch (Exception e)

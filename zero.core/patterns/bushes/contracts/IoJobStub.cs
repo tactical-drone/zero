@@ -30,7 +30,7 @@ namespace zero.core.patterns.bushes.contracts
             throw new NotImplementedException();
         }
 
-        public IoJobStub(string description) : base(description)
+        public IoJobStub(string description) : base($"{nameof(IoJobStub)}:{description}", 0)
         {
         }
     }

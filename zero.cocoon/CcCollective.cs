@@ -231,7 +231,7 @@ namespace zero.cocoon
                         _logger.Error(e, $"Failed to ensure {_autoPeering.Neighbors.Count} peers");
                     }
                 }
-            }, AsyncTasks.Token,TaskCreationOptions.LongRunning /*| TaskCreationOptions.PreferFairness*/, TaskScheduler.Current);
+            }, AsyncTasks.Token,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //Emit collective event
             AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -922,9 +922,9 @@ namespace zero.cocoon
                         var droneTask = Task.Factory.StartNew(async () =>
                         {
                             await drone.AssimilateAsync().ConfigureAwait(false);
-                        }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+                        }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-                        NeighborTasks.Add(droneTask);
+                        NeighborTasks.Add(droneTask.Unwrap());
                         return true;
                     }
                     else
@@ -948,7 +948,7 @@ namespace zero.cocoon
         }
 
         private static readonly float _lambda = 100;
-        private static readonly int _maxAsyncConnectionAttempts = 3;
+        private static readonly int _maxAsyncConnectionAttempts = 2;
         private static readonly int _zeroAtomicConcurrency = 16;
 
         private int _currentOutboundConnectionAttempts;

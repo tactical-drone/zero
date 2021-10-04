@@ -116,7 +116,7 @@ namespace zero.core.patterns.queue
                 _syncRoot.Release();
             }
 
-            await _syncRoot.ZeroAsync(new IoNanoprobe($"{_description}")).ConfigureAwait(false);
+            await _syncRoot.ZeroAsync(new IoNanoprobe($"{_description}")).FastPath().ConfigureAwait(false);
             _syncRoot = null;
         }
 
@@ -203,16 +203,12 @@ namespace zero.core.patterns.queue
                 var p = _tail.Prev;
                 if (p != null)
                     p.Next = null;
-
-                Interlocked.Decrement(ref _count);
-
+                
                 //plumbing
-                if (_head == _tail)
-                    _head = _tail = null;
-                else if(_count > 1)
+                if(Interlocked.Decrement(ref _count) > 0)
                     _tail = p;
                 else
-                    _tail = _head;
+                    _head = _tail = null;
             }
             finally
             {
@@ -275,9 +271,9 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                _syncRoot.Release();
                 node!.Prev = null;
                 node!.Next = null;
-                _syncRoot.Release();
             }
 
             await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false);

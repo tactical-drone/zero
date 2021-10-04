@@ -174,12 +174,12 @@ namespace zero.core.core
                                 else//else drop existing
                                 {
                                     _logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).ConfigureAwait(false);
+                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).FastPath().ConfigureAwait(false);
                                 }
                             }
                         }
 
-                        ZeroOnCascade(newNeighbor); 
+                        //ZeroOnCascade(newNeighbor); 
 
                         //Add new neighbor
                         return await newNeighbor.ZeroAtomicAsync((s2, u2, d2) =>
@@ -241,12 +241,10 @@ namespace zero.core.core
         {
             try
             {
-                //DefaultScheduler.Instance.AsLongRunning(newNeighbor.AssimilateAsync());
-
-                var assimilation = Task.Factory.StartNew(async () =>
+                var assimilation = ZeroAsync(static async newNeighbor =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
-                }, AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).AsTask();
 
                 NeighborTasks.Add(assimilation);
 
@@ -301,7 +299,7 @@ namespace zero.core.core
                     //New neighbor?
                     if (Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
                     {
-                        ZeroOnCascade(newNeighbor);
+                        //ZeroOnCascade(newNeighbor);
                         return true;
                     }
 
@@ -413,11 +411,6 @@ namespace zero.core.core
 
             try
             {
-                //_listenerTask?.GetAwaiter().GetResult();
-                foreach (var neighborTask in NeighborTasks)
-                {
-                    neighborTask.Dispose();
-                }
                 await Task.WhenAll(NeighborTasks).ConfigureAwait(false); //TODO teardown
             }
             catch

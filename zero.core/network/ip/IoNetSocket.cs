@@ -21,7 +21,8 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socketType"></param>
         /// <param name="protocolType"></param>
-        protected IoNetSocket(SocketType socketType, ProtocolType protocolType) : base(socketType, protocolType)
+        /// <param name="concurrencyLevel"></param>
+        protected IoNetSocket(SocketType socketType, ProtocolType protocolType, int concurrencyLevel) : base(socketType, protocolType, concurrencyLevel)
         {
 
         }
@@ -31,7 +32,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="nativeSocket">The socket to wrap</param>
         /// <param name="remoteEndPoint">Optional remote endpoint specification</param>
-        protected IoNetSocket(Socket nativeSocket, IPEndPoint remoteEndPoint = null) : base(nativeSocket, remoteEndPoint)
+        protected IoNetSocket(Socket nativeSocket, EndPoint remoteEndPoint = null) : base(nativeSocket, 1,remoteEndPoint)
         {
 
         }

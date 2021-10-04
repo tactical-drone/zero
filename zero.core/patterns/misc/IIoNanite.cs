@@ -58,7 +58,7 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        ValueTask Unsubscribe(IoZeroSub sub);
+        void Unsubscribe(IoZeroSub sub);
 
         /// <summary>
         /// Ensures that this action is synchronized 

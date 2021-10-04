@@ -20,7 +20,7 @@ namespace zero.core.data.providers.cassandra
     /// <typeparam name="TKey">key type</typeparam>
     public abstract class IoCassandraBase<TKey> : IoNanoprobe
     {
-        protected IoCassandraBase(IIoCassandraKeySpace keySpaceConfiguration) : base($"{nameof(IoCassandraBase<TKey>)}")
+        protected IoCassandraBase(IIoCassandraKeySpace keySpaceConfiguration) : base($"{nameof(IoCassandraBase<TKey>)}",1)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _keySpaceConfiguration = keySpaceConfiguration;            

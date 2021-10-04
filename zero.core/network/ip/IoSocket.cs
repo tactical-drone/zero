@@ -19,7 +19,8 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="socketType">The socket type</param>
         /// <param name="protocolType">The protocol type, <see cref="F:System.Net.Sockets.ProtocolType.Tcp" /> or <see cref="F:System.Net.Sockets.ProtocolType.Udp" /></param>
-        protected IoSocket(SocketType socketType, ProtocolType protocolType) : base($"{nameof(IoSocket)}")
+        /// <param name="concurrencyLevel">Concurrency level</param>
+        protected IoSocket(SocketType socketType, ProtocolType protocolType, int concurrencyLevel) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             NativeSocket = new Socket(AddressFamily.InterNetwork, socketType, protocolType);
@@ -30,8 +31,9 @@ namespace zero.core.network.ip
         /// Used by listeners
         /// </summary>
         /// <param name="nativeSocket">The socket</param>
+        /// <param name="concurrencyLevel"></param>
         /// <param name="remoteEndPoint">The remote endpoint of this connection in the case of a UDP. TCP unused.</param>
-        protected IoSocket(Socket nativeSocket, IPEndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}")
+        protected IoSocket(Socket nativeSocket, int concurrencyLevel, EndPoint remoteEndPoint = null) : base($"{nameof(IoSocket)}", concurrencyLevel)
         {
             NativeSocket = nativeSocket ?? throw new ArgumentNullException($"{nameof(nativeSocket)}");
             LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(NativeSocket.ProtocolType.ToString().ToLower(), (IPEndPoint)NativeSocket.LocalEndPoint);
@@ -196,7 +198,7 @@ namespace zero.core.network.ip
 #if SAFE_RELEASE
             _logger = null;
             LocalNodeAddress = null;
-            //RemoteNodeAddress = null;
+            RemoteNodeAddress = null;
             NativeSocket = null;
 #endif
         }
