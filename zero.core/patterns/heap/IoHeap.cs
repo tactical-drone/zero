@@ -110,7 +110,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public async ValueTask ZeroManaged(Func<T,ValueTask> zeroAction = null)
+        public async ValueTask ZeroManagedAsync<TN>(Func<T,TN,ValueTask> zeroAction = null, TN nanite = default)
         {
             if (zeroAction != null)
             {
@@ -121,7 +121,7 @@ namespace zero.core.patterns.heap
                         //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
                         // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
                         // to zero eventually?
-                        await zeroAction.Invoke(h).FastPath().ConfigureAwait(false);
+                        await zeroAction(h,nanite).FastPath().ConfigureAwait(false);
                     }
                     catch { }
                 }

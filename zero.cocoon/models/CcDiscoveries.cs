@@ -90,7 +90,7 @@ namespace zero.cocoon.models
             if (_protocolMsgBatch != null)
                 _arrayPool.Return(_protocolMsgBatch, true);
 
-            await _batchMsgHeap.ZeroManaged(batch =>
+            await _batchMsgHeap.ZeroManagedAsync<object>((batch,_) =>
             {
                 batch.RemoteEndPoint = null;
                 batch.Zero = null;

@@ -49,16 +49,18 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="enumerable"></param>
         /// <param name="action"></param>
+        /// <param name="nanite"></param>
         /// <typeparam name="T"></typeparam>
+        /// <typeparam name="TN"></typeparam>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static async ValueTask ForEachAsync<T>(this List<T> enumerable, Func<T, ValueTask> action)
+        public static async ValueTask ForEachAsync<T,TN>(this List<T> enumerable, Func<T, TN, ValueTask> action, TN nanite = default)
         {
             foreach (var item in enumerable)                
                 await Task.Factory.StartNew(static async state =>
                 {
-                    var (action, item) = (ValueTuple<Func<T, ValueTask>, T>)state;
-                    await action(item).FastPath().ConfigureAwait(false);
-                }, ValueTuple.Create(action, item)).ConfigureAwait(false);
+                    var (action, item, nanite) = (ValueTuple<Func<T,TN, ValueTask>, T, TN>)state;
+                    await action(item,nanite).FastPath().ConfigureAwait(false);
+                }, ValueTuple.Create(action, item,nanite)).ConfigureAwait(false);
         }
 
         /// <summary>

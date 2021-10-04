@@ -89,7 +89,7 @@ namespace zero.core.misc
 
             await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
 
-            await _valHeap.ZeroManaged().FastPath().ConfigureAwait(false);
+            await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
@@ -104,25 +104,40 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<IoZeroQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
         {
+            IoChallenge challenge = null;
+            IoZeroQueue<IoChallenge>.IoZNode node = null;
             try
             {
-                _valHeap.Take(out var challenge);
+                _valHeap.Take(out challenge);
 
                 if (challenge == null)
-                    throw new OutOfMemoryException(
+                {
+                    await ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(false);
+                    _valHeap.Take(out challenge);
+                    
+                    if (challenge == null)
+                        throw new OutOfMemoryException(
                         $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.CurrentHeapSize}, ref = {_valHeap.ReferenceCount}");
-
+                }
+                
                 challenge.Payload = body;
                 challenge.Key = key;
                 challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 challenge.Hash = 0;
 
-                return await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
+                node = await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
+                return node;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 LogManager.GetCurrentClassLogger().Fatal(e);
                 // ignored
+            }
+            finally
+            {
+                if (challenge!= null && node == null && _valHeap != null)
+                    await _valHeap.ReturnAsync(challenge)
+                        .FastPath().ConfigureAwait(false);
             }
 
             return null;

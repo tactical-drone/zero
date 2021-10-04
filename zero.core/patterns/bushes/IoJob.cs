@@ -191,7 +191,7 @@ namespace zero.core.patterns.bushes
             if(_stateMeta != null)
                 await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(false);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
-            await _stateHeap.ZeroManaged().FastPath().ConfigureAwait(false);
+            await _stateHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
 #endif
             if (PreviousJob != null)
                 await PreviousJob.ZeroAsync(this).FastPath().ConfigureAwait(false);

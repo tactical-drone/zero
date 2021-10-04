@@ -92,7 +92,7 @@ namespace zero.core.patterns.queue
                 _head = null;
                 _tail = null;
 
-                await _nodeHeap.ZeroManaged().FastPath().ConfigureAwait(false);
+                await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
                 _nodeHeap = null;
 
                 _asyncTasks.Dispose();

@@ -129,8 +129,9 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual ValueTask ListenAsync(IoNodeAddress listeningAddress,
-            Func<IoSocket, ValueTask> acceptConnectionHandler,
+        public virtual ValueTask ListenAsync<T>(IoNodeAddress listeningAddress,
+            Func<IoSocket, T, ValueTask> acceptConnectionHandler,
+            T nanite,
             Func<ValueTask> bootstrapAsync = null)
         {
             //If there was a coding mistake throw

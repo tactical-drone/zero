@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -39,27 +40,29 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask ListenAsync(Func<IoNetClient<TJob>, ValueTask> connectionReceivedAction,
+        public override async ValueTask ListenAsync<T>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction,
+            T nanite = default,
             Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, bootstrapAsync).FastPath().ConfigureAwait(false);
+            await base.ListenAsync<T>(connectionReceivedAction, nanite, bootstrapAsync).FastPath().ConfigureAwait(false);
 
             IoListenSocket = ZeroOnCascade(new IoTcpSocket(ZeroConcurrencyLevel()), true).target;
 
-            await IoListenSocket.ListenAsync(ListeningAddress, async newConnectionSocket =>
+            await IoListenSocket.ListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
+                var (@this, nanite,connectionReceivedAction) = state;
                 try
                 {
-                    connectionReceivedAction?.Invoke(ZeroOnCascade(new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", (IoNetSocket) newConnectionSocket, ReadAheadBufferSize, ConcurrencyLevel)).target);
+                    await connectionReceivedAction(nanite,@this.ZeroOnCascade(new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", (IoNetSocket) newConnectionSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).target).FastPath().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, $"Connection received handler returned with errors:");
+                    @this._logger.Error(e, $"Connection received handler returned with errors:");
 
-                    await newConnectionSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                    await newConnectionSocket.ZeroAsync(@this).FastPath().ConfigureAwait(false);
 
                 }
-            }, bootstrapAsync).FastPath().ConfigureAwait(false);
+            }, ValueTuple.Create(this, nanite, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

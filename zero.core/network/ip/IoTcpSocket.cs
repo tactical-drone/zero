@@ -65,12 +65,13 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">A handler that is called once a new connection was formed</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        public override async ValueTask ListenAsync(IoNodeAddress listeningAddress,
-            Func<IoSocket, ValueTask> acceptConnectionHandler,
+        public override async ValueTask ListenAsync<T>(IoNodeAddress listeningAddress,
+            Func<IoSocket, T,ValueTask> acceptConnectionHandler,
+            T nanite,
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.ListenAsync(listeningAddress, acceptConnectionHandler, bootstrapAsync).ConfigureAwait(false);
+            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(false);
             
             //Configure the socket
             Configure();
@@ -116,11 +117,11 @@ namespace zero.core.network.ip
                     try
                     {
                         //ZERO
-                        await acceptConnectionHandler(newSocket).ConfigureAwait(false);
+                        await acceptConnectionHandler(newSocket, nanite).FastPath().ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
-                        await newSocket.ZeroAsync(this).ConfigureAwait(false);
+                        await newSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -151,7 +152,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            if (!await base.ConnectAsync(remoteAddress).ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false))
                 return false;
 
             NativeSocket.Blocking = false;
@@ -162,7 +163,7 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint).ConfigureAwait(false);
+                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token).FastPath().ConfigureAwait(false);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint( "tcp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint) NativeSocket.RemoteEndPoint);
 

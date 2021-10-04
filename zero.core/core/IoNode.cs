@@ -131,31 +131,32 @@ namespace zero.core.core
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             _netServer.ZeroOnCascade(this);
 
-            await _netServer.ListenAsync(async ioNetClient =>
+            await _netServer.ListenAsync(static async (state, ioNetClient) =>
             {
+                var (@this,nanite, acceptConnection) = state;
                 if (ioNetClient == null)
                     return;
 
-                var newNeighbor = MallocNeighbor(this, ioNetClient, null);
+                var newNeighbor = @this.MallocNeighbor(@this, ioNetClient, null);
 
                 //superclass specific mutations
                 try
                 {
-                    if (acceptConnection != null && !await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(false))
+                    if (acceptConnection != null && !await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(false)) //TODO ?
                     {
-                        _logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                        await newNeighbor.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
+                        await newNeighbor.ZeroAsync(@this).FastPath().ConfigureAwait(false);
                         return;
                     }
                 }
                 catch (Exception e)
                 {
-                    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-                    _logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
+                    await newNeighbor.ZeroAsync(@this).ConfigureAwait(false);
+                    @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
                     return;
                 }
 
-                if (await ZeroAtomicAsync(static async (_,state, _) =>
+                if (await @this.ZeroAtomicAsync(static async (_,state, _) =>
                 {
                     var (@this, newNeighbor) = state;
                     try
@@ -221,19 +222,19 @@ namespace zero.core.core
                     catch (TaskCanceledException) { return false; }
                     catch (OperationCanceledException) { return false; }
                     catch (ObjectDisposedException) { return false; }
-                },ValueTuple.Create(this, newNeighbor)).ConfigureAwait(false))
+                },ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(false))
                 {
                     //New peer connection event
                     //ConnectedEvent?.Invoke(this, newNeighbor);
 
                     //Start the source consumer on the neighbor scheduler
-                    Assimilate(newNeighbor);
+                    @this.Assimilate(newNeighbor);
                 }
                 else
                 {
-                    await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                    await newNeighbor.ZeroAsync(@this).ConfigureAwait(false);
                 }
-            }, bootstrapAsync).FastPath().ConfigureAwait(false);
+            }, ValueTuple.Create(this,nanite,acceptConnection),bootstrapAsync).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

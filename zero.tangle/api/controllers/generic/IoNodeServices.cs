@@ -112,14 +112,15 @@ namespace zero.tangle.api.controllers.generic
 
                 Stopwatch stopwatch = new Stopwatch();
                 var task = Nodes.SelectMany(n => n.Value.Neighbors).Select(n => n.Value).ToList()
-                    .ForEachAsync(async n =>
+                    .ForEachAsync(static async (n,state) =>
                     {
+                        var (@this, stopwatch,count,tagQuery,transactions,outstanding,freeBufferSpace) =state;
                         var relaySource = await n.Source.CreateConduitOnceAsync<IoTangleTransaction<TKey>>(nameof(IoNodeServices<TKey>)).ConfigureAwait(false);
 
                         if (relaySource != null)
                         {
                             stopwatch.Start();
-                            count = 0;
+                            Interlocked.Exchange(ref count, 0);
                             while (Interlocked.Read(ref relaySource.JobHeap.ReferenceCount) > 0)
                             {
                                 await relaySource.ConsumeAsync<object>((message,_) =>
@@ -130,7 +131,7 @@ namespace zero.tangle.api.controllers.generic
 
                                     var msg = ((IoTangleTransaction<TKey>)message);
 
-                                    if (count > 50)
+                                    if (Volatile.Read(ref count) > 50)
                                         return ValueTask.CompletedTask;
 
                                     if (msg.Transactions == null)
@@ -149,7 +150,7 @@ namespace zero.tangle.api.controllers.generic
                                             {
                                                 transactions.Add(t);
                                             }
-                                            if (++count > 50)
+                                            if (Interlocked.Increment(ref count) > 50)
                                                 break;
                                         }
 
@@ -165,12 +166,12 @@ namespace zero.tangle.api.controllers.generic
                                 }).FastPath().ConfigureAwait(false);
                             }
                             stopwatch.Stop();
-                            outstanding = relaySource.JobHeap.ReferenceCount;
-                            freeBufferSpace = relaySource.JobHeap.FreeCapacity();
+                            Interlocked.Exchange(ref outstanding, relaySource.JobHeap.ReferenceCount);
+                            Interlocked.Exchange(ref freeBufferSpace, relaySource.JobHeap.FreeCapacity());
                         }
                         else
-                            _logger.Warn($"Waiting for multicast source `{n.Source.Description}' to initialize...");
-                    });
+                            @this._logger.Warn($"Waiting for multicast source `{n.Source.Description}' to initialize...");
+                    }, ValueTuple.Create(this,stopwatch,count,tagQuery,transactions,outstanding,freeBufferSpace));
                 return IoApiReturn.Result(true, $"Queried listener at port `{id}', found `{transactions.Count}' transactions, scanned= `{count}', backlog= `{outstanding}', free= `{freeBufferSpace}', t= `{stopwatch.ElapsedMilliseconds} ms'", transactions, stopwatch.ElapsedMilliseconds);
             }
             catch (Exception e)

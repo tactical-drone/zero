@@ -243,17 +243,16 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _queue.ZeroManagedAsync<object>(async (sink,_) => await sink.ZeroAsync(this).FastPath().ConfigureAwait(false)).FastPath().ConfigureAwait(false);
+            await _queue.ZeroManagedAsync(static async (sink,@this) => await sink.ZeroAsync(@this).FastPath().ConfigureAwait(false), this).FastPath().ConfigureAwait(false);
 
             _previousJobFragment.ToList().ForEach(job => job.ZeroAsync(this).ConfigureAwait(false));
 
             _previousJobFragment.Clear();
 
-            await JobHeap.ZeroManaged(async sink =>
+            await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
             {
-                
-                await sink.ZeroAsync(this).FastPath().ConfigureAwait(false);
-            }).FastPath().ConfigureAwait(false);
+                await sink.ZeroAsync(@this).FastPath().ConfigureAwait(false);
+            },this).FastPath().ConfigureAwait(false);
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 

@@ -92,7 +92,8 @@ namespace zero.core.network.ip
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
         /// <param name="bootstrapAsync">Bootstrap code</param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual ValueTask ListenAsync(Func<IoNetClient<TJob>, ValueTask> connectionReceivedAction,
+        public virtual ValueTask ListenAsync<T>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction,
+            T nanite = default,
             Func<ValueTask> bootstrapAsync = null)
         {
             if (IoListenSocket != null)

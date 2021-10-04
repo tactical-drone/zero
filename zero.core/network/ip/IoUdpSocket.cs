@@ -119,7 +119,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _recvArgs.ZeroManaged(o =>
+            await _recvArgs.ZeroManagedAsync<object>((o, _) =>
             {
                 o.Completed -= Signal;
                 o.UserToken = null;
@@ -129,7 +129,7 @@ namespace zero.core.network.ip
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
-            await _sendArgs.ZeroManaged(o =>
+            await _sendArgs.ZeroManagedAsync<object>((o,_) =>
             {
                 o.Completed -= Signal;
                 o.UserToken = null;
@@ -139,7 +139,7 @@ namespace zero.core.network.ip
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
-            await _tcsHeap.ZeroManaged(o =>
+            await _tcsHeap.ZeroManagedAsync<object>((o,_) =>
             {
                 o.Zero();
                 return ValueTask.CompletedTask;
@@ -166,12 +166,13 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
         /// <param name="bootstrapAsync">Bootstrap callback invoked when a listener has started</param>
         /// <returns>True if successful, false otherwise</returns>
-        public override async ValueTask ListenAsync(IoNodeAddress listeningAddress,
-            Func<IoSocket, ValueTask> acceptConnectionHandler,
+        public override async ValueTask ListenAsync<T>(IoNodeAddress listeningAddress,
+            Func<IoSocket,T, ValueTask> acceptConnectionHandler,
+            T nanite,
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.ListenAsync(listeningAddress, acceptConnectionHandler, bootstrapAsync).ConfigureAwait(false);
+            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite,bootstrapAsync).FastPath().ConfigureAwait(false);
 
 
             //set some socket options
@@ -194,12 +195,22 @@ namespace zero.core.network.ip
             {
                 _logger.Trace($"Waiting for a new connection to {LocalNodeAddress}...");
 
+                try
+                {
+                    //ZERO
+                    await acceptConnectionHandler(this, nanite).FastPath().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, $"There was an error handling a new connection from {this.RemoteNodeAddress} to `{this.LocalNodeAddress}'");
+                }
+                
                 //Call the new connection established handler
-                await acceptConnectionHandler(this).ConfigureAwait(false);
+                
 
                 //Bootstrap on listener start
                 if (bootstrapAsync != null)
-                    await bootstrapAsync().ConfigureAwait(false);
+                    await bootstrapAsync().FastPath().ConfigureAwait(false);
 
                 while (!Zeroed())
                 {
@@ -228,14 +239,14 @@ namespace zero.core.network.ip
 
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            if (!await base.ConnectAsync(remoteAddress).ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false))
                 return false;
 
             Configure();
 
             try
             {
-                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint).ConfigureAwait(false);
+                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token).FastPath().ConfigureAwait(false);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.RemoteEndPoint);
             }

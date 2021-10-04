@@ -243,10 +243,11 @@ namespace zero.cocoon.models
                         if(broadCastDelay > 0)
                             await Task.Delay(broadCastDelay, AsyncTasks.Token).ConfigureAwait(false);
                         
-                        await CcCollective.WhisperingDrones.ForEachAsync(async d =>
+                        await CcCollective.WhisperingDrones.ForEachAsync(static async (d,state) =>
                         {
-                            await ForwardMessage(d).ConfigureAwait(false);
-                        }).ConfigureAwait(false);    
+                            var (@this, forwardMessage) = state;
+                            await forwardMessage(d).ConfigureAwait(false);
+                        },ValueTuple.Create<CcWhispers,Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>,ValueTask>>(this,ForwardMessage)).ConfigureAwait(false);    
                     }
 
                     var architect = _random.Next(16);
