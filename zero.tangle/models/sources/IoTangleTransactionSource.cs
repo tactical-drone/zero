@@ -89,17 +89,18 @@ namespace zero.tangle.models.sources
         /// Produces the specified callback.
         /// </summary>
         /// <param name="callback">The callback.</param>
+        /// <param name="nanite"></param>
         /// <param name="barrier"></param>
-        /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns>The async task</returns>        
-        public override async ValueTask<bool> ProduceAsync(
-            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, ValueTask<bool>> callback,
-            Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
+        public override async ValueTask<bool> ProduceAsync<T>(
+            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            T nanite = default,
+            Func<IIoJob, T, ValueTask<bool>> barrier = null, IIoJob jobClosure = null)
         {                        
             try
             {
-                return await callback(this, barrier, zeroClosure, jobClosure);
+                return await callback(this, barrier, nanite, jobClosure);
             }
             catch (TimeoutException)
             {

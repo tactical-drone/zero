@@ -112,9 +112,9 @@ namespace zero.cocoon.models.test
         /// produce a gossip message
         /// </summary>
         /// <param name="barrier">Used to synchronize</param>
-        /// <param name="zeroClosure">Used to avoid variable captures</param>
+        /// <param name="nanite">Used to avoid variable captures</param>
         /// <returns>State</returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {
             try
             {
@@ -190,7 +190,7 @@ namespace zero.cocoon.models.test
 
                         return false;
                     }
-                }, barrier, zeroClosure, this).ConfigureAwait(false);
+                }, nanite, barrier, this).ConfigureAwait(false);
 
                 if (!produced)
                 {

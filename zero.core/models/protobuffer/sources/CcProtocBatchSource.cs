@@ -122,18 +122,17 @@ namespace zero.core.models.protobuffer.sources
         {
             _queuePressure.Zero();
             //_queueBackPressure.Zero();
-            await MessageQueue.ZeroManagedAsync(async msgBatch =>
+            await MessageQueue.ZeroManagedAsync(static async (msgBatch,@this) =>
             {
                 foreach (var msg in msgBatch)
                 {
                     if(msg == null)
                         break;
                     
-
-                    await msg.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                    await msg.ZeroAsync(@this).FastPath().ConfigureAwait(false);
                 }
                     
-            }).FastPath().ConfigureAwait(false);
+            },this).FastPath().ConfigureAwait(false);
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
@@ -213,18 +212,19 @@ namespace zero.core.models.protobuffer.sources
         /// Produces the specified callback.
         /// </summary>
         /// <param name="callback">The callback.</param>
+        /// <param name="nanite"></param>
         /// <param name="barrier"></param>
-        /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns>The async task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override async ValueTask<bool> ProduceAsync(
-            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, ValueTask<bool>> callback,
-            Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
+        public override async ValueTask<bool> ProduceAsync<T>(
+            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            T nanite = default,
+            Func<IIoJob, T, ValueTask<bool>> barrier = null, IIoJob jobClosure = null)
         {
             try
             {
-                return await callback(this, barrier, zeroClosure, jobClosure).FastPath().ConfigureAwait(false);
+                return await callback(this, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
             }
             catch (TimeoutException e)
             {

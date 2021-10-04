@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -121,7 +122,7 @@ namespace zero.core.core
         /// <summary>
         /// Starts the node's listener
         /// </summary>
-        protected virtual async ValueTask SpawnListenerAsync(Func<IoNeighbor<TJob>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
+        protected virtual async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
@@ -140,11 +141,10 @@ namespace zero.core.core
                 //superclass specific mutations
                 try
                 {
-                    if (acceptConnection != null && !await acceptConnection.Invoke(newNeighbor).FastPath().ConfigureAwait(false))
+                    if (acceptConnection != null && !await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(false))
                     {
                         _logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                        await newNeighbor.ZeroAsync(this).ConfigureAwait(false);
-
+                        await newNeighbor.ZeroAsync(this).FastPath().ConfigureAwait(false);
                         return;
                     }
                 }
@@ -189,8 +189,9 @@ namespace zero.core.core
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
                             // Remove from lists if closed
-                            var sub = newNeighbor.ZeroSubscribe(async @base =>
+                            var sub = newNeighbor.ZeroSubscribe(static async (from,state) =>
                             {
+                                var (@this, id, newNeighbor) = state;
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
                                 try
                                 {
@@ -212,7 +213,7 @@ namespace zero.core.core
                                 {
                                     @this._logger?.Trace(e, $"Removing {newNeighbor.Description} from {@this.Description}");
                                 }
-                            });
+                            }, ValueTuple.Create(@this,id, newNeighbor));
                             return ValueTask.FromResult(true);
                         }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(false);
                     }
@@ -301,27 +302,28 @@ namespace zero.core.core
                     return true;
                 }, ValueTuple.Create(this,newNeighbor)).ConfigureAwait(false))
                 {
-                    newNeighbor.ZeroSubscribe(async s =>
+                    newNeighbor.ZeroSubscribe(static async (from, state ) =>
                     {
+                        var (@this, id, newNeighbor) = state;
                         try
                         {
                             IoNeighbor<TJob> closedNeighbor = null;
-                            _logger.Trace(!(Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
+                            @this._logger.Trace(!(@this.Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
                                 ? $"Neighbor metadata expected for key `{id}'"
-                                : $"Dropped {closedNeighbor?.Description} from {Description}");
+                                : $"Dropped {closedNeighbor?.Description} from {@this.Description}");
 
                             if (closedNeighbor != null)
-                                await closedNeighbor.ZeroAsync(this).ConfigureAwait(false);
+                                await closedNeighbor.ZeroAsync(@this).ConfigureAwait(false);
                         }
                         catch (NullReferenceException e)
                         {
-                            _logger.Trace(e, Description);
+                            @this._logger?.Trace(e, @this.Description);
                         }
                         catch (Exception e)
                         {
-                            _logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {Description}");
+                            @this._logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {@this.Description}");
                         }
-                    });
+                    }, ValueTuple.Create(this, id, newNeighbor));
 
                     //TODO
                     newNeighbor.parm_producer_start_retry_time = 60000;
@@ -349,7 +351,7 @@ namespace zero.core.core
             _logger.Trace($"Unimatrix Zero: {Description}");
             try
             {
-                _listenerTask = SpawnListenerAsync(bootstrapAsync: bootstrapFunc);
+                _listenerTask = SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc);
                 await _listenerTask.FastPath().ConfigureAwait(false);
 
                 _logger.Trace(

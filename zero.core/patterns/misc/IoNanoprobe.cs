@@ -253,8 +253,9 @@ namespace zero.core.patterns.misc
         /// Subscribe to zero event
         /// </summary>
         /// <param name="sub">The handler</param>
+        /// <param name="closureState">Closure state</param>
         /// <returns>The handler</returns>
-        public IoZeroSub ZeroSubscribe(Func<IIoNanite, ValueTask> sub)
+        public IoZeroSub ZeroSubscribe<T>(Func<IIoNanite, T, ValueTask> sub, T closureState = default)
         {
             if (_zeroSubs == null)
                 return null;
@@ -262,11 +263,8 @@ namespace zero.core.patterns.misc
             IoZeroSub newSub;
             try
             {
-                _zeroSubs.Add(newSub = new IoZeroSub
-                {
-                    Action = sub,
-                    Schedule = true
-                });
+                newSub = new IoZeroSub().SetAction(sub);
+                _zeroSubs.Add(newSub);
             }
             catch (Exception e)
             {
@@ -292,7 +290,7 @@ namespace zero.core.patterns.misc
         public void Unsubscribe(IoZeroSub sub)
         {
             sub.Schedule = false;
-            sub.Action = null;
+            sub.SetAction<object>(null);
         }
 
         /// <summary>
@@ -305,10 +303,10 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return (default, false);
 
-            ZeroSubscribe(async from => await target.ZeroAsync(from).FastPath().ConfigureAwait(false));
+            ZeroSubscribe(static async (from,target) => await target.ZeroAsync(@from).FastPath().ConfigureAwait(false), target);
 
             if (twoWay) //zero
-                target.ZeroSubscribe(async from => await ZeroAsync(target).FastPath().ConfigureAwait(false));
+                target.ZeroSubscribe(static async (from,state) => await state.Item1.ZeroAsync(state.Item2).FastPath().ConfigureAwait(false), ValueTuple.Create(this, target));
             
             return (target, true);
         }
@@ -341,13 +339,10 @@ namespace zero.core.patterns.misc
                 {
                     if (!zeroSub.Schedule)
                         continue;
+                    
+                    Unsubscribe(zeroSub);
 
-                    if (zeroSub.Action != null)
-                    {
-                        var zeroAction = zeroSub.Action;
-                        Unsubscribe(zeroSub);
-                        await zeroAction(this).FastPath().ConfigureAwait(false);
-                    }
+                    await zeroSub.ExecuteAsync<object>(this).FastPath().ConfigureAwait(false);
                 }
                 //catch (NullReferenceException e)
                 //{
@@ -358,7 +353,7 @@ namespace zero.core.patterns.misc
 
                     try
                     {
-                        _logger.Fatal(e, $"zero sub {((IIoNanite) zeroSub?.Action?.Target)?.Description} on {Description} returned with errors!");
+                        _logger.Fatal(e, $"zero sub {((IIoNanite) zeroSub?.Target)?.Description} on {Description} returned with errors!");
                     }
                     catch
                     {

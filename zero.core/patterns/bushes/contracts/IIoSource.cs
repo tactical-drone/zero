@@ -125,13 +125,14 @@ namespace zero.core.patterns.bushes.contracts
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="callback">The function.</param>
+        /// <param name="nanite"></param>
         /// <param name="barrier">The barrier</param>
-        /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns></returns>
         ValueTask<bool> ProduceAsync<T>(
-            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, ValueTask<bool>> callback,
-            Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
+            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            T nanite = default,
+            Func<IIoJob, T, ValueTask<bool>> barrier = null, IIoJob jobClosure = null);
 
         /// <summary>
         /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.

@@ -1291,20 +1291,20 @@ namespace zero.cocoon.autopeer
                 //Race for 
                 case true when _direction == 0:
                 {
-                    var backoffTask = Task.Factory.StartNew(async () =>
+                    var backoffTask = ZeroAsync(static async @this =>
                     {
-                        await Task.Delay(_random.Next(parm_max_network_latency) + parm_max_network_latency/2, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency/2, @this.AsyncTasks.Token).ConfigureAwait(false);
                         var connectionTime = Stopwatch.StartNew();
-                        if (!await ConnectAsync().FastPath().ConfigureAwait(false))
+                        if (!await @this.ConnectAsync().FastPath().ConfigureAwait(false))
                         {
                             //_logge`r.Debug($"{nameof(PeeringResponse)}: FAILED to connect to {Description}");
-                            State = AdjunctState.Standby;
+                            @this.State = AdjunctState.Standby;
                             return;
                         }
 
                         Interlocked.Add(ref ConnectionTime, connectionTime.ElapsedMilliseconds);
                         Interlocked.Increment(ref ConnectionCount);
-                    }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+                    },this, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
                     break;
                 }
                 //at least probe
@@ -1615,30 +1615,31 @@ namespace zero.cocoon.autopeer
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;
 
-                var sub = newAdjunct.ZeroSubscribe(from =>
+                var sub = newAdjunct.ZeroSubscribe(static (from, state) =>
                 {
+                    var (@this, newAdjunct) = state;
                     try
                     {
-                        if (Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
+                        if (@this.Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
                             AutoPeeringEventService.AddEvent(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.RemoveAdjunct,
                                 Adjunct = new Adjunct
                                 {
-                                    CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                                    CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
                                     Id = newAdjunct.Designation.IdString(),
                                 }
                             });
 
                             if (newAdjunct != n)
                             {
-                                _logger.Fatal($"{Description}: Removing incorrect id = {n.Key}, wanted = {newAdjunct.Key}");
+                                @this._logger.Fatal($"{@this.Description}: Removing incorrect id = {n.Key}, wanted = {newAdjunct.Key}");
                             }
                             //n.ZeroedFrom ??= @from;
                             if (((CcAdjunct) n).Assimilated)
                             {
-                                _logger.Debug($"% {n.Description} - from: {@from?.Description}");
+                                @this._logger.Debug($"% {n.Description} - from: {@from?.Description}");
                             }
                         }
 
@@ -1650,7 +1651,7 @@ namespace zero.cocoon.autopeer
                     }
 
                     return ValueTask.CompletedTask;
-                });
+                },ValueTuple.Create(this,newAdjunct));
 
                 if (sub == null)
                 {
@@ -2427,17 +2428,17 @@ namespace zero.cocoon.autopeer
                 Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                _zeroCascadeSub = ZeroSubscribe(async sender =>
+                _zeroCascadeSub = ZeroSubscribe(static async (from,@this) =>
                 {
                     try
                     {
-                        await _drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        await @this._drone.ZeroAsync(@this).FastPath().ConfigureAwait(false);
                     }
                     catch
                     {
                         // ignored
                     }
-                });
+                },this);
 
                 //emit event
                 AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -2509,11 +2510,11 @@ namespace zero.cocoon.autopeer
             await SendPeerDropAsync().FastPath().ConfigureAwait(false);
 
             //back off for a while... Try to re-establish a link 
-            var t = Task.Run(async () =>
+            var t = ZeroAsync(static async @this =>
             {
-                await Task.Delay(parm_max_network_latency + _random.Next(parm_max_network_latency), AsyncTasks.Token).ConfigureAwait(false);
-                await SendPingAsync().FastPath().ConfigureAwait(false);
-            });
+                await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(false);
+                await @this.SendPingAsync().FastPath().ConfigureAwait(false);
+            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
             //emit event
             
@@ -2529,10 +2530,10 @@ namespace zero.cocoon.autopeer
 
             if(direction == Heading.Egress && CcCollective.Neighbors.Count < CcCollective.MaxDrones)
             {
-                await Task.Factory.StartNew(async () =>
+                await ZeroAsync(static async @this =>
                 {
-                    await SendPeerRequestAsync().FastPath().ConfigureAwait(false);
-                },AsyncTasks.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default).ConfigureAwait(false);    
+                    await @this.SendPeerRequestAsync().FastPath().ConfigureAwait(false);
+                },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).ConfigureAwait(false);    
             }
         }
 

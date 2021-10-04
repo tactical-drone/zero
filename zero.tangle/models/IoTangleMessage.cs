@@ -293,7 +293,7 @@ namespace zero.tangle.models
         private async Task ForwardToNodeServicesAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _nodeServicesProxy.ProduceAsync((source, _,__, ___) =>
+            await _nodeServicesProxy.ProduceAsync<object>((source, _,_,_) =>
             {                
                 ((IoTangleTransactionSource<TKey>) source).TxQueue.TryAdd(newInteropTransactions);
                 return new ValueTask<bool>(true);
@@ -309,7 +309,7 @@ namespace zero.tangle.models
         private async Task ForwardToNeighborAsync(List<IIoTransactionModel<TKey>> newInteropTransactions)
         {
             //cog the source
-            await _neighborProducer.ProduceAsync((source,_, __, ___) => ValueTask.FromResult(true));
+            await _neighborProducer.ProduceAsync<object>((source,_, _, _) => ValueTask.FromResult(true));
 
             //forward transactions
             if (!await NeighborServicesArbiter.ProduceAsync())
@@ -464,7 +464,7 @@ namespace zero.tangle.models
         /// Prepares the work to be done from the <see cref="F:erebros.core.patterns.bushes.IoProducable`1.Source" />
         /// </summary>
         /// <returns>The resulting status</returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T zeroClosure)
         {
             try
             {
@@ -551,7 +551,7 @@ namespace zero.tangle.models
                         return false;
                     }
                     return true;
-                }, barrier, zeroClosure, this);
+                }, zeroClosure, barrier, this);
 
                 if (!sourceTaskSuccess)
                 {

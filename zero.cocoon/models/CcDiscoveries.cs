@@ -448,38 +448,38 @@ namespace zero.cocoon.models
                 }
 
                 //cog the source
-                var cogSuccess = await ProtocolConduit.Source.ProduceAsync(async (source, _, __, ioJob) =>
+                var cogSuccess = await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
                 {
-                    var _this = (CcDiscoveries)ioJob;
+                    var @this = (CcDiscoveries)ioJob;
 
-                    if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(_this._protocolMsgBatch).FastPath().ConfigureAwait(false))
+                    if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(@this._protocolMsgBatch).FastPath().ConfigureAwait(false))
                     {
-                        foreach (var ccDiscoveryBatch in _this._protocolMsgBatch)
+                        foreach (var ccDiscoveryBatch in @this._protocolMsgBatch)
                         {
                             if(ccDiscoveryBatch == default)
                                 break;
                             
-                            await _this._batchMsgHeap.ReturnAsync(ccDiscoveryBatch).FastPath().ConfigureAwait(false);    
+                            await @this._batchMsgHeap.ReturnAsync(ccDiscoveryBatch).FastPath().ConfigureAwait(false);    
                         }
                         
                         if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
-                            _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
+                            _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
                         return false;
                     }
 
                     //Retrieve a new batch buffer
                     try
                     {
-                        _this._protocolMsgBatch = _arrayPool.Rent(_this.parm_max_msg_batch_size);
+                        @this._protocolMsgBatch = @this._arrayPool.Rent(@this.parm_max_msg_batch_size);
                     }
                     catch (Exception e)
                     {
-                        if(!_this.Zeroed())
-                            _logger.Fatal(e, $"Unable to rent from mempool: {_this.Description}");
+                        if(!@this.Zeroed())
+                            _logger.Fatal(e, $"Unable to rent from mempool: {@this.Description}");
                         return false;
                     }
 
-                    _this.CurrBatchSlot = 0;
+                    @this.CurrBatchSlot = 0;
 
                     return true;
                 }, jobClosure: this).FastPath().ConfigureAwait(false);

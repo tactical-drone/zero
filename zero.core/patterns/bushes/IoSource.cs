@@ -404,13 +404,16 @@ namespace zero.core.patterns.bushes
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="callback">The function.</param>
+        /// <param name="nanite"></param>
         /// <param name="barrier"></param>
-        /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns></returns>
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Task<bool>> func);
         //public abstract Task<bool> ProduceAsync(Func<IIoSourceBase, Func<IoJob<IIoJob>, ValueTask<bool>>, Task<bool>> func, Func<IoJob<IIoJob>, ValueTask<bool>> barrier);
-        public abstract ValueTask<bool> ProduceAsync(Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, ValueTask<bool>> callback, Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null);
+        public abstract ValueTask<bool> ProduceAsync<T>(
+            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            T nanite = default,
+            Func<IIoJob, T, ValueTask<bool>> barrier = null, IIoJob jobClosure = null);
         
         /// <summary>
         /// Signal source pressure

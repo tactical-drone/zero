@@ -102,14 +102,14 @@ namespace zero.core.patterns.bushes
         /// Indicates that this job contains unprocessed fragments
         /// </summary>
         public bool Syncing { get; protected set; }
-        
+
         /// <summary>
         /// Uses <see cref="Source"/> to produce a job
         /// </summary>
         /// <param name="barrier">The normalized barrier that we pass to the source for quick release</param>
-        /// <param name="zeroClosure">Adds closure manually</param>
+        /// <param name="nanite">Adds closure manually</param>
         /// <returns>The current state of the job</returns>
-        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure);
+        public abstract ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier,T nanite);
         
         /// <summary>
         /// Initializes this instance for reuse from the heap

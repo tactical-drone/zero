@@ -44,11 +44,21 @@ namespace zero.core.patterns.misc
         //            return await readyTask.ConfigureAwait(false);
         //        }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="enumerable"></param>
+        /// <param name="action"></param>
+        /// <typeparam name="T"></typeparam>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static async ValueTask ForEachAsync<T>(this List<T> enumerable, Func<T, ValueTask> action)
         {
             foreach (var item in enumerable)                
-                await Task.Run(async () => { await action(item).FastPath().ConfigureAwait(false); }).ConfigureAwait(false);
+                await Task.Factory.StartNew(static async state =>
+                {
+                    var (action, item) = (ValueTuple<Func<T, ValueTask>, T>)state;
+                    await action(item).FastPath().ConfigureAwait(false);
+                }, ValueTuple.Create(action, item)).ConfigureAwait(false);
         }
 
         /// <summary>

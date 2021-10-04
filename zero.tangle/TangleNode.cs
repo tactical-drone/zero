@@ -44,13 +44,13 @@ namespace zero.tangle
         /// Start listener and connect back to any new connections
         /// </summary>
         /// <returns>Task</returns>
-        protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<TJob>, ValueTask<bool>> connectionReceivedAction = null, Func<ValueTask> bootstrapAsync = null)
+        protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> connectionReceivedAction = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
             //ConnectedEvent += async (sender, ioNeighbor) => { await ConnectBackAsync(ioNeighbor); };
 
-            await base.SpawnListenerAsync(async ioNeighbor =>
+            await base.SpawnListenerAsync(static async (ioNeighbor,@this) =>
             {
-                await ConnectBackAsync(ioNeighbor);
+                await @this.ConnectBackAsync(ioNeighbor);
 
                 var connectTask = IoTangleTransactionHashCache.DefaultAsync();
                 await connectTask.ContinueWith(r =>
@@ -66,7 +66,7 @@ namespace zero.tangle
                     }
                 });
                 return true;
-            }, bootstrapAsync);
+            },this, bootstrapAsync);
         }
 
         /// <summary>
@@ -86,10 +86,10 @@ namespace zero.tangle
                 var newNeighbor = await ConnectAsync(connectBackAddress).ConfigureAwait(false);
                 if (newNeighbor!= null)
                 {
-                    ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubscribe(async s => await newNeighbor.ZeroAsync(this).ConfigureAwait(false));
+                    ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubscribe<object>(async (_,_) => await newNeighbor.ZeroAsync(this).ConfigureAwait(false));
 
                     if (newNeighbor.Source.IsOperational)
-                        await newNeighbor.Source.ProduceAsync((client,_, __, ___) =>
+                        await newNeighbor.Source.ProduceAsync<object>((client,_, _, _) =>
                         {
                             //TODO
                             ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,

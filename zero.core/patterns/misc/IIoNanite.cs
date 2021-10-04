@@ -46,13 +46,15 @@ namespace zero.core.patterns.misc
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">If the zeroing is both ways</param>
         (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoNanite;
-        
+
         /// <summary>
         /// Subscribe to disposed event
         /// </summary>
         /// <param name="sub">The handler</param>
+        /// <param name="closureState">Closure state</param>
         /// <returns>The handler</returns>
-        IoZeroSub ZeroSubscribe(Func<IIoNanite, ValueTask> sub);
+        IoZeroSub ZeroSubscribe<T>(Func<IIoNanite, T, ValueTask> sub, T closureState = default);
+        
 
         /// <summary>
         /// Unsubscribe

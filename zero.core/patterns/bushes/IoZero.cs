@@ -243,7 +243,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _queue.ZeroManagedAsync(async sink => await sink.ZeroAsync(this).FastPath().ConfigureAwait(false)).FastPath().ConfigureAwait(false);
+            await _queue.ZeroManagedAsync<object>(async (sink,_) => await sink.ZeroAsync(this).FastPath().ConfigureAwait(false)).FastPath().ConfigureAwait(false);
 
             _previousJobFragment.ToList().ForEach(job => job.ZeroAsync(this).ConfigureAwait(false));
 
@@ -330,11 +330,10 @@ namespace zero.core.patterns.bushes
                                 //prepare a failed job to sync with next job
                                 if(SyncRecoveryModeEnabled)
                                     nextJob.JobSync();
-
+                                
                                 //Produce job input
-                                if (await nextJob.ProduceAsync(async (job, closure) =>
+                                if (await nextJob.ProduceAsync(static async (job, @this) =>
                                 {
-                                    var _this = (IoZero<TJob>)closure;
                                     //Block on producer back pressure
                                     try
                                     {
@@ -346,13 +345,13 @@ namespace zero.core.patterns.bushes
                                             return false;    
                                         }
                                     }
-                                    catch (NullReferenceException e) { _this._logger.Trace(e); }
-                                    catch (TaskCanceledException e) { _this._logger.Trace(e); }
-                                    catch (OperationCanceledException e) { _this._logger.Trace(e); }
-                                    catch (ObjectDisposedException e) { _this._logger.Trace(e); }
+                                    catch (NullReferenceException e) { @this._logger.Trace(e); }
+                                    catch (TaskCanceledException e) { @this._logger.Trace(e); }
+                                    catch (OperationCanceledException e) { @this._logger.Trace(e); }
+                                    catch (ObjectDisposedException e) { @this._logger.Trace(e); }
                                     catch (Exception e)
                                     {
-                                        _this._logger.Error(e, $"Producer barrier failed for {_this.Description}");
+                                        @this._logger.Error(e, $"Producer barrier failed for {@this.Description}");
                                         job.State = IoJobMeta.JobState.ProduceErr;
                                         return false;
                                     }

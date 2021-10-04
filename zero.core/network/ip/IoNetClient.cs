@@ -27,7 +27,7 @@ namespace zero.core.network.ip
     /// The idea:
     ///
     /// Production that waits on consumer back pressure:
-    /// <see cref="IIoZero.AssimilateAsync"/> -> <see cref="IoZero{TJob}.ProduceAsync"/> -> <see cref="IIoSource.ProduceAsync"/> -> <see cref="IIoJob.ProduceAsync"/>
+    /// <see cref="IIoZero.AssimilateAsync"/> -> <see cref="IoZero{TJob}.ProduceAsync"/> -> <see cref="IIoSource.ProduceAsync{T}"/> -> <see cref="IIoJob.ProduceAsync"/>
     ///
     /// Consumption that waits on producer pressure:
     /// <see cref="IIoZero.AssimilateAsync"/> -> <see cref="IoZero{TJob}.ConsumeAsync"/> -> <see cref="IoSink{TJob}.ConsumeAsync"/>
@@ -151,17 +151,18 @@ namespace zero.core.network.ip
         /// Execute the a tcp client function, detect TCP connection drop
         /// </summary>
         /// <param name="callback">The tcp client functions</param>
+        /// <param name="nanite"></param>
         /// <param name="barrier"></param>
-        /// <param name="zeroClosure"></param>
         /// <param name="jobClosure"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask<bool> ProduceAsync(
-            Func<IIoSourceBase, Func<IIoJob, IIoZero, ValueTask<bool>>, IIoZero, IIoJob, ValueTask<bool>> callback,
-            Func<IIoJob, IIoZero, ValueTask<bool>> barrier = null, IIoZero zeroClosure = null, IIoJob jobClosure = null)
+        public override async ValueTask<bool> ProduceAsync<T>(
+            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            T nanite = default,
+            Func<IIoJob, T, ValueTask<bool>> barrier = null, IIoJob jobClosure = null)
         {
             try
             {
-                return await callback((IIoSourceBase) IoNetSocket, barrier, zeroClosure, jobClosure).FastPath().ConfigureAwait(false);
+                return await callback((IIoSourceBase) IoNetSocket, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

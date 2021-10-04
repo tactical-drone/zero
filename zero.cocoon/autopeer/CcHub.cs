@@ -7,6 +7,7 @@ using zero.cocoon.models.services;
 using zero.core.core;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
+using zero.core.patterns.misc;
 
 namespace zero.cocoon.autopeer
 {
@@ -79,13 +80,14 @@ namespace zero.cocoon.autopeer
             return base.ZeroManagedAsync();
         }
 
-        protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
+        protected override ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
-            await base.SpawnListenerAsync(async router =>
+            return base.SpawnListenerAsync(static async (router, state) =>
             {
-                Router ??= (CcAdjunct) router;
-                return acceptConnection == null || await acceptConnection(router).ConfigureAwait(false);
-            }, bootstrapAsync).ConfigureAwait(false);
+                var (@this, acceptConnection) = state;
+                @this.Router ??= (CcAdjunct)router;
+                return acceptConnection == null || await acceptConnection(router,default).FastPath().ConfigureAwait(false);//TODO default?
+            }, ValueTuple.Create(this, acceptConnection), bootstrapAsync);
         }
     }
 }

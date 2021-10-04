@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using MathNet.Numerics.Distributions;
 using NLog;
+using Org.BouncyCastle.Crypto.Digests;
 using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -459,33 +460,33 @@ namespace zero.cocoon
         /// <param name="acceptConnection"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override async ValueTask SpawnListenerAsync(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, ValueTask<bool>> acceptConnection = null, Func<ValueTask> bootstrapAsync = null)
+        protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
             _autoPeeringTask?.Dispose();
             _autoPeeringTask = _autoPeering.StartAsync(DeepScanAsync);
 
             //start node listener
-            await base.SpawnListenerAsync(async drone =>
+            await base.SpawnListenerAsync(static async (drone,@this) =>
             {
                 //limit connects
-                if (Zeroed() || IngressConnections >= parm_max_inbound)
+                if (@this.Zeroed() || @this.IngressConnections >= @this.parm_max_inbound)
                     return false;
 
                 //Handshake
-                if (await HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(false))
+                if (await @this.HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(false))
                 {
                     //ACCEPT
-                    _logger.Info($"+ {drone.Description}");
+                    @this._logger.Info($"+ {drone.Description}");
                     
                     return true;
                 }
                 else
                 {
-                    _logger.Debug($">|{drone.Description}");
+                    @this._logger.Debug($">|{drone.Description}");
                 }
 
                 return false;
-            }, bootstrapAsync).ConfigureAwait(false);
+            },this, bootstrapAsync).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -801,21 +802,21 @@ namespace zero.cocoon
                     {
                         if (drone.IoSource.IoNetSocket.Egress)
                         {
-                            drone.ZeroSubscribe(_ =>
+                            drone.ZeroSubscribe(static (_,@this) =>
                             {
                                 Interlocked.Decrement(ref @this.EgressConnections);
                                 return ValueTask.CompletedTask;
-                            });
+                            }, @this);
 
                             Interlocked.Increment(ref @this.EgressConnections);
                         }
                         else if (drone.IoSource.IoNetSocket.Ingress)
                         {
-                            drone.ZeroSubscribe( _=>
+                            drone.ZeroSubscribe( static (from, @this) =>
                             {
                                 Interlocked.Decrement(ref @this.IngressConnections);
                                 return ValueTask.CompletedTask;
-                            });
+                            },@this);
                             Interlocked.Increment(ref @this.IngressConnections);
                         }
                     }
@@ -894,10 +895,10 @@ namespace zero.cocoon
                     {
                         _logger.Info($"+ {drone.Description}");
 
-                        var droneTask = Task.Factory.StartNew(async () =>
+                        var droneTask = Task.Factory.StartNew(static async drone =>
                         {
-                            await drone.AssimilateAsync().ConfigureAwait(false);
-                        }, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                            await ((CcDrone)drone).AssimilateAsync().ConfigureAwait(false);
+                        },drone, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
                         NeighborTasks.Add(droneTask.Unwrap());
                         return true;

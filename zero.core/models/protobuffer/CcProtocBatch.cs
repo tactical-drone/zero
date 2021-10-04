@@ -145,26 +145,26 @@ namespace zero.core.models.protobuffer
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {
-            if (!await Source.ProduceAsync(async (producer, backPressure, ioZero, ioJob )=>
+            if (!await Source.ProduceAsync(static async (_, backPressure, ioZero, ioJob )=>
             {
-                var _this = (CcProtocBatch<TModel, TBatch>)ioJob;
+                var job = (CcProtocBatch<TModel, TBatch>)ioJob;
                 
                 if (!await backPressure(ioJob, ioZero).FastPath().ConfigureAwait(false))
                     return false;
 
                 try
                 {
-                    _this._batch = await ((CcProtocBatchSource<TModel, TBatch>) _this.Source).DequeueAsync().FastPath().ConfigureAwait(false);
+                    job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
-                    _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {_this.Description}"); 
+                    _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {job.Description}"); 
                 }
                 
-                return _this._batch != null;
-            }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false))
+                return job._batch != null;
+            }, nanite, barrier, this).FastPath().ConfigureAwait(false))
             {
                 return State = IoJobMeta.JobState.Error;
             }

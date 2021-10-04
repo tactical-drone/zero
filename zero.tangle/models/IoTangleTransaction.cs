@@ -41,7 +41,7 @@ namespace zero.tangle.models
         /// <returns>
         /// The state to indicated failure or success
         /// </returns>
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier, IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {            
             await Source.ProduceAsync(async (producer, consumeSync, ioZero, ioJob) =>
             {
@@ -53,7 +53,7 @@ namespace zero.tangle.models
                 State = IoJobMeta.JobState.Produced;
 
                 return true;
-            }, barrier, zeroClosure, this);
+            }, nanite, barrier, this);
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;

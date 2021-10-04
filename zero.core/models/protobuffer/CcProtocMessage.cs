@@ -136,16 +136,14 @@ namespace zero.core.models.protobuffer
         /// </summary>
         protected IPEndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0);
 
-        public override async ValueTask<IoJobMeta.JobState> ProduceAsync(Func<IIoJob, IIoZero, ValueTask<bool>> barrier,
-            IIoZero zeroClosure)
+        public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier,T nanite)
         {
             try
             {
                 //MemoryBufferPin = MemoryBuffer.Pin();
-                await MessageService.ProduceAsync(async (ioSocket, producerPressure, ioZero, ioJob) =>
+                await MessageService.ProduceAsync(static async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (CcProtocMessage<TModel, TBatch>)ioJob;
-
+                    var @this = (CcProtocMessage<TModel, TBatch>)ioJob;
                     try
                     {
                         //----------------------------------------------------------------------------
@@ -158,9 +156,9 @@ namespace zero.core.models.protobuffer
                             return false;
                     
                         //Async read the message from the message stream
-                        if (_this.MessageService.IsOperational && !Zeroed())
+                        if (@this.MessageService.IsOperational && !@this.Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(_this.MemoryBuffer, _this.BufferOffset, _this.BufferSize, _this.RemoteEndPoint).FastPath().ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(@this.MemoryBuffer, @this.BufferOffset, @this.BufferSize, @this.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -185,8 +183,8 @@ namespace zero.core.models.protobuffer
                             //Drop zero reads
                             if (bytesRead == 0)
                             {
-                                _this.BytesRead = 0;
-                                _this.State = IoJobMeta.JobState.ProduceTo;
+                                @this.BytesRead = 0;
+                                @this.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
 
@@ -213,25 +211,25 @@ namespace zero.core.models.protobuffer
                             //    _this._msgCount = 0;
                             //}
 
-                            Interlocked.Add(ref _this.BytesRead, bytesRead);
+                            Interlocked.Add(ref @this.BytesRead, bytesRead);
 
-                            _this.JobSync();
+                            @this.JobSync();
 
-                            _this.State = IoJobMeta.JobState.Produced;
+                            @this.State = IoJobMeta.JobState.Produced;
 
                             //_this._logger.Trace($"{_this.Description} => {GetType().Name}[{_this.Id}]: r = {_this.BytesRead}, r = {_this.BytesLeftToProcess}, dc = {_this.DatumCount}, ds = {_this.DatumSize}, f = {_this.DatumFragmentLength}, b = {_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}, b = {(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%");
                         }
                         else
                         {
                             _logger.Warn(
-                                $"Source {_this.MessageService.Description} produce failed!");
-                            _this.State = IoJobMeta.JobState.Cancelled;
+                                $"Source {@this.MessageService.Description} produce failed!");
+                            @this.State = IoJobMeta.JobState.Cancelled;
                             //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         }
 
-                        if (_this.Zeroed())
+                        if (@this.Zeroed())
                         {
-                            _this.State = IoJobMeta.JobState.Cancelled;
+                            @this.State = IoJobMeta.JobState.Cancelled;
                             return false;
                         }
 
@@ -239,32 +237,32 @@ namespace zero.core.models.protobuffer
                     }
                     catch (NullReferenceException e)
                     {
-                        _logger.Trace(e, _this.Description);
+                        _logger.Trace(e, @this.Description);
                         return false;
                     }
                     catch (TaskCanceledException e)
                     {
-                        _logger.Trace(e, _this.Description);
+                        _logger.Trace(e, @this.Description);
                         return false;
                     }
                     catch (OperationCanceledException e)
                     {
-                        _logger.Trace(e, _this.Description);
+                        _logger.Trace(e, @this.Description);
                         return false;
                     }
                     catch (ObjectDisposedException e)
                     {
-                        _logger.Trace(e, _this.Description);
+                        _logger.Trace(e, @this.Description);
                         return false;
                     }
                     catch (Exception e)
                     {
-                        _this.State = IoJobMeta.JobState.ProduceErr;
-                        _logger.Error(e, $"ReadAsync {_this.Description}:");
+                        @this.State = IoJobMeta.JobState.ProduceErr;
+                        _logger.Error(e, $"ReadAsync {@this.Description}:");
                         //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         return false;
                     }
-                }, barrier, zeroClosure, this).FastPath().ConfigureAwait(false);
+                }, nanite, barrier, this).FastPath().ConfigureAwait(false);
             }
             catch (TaskCanceledException e)
             {

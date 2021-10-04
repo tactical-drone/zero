@@ -87,7 +87,7 @@ namespace zero.core.misc
             //    return ValueTask.CompletedTask;
             //}).FastPath().ConfigureAwait(false);
 
-            await _lut.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
 
             await _valHeap.ZeroManaged().FastPath().ConfigureAwait(false);
 

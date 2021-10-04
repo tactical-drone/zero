@@ -60,7 +60,7 @@ namespace zero.core.patterns.queue
         public IoZNode First => _head;
         public IoZNode Last => _tail;
 
-        public async ValueTask ZeroManagedAsync(Func<T, ValueTask> op = null)
+        public async ValueTask ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default)
         {
             try
             {
@@ -78,7 +78,7 @@ namespace zero.core.patterns.queue
 
                         try
                         {
-                            await op(cur.Value).FastPath().ConfigureAwait(false);
+                            await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
                         }
                         catch 
                         {
