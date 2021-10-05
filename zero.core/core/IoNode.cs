@@ -245,7 +245,7 @@ namespace zero.core.core
         {
             try
             {
-                var assimilation = ZeroAsync(static async newNeighbor =>
+                var assimilation = ZeroAsyncOption(static async newNeighbor =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
                 },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).AsTask();
@@ -390,7 +390,9 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _netServer.ZeroAsync(this).ConfigureAwait(false);
+            
+            if(_netServer != null)
+                await _netServer.ZeroAsync(this).ConfigureAwait(false);
 
             foreach (var ioNeighbor in Neighbors.Values)
                 await ioNeighbor.ZeroAsync(this).ConfigureAwait(false);
@@ -409,6 +411,7 @@ namespace zero.core.core
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
             _logger.Info($"- {Description}");
+            
         }
 
         public bool WhiteList(IoNodeAddress address)

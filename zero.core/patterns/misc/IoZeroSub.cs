@@ -1,31 +1,64 @@
 ﻿using System;
+using System.Management;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using NLog.LayoutRenderers;
 
 namespace zero.core.patterns.misc
 {
     public class IoZeroSub
     {
-        public object Action { get; private set; } = null;
-        public object Target { get; private set; } = null;
-        private object _state = null;
+        public object ZeroAction;
+        public static readonly object ZeroSentinel = new();
+        public object State = ZeroSentinel;
+        public object Target { get; private set; }
+        public string From { get; }
+
         public volatile bool Schedule = true;
 
-        public IoZeroSub SetAction<T>(Func<IIoNanite, T, ValueTask> action, T state = default)
+        public IoZeroSub(string from)
+        {   
+            From = from;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Func<IIoNanite, T, ValueTask> GenericCast<T>(T obj)
         {
-            Action = action;
-            Target = action.Target;
-            _state = state;
+            try
+            {
+                return (Func<IIoNanite, T, ValueTask>) ZeroAction;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }
+
+        public IoZeroSub SetAction<T>(Func<IIoNanite, T, ValueTask> callback, T closureState = default)
+        {
+            ZeroAction = callback;
+
+            if (closureState != null)
+                State = closureState;
+                
+            Target = callback?.Target;
             return this;
         }
-        
-        public Func<IIoNanite, T, ValueTask> GetAction<T>()
+
+        public ValueTask ExecuteAsync(IIoNanite nanite)
         {
-            return (Func<IIoNanite, T, ValueTask>)Action;
-        }
-        
-        public ValueTask ExecuteAsync<T>(IIoNanite nanite)
-        {
-            return GetAction<T>()(nanite, (T)_state);
+            try
+            {
+                return GenericCast((dynamic)State)(nanite, (dynamic)State);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
         }
     }
 }

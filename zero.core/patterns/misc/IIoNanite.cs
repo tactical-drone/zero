@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace zero.core.patterns.misc
@@ -52,8 +53,13 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <param name="closureState">Closure state</param>
+        /// <param name="filePath"></param>
+        /// <param name="memberName"></param>
+        /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        IoZeroSub ZeroSubscribe<T>(Func<IIoNanite, T, ValueTask> sub, T closureState = default);
+        IoZeroSub ZeroSubscribe<T>(Func<IIoNanite, T, ValueTask> sub, T closureState = default,
+            [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
+            [CallerLineNumber] int lineNumber = default);
         
 
         /// <summary>

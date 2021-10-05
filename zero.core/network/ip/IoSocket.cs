@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -144,7 +145,8 @@ namespace zero.core.network.ip
             try
             {
                 NativeSocket.Bind(listeningAddress.IpEndPoint);
-                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(), (IPEndPoint) NativeSocket.LocalEndPoint);
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(),
+                    (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.Create($"{listeningAddress.ProtocolDesc}0.0.0.0:709");
 
                 Key = LocalNodeAddress.Key;
@@ -152,6 +154,10 @@ namespace zero.core.network.ip
                 Kind = Connection.Listener;
 
                 _logger.Trace($"Bound port {LocalNodeAddress}: {Description}");
+            }
+            catch (Exception e) when (Zeroed())
+            {
+                return ValueTask.FromException(e);
             }
             catch (Exception e)
             {
@@ -257,6 +263,7 @@ namespace zero.core.network.ip
         /// Connection status
         /// </summary>
         /// <returns>True if the connection is up, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public abstract bool IsConnected();
     }
 }

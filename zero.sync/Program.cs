@@ -300,8 +300,10 @@ namespace zero.sync
             Console.ReadLine();
 
             _running = false;
-            //_nodes.ToList().ForEach(n => Task.Run(() => n.ZeroAsync(null)));
-            //_nodes.Clear();
+            
+            
+            _nodes.ToList().ForEachAsync<CcCollective,object>(static (n,_) =>  n.ZeroAsync(null)).GetAwaiter().GetResult();
+            _nodes.Clear();
 
 
             Console.ReadLine();

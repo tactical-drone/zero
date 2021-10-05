@@ -35,7 +35,7 @@ namespace zero.cocoon
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, _zeroAtomicConcurrency)
+            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, udpConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -208,7 +208,7 @@ namespace zero.cocoon
                         @this._logger?.Error(e, $"Failed to ensure {@this._autoPeering.Neighbors.Count} peers");
                     }
                 }
-            },this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            },this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             //Emit collective event
             AutoPeeringEventService.AddEvent(new AutoPeerEvent
@@ -925,7 +925,7 @@ namespace zero.cocoon
 
         private static readonly float _lambda = 100;
         private static readonly int _maxAsyncConnectionAttempts = 2;
-        private static readonly int _zeroAtomicConcurrency = 16;
+        private static readonly int _zeroAtomicConcurrency = 1;
 
         private int _currentOutboundConnectionAttempts;
         private readonly Poisson _poisson = new Poisson(_lambda);

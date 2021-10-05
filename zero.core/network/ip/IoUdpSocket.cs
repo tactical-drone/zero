@@ -337,10 +337,11 @@ namespace zero.core.network.ip
         {
             try
             {
-                #if DEBUG
+#if DEBUG
                 if (_sendSync.NrOfBlockers >= _sendArgs.MaxSize / 2)
-                    _logger.Warn($"{Description}: Send semaphore is running lean {_sendSync.NrOfBlockers}/{_sendArgs.MaxSize}");
-                #endif
+                    _logger.Warn(
+                        $"{Description}: Send semaphore is running lean {_sendSync.NrOfBlockers}/{_sendArgs.MaxSize}");
+#endif
 
                 if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;
@@ -447,10 +448,23 @@ namespace zero.core.network.ip
                     }
                 }
             }
-            catch (NullReferenceException e) { _logger?.Trace(e, Description); }
-            catch (ObjectDisposedException e) { _logger?.Trace(e, Description); }
-            catch (TaskCanceledException e) { _logger?.Trace(e, Description); }
-            catch (OperationCanceledException e) { _logger?.Trace(e, Description); }
+            catch (NullReferenceException e) when (!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (ObjectDisposedException e) when (!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (TaskCanceledException e) when (!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (OperationCanceledException e) when (!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (Exception) when (Zeroed()){}
             catch (Exception e)
             {
                 if (!Zeroed())
@@ -544,27 +558,25 @@ namespace zero.core.network.ip
                         if (tcs == null)
                             throw new OutOfMemoryException(nameof(_tcsHeap));
 
-                        //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)buffer, out var buf2))
+                        args.AcceptSocket = null;
+                        args.SocketFlags = SocketFlags.None;
+
+                        args.SetBuffer(buffer.Slice(offset, length));
+
+                        args.UserToken = tcs;
+
+                        if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
                         {
-                            args.AcceptSocket = null;
-                            args.SocketFlags = SocketFlags.None;
-
-                            args.SetBuffer(buffer.Slice(offset, length));
-
-                            args.UserToken = tcs;
-
-                            if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
-                            {
-                                return 0;
-                            }
-
-                            remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
-                            remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
-
-                            return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
+                            return 0;
                         }
+
+                        remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
+                        remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
+
+                        return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
+                        
                     }
-                    catch (Exception e)
+                    catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
                     }
@@ -637,32 +649,33 @@ namespace zero.core.network.ip
 
                 return 0;
             }
-            catch (NullReferenceException e)
+            catch (NullReferenceException e) when (!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
-            catch (TaskCanceledException e)
+            catch (TaskCanceledException e) when (!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
-            catch (OperationCanceledException e)
+            catch (OperationCanceledException e) when (!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
-            catch (ObjectDisposedException e)
+            catch (ObjectDisposedException e) when (!Zeroed())
             {
                 _logger?.Trace(e, Description);
             }
-            catch (SocketException e)
+            catch (SocketException e) when (!Zeroed())
             {
                 _logger.Trace(e, $"Unable to read from socket `udp://{RemoteAddress??LocalAddress}':");
             }
+            catch (Exception) when (Zeroed()){}
             catch (Exception e)
             {
                 if (!Zeroed())
                 {
                     _logger.Error(e, $"Unable to read from socket: {Description}");
-                    //await ZeroAsync(this).ConfigureAwait(false);
+                    //await ZeroAsync(this).ConfigureAwait(false); //TODO ?
                 }
             }
             finally
@@ -682,12 +695,13 @@ namespace zero.core.network.ip
         /// <summary>
         /// Connection status
         /// </summary>
-        /// <returns>True if the connection is up, false otherwise</returns> 
+        /// <returns>True if the connection is up, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool IsConnected()
         {
             try
             {
-                return NativeSocket != null && NativeSocket.IsBound && NativeSocket.LocalEndPoint != null;
+                return NativeSocket is {IsBound: true, LocalEndPoint: { }};
             }
             catch (ObjectDisposedException)
             {

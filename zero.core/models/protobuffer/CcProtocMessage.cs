@@ -49,10 +49,6 @@ namespace zero.core.models.protobuffer
             }
         }
 
-        /// <summary>
-        /// Empty
-        /// </summary>
-        public CcProtocMessage(){}
 
         /// <summary>
         /// Message batch broadcast channel
@@ -143,7 +139,7 @@ namespace zero.core.models.protobuffer
                 //MemoryBufferPin = MemoryBuffer.Pin();
                 await MessageService.ProduceAsync(static async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var @this = (CcProtocMessage<TModel, TBatch>)ioJob;
+                    var job = (CcProtocMessage<TModel, TBatch>)ioJob;
                     try
                     {
                         //----------------------------------------------------------------------------
@@ -156,9 +152,9 @@ namespace zero.core.models.protobuffer
                             return false;
                     
                         //Async read the message from the message stream
-                        if (@this.MessageService.IsOperational && !@this.Zeroed())
+                        if (job.MessageService.IsOperational && !job.Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(@this.MemoryBuffer, @this.BufferOffset, @this.BufferSize, @this.RemoteEndPoint).FastPath().ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -183,8 +179,8 @@ namespace zero.core.models.protobuffer
                             //Drop zero reads
                             if (bytesRead == 0)
                             {
-                                @this.BytesRead = 0;
-                                @this.State = IoJobMeta.JobState.ProduceTo;
+                                job.BytesRead = 0;
+                                job.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
 
@@ -211,25 +207,22 @@ namespace zero.core.models.protobuffer
                             //    _this._msgCount = 0;
                             //}
 
-                            Interlocked.Add(ref @this.BytesRead, bytesRead);
+                            Interlocked.Add(ref job.BytesRead, bytesRead);
 
-                            @this.JobSync();
+                            job.JobSync();
 
-                            @this.State = IoJobMeta.JobState.Produced;
+                            job.State = IoJobMeta.JobState.Produced;
 
                             //_this._logger.Trace($"{_this.Description} => {GetType().Name}[{_this.Id}]: r = {_this.BytesRead}, r = {_this.BytesLeftToProcess}, dc = {_this.DatumCount}, ds = {_this.DatumSize}, f = {_this.DatumFragmentLength}, b = {_this.BytesLeftToProcess}/{_this.BufferSize + _this.DatumProvisionLengthMax}, b = {(int)(_this.BytesLeftToProcess / (double)(_this.BufferSize + _this.DatumProvisionLengthMax) * 100)}%");
                         }
                         else
                         {
-                            _logger.Warn(
-                                $"Source {@this.MessageService.Description} produce failed!");
-                            @this.State = IoJobMeta.JobState.Cancelled;
-                            //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
+                            job.State = IoJobMeta.JobState.Cancelled;
                         }
 
-                        if (@this.Zeroed())
+                        if (job.Zeroed())
                         {
-                            @this.State = IoJobMeta.JobState.Cancelled;
+                            job.State = IoJobMeta.JobState.Cancelled;
                             return false;
                         }
 
@@ -237,28 +230,28 @@ namespace zero.core.models.protobuffer
                     }
                     catch (NullReferenceException e)
                     {
-                        _logger.Trace(e, @this.Description);
+                        _logger.Trace(e, job.Description);
                         return false;
                     }
                     catch (TaskCanceledException e)
                     {
-                        _logger.Trace(e, @this.Description);
+                        _logger.Trace(e, job.Description);
                         return false;
                     }
                     catch (OperationCanceledException e)
                     {
-                        _logger.Trace(e, @this.Description);
+                        _logger.Trace(e, job.Description);
                         return false;
                     }
                     catch (ObjectDisposedException e)
                     {
-                        _logger.Trace(e, @this.Description);
+                        _logger.Trace(e, job.Description);
                         return false;
                     }
                     catch (Exception e)
                     {
-                        @this.State = IoJobMeta.JobState.ProduceErr;
-                        _logger.Error(e, $"ReadAsync {@this.Description}:");
+                        job.State = IoJobMeta.JobState.ProduceErr;
+                        _logger.Error(e, $"ReadAsync {job.Description}:");
                         //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         return false;
                     }

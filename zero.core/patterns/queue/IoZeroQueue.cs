@@ -125,6 +125,58 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The enqueued item node</returns>
+        public async ValueTask<IoZNode> PushAsync(T item)
+        {
+            try
+            {
+                if (_zeroed || item == null)
+                    return null;
+
+                //wait on back pressure
+                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
+                    return null;
+
+                _nodeHeap.Take(out var node);
+
+                if (node == null)
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.CurrentHeapSize} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
+
+                //set value
+                node.Value = item;
+
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                {
+                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
+                    return null;
+                }
+
+                
+                node.Prev = _tail;
+                if (_tail == null)
+                {
+                    _head = _tail = node;
+                }
+                else if (_tail.Prev != null)
+                {
+                    _tail.Prev.Next = node;
+                }
+
+                Interlocked.Increment(ref _count);
+
+                return node;
+            }
+            finally
+            {
+                _syncRoot.Release();
+                _pressure.Release();
+            }
+        }
+
+        /// <summary>
+        /// Blocking enqueue item
+        /// </summary>
+        /// <param name="item">The item to enqueue</param>
+        /// <returns>The enqueued item node</returns>
         public async ValueTask<IoZNode> EnqueueAsync(T item)
         {
             try
