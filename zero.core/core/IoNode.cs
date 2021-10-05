@@ -241,14 +241,14 @@ namespace zero.core.core
         /// Assimilate neighbor
         /// </summary>
         /// <param name="newNeighbor"></param>
-        public void Assimilate(IoNeighbor<TJob> newNeighbor)
+        public async ValueTask Assimilate(IoNeighbor<TJob> newNeighbor)
         {
             try
             {
-                var assimilation = ZeroAsyncOption(static async newNeighbor =>
+                var assimilation = ZeroAsync(static async newNeighbor =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
-                },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).AsTask();
+                },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).AsTask();
 
                 NeighborTasks.Add(assimilation);
 

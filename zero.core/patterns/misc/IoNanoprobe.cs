@@ -609,7 +609,7 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, TaskCreationOptions options, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return ZeroAsync(continuation, state, AsyncTasks.Token, options, TaskScheduler.Current, unwrap, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>

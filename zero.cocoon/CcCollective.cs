@@ -895,12 +895,8 @@ namespace zero.cocoon
                     {
                         _logger.Info($"+ {drone.Description}");
 
-                        var droneTask = Task.Factory.StartNew(static async drone =>
-                        {
-                            await ((CcDrone)drone).AssimilateAsync().ConfigureAwait(false);
-                        },drone, AsyncTasks.Token, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-
-                        NeighborTasks.Add(droneTask.Unwrap());
+                        Assimilate(drone);
+                        
                         return true;
                     }
                     else
