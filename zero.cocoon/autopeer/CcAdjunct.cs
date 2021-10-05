@@ -954,7 +954,7 @@ namespace zero.cocoon.autopeer
                         @this._logger?.Fatal(e, $"{@this.Description}");
                     }
                     
-                },this, AsyncTasks.Token,TaskCreationOptions.LongRunning , TaskScheduler.Default);
+                },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler);
 
                 var consumer = ZeroAsyncOption(static async @this  =>
                 {
@@ -1112,7 +1112,7 @@ namespace zero.cocoon.autopeer
                     {
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
-                }, this, TaskCreationOptions.LongRunning);
+                }, this, TaskCreationOptions.AttachedToParent |TaskCreationOptions.PreferFairness);
 
                 await Task.WhenAll(producer.AsTask(), consumer.AsTask());
             }
