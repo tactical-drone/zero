@@ -659,14 +659,14 @@ namespace zero.core.patterns.semaphore.core
                                 ioZeroWorker.Continuation(ioZeroWorker.State);
                         }
                         catch (NullReferenceException e) when (nanite == null && !ioZeroWorker.Semaphore.Zeroed() ||
-                                                               nanite != null && nanite.Zeroed())
+                                                               nanite != null && !nanite.Zeroed())
                         {
                             throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
                                 $"{nameof(ioZeroWorker.Continuation)} = {ioZeroWorker.Continuation}, " +
                                 $"{nameof(ioZeroWorker.State)} = {ioZeroWorker.State}", e);
                         }
                         catch (Exception e) when (nanite == null && !ioZeroWorker.Semaphore.Zeroed() ||
-                                                 nanite != null && nanite.Zeroed())
+                                                 nanite != null && !nanite.Zeroed())
                         {
                             throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
                                 $"{nameof(ioZeroWorker.Continuation)} = {ioZeroWorker.Continuation}, " +
@@ -693,14 +693,14 @@ namespace zero.core.patterns.semaphore.core
                             worker.Continuation(worker.State);
                     }
                     catch (NullReferenceException e) when (nanite == null && _zeroed == 0 ||
-                                                           nanite != null && nanite.Zeroed())
+                                                           nanite != null && !nanite.Zeroed())
                     {
                         throw IoNanoprobe.ZeroException.ErrorReport(this, 
                                 $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
                                 $"{nameof(worker.State)} = {worker.State}", e);
                     }
                     catch (Exception e) when (nanite == null && _zeroed == 0 ||
-                                             nanite != null && nanite.Zeroed())
+                                             nanite != null && !nanite.Zeroed())
                     {
                         throw IoNanoprobe.ZeroException.ErrorReport(this, 
                             $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
@@ -729,9 +729,6 @@ namespace zero.core.patterns.semaphore.core
             //fail fast 
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
                 return ValueTask.FromResult(false);
-
-            if (_waitCount >= _maxBlockers)
-                throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_waitCount)} = {_waitCount}/{_maxBlockers}, {nameof(_asyncWorkerCount)} = {_asyncWorkerCount}/{_maxAsyncWorkers}");
 
             if (Signalled())
             {

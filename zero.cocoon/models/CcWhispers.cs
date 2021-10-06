@@ -103,13 +103,15 @@ namespace zero.cocoon.models
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
-            var readOnlySequence =
-                ReadOnlySequence.Slice(ReadOnlySequence.GetPosition(BufferOffset), ReadOnlySequence.GetPosition(BufferOffset + BytesRead));
             try
             {
+                var readOnlySequence = ReadOnlySequence.Slice(ReadOnlySequence.GetPosition(BufferOffset), ReadOnlySequence.GetPosition(BufferOffset + BytesRead));
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
+                {
                     return State = IoJobMeta.JobState.ConInvalid;
+                }
+                    
 
                 var read = 0;
 
@@ -156,7 +158,7 @@ namespace zero.cocoon.models
                     
                     try
                     {
-                        if (!await CcCollective.DupSyncRoot.WaitAsync().ConfigureAwait(false))
+                        if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath().ConfigureAwait(false))
                             return State = IoJobMeta.JobState.ConsumeErr;
                         
                         if (CcCollective.DupChecker.Count > _poolSize / 2)
@@ -174,10 +176,24 @@ namespace zero.cocoon.models
                     }
                     finally
                     {
-                        CcCollective.DupSyncRoot.Release();
+                        //TODO investigate this crash
+                        try
+                        {
+                            CcCollective.DupSyncRoot.Release();
+                        }
+                        catch (Exception) when( Zeroed()){}
+                        catch (Exception e) when (!Zeroed())
+                        {
+                            
+                            _logger.Trace(e,$"{Description}: {State}");
+                            State = IoJobMeta.JobState.ConsumeErr;
+                        }
                     }
-                    
-                        //set this message as seen if seen before
+
+                    if (State != IoJobMeta.JobState.Consumed)
+                        continue;
+
+                    //set this message as seen if seen before
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
                     _dupHeap.Take(out var dupEndpoints, endpoint);
                 

@@ -43,12 +43,14 @@ namespace zero.sync
                                 listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
                         })
                         .UseStartup<StartServices>()
+                        .UseNLog()
                         .ConfigureLogging(builder =>
                         {
+                            builder.AddFilter(level => level > LogLevel.Error);
                             builder.ClearProviders();
-                            builder.SetMinimumLevel(LogLevel.None);
-                        })
-                        .UseNLog();
+                            builder.SetMinimumLevel(LogLevel.Error);
+                        });
+
                 });
 
         static void Main(string[] args)
@@ -70,7 +72,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 10;
+            var total = 50;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>

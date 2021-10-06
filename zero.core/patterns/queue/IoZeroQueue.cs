@@ -79,7 +79,7 @@ namespace zero.core.patterns.queue
             try
             {
                 #if DEBUG
-                if (!zero)
+                if (zero && nanite != null && nanite is not IIoNanite)
                     throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
                 #endif
                 
@@ -100,7 +100,7 @@ namespace zero.core.patterns.queue
                             if (!zero)
                                 await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
                             else
-                                await ((IIoNanite) cur.Value).ZeroAsync(_zeroSentinel).FastPath().ConfigureAwait(false);
+                                await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite??_zeroSentinel).FastPath().ConfigureAwait(false);
                         }
                         catch(Exception e)
                         {

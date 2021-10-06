@@ -55,7 +55,7 @@ namespace zero.cocoon
             _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
 
             
-            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  nameof(DupSyncRoot), maxBlockers: parm_max_drone * tpcConcurrencyLevel * 2);
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  nameof(DupSyncRoot), maxBlockers: parm_max_drone * tpcConcurrencyLevel * 8, initialCount:1);
             DupSyncRoot.ZeroHiveAsync(DupSyncRoot, true).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
@@ -936,7 +936,7 @@ namespace zero.cocoon
             foreach (var ioNeighbor in Drones)
             {
                 var s = _poisson.Sample();
-                if (Math.Abs(s - _lambda) < 46)
+                if (Math.Abs(s - _lambda) > 5)
                 {
                     continue;
                 }
