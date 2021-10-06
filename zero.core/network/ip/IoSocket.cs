@@ -117,7 +117,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Returns true if this is a TCP socket
         /// </summary>
-        public bool IsTcpSocket => NativeSocket.ProtocolType == ProtocolType.Tcp;
+        public bool IsTcpSocket => NativeSocket?.ProtocolType == ProtocolType.Tcp;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming

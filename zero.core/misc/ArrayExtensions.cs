@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
+using NLog;
 
 namespace zero.core.misc
 {
@@ -46,13 +47,26 @@ namespace zero.core.misc
 
 
 #if DEBUG //|| RELEASE //TODO remove release
-        private static readonly SHA256 Sha256 = SHA256.Create();
+        [ThreadStatic]
+        private static SHA256 _sha256;
+        public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
 
         public static string PayloadSig(this byte[] payload)
         {
             Span<byte> hash = stackalloc byte[256];
-            if(payload.Length > 0)
-                Sha256.TryComputeHash(payload, hash, out var _);
+            if (payload.Length > 0)
+            {
+                int read = 0;
+                try
+                {
+                    Sha256.TryComputeHash(payload, hash, out read);
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Fatal(e,$"Compute hash failed: read = {read}/{payload.Length}");
+                    return $"P(0x000)";
+                }
+            }
             return $"P({Convert.ToBase64String(hash)[..5]})";
         }
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)

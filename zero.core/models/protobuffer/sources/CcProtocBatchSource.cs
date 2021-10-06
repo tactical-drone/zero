@@ -40,7 +40,7 @@ namespace zero.core.models.protobuffer.sources
             //Set Q to be blocking
             //TODO tuning
 
-            MessageQueue = new IoZeroQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true);
+            MessageQueue = new IoZeroQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;

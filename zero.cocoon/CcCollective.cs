@@ -52,11 +52,11 @@ namespace zero.cocoon
             //TODO tuning
             
             _autoPeering =  new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
-            _autoPeering.ZeroHiveAsync(this, true).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
 
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  nameof(DupSyncRoot), maxBlockers: parm_max_drone * tpcConcurrencyLevel * 2);
-            DupSyncRoot.ZeroHiveAsync(DupSyncRoot, true).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            DupSyncRoot.ZeroHiveAsync(DupSyncRoot, true).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -923,7 +923,6 @@ namespace zero.cocoon
 
         private static readonly float _lambda = 100;
         private static readonly int _maxAsyncConnectionAttempts = 2;
-        private static readonly int _zeroAtomicConcurrency = 1;
 
         private int _currentOutboundConnectionAttempts;
         private readonly Poisson _poisson = new Poisson(_lambda);

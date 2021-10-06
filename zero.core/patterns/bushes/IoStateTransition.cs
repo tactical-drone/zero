@@ -17,7 +17,7 @@ namespace zero.core.patterns.bushes
         where TState : Enum {
         public IoStateTransition()
         {
-            ConstructorAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            ConstructorAsync().AsTask().GetAwaiter().GetResult();
         }
 
         /// <summary>

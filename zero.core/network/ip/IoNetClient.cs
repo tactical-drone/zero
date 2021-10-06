@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -80,7 +79,7 @@ namespace zero.core.network.ip
             {
                 if (_key != null)
                     return _key;
-                return _key = IoNetSocket.Key;
+                return _key = IoNetSocket?.Key;
             }
         }
 

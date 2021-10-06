@@ -321,8 +321,8 @@ namespace zero.core.patterns.semaphore.core
 
             _currentToken++;
 #endif
-
-            return !_asyncToken.IsCancellationRequested && _zeroed == 0;
+            var res = !_asyncToken.IsCancellationRequested && _zeroed == 0;
+            return res;
         }
 
         /// <summary>
@@ -561,12 +561,16 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1, bool async = false)
         {
+#if DEBUG
+            if(_zeroRef == null)
+                throw new NullReferenceException($"{nameof(_zeroRef)}: BUG!!! Value cannot be null, {nameof(ZeroRef)} was not set!!!");
+#endif
             //preconditions
-            //if(releaseCount < 1 || releaseCount + _signalCount > _maxBlockers)
-            //    throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxBlockers)}({_maxBlockers})");
+            if(releaseCount < 1 || releaseCount + _signalCount > _maxBlockers)
+                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxBlockers)}({_maxBlockers})");
 
-            if(releaseCount < 1 )
-                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0");
+            //if(releaseCount < 1 )
+            //    throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0");
 
             //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
@@ -729,11 +733,16 @@ namespace zero.core.patterns.semaphore.core
             if (_waitCount >= _maxBlockers)
                 throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_waitCount)} = {_waitCount}/{_maxBlockers}, {nameof(_asyncWorkerCount)} = {_asyncWorkerCount}/{_maxAsyncWorkers}");
 
-            //Enter on fast path if signalled or wait
-            //return Signalled() ? : _zeroWait;
             if (Signalled())
-                return new ValueTask<bool>(!_asyncToken.IsCancellationRequested || _zeroed > 0);
-
+            {
+                var ret = !_asyncToken.IsCancellationRequested && _zeroed == 0;
+                if (ret == false)
+                {
+                    return new ValueTask<bool>(ret);
+                }
+                return new ValueTask<bool>(ret);
+            }
+            
             Interlocked.Increment(ref _waitCount);
             return _zeroWait;
         }

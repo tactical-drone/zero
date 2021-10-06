@@ -288,7 +288,7 @@ namespace zero.core.patterns.bushes
                 {
                     return _stateMeta.Value;
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     return IoJobMeta.JobState.Zeroed;
                 }   

@@ -29,24 +29,31 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoZeroQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false)
+        public IoZeroQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
         {
             _description = description;
-            
+            _zeroSentinel = new IoNanoprobe($"{nameof(IoZeroQueue<T>)}: {description}");
+
             _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
             
             _syncRoot = new IoZeroSemaphore(description,
                 maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks.Token);
 
-            _pressure = new IoZeroSemaphore($"q pressure at {description}",
-                maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 0);
-            _pressure.ZeroRef(ref _pressure, _asyncTasks.Token);
-
+            if (!disablePressure)
+            {
+                _pressure = new IoZeroSemaphore($"q pressure at {description}",
+                    maxBlockers: concurrencyLevel * 2, maxAsyncWork: 0, initialCount: 0);
+                _pressure.ZeroRef(ref _pressure, _asyncTasks.Token);
+            }
+            
             _enableBackPressure = enableBackPressure;
-            if(_enableBackPressure)
+            if (_enableBackPressure)
+            {
                 _backPressure = new IoZeroSemaphore($"q back pressure at {description}",
-                    maxBlockers: concurrencyLevel*2,maxAsyncWork:0, initialCount: 1);
+                    maxBlockers: concurrencyLevel * 2, maxAsyncWork: 0, initialCount: 1);
+                _backPressure.ZeroRef(ref _backPressure, _asyncTasks.Token);
+            }
         }
 
         private readonly string _description; 
@@ -65,13 +72,14 @@ namespace zero.core.patterns.queue
         public int Count => _count;
         public IoZNode First => _head;
         public IoZNode Last => _tail;
+        private readonly IoNanoprobe _zeroSentinel;
 
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
             try
             {
                 #if DEBUG
-                if (!zero && nanite is not IIoNanite)
+                if (!zero)
                     throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
                 #endif
                 
@@ -89,7 +97,10 @@ namespace zero.core.patterns.queue
 
                         try
                         {
-                            await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
+                            if (!zero)
+                                await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
+                            else
+                                await ((IIoNanite) cur.Value).ZeroAsync(_zeroSentinel).FastPath().ConfigureAwait(false);
                         }
                         catch(Exception e)
                         {
@@ -109,10 +120,8 @@ namespace zero.core.patterns.queue
                 _asyncTasks.Dispose();
                 _asyncTasks = null;
 
-                _pressure.Zero();
-
-                if (_enableBackPressure)
-                    _backPressure.Zero();
+                _pressure?.Zero();
+                _backPressure?.Zero();
 
                 //unmanaged
                 _pressure = null;
@@ -184,7 +193,7 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
-                _pressure.Release();
+                _pressure?.Release();
             }
         }
 
@@ -201,6 +210,13 @@ namespace zero.core.patterns.queue
                     return null;
 
                 //wait on back pressure
+
+                //var t = _backPressure.WaitAsync();
+                //var r = await t.FastPath().ConfigureAwait(false);
+
+                //if (_enableBackPressure && !r)
+                //        return null;
+
                 if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
                         return null;
 
@@ -240,7 +256,7 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
-                _pressure.Release();
+                _pressure?.Release();
             }
         }
 
@@ -256,7 +272,7 @@ namespace zero.core.patterns.queue
                 if (_zeroed || _count == 0)
                     return default;
 
-                if (!await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
                     return default;
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
