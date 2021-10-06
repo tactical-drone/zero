@@ -184,8 +184,7 @@ namespace zero.cocoon.models
                         catch (Exception) when( Zeroed()){}
                         catch (Exception e) when (!Zeroed())
                         {
-                            
-                            _logger.Trace(e,$"{Description}: {State}");
+                            _logger.Error(e,$"{Description}: {State}");
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
                     }

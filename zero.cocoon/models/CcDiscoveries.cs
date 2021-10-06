@@ -36,7 +36,7 @@ namespace zero.cocoon.models
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
                 //TODO tuning
-                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool , BufferSize/DatumSize, 4,Source.ZeroConcurrencyLevel()*64, 8,8);
+                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, _arrayPool , BufferSize/DatumSize, Source.ZeroConcurrencyLevel(), Source.ZeroConcurrencyLevel()*64, 8,8);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitName,
                     Source.ZeroConcurrencyLevel()*2,

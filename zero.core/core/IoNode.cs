@@ -23,12 +23,11 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, int zeroAtomicConcurrency) : base($"{nameof(IoNode<TJob>)}", Math.Max(concurrencyLevel, zeroAtomicConcurrency))
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel)
         {
             _address = address;
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
-            _zeroAtomicConcurrency = zeroAtomicConcurrency;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
         }
@@ -97,12 +96,6 @@ namespace zero.core.core
         // ReSharper disable once InconsistentNaming
         protected int parm_zombie_connect_time_threshold = 5;
 
-
-        /// <summary>
-        /// expected number of waiters on this node's <see cref="IoNanoprobe.ZeroAtomicAsync"/>
-        /// </summary>
-        private readonly int _zeroAtomicConcurrency;
-
         /// <summary>
         /// TCP read ahead
         /// </summary>
@@ -126,7 +119,6 @@ namespace zero.core.core
             if (_netServer != null)
                 throw new ConstraintException("The network has already been started");
 
-            //_netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel), true).target;
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
 

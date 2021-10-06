@@ -731,14 +731,7 @@ namespace zero.core.patterns.semaphore.core
                 return ValueTask.FromResult(false);
 
             if (Signalled())
-            {
-                var ret = !_asyncToken.IsCancellationRequested && _zeroed == 0;
-                if (ret == false)
-                {
-                    return new ValueTask<bool>(ret);
-                }
-                return new ValueTask<bool>(ret);
-            }
+                return new ValueTask<bool>(!_asyncToken.IsCancellationRequested && _zeroed == 0);
             
             Interlocked.Increment(ref _waitCount);
             return _zeroWait;
