@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using NLog;
 using Proto;
+using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
 using zero.core.core;
@@ -32,6 +33,7 @@ namespace zero.cocoon.autopeer
         {
             _logger = LogManager.GetCurrentClassLogger();
             CcCollective = ccCollective;
+            _designation = ccCollective.CcId;
         }
 
         /// <summary>
@@ -43,6 +45,16 @@ namespace zero.cocoon.autopeer
         /// Description
         /// </summary>
         public override string Description => $"`discovery({Address})'";
+
+        /// <summary>
+        /// The hub id
+        /// </summary>
+        private CcDesignation _designation;
+
+        /// <summary>
+        /// The hub id
+        /// </summary>
+        public CcDesignation Designation => _designation;
 
         /// <summary>
         /// The cocoon node this discovery service belongs to 

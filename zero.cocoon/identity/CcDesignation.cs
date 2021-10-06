@@ -16,11 +16,10 @@ namespace zero.cocoon.identity
     {
         static CcDesignation()
         {
-            SecureRandom.SetSeed(SecureRandom.GenerateSeed(256));
+            SecureRandom.SetSeed(SecureRandom.GenerateSeed(PubKeySize));
         }
 
         private const int PubKeySize = 256;
-        public const int PubKeyLen = PubKeySize / 8;
 
         [ThreadStatic]
         private static SHA256 _sha256;
@@ -30,18 +29,20 @@ namespace zero.cocoon.identity
         private byte[] SecretKey { get; init; }
 
         private static string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
-        //private static string PubKey = "8PJmW2W74rJbFasdSTNaDLhGXyJC29EeyBN1Fmq3yQ2j";
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
         {
-            return Base58.Bitcoin.Encode(Id.AsSpan().Slice(0, 8).ToArray());
+            return Base58.Bitcoin.Encode(Id.AsSpan()[..8]);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string PkString()
         {
             return Base58.Bitcoin.Encode(PublicKey);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static CcDesignation FromPubKey(ReadOnlyMemory<byte> pk)
         {
             var pkBuf = pk.AsArray();
@@ -71,6 +72,7 @@ namespace zero.cocoon.identity
             };
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Sign(byte[] buffer, int offset, int len)
         {
             var sigBuf = new byte[Ed25519.SignatureSize];
@@ -78,21 +80,22 @@ namespace zero.cocoon.identity
             return sigBuf;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
         {
             return Ed25519.Verify(signature, sigOffset, pubKey, keyOffset, msg, offset, len);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals(object obj)
         {
-            var id = obj as CcDesignation;
-
-            if (id == null)
+            if (obj is not CcDesignation id)
                 throw new ArgumentNullException(nameof(obj));
 
             return id == this || id.PublicKey.SequenceEqual(PublicKey);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
             return MemoryMarshal.Read<int>(PublicKey);

@@ -425,21 +425,16 @@ namespace zero.core.patterns.bushes
                                         nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
                                         return false;
                                     }
-
-#if DEBUG
+                                    
                                     //Is there a bug in the producer?
-                                    if (nextJob.State == IoJobMeta.JobState.Producing)
+                                    if (nextJob.State == IoJobMeta.JobState.Producing && !Zeroed() || nextJob.Zeroed())
                                     {
-                                        _logger.Warn(
-                                            $"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.JobState.Producing}");
+                                        _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.JobState.Producing}");
                                         nextJob.State = IoJobMeta.JobState.Error;
                                     }
-#endif
 
                                     //Handle failure that leads to teardown
-                                    if (nextJob.State == IoJobMeta.JobState.Cancelled ||
-                                        nextJob.State == IoJobMeta.JobState.ProdCancel ||
-                                        nextJob.State == IoJobMeta.JobState.Error)
+                                    if (nextJob.State is IoJobMeta.JobState.Cancelled or IoJobMeta.JobState.ProdCancel or IoJobMeta.JobState.Error)
                                     {
                                         _logger.Trace(
                                             $"{nameof(ProduceAsync)}: [FAILED], s = `{nextJob}', {Description}");
@@ -464,7 +459,7 @@ namespace zero.core.patterns.bushes
                                     nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
 
                                     // Signal prefetch back pressure
-                                    if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
+                                    if (enablePrefetchOption && nextJob.Source.PrefetchEnabled)
                                         nextJob.Source.PrefetchPressure();
 
                                     //signal back pressure
@@ -512,6 +507,7 @@ namespace zero.core.patterns.bushes
                     {
                         _logger.Trace(e, $"{Description}");
                     }
+                    catch (Exception)when (Zeroed()){}
                     catch (Exception e)
                     {
                         if(!Zeroed())

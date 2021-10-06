@@ -1,6 +1,7 @@
 ﻿//#define LOSS
 using System;
 using System.Buffers;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -155,22 +156,19 @@ namespace zero.cocoon.autopeer
         {
             get
             {
-                //if (_lastDescGen.ElapsedMsDelta() > 100 && _description != null)
-                //    return _description;
-
-                //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
                     if(Proxy)
-                        return _description = $"`adjunct ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation?.IdString()}]'";
+                        return _description = $"`adjunct ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Hub?.Designation}, {Designation.IdString()}]'";
                     else
-                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Designation?.IdString()}]'";
+                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Hub?.Designation}, {Designation.IdString()}]'";
                 }
                 catch (Exception e)
                 {
-                    if (Collected)
-                        _logger.Debug(e, Description);
-                    return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{(Proxy?TotalPats.ToString().PadLeft(3):"  0")}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Designation?.IdString()}]'";
+                    if(Proxy)
+                        return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress},' [{Hub?.Designation}, {Designation?.IdString()}]'";    
+                    else
+                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Hub?.Designation}, {Designation?.IdString()}]'";
                 }
             }
         }
@@ -179,7 +177,7 @@ namespace zero.cocoon.autopeer
         /// return extra information about the state
         /// </summary>
         public string MetaDesc =>
-            $"(d = {Direction}, s = {State}, v = {Verified}, a = {Assimilating}, att = {IsDroneAttached}, c = {IsDroneConnected}, r = {PeeringAttempts}, g = {IsGossiping}, arb = {IsArbitrating}, o = {MessageService.IsOperational}, w = {TotalPats})";
+            $"(d= {Direction}, s= {State}, v= {Verified}, a= {Assimilating}, att= {IsDroneAttached}, c= {IsDroneConnected}, r= {PeeringAttempts}, g= {IsGossiping}, arb= {IsArbitrating}, o= {MessageService.IsOperational}, w= {TotalPats})";
 
         /// <summary>
         /// Random number generator
@@ -189,7 +187,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Discovery services
         /// </summary>
-        protected CcHub Hub => (CcHub) Node;
+        protected CcHub Hub => (CcHub)Node;
 
         /// <summary>
         /// Source
@@ -220,12 +218,7 @@ namespace zero.cocoon.autopeer
         /// Whether the peer is nominal
         /// </summary>
         public bool IsDroneConnected => IsDroneAttached && State == AdjunctState.Connected && Direction != Heading.Undefined;
-
-        /// <summary>
-        /// Is this the local listener
-        /// </summary>
-        public bool IsLocal => !Proxy;
-
+        
         /// <summary>
         /// If the adjunct is working 
         /// </summary>
@@ -234,12 +227,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether the node, peer and adjunct are nominal
         /// </summary>
-        public bool IsGossiping => Assimilating && IsDroneConnected;
-
-        /// <summary>
-        /// Looks for a zombie peer
-        /// </summary>
-        public bool PolledZombie => Direction != Heading.Undefined && !(Assimilating && IsDroneConnected);
+        public bool IsGossiping => IsDroneConnected && Assimilating;
 
         /// <summary>
         /// Indicates whether we have extracted information from this drone
@@ -315,12 +303,12 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// inbound
         /// </summary>
-        public bool IsIngress => Direction == Heading.Ingress && IsDroneConnected;
+        public bool IsIngress =>  IsDroneConnected && Direction == Heading.Ingress;
 
         /// <summary>
         /// outbound
         /// </summary>
-        public bool IsEgress => Direction == Heading.Egress && IsDroneConnected;
+        public bool IsEgress => IsDroneConnected && Direction == Heading.Egress;
 
         /// <summary>
         /// Who contacted who?
@@ -329,6 +317,7 @@ namespace zero.cocoon.autopeer
         {
             Undefined = 0,
             Ingress = 1,
+            [Description(" Egress")]
             Egress = 2
         }
 

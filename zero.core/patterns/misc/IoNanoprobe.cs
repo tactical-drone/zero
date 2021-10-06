@@ -580,6 +580,7 @@ namespace zero.core.patterns.misc
                 
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
+                
                 await zeroAsyncTask;
             }
             catch (TaskCanceledException e) when (nanite != null && !nanite.Zeroed()
@@ -588,6 +589,8 @@ namespace zero.core.patterns.misc
                 if(nanite != null)
                     _logger.Error(e, Description);
             }
+            catch(TaskCanceledException) when (nanite != null && nanite.Zeroed()){}
+            catch(Exception) when (nanite != null && nanite.Zeroed()){}
             catch (Exception e) when (nanite != null && !nanite.Zeroed()
                                       || nanite == null)
             {

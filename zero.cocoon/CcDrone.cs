@@ -63,12 +63,7 @@ namespace zero.cocoon
         /// Description
         /// </summary>
         private string _description;
-
-        /// <summary>
-        /// rate limit desc gens
-        /// </summary>
-        private long _lastDescGen = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).Millisecond;
-
+        
         public override string Description
         {
             get
@@ -79,11 +74,11 @@ namespace zero.cocoon
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`drone({Adjunct?.Direction.ToString().PadLeft(CcAdjunct.Heading.Ingress.ToString().Length)} - {(Source?.IsOperational??false?"Connected":"Zombie")}) {IoSource.Key}, [{Adjunct?.Designation.IdString()}]'";
+                    return _description = $"`drone({Adjunct.Direction} - {(Source.IsOperational?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct.CcCollective.Hub.Router.Designation.IdString()}, {Adjunct.Designation.IdString()}]'";
                 }
                 catch
                 {
-                    return _description??Key;
+                    return _description = $"`drone({Adjunct?.Direction} - {(Source?.IsOperational??false?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct?.CcCollective?.Hub?.Router?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}]'";
                 }
             }
         }
@@ -113,7 +108,7 @@ namespace zero.cocoon
         /// <summary>
         /// The attached neighbor
         /// </summary>
-        public CcAdjunct Adjunct { get; set; }
+        public CcAdjunct Adjunct { get; protected internal set; }
 
         /// <summary>
         /// CcId
@@ -129,6 +124,12 @@ namespace zero.cocoon
         /// Helper
         /// </summary>
         protected IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> IoNetClient;
+
+
+        /// <summary>
+        /// Whether this drone ever formed part of a collective
+        /// </summary>
+        private bool _assimulated;
 
         /// <summary>
         /// Grace time for sanity checks
@@ -201,8 +202,7 @@ namespace zero.cocoon
             if (attached)
             {
                 _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to neighbor {Adjunct.Description}");
-                
-                //var t = EmitTestGossipMsgAsync();
+                _assimulated = true;
             }
             else
             {
@@ -223,11 +223,8 @@ namespace zero.cocoon
             {
                 var (@this, latch) = state;
                 if (@this.Adjunct != null)
-                {
                     state.Item2 = @this.Adjunct;
-                    @this.Adjunct = null;
-                }
-
+                
                 return new ValueTask<bool>(true);
             },state).FastPath().ConfigureAwait(false);
 

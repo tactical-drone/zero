@@ -46,11 +46,14 @@ namespace zero.core.misc
 
 
 #if DEBUG //|| RELEASE //TODO remove release
-        public static SHA256 Sha256 = SHA256.Create();
+        private static readonly SHA256 Sha256 = SHA256.Create();
 
         public static string PayloadSig(this byte[] payload)
         {
-            return $"P({Convert.ToBase64String(Sha256.ComputeHash(payload)).Substring(0, 5)})";
+            Span<byte> hash = stackalloc byte[256];
+            if(payload.Length > 0)
+                Sha256.TryComputeHash(payload, hash, out var _);
+            return $"P({Convert.ToBase64String(hash)[..5]})";
         }
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
