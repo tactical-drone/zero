@@ -64,7 +64,7 @@ namespace zero.core.network.ip
         /// </returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
         {
-            IoNetSocket = ZeroOnCascade(new IoUdpSocket(ZeroConcurrencyLevel()), true).target;
+            IoNetSocket = (await ZeroHiveAsync(new IoUdpSocket(ZeroConcurrencyLevel()), true)).target;
             return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
         }
 

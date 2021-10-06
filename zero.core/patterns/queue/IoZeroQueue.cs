@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.queue
 {
@@ -12,7 +15,7 @@ namespace zero.core.patterns.queue
     /// Zero Queue
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class IoZeroQueue<T>
+    public class IoZeroQueue<T>: IEnumerator<IoZeroQueue<T>.IoZNode>, IEnumerable<IoZeroQueue<T>.IoZNode>
     {
         /// <summary>
         /// A node
@@ -32,23 +35,25 @@ namespace zero.core.patterns.queue
             
             _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
             
-            _syncRoot = new IoZeroSemaphoreSlim(_asyncTasks.Token, description,
+            _syncRoot = new IoZeroSemaphore(description,
                 maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
+            _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks.Token);
 
-            _pressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q pressure at {description}",
+            _pressure = new IoZeroSemaphore($"q pressure at {description}",
                 maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 0);
+            _pressure.ZeroRef(ref _pressure, _asyncTasks.Token);
 
             _enableBackPressure = enableBackPressure;
             if(_enableBackPressure)
-                _backPressure = new IoZeroSemaphoreSlim(_asyncTasks.Token, $"q back pressure at {description}",
+                _backPressure = new IoZeroSemaphore($"q back pressure at {description}",
                     maxBlockers: concurrencyLevel*2,maxAsyncWork:0, initialCount: 1);
         }
 
         private readonly string _description; 
         private volatile bool _zeroed;
-        private IoZeroSemaphoreSlim _syncRoot;
-        private IoZeroSemaphoreSlim _pressure;
-        private IoZeroSemaphoreSlim _backPressure;
+        private IIoZeroSemaphore _syncRoot;
+        private IIoZeroSemaphore _pressure;
+        private IIoZeroSemaphore _backPressure;
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
 
@@ -56,18 +61,24 @@ namespace zero.core.patterns.queue
         private volatile IoZNode _tail = null;
         private volatile int _count;
         private readonly bool _enableBackPressure;
+        
         public int Count => _count;
         public IoZNode First => _head;
         public IoZNode Last => _tail;
 
-        public async ValueTask ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default)
+        public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
             try
             {
-                if (_zeroed || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
-                    return;
+                #if DEBUG
+                if (!zero && nanite is not IIoNanite)
+                    throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
+                #endif
                 
-                if(!_asyncTasks.IsCancellationRequested)
+                if (_zeroed || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                    return true;
+
+                if (!_asyncTasks.IsCancellationRequested)
                     _asyncTasks.Cancel();
 
                 if (op != null)
@@ -80,9 +91,9 @@ namespace zero.core.patterns.queue
                         {
                             await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
                         }
-                        catch 
+                        catch(Exception e)
                         {
-                            //
+                            LogManager.GetCurrentClassLogger().Trace(e,$"{_description}: {op}, {cur.Value}, {nanite}");
                         }
 
                         cur = cur.Next;
@@ -98,11 +109,10 @@ namespace zero.core.patterns.queue
                 _asyncTasks.Dispose();
                 _asyncTasks = null;
 
-                var from = new IoNanoprobe($"{_description}");
-                await _pressure.ZeroAsync(from).ConfigureAwait(false);
+                _pressure.Zero();
 
-                if(_enableBackPressure)
-                    await _backPressure.ZeroAsync(from).ConfigureAwait(false);
+                if (_enableBackPressure)
+                    _backPressure.Zero();
 
                 //unmanaged
                 _pressure = null;
@@ -111,13 +121,19 @@ namespace zero.core.patterns.queue
                 //zeroed
                 _zeroed = true;
             }
+            catch (Exception)
+            {
+                return false;
+            }
             finally
             {
                 _syncRoot.Release();
             }
 
-            await _syncRoot.ZeroAsync(new IoNanoprobe($"{_description}")).FastPath().ConfigureAwait(false);
+            _syncRoot.Zero();
             _syncRoot = null;
+
+            return true;
         }
 
         /// <summary>
@@ -329,6 +345,36 @@ namespace zero.core.patterns.queue
             }
 
             await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false);
+        }
+
+        public bool MoveNext()
+        {
+            Current = Current?.Next;
+            return Current != null;
+        }
+
+        public void Reset()
+        {
+            Current = _head;
+        }
+
+        public IoZNode Current { get; private set; }
+
+        object IEnumerator.Current => Current;
+
+        public void Dispose()
+        {
+            
+        }
+
+        public IEnumerator<IoZNode> GetEnumerator()
+        {
+            return this;
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }

@@ -187,7 +187,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Discovery services
         /// </summary>
-        protected CcHub Hub => (CcHub)Node;
+        protected internal CcHub Hub => (CcHub)Node;
 
         /// <summary>
         /// Source
@@ -533,11 +533,6 @@ namespace zero.cocoon.autopeer
         // ReSharper disable once InconsistentNaming
         public uint parm_protocol_version = 0;
 
-        
-        /// <summary>
-        /// Handle to peer zero sub
-        /// </summary>
-        private IoZeroSub _zeroCascadeSub;
 
         /// <summary>
         /// The service map
@@ -586,7 +581,6 @@ namespace zero.cocoon.autopeer
             _pingRequest = null;
             _drone = null;
             _protocolConduit = null;
-            _zeroCascadeSub = default;
             ArrayPoolProxy = null;
             StateTransitionHistory = null;
             _peerRequest = null;
@@ -610,6 +604,9 @@ namespace zero.cocoon.autopeer
                     {
                         _logger.Warn($"Router reset [FAILED], value is {Router._routingTable[_routingIndex]}: {Description}");
                     }
+
+                    if(_drone != null)
+                        await _drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
                 }
                 catch
                 {
@@ -908,7 +905,7 @@ namespace zero.cocoon.autopeer
 
             
                 //The producer
-                var producer = ZeroAsyncOption(static async @this =>
+                var producer = ZeroAsyncOptionAsync(static async @this =>
                 {
                     try
                     {
@@ -945,7 +942,7 @@ namespace zero.cocoon.autopeer
                     
                 },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler);
 
-                var consumer = ZeroAsyncOption(static async @this  =>
+                var consumer = ZeroAsyncOptionAsync(static async @this  =>
                 {
                     //the consumer
                     try
@@ -1280,7 +1277,7 @@ namespace zero.cocoon.autopeer
                 //Race for 
                 case true when _direction == 0:
                 {
-                    await ZeroAsyncOption(static async @this =>
+                    await ZeroAsyncOptionAsync(static async @this =>
                     {
                         await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency/2, @this.AsyncTasks.Token).ConfigureAwait(false);
                         var connectionTime = Stopwatch.StartNew();
@@ -1601,7 +1598,7 @@ namespace zero.cocoon.autopeer
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;
 
-                var sub = newAdjunct.ZeroSubscribe(static (from, state) =>
+                var sub = await newAdjunct.ZeroSubAsync(static (from, state) =>
                 {
                     var (@this, newAdjunct) = state;
                     try
@@ -1636,8 +1633,8 @@ namespace zero.cocoon.autopeer
                         // ignored
                     }
 
-                    return ValueTask.CompletedTask;
-                },ValueTuple.Create(this,newAdjunct));
+                    return ValueTask.FromResult(true);
+                },ValueTuple.Create(this,newAdjunct)).FastPath().ConfigureAwait(false);
 
                 if (sub == null)
                 {
@@ -1659,7 +1656,7 @@ namespace zero.cocoon.autopeer
                 });
 
                 
-                CcCollective.Hub.Assimilate(newAdjunct);
+                await CcCollective.Hub.AssimilateAsync(newAdjunct).FastPath().ConfigureAwait(false);
                 
                 if (!await newAdjunct.SendPingAsync().FastPath().ConfigureAwait(false))
                 {
@@ -2341,22 +2338,23 @@ namespace zero.cocoon.autopeer
                     });
                 }
             }
-            catch (NullReferenceException e)
+            catch (NullReferenceException e) when(!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
-            catch (ObjectDisposedException e)
+            catch (ObjectDisposedException e) when(!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
-            catch (TaskCanceledException e)
+            catch (TaskCanceledException e) when(!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
-            catch (OperationCanceledException e)
+            catch (OperationCanceledException e) when(!Zeroed())
             {
                 _logger.Trace(e, Description);
             }
+            catch (Exception) when(Zeroed()){}
             catch (Exception e)
             {
                 if (Collected)
@@ -2414,18 +2412,6 @@ namespace zero.cocoon.autopeer
                 Assimilated = true;
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                _zeroCascadeSub = ZeroSubscribe(static async (from,@this) =>
-                {
-                    try
-                    {
-                        await @this._drone.ZeroAsync(@this).FastPath().ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                },this);
-
                 //emit event
                 AutoPeeringEventService.AddEvent(new AutoPeerEvent
                 {
@@ -2479,11 +2465,7 @@ namespace zero.cocoon.autopeer
 
             var direction = Direction;
             _logger.Warn($"{(Assimilated ? "Distinct" : "Common")} {Direction} peer detaching: s = {State}, a = {Assimilating}, p = {IsDroneConnected}, {latch?.Description ?? Description}");
-
-            //Detach zeroed
-            Unsubscribe(_zeroCascadeSub);
-            _zeroCascadeSub = default;
-
+            
             await latch!.ZeroAsync(this).FastPath().ConfigureAwait(false);
             
             Interlocked.Exchange(ref _direction, 0);

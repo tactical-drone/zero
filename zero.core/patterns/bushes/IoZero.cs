@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Threading;
 using NLog;
+using StackExchange.Redis;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.patterns.bushes.contracts;
@@ -35,8 +36,6 @@ namespace zero.core.patterns.bushes
         protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob,
             bool enableSync, bool sourceZeroCascade = false, int concurrencyLevel = -1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
         {
-            
-
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -83,8 +82,6 @@ namespace zero.core.patterns.bushes
             Source = source;
 
             _queue = new IoZeroQueue<IoSink<TJob>>($"zero Q: {_description}", ZeroConcurrencyLevel(), ZeroConcurrencyLevel());
-
-            ZeroOnCascade(Source, sourceZeroCascade);
         }
 
         /// <summary>
@@ -254,16 +251,18 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _queue.ZeroManagedAsync(static async (sink,@this) => await sink.ZeroAsync(@this).FastPath().ConfigureAwait(false), this).FastPath().ConfigureAwait(false);
+            await _queue.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(false);
 
             if(_previousJobFragment != null)
-                await _previousJobFragment.ZeroManagedAsync(static async (job, @this) => await job.ZeroAsync(@this).FastPath().ConfigureAwait(false),this).FastPath().ConfigureAwait(false);
+                await _previousJobFragment.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(false);
 
             await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
             {
                 await sink.ZeroAsync(@this).FastPath().ConfigureAwait(false);
             },this).FastPath().ConfigureAwait(false);
 
+            await Source.ZeroAsync(this).FastPath().ConfigureAwait(false);
+            
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
@@ -459,7 +458,7 @@ namespace zero.core.patterns.bushes
                                     nextJob = await FreeAsync(nextJob, true).FastPath().ConfigureAwait(false);
 
                                     // Signal prefetch back pressure
-                                    if (enablePrefetchOption && nextJob.Source.PrefetchEnabled)
+                                    if (enablePrefetchOption && nextJob.Source!= null && nextJob.Source.PrefetchEnabled) 
                                         nextJob.Source.PrefetchPressure();
 
                                     //signal back pressure
@@ -585,7 +584,7 @@ namespace zero.core.patterns.bushes
                         await _previousJobFragment.PushAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(false);
 
                     job.PreviousJob = null;
-                    return null;
+                    return job;
                 }
                 //else if (!parent && job.CurrentState.Previous.CurrentState == IoJobMeta.CurrentState.Accept)
                 //{
@@ -601,7 +600,7 @@ namespace zero.core.patterns.bushes
                 _logger.Fatal(e,Description);
             }
 
-            return null;
+            return job;
         }
 
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -633,11 +632,13 @@ namespace zero.core.patterns.bushes
                         }
 
                         //wait...
-                        _logger.Trace($"{GetType().Name}: Consumer {Description} [[ProducerPressure]] timed out waiting on {Description}, willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
-                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(false);
+                        _logger.Trace(
+                            $"{GetType().Name}: Consumer {Description} [[ProducerPressure]] timed out waiting on {Description}, willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");
+                        await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token)
+                            .ConfigureAwait(false);
 
                         //Try again
-                        return false;    
+                        return false;
                     }
                 }
 
@@ -697,7 +698,9 @@ namespace zero.core.patterns.bushes
                         _logger?.Trace(e.InnerException ?? e,
                             $"{GetType().Name}: {curJob.TraceDescription} consuming job: `{curJob.Description}' returned with errors:");
                     }
-                    catch (Exception) when(Zeroed()){}
+                    catch (Exception) when (Zeroed())
+                    {
+                    }
                     catch (Exception e)
                     {
                         _logger?.Error(e.InnerException ?? e,
@@ -712,7 +715,7 @@ namespace zero.core.patterns.bushes
 
                         try
                         {
-                            
+
                             if (curJob.Id > 0 && curJob.Id % parm_stats_mod_count == 0 &&
                                 _lastStat.ElapsedDelta() > TimeSpan.FromSeconds(10).TotalSeconds)
                             {
@@ -722,12 +725,12 @@ namespace zero.core.patterns.bushes
                                     //_logger.Info(
                                     //    "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                                     _logger.Info(
-                                        $"{Description} {0/*JobHeap.IoFpsCounter.Fps()*/:F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                        $"{Description} {0 /*JobHeap.IoFpsCounter.Fps()*/:F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();
                                     //_logger.Info("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
                                 }
                             }
-                                
+
                             curJob = await FreeAsync(curJob).FastPath().ConfigureAwait(false);
                         }
                         catch
@@ -738,13 +741,30 @@ namespace zero.core.patterns.bushes
 
                     return true;
                 }
+
                 return false;
             }
-            catch (NullReferenceException e) { _logger?.Trace(e, Description);}
-            catch (ObjectDisposedException e) { _logger?.Trace(e, Description); }
-            catch (TimeoutException e) { _logger?.Trace(e, Description); }
-            catch (TaskCanceledException e) { _logger?.Trace(e, Description); }
-            catch (OperationCanceledException e) { _logger?.Trace(e, Description); }
+            catch (NullReferenceException e) when(!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (ObjectDisposedException e) when(!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (TimeoutException e) when(!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (TaskCanceledException e) when(!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (OperationCanceledException e) when(!Zeroed())
+            {
+                _logger?.Trace(e, Description);
+            }
+            catch (Exception) when(Zeroed()){}
             catch (Exception e)
             {
                 _logger?.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");
@@ -761,7 +781,7 @@ namespace zero.core.patterns.bushes
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             //Producer
-            _producerTask = ZeroAsyncOption(static async @this =>
+            _producerTask = ZeroAsyncOptionAsync(static async @this =>
             {
                 //While supposed to be working
                 try
@@ -805,7 +825,7 @@ namespace zero.core.patterns.bushes
             },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler);
 
             //Consumer
-            _consumerTask = ZeroAsyncOption(static async @this =>
+            _consumerTask = ZeroAsyncOptionAsync(static async @this =>
             {
                 //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working

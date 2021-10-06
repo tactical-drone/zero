@@ -138,7 +138,7 @@ namespace zero.core.network.ip
                     if (ioNetClient.IsOperational)
                     {
                         //Ensure ownership
-                        if (!await ZeroAtomicAsync(static (s,client,d) => ValueTask.FromResult(s.ZeroOnCascade(client).success),ioNetClient).FastPath().ConfigureAwait(false))
+                        if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(false)).success,ioNetClient).FastPath().ConfigureAwait(false))
                         {
                             _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                             //REJECT

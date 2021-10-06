@@ -86,12 +86,18 @@ namespace zero.core.patterns.heap
             return next;
         }
 
-        public override async ValueTask ReturnAsync(T item, bool destroy = false)
+        /// <summary>
+        /// Return item to the heap
+        /// </summary>
+        /// <param name="item">The item to return</param>
+        /// <param name="zero">If the item is to be zeroed</param>
+        public override async ValueTask<T> ReturnAsync(T item, bool zero = false)
         {
-            await base.ReturnAsync(item, destroy).FastPath().ConfigureAwait(false);
+            await base.ReturnAsync(item, zero).FastPath().ConfigureAwait(false);
 
-            if (destroy)
+            if (zero)
                 await item.ZeroAsync(new IoNanoprobe($"{GetType()}")).FastPath().ConfigureAwait(false);
+            return item;
         }
     }
 }

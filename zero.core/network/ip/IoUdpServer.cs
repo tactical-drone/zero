@@ -49,14 +49,14 @@ namespace zero.core.network.ip
             while (!Zeroed())
             {
                 //Creates a listening socket
-                IoListenSocket = ZeroOnCascade(new IoUdpSocket(ConcurrencyLevel), true).target;
+                IoListenSocket = (await ZeroHiveAsync(new IoUdpSocket(ConcurrencyLevel), true)).target;
 
                 await IoListenSocket.ListenAsync(ListeningAddress, static async (ioSocket,state) =>
                 {
                     var (@this, nanite, connectionReceivedAction) = state;
                     try
                     { //creates a new udp client
-                        await connectionReceivedAction(nanite, @this.ZeroOnCascade(new IoUdpClient<TJob>($"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).target).FastPath().ConfigureAwait(false);
+                        await connectionReceivedAction(nanite, (await @this.ZeroHiveAsync(new IoUdpClient<TJob>($"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).FastPath().ConfigureAwait(false)).target).FastPath().ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {

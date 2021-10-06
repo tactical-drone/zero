@@ -3,7 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>preview</LangVersion>
-    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>    
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+    <AnalysisLevel>preview</AnalysisLevel>    
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

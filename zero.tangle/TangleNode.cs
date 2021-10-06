@@ -86,14 +86,14 @@ namespace zero.tangle
                 var newNeighbor = await ConnectAsync(connectBackAddress).ConfigureAwait(false);
                 if (newNeighbor!= null)
                 {
-                    ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubscribe<object>(async (_,_) => await newNeighbor.ZeroAsync(this).ConfigureAwait(false));
+                    await ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubAsync<object>(async (_,_) => await newNeighbor.ZeroAsync(this).ConfigureAwait(false)).FastPath().ConfigureAwait(false);
 
                     if (newNeighbor.Source.IsOperational)
                         await newNeighbor.Source.ProduceAsync<object>((client,_, _, _) =>
                         {
                             //TODO
-                            ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
-                                Encoding.ASCII.GetBytes("0000015600").Length);
+                            // await ((IoNetSocket) client)?.SendAsync(Encoding.ASCII.GetBytes("0000015600"), 0,
+                            //     Encoding.ASCII.GetBytes("0000015600").Length).FastPath().ConfigureAwait(false);
                             return new ValueTask<bool>(true);
                         }).FastPath().ConfigureAwait(false);
                 }

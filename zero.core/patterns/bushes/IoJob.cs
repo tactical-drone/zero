@@ -282,7 +282,17 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public IoJobMeta.JobState State
         {
-            get => _stateMeta.Value;
+            get
+            {
+                try
+                {
+                    return _stateMeta.Value;
+                }
+                catch (Exception e)
+                {
+                    return IoJobMeta.JobState.Zeroed;
+                }   
+            }
             set
             {
                 if(Source?.Zeroed()??true)

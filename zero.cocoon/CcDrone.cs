@@ -74,11 +74,11 @@ namespace zero.cocoon
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`drone({Adjunct.Direction} - {(Source.IsOperational?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct.CcCollective.Hub.Router.Designation.IdString()}, {Adjunct.Designation.IdString()}]'";
+                    return _description = $"`drone({Adjunct.Direction} - {(Source.IsOperational?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}]'";
                 }
                 catch
                 {
-                    return _description = $"`drone({Adjunct?.Direction} - {(Source?.IsOperational??false?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct?.CcCollective?.Hub?.Router?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}]'";
+                    return _description = $"`drone({Adjunct?.Direction} - {(Source?.IsOperational??false?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}]'";
                 }
             }
         }
@@ -180,9 +180,9 @@ namespace zero.cocoon
         }
 
 
-        public new ValueTask ZeroAsync(IIoNanite @from)
+        public new ValueTask<bool> ZeroAsync(IIoNanite from)
         {
-            return base.ZeroAsync(@from);
+            return base.ZeroAsync(from);
         }
 
         /// <summary>

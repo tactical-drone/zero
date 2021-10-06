@@ -48,7 +48,7 @@ namespace zero.core.network.ip
         /// <param name="concurrencyLevel">Concurrency level</param>
         protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel) : base(description, prefetchSize, concurrencyLevel)
         {
-            IoNetSocket = ZeroOnCascade(netSocket, true).target;
+            IoNetSocket = netSocket;
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -128,6 +128,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await IoNetSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 

@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using NLog;
 using NLog.LayoutRenderers;
 
 namespace zero.core.patterns.misc
@@ -12,7 +13,7 @@ namespace zero.core.patterns.misc
     {
         public object ZeroAction;
         public static readonly object ZeroSentinel = new();
-        public object State = ZeroSentinel;
+        object State = ZeroSentinel;
         public object Target { get; private set; }
         public string From { get; }
 
@@ -24,11 +25,11 @@ namespace zero.core.patterns.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Func<IIoNanite, T, ValueTask> GenericCast<T>(T obj)
+        public Func<IIoNanite, T, ValueTask<bool>> GenericCast<T>(T obj)
         {
             try
             {
-                return (Func<IIoNanite, T, ValueTask>) ZeroAction;
+                return (Func<IIoNanite, T, ValueTask<bool>>) ZeroAction;
             }
             catch (Exception e)
             {
@@ -37,7 +38,7 @@ namespace zero.core.patterns.misc
             }
         }
 
-        public IoZeroSub SetAction<T>(Func<IIoNanite, T, ValueTask> callback, T closureState = default)
+        public IoZeroSub SetAction<T>(Func<IIoNanite, T, ValueTask<bool>> callback, T closureState = default)
         {
             ZeroAction = callback;
 
@@ -48,7 +49,7 @@ namespace zero.core.patterns.misc
             return this;
         }
 
-        public ValueTask ExecuteAsync(IIoNanite nanite)
+        public ValueTask<bool> ExecuteAsync(IIoNanite nanite)
         {
             try
             {
@@ -56,9 +57,18 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                throw;
+                LogManager.GetCurrentClassLogger().Trace(e,$"{ZeroAction}, {Target}, {State}");
+                return new ValueTask<bool>(false);
             }
         }
+
+        public ValueTask ZeroAsync()
+        {
+            ZeroAction = null;
+            State = null;
+            Target = null;
+            return ValueTask.CompletedTask;
+        }
+        
     }
 }

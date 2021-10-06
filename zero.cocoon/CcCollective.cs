@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using MathNet.Numerics.Distributions;
 using NLog;
-using Org.BouncyCastle.Crypto.Digests;
 using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -51,10 +50,14 @@ namespace zero.cocoon
 
             //_autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
             //TODO tuning
-            _autoPeering = new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
-            _autoPeering.ZeroOnCascade(this);
+            
+            _autoPeering =  new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
+            _autoPeering.ZeroHiveAsync(this, true).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
 
+            
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  nameof(DupSyncRoot), maxBlockers: parm_max_drone * tpcConcurrencyLevel * 2);
+            DupSyncRoot.ZeroHiveAsync(DupSyncRoot, true).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
             {
@@ -244,7 +247,6 @@ namespace zero.cocoon
         {
             var id = Hub?.Router?.Designation?.IdString();
             await DupSyncRoot.ZeroAsync(this).FastPath().ConfigureAwait(false);
-            await _autoPeering.ZeroAsync(this).FastPath().ConfigureAwait(false);
             //Services.CcRecord.Endpoints.Clear();
             try
             {
@@ -802,21 +804,21 @@ namespace zero.cocoon
                     {
                         if (drone.IoSource.IoNetSocket.Egress)
                         {
-                            drone.ZeroSubscribe(static (_,@this) =>
+                            await drone.ZeroSubAsync(static (_,@this) =>
                             {
                                 Interlocked.Decrement(ref @this.EgressConnections);
-                                return ValueTask.CompletedTask;
-                            }, @this);
+                                return ValueTask.FromResult(true);
+                            }, @this).FastPath().ConfigureAwait(false);
 
                             Interlocked.Increment(ref @this.EgressConnections);
                         }
                         else if (drone.IoSource.IoNetSocket.Ingress)
                         {
-                            drone.ZeroSubscribe( static (from, @this) =>
+                            await drone.ZeroSubAsync( static (from, @this) =>
                             {
                                 Interlocked.Decrement(ref @this.IngressConnections);
-                                return ValueTask.CompletedTask;
-                            },@this);
+                                return ValueTask.FromResult(true);
+                            },@this).FastPath().ConfigureAwait(false);
                             Interlocked.Increment(ref @this.IngressConnections);
                         }
                     }
@@ -895,7 +897,7 @@ namespace zero.cocoon
                     {
                         _logger.Info($"+ {drone.Description}");
 
-                        Assimilate(drone);
+                        await AssimilateAsync(drone).FastPath().ConfigureAwait(false);
                         
                         return true;
                     }

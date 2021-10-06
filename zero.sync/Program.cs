@@ -302,7 +302,7 @@ namespace zero.sync
             _running = false;
             
             
-            _nodes.ToList().ForEachAsync<CcCollective,object>(static (n,_) =>  n.ZeroAsync(null)).GetAwaiter().GetResult();
+            _nodes.ToList().ForEachAsync<CcCollective,object>(static async (n,_) =>  await n.ZeroAsync(null).FastPath().ConfigureAwait(false)).GetAwaiter().GetResult();
             _nodes.Clear();
 
 

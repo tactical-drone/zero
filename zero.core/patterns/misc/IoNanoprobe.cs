@@ -1,13 +1,14 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MathNet.Numerics;
 using NLog;
 using zero.core.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
@@ -53,7 +54,9 @@ namespace zero.core.patterns.misc
 
             _concurrencyLevel = concurrencyLevel;
 
-            _zeroSubs = new ConcurrentBag<IoZeroSub>();
+            _zeroHive = new IoZeroQueue<IoZeroSub>($"{nameof(_zeroHive)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity, concurrencyLevel);
+            _zeroHiveMind = new IoZeroQueue<IIoNanite>($"{nameof(_zeroHiveMind)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity,concurrencyLevel);
+
             _zeroed = 0;
             ZeroedFrom = default;
             TearDownTime = default;
@@ -83,7 +86,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// 
+        /// A cheap logger
         /// </summary>
         private static readonly ILogger _logger;
 
@@ -92,6 +95,12 @@ namespace zero.core.patterns.misc
         /// </summary>
         private static ulong _uidSeed;
 
+
+        /// <summary>
+        /// Hive Teardown maximum elasticity allowed 
+        /// </summary>
+        private const int MaxElasticity = 1000;
+        
         /// <summary>
         /// Used for equality compares
         /// </summary>
@@ -100,12 +109,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// returns UID
         /// </summary>
-        public ulong NpId => _zId;
+        public ulong SerialNr => _zId;
 
         /// <summary>
         /// Description
         /// </summary>
-        public virtual string Description { get; private set; }
+        public virtual string Description { get; }
 
         //private IoHeap<TMutex> _mutHeap;
 
@@ -134,13 +143,7 @@ namespace zero.core.patterns.misc
         /// Uptime
         /// </summary>
         public readonly long Uptime;
-
-        // /// <summary>
-        // /// Used by superclass to manage all async calls
-        // /// </summary>
-        // //public CancellationTokenSource AsyncTasks { get; private set; } = new CancellationTokenSource();
-        // public CancellationToken ZeroToken;
-
+        
         /// <summary>
         /// Are we zeroed?
         /// </summary>
@@ -150,6 +153,13 @@ namespace zero.core.patterns.misc
         /// Are we disposed
         /// </summary>
         private volatile bool _disposed;
+        
+        #if DEBUG
+        /// <summary>
+        /// Have are there any leaks?
+        /// </summary>
+        private volatile int _extracted;
+        #endif
 
         /// <summary>
         /// Are we disposed
@@ -159,19 +169,22 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private ConcurrentBag<IoZeroSub> _zeroSubs;
+        private IoZeroQueue<IoZeroSub> _zeroHive;
 
+        /// <summary>
+        /// All subscriptions
+        /// </summary>
+        private IoZeroQueue<IIoNanite> _zeroHiveMind;
+        
         /// <summary>
         /// Max number of blockers
         /// </summary>
         private readonly int _concurrencyLevel;
-
         
         /// <summary>
         /// A secondary constructor for async stuff
         /// </summary>
         public virtual ValueTask<bool> ConstructAsync() {return new ValueTask<bool>(true);}
-
         
         /// <summary>
         /// Teardown termination sentinel
@@ -179,17 +192,14 @@ namespace zero.core.patterns.misc
         private static readonly IoNanoprobe Sentinel = new  IoNanoprobe("self");
         
         /// <summary>
-        /// Teardown termination sentinel
-        /// </summary>
-        private static readonly IoNanoprobe DisposeSentinel = new  IoNanoprobe($"{nameof(IDisposable.Dispose)}");
-
-        /// <summary>
         /// ZeroAsync pattern
         /// </summary>
         public void Dispose()
         {
 #pragma warning disable 4014
-            var z =  ZeroAsync(true).FastPath().ConfigureAwait(false);
+#pragma warning disable VSTHRD110
+            ZeroAsync(true);
+#pragma warning restore VSTHRD110
 #pragma warning restore 4014
             GC.SuppressFinalize(this);
         }
@@ -197,7 +207,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public virtual async ValueTask ZeroAsync(IIoNanite from)
+        public virtual async ValueTask<bool> ZeroAsync(IIoNanite from)
         {
 #if DEBUG
             if (from == null)
@@ -208,16 +218,17 @@ namespace zero.core.patterns.misc
             ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
             
             if (_zeroed > 0)
-                return;
+                return true;
             
             //ZeroedFrom ??= !@from.Equals(this) ? @from : new IoNanoprobe("sentinel");
             
             //ZeroedFrom = !@from.Equals(this) ? @from : new IoNanoprobe("self");
 
-            await ZeroAsyncOption(static async @this =>
+            await ZeroAsyncOptionAsync(static async @this =>
             {
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);    
             }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).ConfigureAwait(false);
+            return true;
         }
 
         /// <summary>
@@ -258,33 +269,16 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        public IoZeroSub ZeroSubscribe<T>(Func<IIoNanite, T, ValueTask> sub, T closureState = default,
+        public async ValueTask<IoZeroQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+            T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default)
         {
-            if (_zeroSubs == null)
+            if (_zeroHive == null)
                 return null;
-                    
-            IoZeroSub newSub;
-            try
-            {
-                newSub = new IoZeroSub($"{Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
-                _zeroSubs.Add(newSub);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
 
-            //regular cleanups
-            //TODO tuning
-            const int bufSize = 25;
-            const double cleanThreshold = 0.33;
-            if (_zeroSubs.Count > bufSize && _zeroSubs.Count(zeroSub => !zeroSub.Schedule) > bufSize * cleanThreshold)
-                _zeroSubs = new ConcurrentBag<IoZeroSub>(_zeroSubs.Where(z => z.Schedule).ToList());
-
-            return newSub;
+            var newSub = new IoZeroSub($"{Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
+            return await _zeroHive.EnqueueAsync(newSub).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -292,9 +286,9 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Unsubscribe(IoZeroSub sub)
+        public ValueTask UnsubscribeAsync(IoZeroQueue<IoZeroSub>.IoZNode sub)
         {
-            
+            return _zeroHive.RemoveAsync(sub);
         }
 
         /// <summary>
@@ -302,16 +296,16 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">Enforces mutual zero</param>
-        public (T target, bool success) ZeroOnCascade<T>(T target, bool twoWay = false) where T : IIoNanite
+        public async ValueTask<(T target, bool success)> ZeroHiveAsync<T>(T target, bool twoWay = false) where T : IIoNanite
         {
             if (_zeroed > 0)
                 return (default, false);
-
-            ZeroSubscribe(static async (from,target) => await target.ZeroAsync(from).FastPath().ConfigureAwait(false), target);
+            
+            await _zeroHiveMind.EnqueueAsync(target).FastPath().ConfigureAwait(false);
 
             if (twoWay) //zero
-                target.ZeroSubscribe(static async (from,state) => await state.Item1.ZeroAsync(state.Item2).FastPath().ConfigureAwait(false), ValueTuple.Create(this, target));
-            
+                await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
+
             return (target, true);
         }
 
@@ -333,41 +327,25 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Debug(e, $"{Description}: Cancel async tasks failed!!!");
+                #if DEBUG
+                _logger.Trace(e, $"{Description}: Cancel async tasks failed!!!");
+                #endif
             }
-
-            //emit zero event
-            foreach(var zeroSub in _zeroSubs)
+            
+            //hive sub teardown
+            await _zeroHive.ZeroManagedAsync(static async (zeroSub, @this) =>
             {
-                try
-                {
-                    if (!zeroSub.Schedule)
-                        continue;
-
-                    await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(false);
-                }
-                //catch (NullReferenceException e)
-                //{
-                //    _logger.Trace(e, @this.Description);
-                //}
-                catch (Exception e) when (!Zeroed())
-                {
-
-                    try
-                    {
-                        _logger.Fatal(e, $"{zeroSub?.From} - zero sub {((IIoNanite) zeroSub?.Target)?.Description} on {Description} returned with errors!");
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-                finally
-                {
-                    Unsubscribe(zeroSub);
-                }
-            }
-
+                if (!await zeroSub.ExecuteAsync(@this).FastPath().ConfigureAwait(false))
+                    _logger.Error(
+                        $"{zeroSub?.From} - zero sub {((IIoNanite)zeroSub?.Target)?.Description} on {@this.Description} returned with errors!");
+            }, this).FastPath().ConfigureAwait(false);
+            
+            //hive mind teardown
+            await _zeroHiveMind.ZeroManagedAsync(static async (zeroSub, @this) =>
+            {
+                await zeroSub.ZeroAsync(@this).FastPath().ConfigureAwait(false);
+            }, this).FastPath().ConfigureAwait(false);
+            
             CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;
             TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             if (disposing)
@@ -377,10 +355,11 @@ namespace zero.core.patterns.misc
                 {
                     await ZeroManagedAsync().FastPath().ConfigureAwait(false);
                 }
-                //catch (NullReferenceException) { }
-                catch (Exception e) when(!Zeroed())
+                catch (Exception e)
                 {
+#if DEBUG
                     _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
+#endif
                 }
             }
             
@@ -391,7 +370,7 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
+                _logger.Fatal(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
             }
             
             //Dispose async task cancellation token registrations etc.
@@ -399,15 +378,22 @@ namespace zero.core.patterns.misc
             {
                 AsyncTasks.Dispose();
             }
-            catch (NullReferenceException)
-            {
-            }
             catch (Exception e)
             {
+                #if DEBUG
                 _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
+                #endif
             }
 
             AsyncTasks = null;
+            
+            #if DEBUG
+            if (_zeroed < 2)
+            {
+                throw new ApplicationException($"{Description}: BUG!!! Memory leaks detected!!!");
+            }
+            #endif
+            
 
             TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - TearDownTime;
             //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
@@ -417,7 +403,7 @@ namespace zero.core.patterns.misc
             {
                 if (Uptime.ElapsedSec() > 10 && CascadeTime > TearDownTime * 2 && TearDownTime > 0)
                     _logger.Fatal(
-                        $"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms, count = {_zeroSubs.Count}");
+                        $"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms, count = {_zeroHive.Count}");
             }
             catch
             {
@@ -438,19 +424,23 @@ namespace zero.core.patterns.misc
         public virtual void ZeroUnmanaged()
         {
             _nanoMutex = null;
-            _zeroSubs = null;
+            _zeroHive = null;
             _disposed = true;
+            #if DEBUG
+            Interlocked.Increment(ref _extracted);
+            #endif
         }
 
         /// <summary>
         /// Manages managed objects
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual ValueTask ZeroManagedAsync()
+        public virtual async ValueTask ZeroManagedAsync()
         {
             _nanoMutex.Zero();
-            _zeroSubs.Clear();
-            return ValueTask.CompletedTask;
+#if DEBUG
+            Interlocked.Increment(ref _extracted);
+#endif
         }
 
         /// <summary>
@@ -627,7 +617,7 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroAsyncOption<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        protected ValueTask ZeroAsyncOptionAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
         }
@@ -645,12 +635,12 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroAsyncOption<T>(Func<T, ValueTask> continuation, T state,
+        protected ValueTask ZeroAsyncOptionAsync<T>(Func<T, ValueTask> continuation, T state,
             CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null,
             bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null,
             [CallerLineNumber] int lineNumber = default)
         {
-            return ZeroAsyncOption(continuation, state, options, scheduler, unwrap, filePath, methodName, lineNumber);
+            return ZeroAsyncOptionAsync(continuation, state, options, scheduler, unwrap, filePath, methodName, lineNumber);
         }
 
         public class ZeroException:ApplicationException
@@ -683,7 +673,18 @@ namespace zero.core.patterns.misc
                 return new ZeroException($"{Path.GetFileName(filePath)}:{methodName}() {lineNumber} - [{description}]: {message}", innerException);
             }
         }
+
+        /// <summary>
+        /// Returns the hive mind
+        /// </summary>
+        /// <returns>The hive</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IoZeroQueue<IIoNanite> ZeroHiveMind()
+        {
+            return _zeroHiveMind;
+        }
         
+
         /// <summary>
         /// Equals
         /// </summary>
@@ -692,7 +693,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(IIoNanite other)
         {
-            return NpId == other.NpId;
+            return SerialNr == other.SerialNr;
         }
 
         /// <summary>

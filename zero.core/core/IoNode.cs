@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -129,7 +128,7 @@ namespace zero.core.core
 
             //_netServer = ZeroOnCascade(IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, _concurrencyLevel), true).target;
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
-            _netServer.ZeroOnCascade(this);
+            await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
 
             await _netServer.ListenAsync(static async (state, ioNetClient) =>
             {
@@ -184,13 +183,13 @@ namespace zero.core.core
                         //ZeroOnCascade(newNeighbor); 
 
                         //Add new neighbor
-                        return await newNeighbor.ZeroAtomicAsync((_, state, _) =>
+                        return await newNeighbor.ZeroAtomicAsync(static async (_, state, _) =>
                         {
                             var (@this, newNeighbor) = state;
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
                             // Remove from lists if closed
-                            var sub = newNeighbor.ZeroSubscribe(static async (from,state) =>
+                            await newNeighbor.ZeroSubAsync(static async (from,state) =>
                             {
                                 var (@this, id, newNeighbor) = state;
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
@@ -205,6 +204,8 @@ namespace zero.core.core
                                     {
                                         @this._logger.Trace($"Cannot remove neighbor {id} not found!");
                                     }
+
+                                    return true;
                                 }
                                 catch (NullReferenceException e)
                                 {
@@ -214,8 +215,10 @@ namespace zero.core.core
                                 {
                                     @this._logger?.Trace(e, $"Removing {newNeighbor.Description} from {@this.Description}");
                                 }
-                            }, ValueTuple.Create(@this,id, newNeighbor));
-                            return ValueTask.FromResult(true);
+
+                                return false;
+                            }, ValueTuple.Create(@this,id, newNeighbor)).FastPath().ConfigureAwait(false);
+                            return true;
                         }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(false);
                     }
                     catch (NullReferenceException) { return false; }
@@ -228,7 +231,7 @@ namespace zero.core.core
                     //ConnectedEvent?.Invoke(this, newNeighbor);
 
                     //Start the source consumer on the neighbor scheduler
-                    @this.Assimilate(newNeighbor);
+                    await @this.AssimilateAsync(newNeighbor).FastPath().ConfigureAwait(false);
                 }
                 else
                 {
@@ -241,16 +244,16 @@ namespace zero.core.core
         /// Assimilate neighbor
         /// </summary>
         /// <param name="newNeighbor"></param>
-        public async ValueTask Assimilate(IoNeighbor<TJob> newNeighbor)
+        public ValueTask AssimilateAsync(IoNeighbor<TJob> newNeighbor)
         {
             try
             {
                 var assimilation = ZeroAsync(static async newNeighbor =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
-                },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).AsTask();
+                },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
-                NeighborTasks.Add(assimilation);
+                NeighborTasks.Add(assimilation.AsTask());
 
                 //prune finished tasks
                 var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();
@@ -261,6 +264,7 @@ namespace zero.core.core
             {
                 _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
             }
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>
@@ -303,7 +307,7 @@ namespace zero.core.core
                     return true;
                 }, ValueTuple.Create(this,newNeighbor)).ConfigureAwait(false))
                 {
-                    newNeighbor.ZeroSubscribe(static async (from, state ) =>
+                    await newNeighbor.ZeroSubAsync(static async (from, state ) =>
                     {
                         var (@this, id, newNeighbor) = state;
                         try
@@ -315,6 +319,8 @@ namespace zero.core.core
 
                             if (closedNeighbor != null)
                                 await closedNeighbor.ZeroAsync(@this).ConfigureAwait(false);
+
+                            return true;
                         }
                         catch (NullReferenceException e)
                         {
@@ -324,7 +330,9 @@ namespace zero.core.core
                         {
                             @this._logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {@this.Description}");
                         }
-                    }, ValueTuple.Create(this, id, newNeighbor));
+
+                        return false;
+                    }, ValueTuple.Create(this, id, newNeighbor)).FastPath().ConfigureAwait(false);
 
                     //TODO
                     newNeighbor.parm_producer_start_retry_time = 60000;
@@ -390,7 +398,6 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            
             if(_netServer != null)
                 await _netServer.ZeroAsync(this).ConfigureAwait(false);
 

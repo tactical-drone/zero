@@ -46,14 +46,14 @@ namespace zero.core.network.ip
         {
             await base.ListenAsync<T>(connectionReceivedAction, nanite, bootstrapAsync).FastPath().ConfigureAwait(false);
 
-            IoListenSocket = ZeroOnCascade(new IoTcpSocket(ZeroConcurrencyLevel()), true).target;
+            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(false)).target;
 
             await IoListenSocket.ListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
                 var (@this, nanite,connectionReceivedAction) = state;
                 try
                 {
-                    await connectionReceivedAction(nanite,@this.ZeroOnCascade(new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", (IoNetSocket) newConnectionSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).target).FastPath().ConfigureAwait(false);
+                    await connectionReceivedAction(nanite,(await @this.ZeroHiveAsync(new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", (IoNetSocket) newConnectionSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).FastPath().ConfigureAwait(false)).target).FastPath().ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.misc
 {
@@ -18,7 +19,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// returns an identity
         /// </summary>
-        ulong NpId { get; }
+        ulong SerialNr { get; }
         
         /// <summary>
         /// The source of zero
@@ -28,7 +29,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
-        ValueTask ZeroAsync(IIoNanite from);
+        ValueTask<bool> ZeroAsync(IIoNanite from);
         
         /// <summary>
         /// A description of this object
@@ -42,14 +43,14 @@ namespace zero.core.patterns.misc
         bool Zeroed();
 
         /// <summary>
-        /// Cascade zeroed object
+        /// Allow for hive like behaviour
         /// </summary>
         /// <param name="target">The object to be zeroed out</param>
         /// <param name="twoWay">If the zeroing is both ways</param>
-        (TBase target, bool success) ZeroOnCascade<TBase>(TBase target, bool twoWay = false) where TBase : IIoNanite;
+        ValueTask<(TBase target, bool success)> ZeroHiveAsync<TBase>(TBase target, bool twoWay = false) where TBase : IIoNanite;
 
         /// <summary>
-        /// Subscribe to disposed event
+        /// Subscribe to zeroed event
         /// </summary>
         /// <param name="sub">The handler</param>
         /// <param name="closureState">Closure state</param>
@@ -57,16 +58,17 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        IoZeroSub ZeroSubscribe<T>(Func<IIoNanite, T, ValueTask> sub, T closureState = default,
+        ValueTask<IoZeroQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+            T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default);
-        
+
 
         /// <summary>
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        void Unsubscribe(IoZeroSub sub);
+        public ValueTask UnsubscribeAsync(IoZeroQueue<IoZeroSub>.IoZNode sub);
 
         /// <summary>
         /// Ensures that this action is synchronized 
@@ -96,5 +98,12 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns></returns>
         int ZeroConcurrencyLevel();
+
+
+        /// <summary>
+        /// Return the hive mind
+        /// </summary>
+        /// <returns>The hive</returns>
+        IoZeroQueue<IIoNanite> ZeroHiveMind();
     }
 }
