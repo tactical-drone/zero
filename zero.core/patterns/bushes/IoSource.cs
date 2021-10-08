@@ -419,9 +419,9 @@ namespace zero.core.patterns.bushes
         /// Signal source pressure
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Pressure(int releaseCount = 1)
+        public ValueTask<int> PressureAsync(int releaseCount = 1)
         {
-            _pressure.Release(releaseCount, MaxAsyncSources > 0);
+            return _pressure.ReleaseAsync(releaseCount, MaxAsyncSources > 0);
         }
 
         /// <summary>
@@ -440,9 +440,9 @@ namespace zero.core.patterns.bushes
         /// <param name="releaseCount">Number of waiters to unblock</param>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void BackPressure(int releaseCount = 1)
+        public ValueTask<int> BackPressureAsync(int releaseCount = 1)
         {
-            _backPressure.Release(releaseCount, MaxAsyncSinks > 0);
+            return _backPressure.ReleaseAsync(releaseCount, MaxAsyncSinks > 0);
         }
 
         /// <summary>
@@ -460,9 +460,9 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PrefetchPressure(int releaseCount = 1)
+        public ValueTask<int> PrefetchPressure(int releaseCount = 1)
         {
-            _prefetchPressure.Release(releaseCount, MaxAsyncSources > 0);
+            return _prefetchPressure.ReleaseAsync(releaseCount, MaxAsyncSources > 0);
         }
 
         /// <summary>

@@ -179,12 +179,12 @@ namespace zero.cocoon.models
                         //TODO investigate this crash
                         try
                         {
-                            CcCollective.DupSyncRoot.Release();
+                            await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
                         }
                         catch (Exception) when( Zeroed()){}
                         catch (Exception e) when (!Zeroed())
                         {
-                            _logger.Error(e,$"{Description}: {State}");
+                            _logger.Error(e,$"{Description}: state = {State}, cancel = {AsyncTasks.IsCancellationRequested}");
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
                     }

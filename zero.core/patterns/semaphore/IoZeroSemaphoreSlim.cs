@@ -59,9 +59,9 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Release(int releaseCount = 1, bool async = false)
+        public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
-            return _semaphore.Release(releaseCount, async);
+            return _semaphore.ReleaseAsync(releaseCount, async);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -79,6 +79,65 @@ namespace zero.core.patterns.semaphore
         public int ReadyCount => _semaphore.ReadyCount;
         
         public uint NrOfBlockers => _semaphore.NrOfBlockers;
+        int IIoZeroSemaphore.ZeroCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        int IIoZeroSemaphore.ZeroIncCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        int IIoZeroSemaphore.ZeroDecCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        int IIoZeroSemaphore.ZeroAddCount(int value)
+        {
+            throw new NotImplementedException();
+        }
+
+        uint IIoZeroSemaphore.ZeroHead()
+        {
+            throw new NotImplementedException();
+        }
+
+        uint IIoZeroSemaphore.ZeroTail()
+        {
+            throw new NotImplementedException();
+        }
+
+        uint IIoZeroSemaphore.ZeroNextTail()
+        {
+            throw new NotImplementedException();
+        }
+
+        uint IIoZeroSemaphore.ZeroNextHead()
+        {
+            throw new NotImplementedException();
+        }
+
+        uint IIoZeroSemaphore.ZeroPrevTail()
+        {
+            throw new NotImplementedException();
+        }
+
+        uint IIoZeroSemaphore.ZeroPrevHead()
+        {
+            throw new NotImplementedException();
+        }
+
+        short IIoZeroSemaphore.ZeroToken()
+        {
+            throw new NotImplementedException();
+        }
+
+        short IIoZeroSemaphore.ZeroTokenBump()
+        {
+            throw new NotImplementedException();
+        }
 
         public void SignalWorker()
         {

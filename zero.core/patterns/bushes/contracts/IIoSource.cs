@@ -20,7 +20,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Apply source pressure
         /// </summary>
-        public void Pressure(int releaseCount = 1);
+        public ValueTask<int> PressureAsync(int releaseCount = 1);
 
         /// <summary>
         /// Wait for source pressure
@@ -31,7 +31,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Apply sink pressure
         /// </summary>
-        public void BackPressure(int releaseCount = 1);
+        public ValueTask<int> BackPressureAsync(int releaseCount = 1);
 
         /// <summary>
         /// Wait for sink back pressure
@@ -47,7 +47,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <summary>
         /// Apply prefetch pressure
         /// </summary>
-        public void PrefetchPressure(int releaseCount = 1);
+        public ValueTask<int> PrefetchPressure(int releaseCount = 1);
         
         /// <summary>
         /// Wait on prefetch pressure

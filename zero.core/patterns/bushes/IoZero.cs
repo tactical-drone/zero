@@ -396,7 +396,7 @@ namespace zero.core.patterns.bushes
 
                                     //signal back pressure
                                     if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
-                                        nextJob.Source.PrefetchPressure();
+                                        await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(false);
 
                                     //Enqueue the job for the consumer
                                     nextJob.State = IoJobMeta.JobState.Queued;
@@ -407,7 +407,7 @@ namespace zero.core.patterns.bushes
                                     nextJob = null;
 
                                     //Signal to the consumer that there is work to do
-                                    Source.Pressure();
+                                    await Source.PressureAsync().FastPath().ConfigureAwait(false);
 
                                     return true;
                                 }
@@ -459,10 +459,10 @@ namespace zero.core.patterns.bushes
 
                                     // Signal prefetch back pressure
                                     if (enablePrefetchOption && nextJob.Source!= null && nextJob.Source.PrefetchEnabled) 
-                                        nextJob.Source.PrefetchPressure();
+                                        await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(false);
 
                                     //signal back pressure
-                                    Source.BackPressure();
+                                    await Source.BackPressureAsync().FastPath().ConfigureAwait(false);
                                 }
                             }
                         }
@@ -672,7 +672,7 @@ namespace zero.core.patterns.bushes
 
                             curJob.State = IoJobMeta.JobState.Consumed;
 
-                            Source.BackPressure();
+                            await Source.BackPressureAsync().FastPath().ConfigureAwait(false);
 
                             //sync previous failed job buffers
                             if (SyncRecoveryModeEnabled)

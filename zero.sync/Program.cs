@@ -72,7 +72,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 100;
+            var total = 200;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -337,47 +337,56 @@ namespace zero.sync
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
-            var capacity = 10;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 10, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var capacity = 3;
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 5, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
             var releaseCount = 1;
             var enableThrottle = true;
-            var twoWaiters = true;
-            var twoReleasers = 2;
-            var targetSleep = (long)0;
-            var logSpam = 10000;
-            var targetSleepMult = twoWaiters ? 2 : 1;
+            var waiters = 1;
+            var releasers = 1;
+            var targetSleep = (long)1000;
+            var logSpam = 1;//at least 1
+
+            var targetSleepMult = waiters>1 ? 2 : 1;
             var sw = new Stopwatch();
             var sw2 = new Stopwatch();
             var c = 0;
             long semCount = 0;
             long semPollCount = 0;
-            IoFpsCounter wfps1 = new IoFpsCounter(1000, 10000);
-            IoFpsCounter wfps2 = new IoFpsCounter(1000, 10000);
-            IoFpsCounter ifps1 = new IoFpsCounter(1000, 10000);
-            IoFpsCounter ifps2 = new IoFpsCounter(1000, 10000);
+
+
+            // IoFpsCounter wfps1 = new IoFpsCounter(1000, 10000);
+            // IoFpsCounter wfps2 = new IoFpsCounter(1000, 10000);
+            // IoFpsCounter ifps1 = new IoFpsCounter(1000, 10000);
+            // IoFpsCounter ifps2 = new IoFpsCounter(1000, 10000);
+            uint eq1 = 0;
+            uint eq2 = 0;
+            uint eq3 = 0;
+            var eq1_fps = 0.0;
+            var eq2_fps = 0.0;
+            var eq3_fps = 0.0;
+            var dq_fps = new double[10];
+
+            var dq = new uint[10];
+
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             //TaskCreationOptions options = TaskCreationOptions.None;
-            TaskCreationOptions options = TaskCreationOptions.LongRunning;
+            TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach;
 
+            var startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             var t1 = Task.Factory.StartNew(async o =>
              {
                  try
                  {
-                     while (true)
+                     while (waiters>0)
                      {
-                        // var block = sem.WaitAsync();
-                        // await block.OverBoostAsync().ConfigureAwait(false);
-                        // if(!block.Result)
-                        //     break;
-
                          sw.Restart();
                          if (await mutex.WaitAsync().ConfigureAwait(false))
                          {
                              var tt = sw.ElapsedMilliseconds;
-                             await wfps1.TickAsync().ConfigureAwait(false);
+                             Interlocked.Increment(ref eq1);
 
                              Action a = (tt - targetSleep * targetSleepMult) switch
                              {
@@ -387,20 +396,34 @@ namespace zero.sync
                              };
                              a();
 
-                            //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
-                            if (Interlocked.Increment(ref c) % logSpam == 0)
-                                 Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0}, S = {mutex.ReadyCount}, D = {ifps1.Total + ifps2.Total - wfps1.Total - wfps2.Total}");
-                             Console.ResetColor();
+                             //var curTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond - 62135596800000;
+                             var curTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                             double delta = (curTime - startTime + 1) / 1000.0;
+
+                             if (delta > 5)
+                             {
+                                 eq1_fps = (int)(eq1 / delta);
+                                 eq2_fps = (int)(eq2 / delta);
+                                 eq3_fps = (int)(eq3 / delta);
+                                 for (int i = 0; i < releasers; i++)
+                                 {
+                                     dq_fps[i] = (int)(dq[i] / delta);
+                                 }
+                             }
+                             
+                             
+                             //Console.WriteLine($"T1:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                             if (Interlocked.Increment(ref c) % logSpam == 0)
+                             {
+                                 var totalDq = dq.Aggregate((u, u1) => u + u1);
+                                 Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {eq1 + eq2 - totalDq}");
+                                 Console.ResetColor();
+                             }
+                              
                          }
                          else
                          {
                              break;
-                             var tt = sw.ElapsedMilliseconds;
-                             await wfps1.TickAsync().ConfigureAwait(false);
-                             Console.ForegroundColor = ConsoleColor.Yellow;
-                             Console.WriteLine($"F1:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0},  S = {mutex.ReadyCount}, D = {ifps1.Total + ifps2.Total - wfps1.Total - wfps2.Total}");
-                             Console.ResetColor();
-                             await Task.Delay(500).ConfigureAwait(false);
                          }
 
                      }
@@ -416,19 +439,19 @@ namespace zero.sync
            {
                try
                {
-                   while (twoWaiters)
+                   while (waiters>1)
                    {
                         // var block = sem.WaitAsync();
                         // await block.OverBoostAsync().ConfigureAwait(false);
                         // if(!block.Result)
                         //     break;
-
+           
                         sw2.Restart();
                        if (await mutex.WaitAsync().ConfigureAwait(false))
                        {
                            var tt = sw2.ElapsedMilliseconds;
-                           await wfps2.TickAsync().ConfigureAwait(false);
-
+                           Interlocked.Increment(ref eq2);
+           
                            Action a = (tt - targetSleep * targetSleepMult) switch
                            {
                                > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
@@ -436,22 +459,22 @@ namespace zero.sync
                                _ => () => Console.ForegroundColor = ConsoleColor.Green,
                            };
                            a();
-                            //Console.WriteLine($"T2:{mut.AsyncMutex}({++c}) t = {tt - targetSleep}ms, {fps.Fps(): 00.0}");
+                            
+                            var curTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            double delta = (curTime - startTime + 1)/1000.0;
                             if (Interlocked.Increment(ref c) % logSpam == 0)
-                               Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0}, S = {mutex.ReadyCount}, D = {ifps1.Total + ifps2.Total - wfps1.Total - wfps2.Total}");
-                           Console.ResetColor();
+                            {
+                                var totalDq = dq.Aggregate((u, u1) => u + u1);
+                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {eq1 + eq2 - totalDq}");
+                                Console.ResetColor();
+                            }
+                               
                        }
                        else
                        {
                            break;
-                           var tt = sw.ElapsedMilliseconds;
-                           await wfps2.TickAsync().ConfigureAwait(false);
-                           Console.ForegroundColor = ConsoleColor.Yellow;
-                           Console.WriteLine($"F2:{mutex}({--c}) t = {tt - targetSleep * targetSleepMult}ms, [{wfps1.Fps() + wfps2.Fps(): 0}, ({wfps1.Fps(): 0}, {wfps2.Fps(): 0})], [{ifps1.Fps() + ifps2.Fps(): 0} ({ifps1.Fps(): 0}, {ifps2.Fps(): 0})], s = {semCount / (double)semPollCount:0.0}, S = {mutex.ReadyCount}, D = {ifps1.Total + ifps2.Total - wfps1.Total - wfps2.Total}");
-                           Console.ResetColor();
-                           await Task.Delay(500).ConfigureAwait(false);
                        }
-
+           
                    }
                }
                catch (Exception e)
@@ -460,110 +483,113 @@ namespace zero.sync
                    throw;
                }
            }, null, options);
-
+            
             var t3 = Task.Factory.StartNew(async o =>
-            {
+           {
+               try
+               {
+                   while (waiters>2)
+                   {
+                        // var block = sem.WaitAsync();
+                        // await block.OverBoostAsync().ConfigureAwait(false);
+                        // if(!block.Result)
+                        //     break;
+           
+                        sw2.Restart();
+                       if (await mutex.WaitAsync().ConfigureAwait(false))
+                       {
+                           var tt = sw2.ElapsedMilliseconds;
+                           Interlocked.Increment(ref eq3);
+           
+                           Action a = (tt - targetSleep * targetSleepMult) switch
+                           {
+                               > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
+                               < -5 => () => Console.ForegroundColor = ConsoleColor.Red,
+                               _ => () => Console.ForegroundColor = ConsoleColor.Green,
+                           };
+                           a();
+                            
+                            var curTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            double delta = (curTime - startTime + 1)/1000.0;
+                            if (Interlocked.Increment(ref c) % logSpam == 0)
+                            {
+                                var totalDq = dq.Aggregate((u, u1) => u + u1);
+                                Console.WriteLine($"T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {eq1 + eq2 - totalDq}");
+                                Console.ResetColor();
+                            }
+                               
+                       }
+                       else
+                       {
+                           break;
+                       }
+           
+                   }
+               }
+               catch (Exception e)
+               {
+                   Console.WriteLine($"[[3]]:{e}");
+                   throw;
+               }
+           }, null, options);
+            
 
-                try
-                {
-                    var curCount = 1;
-                    while (twoReleasers > 0)
-                    {
-                        if (targetSleep > 0)
-                            await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(false);
+           for (int i = 0; i < releasers; i++)
+           {
+               var i1 = i;
+               var r3 = Task.Factory.StartNew(async o =>
+               {
+                   try
+                   {
+                       var curCount = 1;
+                       
+                       while (releasers > 0)
+                       {
+                           
+                        
+                           if (targetSleep > 0)
+                               await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(false);
 
-                        if (curCount > 500)
-                        {
-                            await Task.Delay(200).ConfigureAwait(false);
-                        }
+                           if (curCount > 500)
+                           {
+                               await Task.Delay(200).ConfigureAwait(false);
+                           }
+                           
+                           try
+                           {
+                               Interlocked.Add(ref semCount, curCount = await mutex.ReleaseAsync(releaseCount, true).FastPath().ConfigureAwait(false));
+                           }
+                           catch (SemaphoreFullException)
+                           {
+                               var f = eq1_fps + eq2_fps + 1;
 
-                        try
-                        {
-                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount, true));
-                        }
-                        catch (SemaphoreFullException)
-                        {
-                            var f = wfps1.Fps() + wfps2.Fps() + 1;
+                               var d = mutex.ReadyCount / (f) * 1000.0;
+                               var val = (int)d;
 
-                            var d = mutex.ReadyCount / (f) * 1000.0;
-                            var val = (int)d;
+                               Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
+                               await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
+                           }
+                           catch (TaskCanceledException)
+                           {
+                               return;
+                           }
+                           catch (Exception e)
+                           {
+                               Console.WriteLine(e);
+                           }
 
-                            Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
-                            await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            break;
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-
-                        Interlocked.Increment(ref semPollCount);
-                        await ifps1.TickAsync().ConfigureAwait(false);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"3:{e}");
-                    throw;
-                }
-            }, asyncTasks.Token, options);
-
-            var t4 = Task.Factory.StartNew(async o =>
-            {
-
-                try
-                {
-                    var curCount = 1;
-
-                    while (twoReleasers > 1)
-                    {
-                        if (targetSleep > 0)
-                            await Task.Delay((int)targetSleep).ConfigureAwait(false);
-
-                        if (curCount > 500)
-                        {
-                            await Task.Delay(200).ConfigureAwait(false);
-                        }
-
-                        try
-                        {
-                            Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount, true));
-                        }
-                        catch (SemaphoreFullException)
-                        {
-                            var f = wfps1.Fps() + wfps2.Fps() + 1;
-
-                            var d = mutex.ReadyCount / (f) * 500.0;
-                            var val = (int)d;
-
-                            Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
-                            await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            break;
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
-
-
-                        Interlocked.Increment(ref semPollCount);
-                        await ifps2.TickAsync().ConfigureAwait(false);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"3:{e}");
-                    throw;
-                }
-            }, asyncTasks.Token, options);
-
-
+                           Interlocked.Increment(ref semPollCount);
+                           Interlocked.Increment(ref dq[i1]);
+                       }
+                       
+                   }
+                   catch (Exception e)
+                   {
+                       Console.WriteLine($"3:{e}");
+                       throw;
+                   }
+               }, asyncTasks.Token, options);
+           }
 
             Console.ReadLine();
             Console.WriteLine("TEARDOWN");

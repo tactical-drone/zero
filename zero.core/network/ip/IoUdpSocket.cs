@@ -70,7 +70,7 @@ namespace zero.core.network.ip
                 Make = o =>
                 {
                     var args = new SocketAsyncEventArgs{ RemoteEndPoint = new IPEndPoint(0, 0)};
-                    args.Completed += Signal;
+                    args.Completed += SignalAsync;
                     return args;
                 }
             };
@@ -80,7 +80,7 @@ namespace zero.core.network.ip
                 Make = o =>
                 {
                     var args = new SocketAsyncEventArgs();
-                    args.Completed += Signal;
+                    args.Completed += SignalAsync;
                     return args;
                 }
             };
@@ -121,7 +121,7 @@ namespace zero.core.network.ip
         {
             await _recvArgs.ZeroManagedAsync<object>((o, _) =>
             {
-                o.Completed -= Signal;
+                o.Completed -= SignalAsync;
                 o.UserToken = null;
                 //o.RemoteEndPoint = null;
                 o.SetBuffer(null,0,0);
@@ -131,7 +131,7 @@ namespace zero.core.network.ip
 
             await _sendArgs.ZeroManagedAsync<object>((o,_) =>
             {
-                o.Completed -= Signal;
+                o.Completed -= SignalAsync;
                 o.UserToken = null;
                 //o.RemoteEndPoint = null;
                 o.SetBuffer(null, 0, 0);
@@ -476,7 +476,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                _sendSync.Release();
+                await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             return 0;
@@ -501,15 +501,14 @@ namespace zero.core.network.ip
         private IoHeap<IIoZeroSemaphore> _tcsHeap;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void Signal(object sender, SocketAsyncEventArgs eventArgs)
+        private async void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
         {
             try
             {
-                //var s = ((IIoZeroSemaphore) eventArgs!.UserToken)!;
-                //if (s!.ReadyCount == 0)
-                if(eventArgs is {UserToken: IIoZeroSemaphore})
-                    ((IIoZeroSemaphore) eventArgs.UserToken).Release();
+                if (eventArgs is { UserToken: IIoZeroSemaphore })
+                    await ((IIoZeroSemaphore)eventArgs.UserToken).ReleaseAsync().FastPath().ConfigureAwait(false);
             }
+            catch(Exception) when(!Zeroed()){}
             catch(Exception e)
             {
                 _logger.Fatal(e,$"{Description}");
@@ -624,7 +623,7 @@ namespace zero.core.network.ip
                         if (dispose)
                         {
                             args.SetBuffer(null, 0, 0);
-                            args.Completed -= Signal;
+                            args.Completed -= SignalAsync;
                             args.Dispose();
                         }
 
@@ -680,7 +679,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                _rcvSync.Release();
+                await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             return 0;

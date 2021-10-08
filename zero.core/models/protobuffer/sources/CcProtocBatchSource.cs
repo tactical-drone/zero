@@ -153,7 +153,7 @@ namespace zero.core.models.protobuffer.sources
 
                 plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(false) != null;
 
-                _queuePressure.Release();
+                await _queuePressure.ReleaseAsync().FastPath().ConfigureAwait(false);
                 
                 //Console.WriteLine("e");
                 return plugged;

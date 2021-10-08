@@ -136,7 +136,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             _syncRoot.Zero();
@@ -192,8 +192,9 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
-                _pressure?.Release();
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if(_pressure != null)
+                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
         }
 
@@ -255,8 +256,9 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
-                _pressure?.Release();
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if(_pressure != null)
+                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
         }
 
@@ -296,7 +298,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             //return dequeued item
@@ -312,7 +314,7 @@ namespace zero.core.patterns.queue
                 finally
                 {
                     if(_enableBackPressure)
-                        _backPressure.Release();
+                        await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(false);
                 }
             }
 
@@ -355,7 +357,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.Release();
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
                 node!.Prev = null;
                 node!.Next = null;
             }
