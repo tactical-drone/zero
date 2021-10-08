@@ -492,15 +492,6 @@ namespace zero.cocoon.models
 
                     return true;
                 }, this).FastPath().ConfigureAwait(false);
-
-                ////forward transactions
-                // if (cogSuccess)
-                // {
-                //     if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
-                //     {
-                //         _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
-                //     }
-                // }
             }
             catch (TaskCanceledException e)
             {

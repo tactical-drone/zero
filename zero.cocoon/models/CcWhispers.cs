@@ -107,7 +107,7 @@ namespace zero.cocoon.models
         readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
         private IoHeap<ConcurrentBag<string>> _dupHeap;
-        private int _poolSize = 1000;
+        private int _poolSize = 10000;
         private long _maxReq = int.MinValue;
 
         // private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Shared;
@@ -115,37 +115,35 @@ namespace zero.cocoon.models
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
+            var read = 0;
             try
             {
-                var readOnlySequence = ReadOnlySequence.Slice(ReadOnlySequence.GetPosition(BufferOffset), ReadOnlySequence.GetPosition(BufferOffset + BytesRead));
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
                 {
                     return State = IoJobMeta.JobState.ConInvalid;
                 }
-                    
 
-                var read = 0;
-
-                while(BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
+                while (BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
                 {
                     CcWhisperMsg whispers = null;
                     //deserialize
                     try
                     {
-                        readOnlySequence = readOnlySequence.Slice(readOnlySequence.GetPosition(read), readOnlySequence.GetPosition(BytesRead - read));
-                        
-                        whispers = CcWhisperMsg.Parser.ParseFrom(readOnlySequence);
+                        whispers = CcWhisperMsg.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset,
+                            BytesLeftToProcess));
                         if (whispers == null)
                             break;
 
-                        read += whispers.CalculateSize();
+                        read = whispers.CalculateSize();
+                        BufferOffset += read;
                         State = IoJobMeta.JobState.Consumed;
                     }
                     catch (Exception e)
                     {
                         if (!Zeroed() && !MessageService.Zeroed())
-                            _logger.Debug(e, $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(BufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                            _logger.Debug(e,
+                                $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(BufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
 
                         State = IoJobMeta.JobState.ConInlined;
                     }
@@ -164,18 +162,19 @@ namespace zero.cocoon.models
                         continue;
                     }
 
+                    //read the token
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
                     if (req > _maxReq)
                         _maxReq = req;
-                    
+
                     try
                     {
                         if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath().ConfigureAwait(false))
                             return State = IoJobMeta.JobState.ConsumeErr;
-                        
-                        if (CcCollective.DupChecker.Count > _poolSize / 2)
+
+                        if (CcCollective.DupChecker.Count > _poolSize * 4 / 5)
                         {
-                            var culled = CcCollective.DupChecker.Keys.Where(k => k < _maxReq - _poolSize / 4).ToList();
+                            var culled = CcCollective.DupChecker.Keys.Where(k => k < _maxReq - _poolSize / 2).ToList();
                             foreach (var mId in culled)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
@@ -183,99 +182,104 @@ namespace zero.cocoon.models
                                     del.Clear();
                                     await _dupHeap.ReturnAsync(del).FastPath().ConfigureAwait(false);
                                 }
-                            }    
+                            }
                         }
                     }
                     finally
                     {
-                        //TODO investigate this crash
-                        await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                        try
+                        {
+                            await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            throw;
+                        }
                     }
 
                     if (State != IoJobMeta.JobState.Consumed)
                         continue;
 
                     //set this message as seen if seen before
-                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
+                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
+                        .RemoteAddress;
                     _dupHeap.Take(out var dupEndpoints, endpoint);
-                
+
                     if (dupEndpoints == null)
-                        throw new OutOfMemoryException($"{_dupHeap}: {_dupHeap.ReferenceCount}/{_dupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = {_maxReq}");
-                    
+                        throw new OutOfMemoryException(
+                            $"{_dupHeap}: {_dupHeap.ReferenceCount}/{_dupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = {_maxReq}");
+
                     if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                     {
                         dupEndpoints.Clear();
                         await _dupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(false);
-                        
+
                         //best effort
                         if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))
                             endpoints.Add(endpoint);
-                        
+
                         continue;
                     }
 
-                    //if not seen before, set message as seen
-                    var buf = whispers.ToByteArray();
-                    async ValueTask ForwardMessage(IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> drone)
-                    {
-                        try
-                        {
-                            var source = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>) drone.Source);
-                    
-                            //Don't forward new messages to nodes from which we have received the msg in the mean time.
-                            //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
-                            //which in turn lowers the traffic causing less congestion
-                            if (source.IoNetSocket.RemoteAddress == endpoint ||
-                                dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
-                                return;
-                            
-                            ;
-                            
-                    
-                            if (await source.IoNetSocket.SendAsync(Buffer, BufferOffset - BytesRead, BytesRead).FastPath().ConfigureAwait(false) <= 0)
-                            {
-                                _logger.Trace($"Failed to forward new msg {req} message to {drone.Description}");
-                            }
-                            else
-                            {
-                                AutoPeeringEventService.AddEvent(new AutoPeerEvent
-                                {
-                                    EventType = AutoPeerEventType.SendProtoMsg,
-                                    Msg = new ProtoMsg
-                                    {
-                                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                                        Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
-                                        Type = $"gossip{req % 6}"
-                                    }
-                                });
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Trace(e);
-                        }
-                    }
-                    
-                    async Task Forward(int broadCastDelay = 0)
-                    {
-                        if(broadCastDelay > 0)
-                            await Task.Delay(broadCastDelay, AsyncTasks.Token).ConfigureAwait(false);
-                        
-                        await CcCollective.WhisperingDrones.ForEachAsync(static async (d,state) =>
-                        {
-                            var (@this, forwardMessage) = state;
-                            await forwardMessage(d).ConfigureAwait(false);
-                        },ValueTuple.Create<CcWhispers,Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>,ValueTask>>(this,ForwardMessage)).ConfigureAwait(false);    
-                    }
+                    BufferOffset = DatumProvisionLengthMax;
 
-                    var architect = _random.Next(16);
-                    if (architect > 0)
-                        await Forward(architect).ConfigureAwait(false);
-                    else
-                    {
-                        var f = Forward();
-                    }
-                        
+                    var vt = ValueTuple.Create(this, read, endpoint, dupEndpoints);
+                    await ZeroAsync(static async state =>
+                        {
+                            var (@this, read, endpoint, dupEndpoints) = state;
+
+                            //add small delays
+                            int delay;
+                            if ((delay = @this._random.Next(16)) > 0)
+                                await Task.Delay(delay, @this.AsyncTasks.Token).ConfigureAwait(false);
+
+                            var vt = ValueTuple.Create(@this, read, endpoint, dupEndpoints);
+                            await @this.CcCollective.WhisperingDrones.ForEachAsync(static async (drone, state) =>
+                            {
+                                var (@this, read, endpoint, dupEndpoints) = state;
+                                try
+                                {
+                                    var source =
+                                        (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)drone.Source;
+
+                                    //Don't forward new messages to nodes from which we have received the msg in the mean time.
+                                    //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
+                                    //which in turn lowers the traffic causing less congestion
+                                    if (source.IoNetSocket.RemoteAddress == endpoint ||
+                                        dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                                        return;
+
+                                    if (await source.IoNetSocket
+                                        .SendAsync(@this.Buffer, @this.BufferOffset - read, @this.BytesRead).FastPath()
+                                        .ConfigureAwait(false) <= 0)
+                                    {
+                                        _logger.Trace($"Failed to forward new msg message to {drone.Description}");
+                                    }
+                                    else
+                                    {
+                                        AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                                        {
+                                            EventType = AutoPeerEventType.SendProtoMsg,
+                                            Msg = new ProtoMsg
+                                            {
+                                                CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
+                                                Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
+                                                Type = $"gossip{@this.Id % 6}"
+                                            }
+                                        });
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    _logger.Trace(e);
+                                }
+
+                            }, vt).FastPath().ConfigureAwait(false);
+
+                        }, vt,
+                        TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness |
+                        TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                 }
             }
             catch (NullReferenceException e)

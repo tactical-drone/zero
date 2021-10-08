@@ -139,7 +139,9 @@ namespace zero.cocoon.models.test
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            Interlocked.Add(ref _this.BytesRead, await ((IoSocket)ioSocket).ReadAsync(_this.ArraySegment, _this.BufferOffset, _this.BufferSize).FastPath().ConfigureAwait(false));
+                            _this.BytesRead += await ((IoSocket)ioSocket)
+                                .ReadAsync(_this.ArraySegment, _this.BufferOffset, _this.BufferSize).FastPath()
+                                .ConfigureAwait(false);
 
                             //TODO WTF
                             if (_this.BytesRead == 0)

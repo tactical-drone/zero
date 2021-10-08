@@ -73,21 +73,21 @@ namespace zero.core.models
         /// Read only sequence wrapped for protobuf API
         /// </summary>
         public ReadOnlySequence<byte> ReadOnlySequence { get; protected set; }
-
+        
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>
-        public volatile int BytesRead;
+        public int BytesRead { get; set; }
 
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
         public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
-
+        
         /// <summary>
         /// The current offset
         /// </summary>
-        public volatile int BufferOffset;
+        public int BufferOffset;
 
         /// <summary>
         /// Total number of datums contained inside the buffer
@@ -126,7 +126,6 @@ namespace zero.core.models
         public override ValueTask<IIoHeapItem> ConstructorAsync()
         {
             BytesRead = 0;
-            //DatumProvisionLength = DatumProvisionLengthMax;
             BufferOffset = DatumProvisionLengthMax;
             
             //return !Reconfigure ? base.Constructor() : null; //TODO what was this about?
@@ -163,15 +162,15 @@ namespace zero.core.models
             try
             {
                 var bytesLeft = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
-                Interlocked.Add(ref BufferOffset, -bytesLeft);
-                Interlocked.Add(ref BytesRead, bytesLeft);
+                BufferOffset-=bytesLeft;
+                BytesRead += bytesLeft;
 
                 p.MemoryBuffer.Slice(p.BufferOffset + p.BytesRead - p.BytesLeftToProcess).CopyTo(MemoryBuffer[BufferOffset..]);
                 
                 p.State = IoJobMeta.JobState.Consumed;
                 p.State = IoJobMeta.JobState.Accept;
 
-                _logger.Error($"{Description}: >>> {bytesLeft} bytes <<<");
+                _logger.Warn($"{Description}: >>> {bytesLeft} bytes <<<");
             }
             catch (Exception) // we de-synced 
             {

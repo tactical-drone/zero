@@ -179,7 +179,6 @@ namespace zero.core.models.protobuffer
                             //Drop zero reads
                             if (bytesRead == 0)
                             {
-                                job.BytesRead = 0;
                                 job.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
@@ -207,7 +206,7 @@ namespace zero.core.models.protobuffer
                             //    _this._msgCount = 0;
                             //}
 
-                            Interlocked.Add(ref job.BytesRead, bytesRead);
+                            job.BytesRead += bytesRead;
 
                             job.JobSync();
 
