@@ -164,7 +164,7 @@ namespace zero.core.models.protobuffer
                 }
                 
                 return job._batch != null;
-            }, nanite, barrier, this).FastPath().ConfigureAwait(false))
+            }, this, barrier, nanite).FastPath().ConfigureAwait(false))
             {
                 return State = IoJobMeta.JobState.Error;
             }

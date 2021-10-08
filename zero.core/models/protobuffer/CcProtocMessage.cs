@@ -255,7 +255,7 @@ namespace zero.core.models.protobuffer
                         //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
                         return false;
                     }
-                }, nanite, barrier, this).FastPath().ConfigureAwait(false);
+                }, this, barrier, nanite).FastPath().ConfigureAwait(false);
             }
             catch (TaskCanceledException e)
             {

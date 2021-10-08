@@ -190,7 +190,7 @@ namespace zero.cocoon.models.test
 
                         return false;
                     }
-                }, nanite, barrier, this).ConfigureAwait(false);
+                }, this, barrier, nanite).ConfigureAwait(false);
 
                 if (!produced)
                 {

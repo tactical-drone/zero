@@ -551,7 +551,7 @@ namespace zero.tangle.models
                         return false;
                     }
                     return true;
-                }, zeroClosure, barrier, this);
+                }, this, barrier, zeroClosure);
 
                 if (!sourceTaskSuccess)
                 {

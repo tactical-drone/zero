@@ -88,8 +88,17 @@ namespace zero.cocoon.models
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
             if (_protocolMsgBatch != null)
+            {
+                foreach (var ccDiscoveryBatch in _protocolMsgBatch)
+                {
+                    if(ccDiscoveryBatch == default)
+                        break;
+                            
+                    await _batchMsgHeap.ReturnAsync(ccDiscoveryBatch).FastPath().ConfigureAwait(false);    
+                }
                 _arrayPool.Return(_protocolMsgBatch, true);
-
+            }
+            
             await _batchMsgHeap.ZeroManagedAsync<object>((batch,_) =>
             {
                 batch.RemoteEndPoint = null;
@@ -452,19 +461,19 @@ namespace zero.cocoon.models
                 {
                     var @this = (CcDiscoveries)ioJob;
 
-                    if (!await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(@this._protocolMsgBatch).FastPath().ConfigureAwait(false))
+                    try
                     {
-                        foreach (var ccDiscoveryBatch in @this._protocolMsgBatch)
+                        if (source != null && !await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(@this._protocolMsgBatch).FastPath().ConfigureAwait(false))
                         {
-                            if(ccDiscoveryBatch == default)
-                                break;
-                            
-                            await @this._batchMsgHeap.ReturnAsync(ccDiscoveryBatch).FastPath().ConfigureAwait(false);    
+                            if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
+                                _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
+                            return false;
                         }
-                        
-                        if (!((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
-                            _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
-                        return false;
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
                     }
 
                     //Retrieve a new batch buffer
@@ -482,7 +491,7 @@ namespace zero.cocoon.models
                     @this.CurrBatchSlot = 0;
 
                     return true;
-                }, jobClosure: this).FastPath().ConfigureAwait(false);
+                }, this).FastPath().ConfigureAwait(false);
 
                 ////forward transactions
                 // if (cogSuccess)

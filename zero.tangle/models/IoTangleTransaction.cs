@@ -53,7 +53,7 @@ namespace zero.tangle.models
                 State = IoJobMeta.JobState.Produced;
 
                 return true;
-            }, nanite, barrier, this);
+            }, this, barrier, nanite);
 
             //If the originatingSource gave us nothing, mark this production to be skipped            
             return State;
