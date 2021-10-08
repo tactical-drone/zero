@@ -56,7 +56,7 @@ namespace zero.cocoon
 
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  nameof(DupSyncRoot), maxBlockers: parm_max_drone * tpcConcurrencyLevel * 8, initialCount:1);
-            DupSyncRoot.ZeroHiveAsync(DupSyncRoot, true).AsTask().GetAwaiter().GetResult();
+            DupSyncRoot.ZeroHiveAsync(DupSyncRoot).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest

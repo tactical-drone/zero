@@ -338,15 +338,15 @@ namespace zero.sync
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 5, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroNativeMutex(asyncTasks);
 
             var releaseCount = 1;
             var enableThrottle = true;
-            var waiters = 1;
-            var releasers = 1;
-            var targetSleep = (long)1000;
-            var logSpam = 1;//at least 1
+            var waiters = 3;
+            var releasers = 2;
+            var targetSleep = (long)0;
+            var logSpam = 30000;//at least 1
 
             var targetSleepMult = waiters>1 ? 2 : 1;
             var sw = new Stopwatch();

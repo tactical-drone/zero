@@ -55,14 +55,11 @@ namespace zero.core.patterns.semaphore.core
             
             if(_enableAutoScale)
                 _lock = new SpinLock(enableDeadlockDetection);
-
-            //_latched = o => { };
             
             _signalAwaiter = new Action<object>[_maxBlockers];
             _signalAwaiterState = new object[_maxBlockers];
             _head = 0;
             _tail = 0;
-            _id = Interlocked.Increment(ref _idSeed);
         }
 
         #region settings
@@ -82,17 +79,6 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private volatile uint _token;
 #endif
-
-        /// <summary>
-        /// Id seed
-        /// </summary>
-        private static int _idSeed;
-
-        /// <summary>
-        /// Semaphore Id
-        /// </summary>
-        private readonly int _id;
-
         // private string ID
         // {
         //     get
@@ -226,11 +212,6 @@ namespace zero.core.patterns.semaphore.core
         /// Whether this semaphore has been cleared out
         /// </summary>
         private volatile int _zeroed;
-        
-        /// <summary>
-        /// A sentinel used for locking
-        /// </summary>
-        private static string _zeroSentinal = "zeroSentinel";
         
         #endregion
 
@@ -463,19 +444,20 @@ namespace zero.core.patterns.semaphore.core
             
             //choose a head index for blocking state
             var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
-            var c = 0;
-            Action<object> slot;
+            Action<object> slot = null;
 
+            var c = 0;
             //Did we win?
-            if((slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) == null ) 
+            while ( c < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) == null )
             {
-                while (Interlocked.CompareExchange(ref _signalAwaiterState[headIdx], state, null) != null)
-                {}
-                
-                //release lock
-                ZeroUnlock();
+                if (Interlocked.CompareExchange(ref _signalAwaiterState[headIdx], state, null) == null) continue;
+
+                Volatile.Write(ref _signalAwaiter[headIdx], slot);
+                c++;
             }
-            else //if(_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
+
+            //Is there still capacity?
+            if(slot == null && _enableAutoScale) //EXPERIMENTAL: double concurrent capacity
             {
                 Volatile.Write(ref _signalAwaiter[headIdx], slot);
                 _zeroRef.ZeroPrevHead();
@@ -495,6 +477,8 @@ namespace zero.core.patterns.semaphore.core
                     throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_waitCount)} = {_waitCount}/{_maxBlockers}, {nameof(_asyncWorkerCount)} = {_asyncWorkerCount}/{_maxAsyncWorkers}");
                 }
             }
+
+            ZeroUnlock();
         }
 
         /// <summary>
@@ -504,9 +488,10 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ZeroComply(IoZeroWorker worker)
         {
-            var nanite = worker.Continuation.Target as IoNanoprobe;
+            IoNanoprobe nanite = default;
             try
             {
+                nanite = worker.Continuation.Target as IoNanoprobe;
                 worker.Continuation(worker.State);
             }
             catch (Exception) when (nanite == null && worker.Semaphore.Zeroed()){}
@@ -658,7 +643,9 @@ namespace zero.core.patterns.semaphore.core
                 }
 
                 //latch a chosen tail
-                worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[oldTail], null, _signalAwaiter[oldTail]);
+                while((worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[oldTail], null, _signalAwaiter[oldTail])) ! == null) {}
+
+                //unlock
                 ZeroUnlock();
                 
                 Volatile.Write(ref _signalAwaiter[oldTail], null);
@@ -668,10 +655,7 @@ namespace zero.core.patterns.semaphore.core
                 if (worker.State == null)
                     throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
-                
-                //release the lock
-                ZeroUnlock();
-                
+
                 //count the number of overall waiters
                 Interlocked.Decrement(ref _waitCount);
 
@@ -707,7 +691,7 @@ namespace zero.core.patterns.semaphore.core
             _zeroRef.ZeroAddCount(releaseCount - released);
             
             //return previous number of waiters
-            return _signalCount;
+            return _zeroRef.ZeroCount();
         }
         
         /// <summary>

@@ -74,11 +74,11 @@ namespace zero.cocoon
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`drone({Adjunct.Direction} - {(Source.IsOperational?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}]'";
+                    return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction}, {IoSource.Key}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({Adjunct?.Direction} - {(Source?.IsOperational??false?"Active":"Zombie")}-{(_assimulated?"Drone":"Adjunct")} {IoSource.Key}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}]'";
+                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {IoSource?.Key}'";
                 }
             }
         }

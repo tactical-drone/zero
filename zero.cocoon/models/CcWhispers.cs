@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Proto;
+using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
@@ -79,10 +80,21 @@ namespace zero.cocoon.models
         ///// </summary>
         //private IoHeap<CcGossipBatch> _batchMsgHeap;
 
+
         /// <summary>
-        /// CC Node
+        /// The drone this whisper belongs too
         /// </summary>
-        private CcCollective CcCollective => ((CcDrone)IoZero).Adjunct.CcCollective;
+        private CcDrone CcDrone => ((CcDrone)IoZero);
+
+        /// <summary>
+        /// The adjunct this job belongs too
+        /// </summary>
+        private CcAdjunct CcAdjunct => CcDrone.Adjunct;
+
+        /// <summary>
+        /// The node this job belongs too
+        /// </summary>
+        private CcCollective CcCollective => CcAdjunct.CcCollective;
 
         ///// <summary>
         ///// Cc Identity
@@ -177,16 +189,7 @@ namespace zero.cocoon.models
                     finally
                     {
                         //TODO investigate this crash
-                        try
-                        {
-                            await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
-                        }
-                        catch (Exception) when( Zeroed()){}
-                        catch (Exception e) when (!Zeroed())
-                        {
-                            _logger.Error(e,$"{Description}: state = {State}, cancel = {AsyncTasks.IsCancellationRequested}");
-                            State = IoJobMeta.JobState.ConsumeErr;
-                        }
+                        await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
                     }
 
                     if (State != IoJobMeta.JobState.Consumed)
