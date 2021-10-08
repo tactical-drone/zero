@@ -126,11 +126,9 @@ namespace zero.core.patterns.bushes
                 {
                     var r = c;
                     c = c.Repeat;
-                    //await _stateHeap.ReturnAsync(r).ConfigureAwait(false);
                     await _stateHeap.ReturnAsync(r).FastPath().ConfigureAwait(false);
                 }
             }
-
 
             if (_stateMeta != null)
             {
@@ -355,7 +353,7 @@ namespace zero.core.patterns.bushes
                 if (prevState != null)
                 {
                     prevState.Next = _stateMeta;
-                    if (StateTransitionHistory[(int) prevState.Value] != null)
+                    if (StateTransitionHistory[(int)prevState.Value] != null)
                     {
                         StateTransitionHistory[(int)prevState.Value].Repeat = prevState;
                     }

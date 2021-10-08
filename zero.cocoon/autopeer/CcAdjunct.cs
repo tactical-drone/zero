@@ -958,7 +958,6 @@ namespace zero.cocoon.autopeer
                                     {
                                         try
                                         {
-                                            //Console.WriteLine("d");
                                             await @this.ProcessMsgBatchAsync(msg, @this._protocolConduit,
                                                 static async (msgBatch, forward, @this) =>
                                                 {
@@ -2528,19 +2527,16 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                 var nextState = new IoStateTransition<AdjunctState>();
 
-                nextState.Enter(value);
+                nextState.Enter(value, _currState);
                 _currState.Exit(nextState);
-
+                
                 var prevState = _currState;
                 _currState = nextState;
+                
                 if (StateTransitionHistory[(int) prevState.Value] != null)
-                {
                     StateTransitionHistory[(int) prevState.Value].Repeat = prevState;
-                }
                 else
-                {
                     StateTransitionHistory[(int) prevState.Value] = prevState;
-                }
 #else
                 _currState.Enter(value);
 #endif

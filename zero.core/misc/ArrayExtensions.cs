@@ -37,9 +37,9 @@ namespace zero.core.misc
                 MemoryMarshal.TryGetArray(memory, out var array);
                 return array.Array;
             }
-            catch
+            catch(Exception e)
             {
-                Console.WriteLine("AsArray failed!");
+                LogManager.GetCurrentClassLogger().Error(e);
                 return null;
             }
         }

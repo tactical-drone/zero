@@ -120,8 +120,9 @@ namespace zero.core.patterns.bushes
         /// Enter a state
         /// </summary>
         /// <param name="state"></param>
+        /// <param name="prev"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Enter(TState state)
+        public void Enter(TState state, IoStateTransition<TState> prev = null)
         {
 #if DEBUG
             //Enter only once
@@ -130,6 +131,7 @@ namespace zero.core.patterns.bushes
 #endif
             EnterTime = ExitTime = DateTime.Now;
             Value = state;
+            Previous = prev;
         }
 
         /// <summary>
@@ -151,7 +153,6 @@ namespace zero.core.patterns.bushes
 
             ExitTime = DateTime.Now;
             Next = nextState;
-            nextState.Previous = this;
         }
     }
 }

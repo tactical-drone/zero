@@ -218,7 +218,7 @@ namespace zero.core.misc
                 }
                 catch(Exception e)
                 {
-                    Console.WriteLine(e);
+                    LogManager.GetCurrentClassLogger().Error(e, $"{Description}");
                     // ignored
                 }
             }

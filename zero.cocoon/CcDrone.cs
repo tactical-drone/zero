@@ -260,9 +260,6 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        ;
-                        
-
                         if(await ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.SendAsync(buf, 0, buf.Length).FastPath().ConfigureAwait(false) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);

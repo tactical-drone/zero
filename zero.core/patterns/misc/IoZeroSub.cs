@@ -33,7 +33,7 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                LogManager.GetCurrentClassLogger().Error(e);
                 throw;
             }
         }

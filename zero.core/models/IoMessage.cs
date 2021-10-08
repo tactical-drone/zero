@@ -73,11 +73,11 @@ namespace zero.core.models
         /// Read only sequence wrapped for protobuf API
         /// </summary>
         public ReadOnlySequence<byte> ReadOnlySequence { get; protected set; }
-        
+
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>
-        public int BytesRead { get; set; }
+        public volatile int BytesRead;
 
         /// <summary>
         /// The number of bytes left to process in this buffer
@@ -87,7 +87,7 @@ namespace zero.core.models
         /// <summary>
         /// The current offset
         /// </summary>
-        public int BufferOffset;
+        public volatile int BufferOffset;
 
         /// <summary>
         /// Total number of datums contained inside the buffer

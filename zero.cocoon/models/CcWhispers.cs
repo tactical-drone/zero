@@ -124,9 +124,13 @@ namespace zero.cocoon.models
                     return State = IoJobMeta.JobState.ConInvalid;
                 }
 
+                var round = 0;
                 while (BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
                 {
                     CcWhisperMsg whispers = null;
+                    if(round++ > 1)
+                        _logger.Fatal($"ROUND = {round}");
+                        
                     //deserialize
                     try
                     {
@@ -135,26 +139,25 @@ namespace zero.cocoon.models
                         if (whispers == null)
                             break;
 
-                        read = whispers.CalculateSize();
-                        BufferOffset += read;
+                        Interlocked.Add(ref BufferOffset, read = whispers.CalculateSize());
                         State = IoJobMeta.JobState.Consumed;
                     }
                     catch (Exception e)
                     {
                         if (!Zeroed() && !MessageService.Zeroed())
                             _logger.Debug(e,
-                                $"Parse failed: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(BufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
-
+                                $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(BufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                        
+                        //try again
                         State = IoJobMeta.JobState.ConInlined;
+                        Interlocked.Increment(ref BufferOffset);
+                        continue;
                     }
 
                     if (read == 0)
                     {
                         continue;
                     }
-
-                    Interlocked.Add(ref BufferOffset, (int)read);
-
 
                     //Sanity check the data
                     if (whispers == null || whispers.Data == null || whispers.Data.Length == 0)
@@ -191,11 +194,15 @@ namespace zero.cocoon.models
                         {
                             await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
                         }
+                        catch (Exception) when (Zeroed())
+                        {
+                        }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e);
-                            throw;
+                            _logger.Fatal(e,$"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}");
+                            PrintStateHistory();
                         }
+                        
                     }
 
                     if (State != IoJobMeta.JobState.Consumed)
@@ -222,10 +229,8 @@ namespace zero.cocoon.models
                         continue;
                     }
 
-                    BufferOffset = DatumProvisionLengthMax;
-
                     var vt = ValueTuple.Create(this, read, endpoint, dupEndpoints);
-                    await ZeroAsync(static async state =>
+                    await ZeroAsyncOptionAsync(static async state =>
                         {
                             var (@this, read, endpoint, dupEndpoints) = state;
 
@@ -251,7 +256,7 @@ namespace zero.cocoon.models
                                         return;
 
                                     if (await source.IoNetSocket
-                                        .SendAsync(@this.Buffer, @this.BufferOffset - read, @this.BytesRead).FastPath()
+                                        .SendAsync(@this.Buffer, @this.BufferOffset - read, read).FastPath()
                                         .ConfigureAwait(false) <= 0)
                                     {
                                         _logger.Trace($"Failed to forward new msg message to {drone.Description}");
@@ -264,7 +269,7 @@ namespace zero.cocoon.models
                                             Msg = new ProtoMsg
                                             {
                                                 CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
-                                                Id = ((CcDrone)drone).Adjunct.Designation.IdString(),
+                                                Id = drone.Adjunct.Designation.IdString(),
                                                 Type = $"gossip{@this.Id % 6}"
                                             }
                                         });

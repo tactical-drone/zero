@@ -457,7 +457,7 @@ namespace zero.cocoon.models
                 }
 
                 //cog the source
-                var cogSuccess = await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
+                await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
                 {
                     var @this = (CcDiscoveries)ioJob;
 
@@ -472,8 +472,8 @@ namespace zero.cocoon.models
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine(e);
-                        throw;
+                        _logger.Error(e, $"{@this.Description}");
+                        return false;
                     }
 
                     //Retrieve a new batch buffer

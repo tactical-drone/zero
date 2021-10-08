@@ -580,8 +580,6 @@ namespace zero.core.patterns.semaphore.core
             }
 
             Thread.CurrentThread.Priority = ThreadPriority.Normal;
-
-            Console.WriteLine($"Scaled {Description}");
         }
 
         /// <summary>
