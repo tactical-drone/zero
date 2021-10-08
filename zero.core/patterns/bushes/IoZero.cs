@@ -426,7 +426,7 @@ namespace zero.core.patterns.bushes
                                     }
                                     
                                     //Is there a bug in the producer?
-                                    if (nextJob.State == IoJobMeta.JobState.Producing && !Zeroed() && !nextJob.Zeroed())
+                                    if (nextJob.State == IoJobMeta.JobState.Producing && !Zeroed() && !nextJob.Zeroed() && !nextJob.Source.Zeroed())
                                     {
                                         _logger.Warn($"{GetType().Name} ({nextJob.GetType().Name}): State remained {IoJobMeta.JobState.Producing}");
                                         nextJob.State = IoJobMeta.JobState.Error;
@@ -520,7 +520,7 @@ namespace zero.core.patterns.bushes
                         //prevent leaks
                         if (nextJob != null)
                         {
-                            if(!Zeroed() && !nextJob.Zeroed())
+                            if(!Zeroed() && !nextJob.Zeroed() && !nextJob.Source.Zeroed())
                                 _logger.Error($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                             //TODO Double check this hack
