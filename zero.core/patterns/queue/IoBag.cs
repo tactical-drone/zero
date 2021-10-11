@@ -44,15 +44,19 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to be added</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public void Add(T item)
         {
-            Interlocked.Increment(ref _count);
             var latch = Interlocked.Increment(ref _next) - 1;
-            
             T fail = null;
-            while(_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null){}
-
+            while (_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
+            {
+                Interlocked.Decrement(ref _next);
+                latch = Interlocked.Increment(ref _next) - 1;
+            }
+            
+            Interlocked.Increment(ref _count);
+            
             if (fail != null)
                 throw new OutOfMemoryException($"{Description}: Ran out of storage space, count = {_count}/{_capacity}");
         }
@@ -74,7 +78,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool TryTake([MaybeNullWhen(false)] out T result)
         {
             result = null;
@@ -86,11 +90,13 @@ namespace zero.core.patterns.queue
             while (_count > 0)
             {
                 var latch = Prev;
-                if ((result = Interlocked.CompareExchange(ref _storage[latch], null, _storage[latch])) ==null) continue;
-                
-                Interlocked.Decrement(ref _count);
-                Interlocked.Decrement(ref _next);
-                break;
+                var target = _storage[latch];
+                if ((result = Interlocked.CompareExchange(ref _storage[latch], null, target)) == target)
+                {
+                    Interlocked.Decrement(ref _count);
+                    Interlocked.Decrement(ref _next);    
+                    break;    
+                }
             }
             
             return (result != null);

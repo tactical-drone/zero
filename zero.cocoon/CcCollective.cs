@@ -48,15 +48,11 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
-            //_autoPeering = ZeroOnCascade(new CcHub(this, _peerAddress, (node, client, extraData) => new CcAdjunct((CcHub)node, client, extraData), udpPrefetch, udpConcurrencyLevel), true).target;
-            //TODO tuning
-            
             _autoPeering =  new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
-            _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
-
+            _autoPeering.ZeroHiveAsync(this, true).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
             
-            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  nameof(DupSyncRoot), maxBlockers: parm_max_drone * tpcConcurrencyLevel * 8, initialCount:1);
-            DupSyncRoot.ZeroHiveAsync(DupSyncRoot).AsTask().GetAwaiter().GetResult();
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount:1);
+            DupSyncRoot.ZeroHiveAsync(DupSyncRoot).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
             
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest

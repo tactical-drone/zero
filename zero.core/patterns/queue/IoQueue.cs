@@ -14,7 +14,7 @@ namespace zero.core.patterns.queue
     /// <summary>
     /// Zero Queue
     /// </summary>
-    /// <typeparam name="T"></typeparam>
+    /// <typeparam name="T">The type of item queued</typeparam>
     public class IoQueue<T>: IEnumerator<IoQueue<T>.IoZNode>, IEnumerable<IoQueue<T>.IoZNode>
     {
         /// <summary>
@@ -116,6 +116,7 @@ namespace zero.core.patterns.queue
 
                 _head = null;
                 _tail = null;
+                _current = null;
 
                 await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
                 _nodeHeap = null;
@@ -210,13 +211,6 @@ namespace zero.core.patterns.queue
                     return null;
 
                 //wait on back pressure
-
-                //var t = _backPressure.WaitAsync();
-                //var r = await t.FastPath().ConfigureAwait(false);
-
-                //if (_enableBackPressure && !r)
-                //        return null;
-
                 if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
                         return null;
 

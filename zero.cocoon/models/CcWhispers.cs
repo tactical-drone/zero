@@ -166,6 +166,8 @@ namespace zero.cocoon.models
                         continue;
                     }
 
+                    State = IoJobMeta.JobState.SlowDup;
+                    
                     //read the token
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
                     if (req > _maxReq)
@@ -174,8 +176,11 @@ namespace zero.cocoon.models
                     try
                     {
                         if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath().ConfigureAwait(false))
-                            return State = IoJobMeta.JobState.ConsumeErr;
-
+                        {
+                            State = IoJobMeta.JobState.ConsumeErr;
+                            continue;
+                        }
+                        
                         if (CcCollective.DupChecker.Count > _poolSize * 4 / 5)
                         {
                             var culled = CcCollective.DupChecker.Keys.Where(k => k < _maxReq - _poolSize / 2).ToList();
@@ -193,22 +198,32 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                            if (await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false) == -1)
+                            {
+                                _logger.Error($"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
+                                PrintStateHistory();
+                                State = IoJobMeta.JobState.ConsumeErr;
+                            }
+
+                            State = IoJobMeta.JobState.ConsumeErr;
                         }
                         catch (Exception) when (Zeroed())
                         {
+                            State = IoJobMeta.JobState.ConsumeErr;
                         }
                         catch (Exception e)
                         {
-                            _logger.Fatal(e,$"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}");
+                            _logger.Fatal(e,$"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
                             PrintStateHistory();
+                            State = IoJobMeta.JobState.ConsumeErr;
                         }
                         
                     }
 
                     if (State != IoJobMeta.JobState.Consumed)
                         continue;
-
+                    
+                    State = IoJobMeta.JobState.FastDup;
                     //set this message as seen if seen before
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
                         .RemoteAddress;
@@ -227,8 +242,11 @@ namespace zero.cocoon.models
                         if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))
                             endpoints.Add(endpoint);
 
+                        State = IoJobMeta.JobState.ConInlined;
                         continue;
                     }
+
+                    State = IoJobMeta.JobState.ConInlined;
 
                     var vt = ValueTuple.Create(this, read, endpoint, dupEndpoints);
                     await ZeroAsyncOptionAsync(static async state =>
@@ -287,6 +305,8 @@ namespace zero.cocoon.models
                         TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness |
                         TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                 }
+
+                State = IoJobMeta.JobState.Consumed;
             }
             catch (NullReferenceException e)
             {

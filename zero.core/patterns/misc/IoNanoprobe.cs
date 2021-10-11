@@ -81,7 +81,7 @@ namespace zero.core.patterns.misc
 #pragma warning disable 4014
             try
             {
-                ZeroAsync(false).AsTask().GetAwaiter().GetResult();
+                ZeroAsync(false).FastPath().ConfigureAwait(false).GetAwaiter();
             }
             catch (Exception e)
             {
@@ -188,7 +188,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(Sentinel).AsTask().GetAwaiter().GetResult();
+            ZeroAsync(Sentinel).FastPath().ConfigureAwait(false).GetAwaiter();
         }
 
         /// <summary>
@@ -644,11 +644,11 @@ namespace zero.core.patterns.misc
             /// </summary>
             /// <param name="state">Extra info</param>
             /// <param name="message">The error message</param>
-            /// <param name="innerException">The inner Exception</param>
+            /// <param name="exception">The inner Exception</param>
             /// <param name="methodName">The calling method name</param>
             /// <param name="lineNumber">The calling method line number</param>
             /// <returns>The new exception</returns>
-            public static ZeroException ErrorReport(object state, string message = null, Exception innerException = null, [CallerMemberName] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+            public static ZeroException ErrorReport(object state, string message = null, Exception exception = null, [CallerMemberName] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
             {
 #if DEBUG
                 if (state == null)
@@ -658,7 +658,7 @@ namespace zero.core.patterns.misc
                 var nanite = state as IoNanoprobe;
                 var description = nanite?.Description ?? $"{state}";
                 
-                return new ZeroException($"{Path.GetFileName(filePath)}:{methodName}() {lineNumber} - [{description}]: {message}", innerException);
+                return new ZeroException($"{Path.GetFileName(filePath)}:{methodName}() {lineNumber} - [{description}]: {message}", exception);
             }
         }
 

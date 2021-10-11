@@ -225,31 +225,13 @@ namespace zero.core.models.protobuffer.sources
             {
                 return await callback(this, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
             }
-            catch (TimeoutException e)
-            {
-                _logger.Trace(e, Description);
-                return false;
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-                return false;
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-                return false;
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-                return false;
-            }
+            catch (Exception) when(!Zeroed()){}
             catch (Exception e)
             {
                 _logger.Error(e, $"Source `{Description??"N/A"}' callback failed:");
-                return false;
             }
+
+            return false;
         }
     }
 }

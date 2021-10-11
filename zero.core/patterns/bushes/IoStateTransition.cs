@@ -132,6 +132,8 @@ namespace zero.core.patterns.bushes
             EnterTime = ExitTime = DateTime.Now;
             Value = state;
             Previous = prev;
+            if (Previous != null)
+                Previous.Next = this;
         }
 
         /// <summary>
@@ -147,9 +149,7 @@ namespace zero.core.patterns.bushes
         public void Exit(IoStateTransition<TState> nextState)
         {
             if (Value.Equals(FinalState))
-            {
                 throw new ApplicationException($"Cannot transition from `{FinalState}' to `{nextState}'");
-            }
 
             ExitTime = DateTime.Now;
             Next = nextState;

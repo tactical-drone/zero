@@ -2526,10 +2526,8 @@ namespace zero.cocoon.autopeer
             {
 #if DEBUG
                 var nextState = new IoStateTransition<AdjunctState>();
-
                 nextState.Enter(value, _currState);
-                _currState.Exit(nextState);
-                
+
                 var prevState = _currState;
                 _currState = nextState;
 

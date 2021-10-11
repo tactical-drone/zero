@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NLog;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore.core
@@ -27,7 +28,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="enableFairQ">Enable fair queueing at the cost of performance</param>
         /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(
-            string description = "", 
+            string description, 
             int maxBlockers = 1, 
             int initialCount = 0,
             int maxAsyncWork = 0,
@@ -485,24 +486,28 @@ namespace zero.core.patterns.semaphore.core
         /// Executes a worker
         /// </summary>
         /// <param name="worker">The worker continuation</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ZeroComply(IoZeroWorker worker)
+        [MethodImpl(MethodImplOptions.AggressiveInlining|MethodImplOptions.AggressiveOptimization)]
+        private bool ZeroComply(IoZeroWorker worker)
         {
             IoNanoprobe nanite = default;
             try
             {
                 nanite = worker.Continuation.Target as IoNanoprobe;
                 worker.Continuation(worker.State);
+                return true;
             }
             catch (Exception) when (nanite == null && worker.Semaphore.Zeroed()){}
             catch (Exception) when (nanite != null && nanite.Zeroed()){}
             catch (Exception e) when (nanite == null && !worker.Semaphore.Zeroed() ||
                                       nanite != null && !nanite.Zeroed())
             {
-                throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
-                    $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
-                    $"{nameof(worker.State)} = {worker.State}",e);
+                // throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
+                //     $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
+                //     $"{nameof(worker.State)} = {worker.State}",e);
+                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: {nameof(ThreadPool.QueueUserWorkItem)}, {nameof(worker.Continuation)} = {worker.Continuation}, {nameof(worker.State)} = {worker.State}");
             }
+
+            return false;
         }
 
         /// <summary>
@@ -636,7 +641,6 @@ namespace zero.core.patterns.semaphore.core
                         break;
                 
                     //try again
-                    Thread.Yield();
                     continue;
                 }
 
@@ -659,16 +663,15 @@ namespace zero.core.patterns.semaphore.core
 
                 //async workers
                 var parallelized = false;
-                switch (async && _maxAsyncWorkers > 0 && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
+                switch (async && _maxAsyncWorkers > 0 && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers && false)
                 {
                     case true when Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers:
                         await Task.Factory.StartNew(static state =>
                             {
                                 var (@this, worker) = (ValueTuple<IoZeroSemaphore, IoZeroWorker>)state;
                                 @this.ZeroComply(worker);
-
                             }, ValueTuple.Create(this, worker),_asyncToken,
-                            TaskCreationOptions.AttachedToParent,TaskScheduler.Default);
+                            TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach,TaskScheduler.Default);
                     
                         parallelized = true;
                         break;
@@ -678,8 +681,15 @@ namespace zero.core.patterns.semaphore.core
                 }
 
                 //synced workers
-                if(!parallelized)
-                    ZeroComply(worker);
+                if (!parallelized)
+                {
+                    if (!ZeroComply(worker))
+                    {
+                        //update current count
+                        _zeroRef.ZeroAddCount(releaseCount - released);
+                        return -1;
+                    }
+                }
 
                 //count the number of waiters released
                 released++;

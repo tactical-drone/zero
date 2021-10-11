@@ -119,19 +119,30 @@ namespace zero.core.patterns.bushes
         public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
         {
 #if DEBUG
-            foreach (var ioWorkStateTransition in StateTransitionHistory)
+            for (var i = 0; i < StateTransitionHistory.Length; i++)
             {
-                var c = ioWorkStateTransition;
+                var c = StateTransitionHistory[i];
                 while (c != null)
                 {
                     var r = c;
                     c = c.Repeat;
+                    //TODO, is this the right place
+                    r.Repeat = null;
+                    r.Next = null;
+                    r.Value = 0;
                     await _stateHeap.ReturnAsync(r).FastPath().ConfigureAwait(false);
                 }
+
+                StateTransitionHistory[i] = null;
             }
 
             if (_stateMeta != null)
             {
+                //TODO, is this the right place
+                _stateMeta.Next = null;
+                _stateMeta.Previous = null;
+                _stateMeta.Repeat = null;
+                _stateMeta.Value = IoJobMeta.JobState.Undefined;
                 await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(false);
                 _stateMeta = null;
             }
@@ -330,15 +341,12 @@ namespace zero.core.patterns.bushes
                         _stateMeta.Value = IoJobMeta.JobState.Race; //TODO
                         throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
-
-                    if (_stateMeta.Value == value)
-                    {
-                        Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                        return;
-                    }
                     
                     Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
-                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], (long)(_stateMeta.Mu.TotalMilliseconds));
+                    if (_stateMeta.Value == value)
+                        return;
+                    
+                    Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], (long)_stateMeta.Mu.TotalMilliseconds);
                 }
 #if DEBUG
                 else
@@ -354,7 +362,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
                 //Allocate memory for a new current state
                 var prevState = _stateMeta;
-                var newState = _stateHeap.TakeAsync().AsTask().GetAwaiter().GetResult();
+                var newState = _stateHeap.TakeAsync().FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
                 if (newState == null)
                 {
                     if (!Zeroed())
@@ -362,7 +370,7 @@ namespace zero.core.patterns.bushes
 
                     return;
                 }
-
+                
                 newState.Previous = _stateMeta;
                 newState.EnterTime = DateTime.UtcNow;
                 newState.ExitTime = DateTime.UtcNow;
