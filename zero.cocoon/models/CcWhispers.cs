@@ -204,8 +204,8 @@ namespace zero.cocoon.models
                                 PrintStateHistory();
                                 State = IoJobMeta.JobState.ConsumeErr;
                             }
-
-                            State = IoJobMeta.JobState.ConsumeErr;
+                            else
+                                State = IoJobMeta.JobState.Consumed;
                         }
                         catch (Exception) when (Zeroed())
                         {
@@ -249,7 +249,7 @@ namespace zero.cocoon.models
                     State = IoJobMeta.JobState.ConInlined;
 
                     var vt = ValueTuple.Create(this, read, endpoint, dupEndpoints);
-                    await ZeroAsyncOptionAsync(static async state =>
+                    await ZeroOptionAsync(static async state =>
                         {
                             var (@this, read, endpoint, dupEndpoints) = state;
 

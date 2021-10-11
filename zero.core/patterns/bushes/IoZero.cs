@@ -778,7 +778,7 @@ namespace zero.core.patterns.bushes
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             //Producer
-            _producerTask = ZeroAsyncOptionAsync(static async @this =>
+            _producerTask = ZeroOptionAsync(static async @this =>
             {
                 //While supposed to be working
                 try
@@ -822,7 +822,7 @@ namespace zero.core.patterns.bushes
             },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler);
 
             //Consumer
-            _consumerTask = ZeroAsyncOptionAsync(static async @this =>
+            _consumerTask = ZeroOptionAsync(static async @this =>
             {
                 //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working

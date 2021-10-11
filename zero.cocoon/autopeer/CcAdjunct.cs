@@ -905,7 +905,7 @@ namespace zero.cocoon.autopeer
 
             
                 //The producer
-                var producer = ZeroAsyncOptionAsync(static async @this =>
+                var producer = ZeroOptionAsync(static async @this =>
                 {
                     try
                     {
@@ -942,7 +942,7 @@ namespace zero.cocoon.autopeer
                     
                 },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler);
 
-                var consumer = ZeroAsyncOptionAsync(static async @this  =>
+                var consumer = ZeroOptionAsync(static async @this  =>
                 {
                     //the consumer
                     try
@@ -1276,7 +1276,7 @@ namespace zero.cocoon.autopeer
                 //Race for 
                 case true when _direction == 0:
                 {
-                    await ZeroAsyncOptionAsync(static async @this =>
+                    await ZeroOptionAsync(static async @this =>
                     {
                         await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency/2, @this.AsyncTasks.Token).ConfigureAwait(false);
                         var connectionTime = Stopwatch.StartNew();

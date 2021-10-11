@@ -207,7 +207,7 @@ namespace zero.core.patterns.misc
 
             ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
 
-            await ZeroAsyncOptionAsync(static async @this =>
+            await ZeroOptionAsync(static async @this =>
             {
                 await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);    
             }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
@@ -597,16 +597,17 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroAsyncOptionAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
+        protected ValueTask ZeroOptionAsync<T>(Func<T, ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default)
         {
             try
             {
                 return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
                     unwrap, filePath, methodName: methodName, lineNumber);
             }
+            catch (Exception) when(Zeroed()){ return ValueTask.CompletedTask;}
             catch (Exception e)when (!Zeroed())
             {
-                return ValueTask.FromException(e);
+                return ValueTask.FromException(e);//TODO why am I doing it this way?
             }
         }
 
@@ -623,12 +624,12 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroAsyncOptionAsync<T>(Func<T, ValueTask> continuation, T state,
+        protected ValueTask ZeroOptionAsync<T>(Func<T, ValueTask> continuation, T state,
             CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null,
             bool unwrap = true, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null,
             [CallerLineNumber] int lineNumber = default)
         {
-            return ZeroAsyncOptionAsync(continuation, state, options, scheduler, unwrap, filePath, methodName, lineNumber);
+            return ZeroOptionAsync(continuation, state, options, scheduler ?? TaskScheduler.Current, unwrap, filePath, methodName, lineNumber);
         }
 
         public class ZeroException:ApplicationException

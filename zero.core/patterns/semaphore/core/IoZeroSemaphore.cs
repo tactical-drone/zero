@@ -501,10 +501,10 @@ namespace zero.core.patterns.semaphore.core
             catch (Exception e) when (nanite == null && !worker.Semaphore.Zeroed() ||
                                       nanite != null && !nanite.Zeroed())
             {
-                // throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
-                //     $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
-                //     $"{nameof(worker.State)} = {worker.State}",e);
-                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: {nameof(ThreadPool.QueueUserWorkItem)}, {nameof(worker.Continuation)} = {worker.Continuation}, {nameof(worker.State)} = {worker.State}");
+                //LogManager.GetCurrentClassLogger().Error(e, $"{_description}: {nameof(ThreadPool.QueueUserWorkItem)}, {nameof(worker.Continuation)} = {worker.Continuation}, {nameof(worker.State)} = {worker.State}");
+                throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
+                    $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
+                    $"{nameof(worker.State)} = {worker.State}",e);
             }
 
             return false;
@@ -663,13 +663,24 @@ namespace zero.core.patterns.semaphore.core
 
                 //async workers
                 var parallelized = false;
-                switch (async && _maxAsyncWorkers > 0 && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers && false)
+                switch (async && _maxAsyncWorkers > 0 && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
                 {
                     case true when Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers:
                         await Task.Factory.StartNew(static state =>
                             {
                                 var (@this, worker) = (ValueTuple<IoZeroSemaphore, IoZeroWorker>)state;
-                                @this.ZeroComply(worker);
+
+                                try
+                                {
+                                    @this.ZeroComply(worker);
+                                }
+                                catch (Exception e)
+                                {
+                                    LogManager.GetCurrentClassLogger().Error(e,$@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
+                                    return ValueTask.FromException(e);
+                                }
+
+                                return ValueTask.CompletedTask;
                             }, ValueTuple.Create(this, worker),_asyncToken,
                             TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach,TaskScheduler.Default);
                     
