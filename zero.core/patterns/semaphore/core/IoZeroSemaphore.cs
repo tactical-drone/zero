@@ -496,6 +496,7 @@ namespace zero.core.patterns.semaphore.core
                 worker.Continuation(worker.State);
                 return true;
             }
+            catch (TaskCanceledException) {return true;}
             catch (Exception) when (nanite == null && worker.Semaphore.Zeroed()){}
             catch (Exception) when (nanite != null && nanite.Zeroed()){}
             catch (Exception e) when (nanite == null && !worker.Semaphore.Zeroed() ||
@@ -682,7 +683,7 @@ namespace zero.core.patterns.semaphore.core
 
                                 return ValueTask.CompletedTask;
                             }, ValueTuple.Create(this, worker),_asyncToken,
-                            TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach,TaskScheduler.Default);
+                            TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness,TaskScheduler.Default);
                     
                         parallelized = true;
                         break;

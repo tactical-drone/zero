@@ -24,7 +24,7 @@ namespace zero.cocoon.models
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             _protocolMsgBatch = _arrayPool.Rent((int)parm_max_msg_batch_size);
-            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(parm_max_msg_batch_size,source.ZeroConcurrencyLevel()) {Make = o => new CcDiscoveryBatch()};//TODO config
+            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(parm_max_msg_batch_size) {Make = o => new CcDiscoveryBatch()};//TODO config
         }
 
         public override async ValueTask<bool> ConstructAsync()

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -14,26 +13,30 @@ namespace zero.core.patterns.queue
     /// <summary>
     /// A concurrent bag
     /// </summary>
-    public class IoBag<T>:IoNanoprobe, IEnumerator<T>, IEnumerable<T>
+    public class IoBag<T>:IEnumerator<T>, IEnumerable<T>
     where T:class
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, uint capacity): base(description)
+        public IoBag(string description, uint capacity)
         {
+            _description = description;
             _capacity = capacity;
             _storage = new T[_capacity + 1];
             _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
         }
-        
-        private int _zeroed;
+            
+        private volatile int _zeroed;
+        private readonly string _description;
         private T[] _storage;
         private readonly uint _capacity;
         private volatile uint _count;
         private volatile uint _next;
         private volatile uint _iteratorIdx = UInt32.MaxValue;
         private readonly IoNanoprobe _zeroSentinel;
+
+        public bool Zeroed => _zeroed > 0;
         
         public uint Count => _count;
         private uint Next => _next % _capacity;
@@ -58,7 +61,7 @@ namespace zero.core.patterns.queue
             Interlocked.Increment(ref _count);
             
             if (fail != null)
-                throw new OutOfMemoryException($"{Description}: Ran out of storage space, count = {_count}/{_capacity}");
+                throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
         }
         
 
@@ -101,6 +104,7 @@ namespace zero.core.patterns.queue
             
             return (result != null);
         }
+
         
         /// <summary>
         /// Zero managed cleanup
@@ -117,31 +121,29 @@ namespace zero.core.patterns.queue
             {
                 if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
-
-                if (op != null)
+                
+                foreach (var item in _storage)
                 {
-                    foreach (var item in _storage)
+                    try
                     {
-                        try
+                        //TODO is this a good idea?
+                        if(item == null)
+                            continue;
+                        
+                        if (!zero && op != null)
+                            await op(item, nanite).FastPath().ConfigureAwait(false);
+                        else if(zero)
                         {
-                            //TODO is this a good idea?
-                            if(item == null)
-                                continue;
-                            
-                            if (!zero)
-                                await op(item, nanite).FastPath().ConfigureAwait(false);
-                            else
-                            {
-                                if (!((IIoNanite)item)!.Zeroed())
-                                    await ((IIoNanite)item).ZeroAsync((IIoNanite)nanite ?? _zeroSentinel)
-                                        .FastPath()
-                                        .ConfigureAwait(false);
-                            }
+                            if (!((IIoNanite)item)!.Zeroed())
+                                await ((IIoNanite)item).ZeroAsync((IIoNanite)nanite ?? _zeroSentinel)
+                                    .FastPath()
+                                    .ConfigureAwait(false);
                         }
-                        catch (Exception e)
-                        {
-                            LogManager.GetCurrentClassLogger().Trace(e, $"{Description}: {op}, {item}, {nanite}");
-                        }
+                    }
+                    catch (Exception) when(Zeroed){}
+                    catch (Exception e) when (!Zeroed)
+                    {
+                        LogManager.GetCurrentClassLogger().Trace(e, $"{_description}: {op}, {item}, {nanite}");
                     }
                 }
             }
@@ -204,6 +206,11 @@ namespace zero.core.patterns.queue
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        public void Dispose()
+        {
+            throw new NotImplementedException();
         }
     }
 }

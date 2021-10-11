@@ -233,28 +233,12 @@ namespace zero.core.network.ip
                 NativeSocket.SendTimeout = 0;
                 return sent; //TODO optimize copy
             }
-            catch (NullReferenceException e) when(!Zeroed())
+            catch (SocketException e)
             {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e) when(!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e) when(!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e) when(!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (SocketException e) when(!Zeroed() && NativeSocket.IsBound)
-            {
-                _logger.Error($"Send failed: {Description}: {e.Message}");
+                _logger.Trace(e, $"{Description}");
             }
             catch (Exception) when (Zeroed()){}
-            catch (Exception e)
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
             }
@@ -297,39 +281,16 @@ namespace zero.core.network.ip
                     return read;
                 }
             }
-            catch (NullReferenceException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception) when (Zeroed()){}
             catch (SocketException e)
             {
-#if DEBUG
-                if (!Zeroed() && NativeSocket.IsBound)
-                    _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
-#endif
-
-                await ZeroAsync(new IoNanoprobe($"SocketException ({e.Message})")).FastPath().ConfigureAwait(false);
+                _logger?.Trace(e, $"{Description}");
             }
-            catch (Exception e)
+            catch (Exception) when (Zeroed()){}
+            catch (Exception e) when(!Zeroed()) 
             {
-#if DEBUG
-                _logger.Error($"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
-#endif
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
+                _logger?.Error(e, $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
             }
+            await ZeroAsync(this).FastPath().ConfigureAwait(false);
 
             return 0;
         }

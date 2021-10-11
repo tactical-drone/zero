@@ -27,8 +27,8 @@ namespace zero.core.patterns.bushes
         {
             _logger = LogManager.GetCurrentClassLogger();
             
-            if (prefetchSize > concurrencyLevel)
-                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(prefetchSize)} = {prefetchSize}");
+            if (prefetchSize > concurrencyLevel * 2)
+                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(prefetchSize)} = {prefetchSize}, must be at least {nameof(concurrencyLevel)} = {concurrencyLevel*2}");
 
             if (maxAsyncSinks > concurrencyLevel)
                 throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSinks)} = {maxAsyncSinks}");

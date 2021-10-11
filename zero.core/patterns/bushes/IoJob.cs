@@ -152,7 +152,7 @@ namespace zero.core.patterns.bushes
 #endif
             FinalState = State = IoJobMeta.JobState.Undefined;
             Syncing = false;
-            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
+            Id = Interlocked.Increment(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
 
             //var curState = 0;
             //while (StateTransitionHistory[curState] != null)
@@ -196,7 +196,11 @@ namespace zero.core.patterns.bushes
             if(_stateMeta != null)
                 await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(false);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
-            await _stateHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+            await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
+            {
+                ioHeapItem.ZeroManaged();
+                return ValueTask.CompletedTask;
+            }, this).FastPath().ConfigureAwait(false);
 #endif
             if (PreviousJob != null)
                 await PreviousJob.ZeroAsync(this).FastPath().ConfigureAwait(false);
@@ -302,7 +306,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG
         //TODO
-        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new((uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2),5) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Halted} };
+        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new((uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2)) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Halted} };
 #endif
         /// <summary>
         /// Final state

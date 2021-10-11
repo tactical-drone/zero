@@ -43,7 +43,7 @@ namespace zero.cocoon.autopeer
             (
                 node,
                 ioNetClient,
-                _ => new CcDiscoveries("adjunct RX", $"{ioNetClient.Key}", ioNetClient), true
+                _ => new CcDiscoveries("adjunct RX", $"{ioNetClient.Key}", ioNetClient), false
             )
         {
             _logger = LogManager.GetCurrentClassLogger();

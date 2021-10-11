@@ -29,7 +29,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <param name="maxSize">The maximum capacity of this heap</param>
         /// 
-        public IoHeap(uint maxSize, int concurrencyLevel)
+        public IoHeap(uint maxSize)
         {
             _maxSize = maxSize;
             _ioHeapBuf = new IoBag<T>($"{nameof(_ioHeapBuf)}", _maxSize);
@@ -44,6 +44,12 @@ namespace zero.core.patterns.heap
         /// </summary>
         private static Logger _logger;
 
+        /// <summary>
+        /// Whether this object has been cleaned up
+        /// </summary>
+        private volatile int _zeroed;
+
+        public bool Zeroed => _zeroed > 0;
         /// <summary>
         /// The heap buffer space
         /// </summary>
@@ -109,10 +115,13 @@ namespace zero.core.patterns.heap
         /// </summary>
         public async ValueTask ZeroManagedAsync<TC>(Func<T,TC,ValueTask> zeroAction = null, TC nanite = default)
         {
+            if (Interlocked.CompareExchange(ref _zeroed, 1, 0)!= 0)
+                return;
+            
             if (zeroAction != null)
                 await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(false);
-
-            await _ioHeapBuf.ZeroManagedAsync<object>(nanite:nanite, zero:true).FastPath().ConfigureAwait(false);
+            else
+                await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -184,7 +193,8 @@ namespace zero.core.patterns.heap
                 
                 Interlocked.Decrement(ref _refCount);
             }
-            catch (NullReferenceException)
+            catch (Exception) when(_ioHeapBuf.Zeroed){}
+            catch (NullReferenceException) when(!_ioHeapBuf.Zeroed)
             {
                 _logger.Fatal($"Unexpected error while returning item to the heap! ");
             }

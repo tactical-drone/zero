@@ -27,7 +27,7 @@ namespace zero.core.misc
 
             _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
 
-            _valHeap = new IoHeap<IoChallenge>(_capacity, concurrencyLevel)
+            _valHeap = new IoHeap<IoChallenge>(_capacity)
             {
                 Make = _ => new IoChallenge()
             };

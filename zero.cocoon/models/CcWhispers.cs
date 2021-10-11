@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -11,7 +10,6 @@ using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
-using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
@@ -29,7 +27,7 @@ namespace zero.cocoon.models
             //_protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
             //_batchMsgHeap = new IoHeap<CcGossipBatch>(concurrencyLevel) { Make = o => new CcGossipBatch() };
 
-            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2, concurrencyLevel)
+            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2)
             {
                 Make = o => new ConcurrentBag<string>(),
                 Prep = (popped, endpoint) =>
@@ -200,20 +198,25 @@ namespace zero.cocoon.models
                         {
                             if (await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false) == -1)
                             {
-                                _logger.Error($"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
-                                PrintStateHistory();
-                                State = IoJobMeta.JobState.ConsumeErr;
+                                if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed() && !Source.Zeroed())
+                                {
+                                    _logger.Error($"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
+                                    //PrintStateHistory();
+                                    State = IoJobMeta.JobState.ConsumeErr;
+                                }
+                                else
+                                    State = IoJobMeta.JobState.Cancelled;
                             }
                             else
                                 State = IoJobMeta.JobState.Consumed;
                         }
-                        catch (Exception) when (Zeroed())
+                        catch (Exception) when (Zeroed() || Source.Zeroed())
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
-                        catch (Exception e)
+                        catch (Exception e) when (!Zeroed() && !Source.Zeroed())
                         {
-                            _logger.Fatal(e,$"{Description}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
+                            _logger.Fatal(e,$"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
                             PrintStateHistory();
                             State = IoJobMeta.JobState.ConsumeErr;
                         }

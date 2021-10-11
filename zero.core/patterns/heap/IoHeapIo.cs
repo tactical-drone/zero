@@ -17,8 +17,7 @@ namespace zero.core.patterns.heap
         /// ConstructAsync
         /// </summary>
         /// <param name="maxSize"></param>
-        /// <param name="concurrencyLevel"></param>
-        public IoHeapIo(uint maxSize, int concurrencyLevel) : base(maxSize, concurrencyLevel)
+        public IoHeapIo(uint maxSize) : base(maxSize)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

@@ -65,7 +65,7 @@ namespace zero.core.network.ip
             //TODO tuning
             concurrencyLevel = 128;
 
-            _recvArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel, concurrencyLevel)
+            _recvArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -75,7 +75,7 @@ namespace zero.core.network.ip
                 }
             };
 
-            _sendArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel, concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -85,7 +85,7 @@ namespace zero.core.network.ip
                 }
             };
 
-            _tcsHeap = new IoHeap<IIoZeroSemaphore>((uint)concurrencyLevel, concurrencyLevel)
+            _tcsHeap = new IoHeap<IIoZeroSemaphore>((uint)concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -462,31 +462,11 @@ namespace zero.core.network.ip
                     }
                 }
             }
-            catch (NullReferenceException e) when (!Zeroed())
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e) when (!Zeroed())
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (TaskCanceledException e) when (!Zeroed())
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (OperationCanceledException e) when (!Zeroed())
-            {
-                _logger?.Trace(e, Description);
-            }
             catch (Exception) when (Zeroed()){}
-            catch (Exception e)
+            catch (Exception e) when(!Zeroed())
             {
-                if (!Zeroed())
-                {
-                    _logger.Error(e,$"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
-
-                    //await ZeroAsync(this).ConfigureAwait(false);
-                }
+                _logger.Error(e,$"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
+                //await ZeroAsync(this).ConfigureAwait(false);
             }
             finally
             {
@@ -495,9 +475,6 @@ namespace zero.core.network.ip
 
             return 0;
         }
-
-
-        private readonly EndPoint _remoteEpAny = new IPEndPoint(IPAddress.Any, 99);
 
         /// <summary>
         /// socket args heap
@@ -519,13 +496,12 @@ namespace zero.core.network.ip
         {
             try
             {
-                if (eventArgs is { UserToken: IIoZeroSemaphore })
-                    await ((IIoZeroSemaphore)eventArgs.UserToken).ReleaseAsync().FastPath().ConfigureAwait(false);
+                await ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
             catch(Exception) when(!Zeroed()){}
             catch(Exception e)
             {
-                _logger.Fatal(e,$"{Description}");
+                _logger.Fatal(e,$"{Description}: udp signal callback failed!");
                 // ignored
             }
         }
@@ -662,34 +638,11 @@ namespace zero.core.network.ip
 
                 return 0;
             }
-            catch (NullReferenceException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e) when (!Zeroed())
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e) when (!Zeroed())
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (SocketException e) when (!Zeroed())
-            {
-                _logger.Trace(e, $"Unable to read from socket `udp://{RemoteAddress??LocalAddress}':");
-            }
             catch (Exception) when (Zeroed()){}
-            catch (Exception e)
+            catch (Exception e) when(!Zeroed())
             {
-                if (!Zeroed())
-                {
-                    _logger.Error(e, $"Unable to read from socket: {Description}");
-                    //await ZeroAsync(this).ConfigureAwait(false); //TODO ?
-                }
+                _logger?.Error(e, $"Unable to read from socket: {Description}");
+                //await ZeroAsync(this).ConfigureAwait(false); //TODO ?
             }
             finally
             {
@@ -698,12 +651,7 @@ namespace zero.core.network.ip
 
             return 0;
         }
-
-        private void Args_Completed(object sender, SocketAsyncEventArgs e)
-        {
-            throw new NotImplementedException();
-        }
-
+        
         /// <inheritdoc />
         /// <summary>
         /// Connection status

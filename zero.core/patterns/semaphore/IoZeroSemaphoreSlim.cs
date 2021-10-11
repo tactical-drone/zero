@@ -61,15 +61,7 @@ namespace zero.core.patterns.semaphore
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
-            try
-            {
-                return _semaphore.ReleaseAsync(releaseCount, async);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
+            return _semaphore.ReleaseAsync(releaseCount, async);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

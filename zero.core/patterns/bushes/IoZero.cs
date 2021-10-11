@@ -77,7 +77,7 @@ namespace zero.core.patterns.bushes
         {
             _description = description;
             
-            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size, source.ZeroConcurrencyLevel()) { Make = mallocMessage };
+            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
             Source = source;
 

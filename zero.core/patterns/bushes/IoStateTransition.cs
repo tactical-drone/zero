@@ -20,6 +20,21 @@ namespace zero.core.patterns.bushes
             ConstructorAsync().AsTask().GetAwaiter().GetResult();
         }
 
+        //Release all memory held
+        public void ZeroManaged()
+        {
+            Previous = null;
+            Next = null;
+            
+            if (Repeat != null)
+                Repeat.ZeroManaged();
+            else
+                Repeat = null;
+
+            FinalState = default;
+        }
+        
+
         /// <summary>
         /// A null state
         /// </summary>

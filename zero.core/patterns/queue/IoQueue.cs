@@ -34,7 +34,7 @@ namespace zero.core.patterns.queue
             _description = description;
             _zeroSentinel = new IoNanoprobe($"{nameof(IoQueue<T>)}: {description}");
 
-            _nodeHeap = new IoHeap<IoZNode>(capacity, concurrencyLevel){Make = o => new IoZNode()};
+            _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
             
             _syncRoot = new IoZeroSemaphore(description,
                 maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
