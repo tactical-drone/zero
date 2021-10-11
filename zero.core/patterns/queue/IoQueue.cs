@@ -29,12 +29,12 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoZeroQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
+        public IoZeroQueue(string description, uint capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
         {
             _description = description;
             _zeroSentinel = new IoNanoprobe($"{nameof(IoZeroQueue<T>)}: {description}");
 
-            _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
+            _nodeHeap = new IoHeap<IoZNode>(capacity, concurrencyLevel){Make = o => new IoZNode()};
             
             _syncRoot = new IoZeroSemaphore(description,
                 maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
@@ -57,7 +57,7 @@ namespace zero.core.patterns.queue
         }
 
         private readonly string _description; 
-        private volatile bool _zeroed;
+        private volatile int _zeroed;
         private IIoZeroSemaphore _syncRoot;
         private IIoZeroSemaphore _pressure;
         private IIoZeroSemaphore _backPressure;
@@ -83,7 +83,7 @@ namespace zero.core.patterns.queue
                     throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
                 #endif
                 
-                if (_zeroed || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
                     return true;
 
                 if (!_asyncTasks.IsCancellationRequested)
@@ -94,13 +94,16 @@ namespace zero.core.patterns.queue
                     var cur = First;
                     while (cur != null)
                     {
-
                         try
                         {
                             if (!zero)
                                 await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
+
                             else
-                                await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite??_zeroSentinel).FastPath().ConfigureAwait(false);
+                            {
+                                if(!((IIoNanite)cur.Value).Zeroed())
+                                    await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite??_zeroSentinel).FastPath().ConfigureAwait(false);
+                            }
                         }
                         catch(Exception e)
                         {
@@ -126,9 +129,6 @@ namespace zero.core.patterns.queue
                 //unmanaged
                 _pressure = null;
                 _backPressure = null;
-
-                //zeroed
-                _zeroed = true;
             }
             catch (Exception)
             {
@@ -154,22 +154,21 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (_zeroed || item == null)
+                if (_zeroed > 0 || item == null)
                     return null;
 
                 //wait on back pressure
                 if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
                     return null;
 
-                _nodeHeap.Take(out var node);
-
+                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(false);
                 if (node == null)
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.CurrentHeapSize} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
                 //set value
                 node.Value = item;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
                 {
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
                     return null;
@@ -207,7 +206,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (_zeroed || item == null)
+                if (_zeroed > 0 || item == null)
                     return null;
 
                 //wait on back pressure
@@ -221,15 +220,14 @@ namespace zero.core.patterns.queue
                 if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
                         return null;
 
-                _nodeHeap.Take(out var node);
-
+                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(false);
                 if (node == null)
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.CurrentHeapSize} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
                 //set value
                 node.Value = item;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
                 {
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
                     return null;
@@ -271,13 +269,13 @@ namespace zero.core.patterns.queue
             IoZNode dq = null;
             try
             {
-                if (_zeroed || _count == 0)
+                if (_zeroed > 0 || _count == 0)
                     return default;
 
-                if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
                     return default;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
                     return default;
 
                 //fail fast
@@ -308,14 +306,20 @@ namespace zero.core.patterns.queue
                 {
                     dq.Prev = null;
                     var retVal = dq.Value;
-                    await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(false); ;
+                    await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(false);
                     return retVal;
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
                 }
                 finally
                 {
-                    if(_enableBackPressure)
+                    if (_enableBackPressure)
                         await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(false);
                 }
+                
+                return default;
             }
 
             return default;
@@ -325,16 +329,16 @@ namespace zero.core.patterns.queue
         /// Removes a node from the queue
         /// </summary>
         /// <param name="node">The node to remove</param>
-        /// <returns>Value task</returns>
-        public async ValueTask RemoveAsync(IoZNode node)
+        /// <returns>True if the item was removed</returns>
+        public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
             try
             {
-                if(_zeroed || node == null)
-                    return;
+                if(_zeroed > 0 || node == null)
+                    return false;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed)
-                    return;
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                    return false;
 
                 //unhook
                 if (node.Prev != null)
@@ -363,6 +367,8 @@ namespace zero.core.patterns.queue
             }
 
             await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false);
+
+            return true;
         }
 
         public bool MoveNext()
