@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -29,7 +28,7 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="batchSize">Batch size</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSinks = 0, int maxAsyncSources = 0) 
+        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, uint batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSinks = 0, int maxAsyncSources = 0) 
             : base(description, prefetchSize, concurrencyLevel, maxAsyncSinks, maxAsyncSources)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -40,7 +39,7 @@ namespace zero.core.models.protobuffer.sources
             //Set Q to be blocking
             //TODO tuning
 
-            MessageQueue = new IoZeroQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
+            MessageQueue = new IoQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -69,7 +68,7 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected IoZeroQueue<TBatch[]> MessageQueue;
+        protected IoQueue<TBatch[]> MessageQueue;
 
         /// <summary>
         /// Sync used to access the Q

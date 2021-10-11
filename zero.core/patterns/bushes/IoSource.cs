@@ -390,7 +390,7 @@ namespace zero.core.patterns.bushes
 
                 var ave = Interlocked.Read(ref ServiceTimes[i]) / (count);
 
-                if (i > (int)IoJobMeta.JobState.Undefined  && i < (int)IoJobMeta.JobState.Finished)
+                if (i > (int)IoJobMeta.JobState.Undefined  && i < (int)IoJobMeta.JobState.Halted)
                 {
                     heading.Append($"{((IoJobMeta.JobState)i).ToString().PadLeft(padding)} {count.ToString().PadLeft(7)} | ");
                     str.Append($"{$"{ave:0,000.0}ms".ToString(CultureInfo.InvariantCulture).PadLeft(padding + 8)} | ");

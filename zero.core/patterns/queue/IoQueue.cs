@@ -15,7 +15,7 @@ namespace zero.core.patterns.queue
     /// Zero Queue
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class IoZeroQueue<T>: IEnumerator<IoZeroQueue<T>.IoZNode>, IEnumerable<IoZeroQueue<T>.IoZNode>
+    public class IoQueue<T>: IEnumerator<IoQueue<T>.IoZNode>, IEnumerable<IoQueue<T>.IoZNode>
     {
         /// <summary>
         /// A node
@@ -29,10 +29,10 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoZeroQueue(string description, uint capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
+        public IoQueue(string description, uint capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
         {
             _description = description;
-            _zeroSentinel = new IoNanoprobe($"{nameof(IoZeroQueue<T>)}: {description}");
+            _zeroSentinel = new IoNanoprobe($"{nameof(IoQueue<T>)}: {description}");
 
             _nodeHeap = new IoHeap<IoZNode>(capacity, concurrencyLevel){Make = o => new IoZNode()};
             
@@ -63,7 +63,7 @@ namespace zero.core.patterns.queue
         private IIoZeroSemaphore _backPressure;
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
-
+        
         private volatile IoZNode _head = null;
         private volatile IoZNode _tail = null;
         private volatile int _count;
@@ -373,16 +373,20 @@ namespace zero.core.patterns.queue
 
         public bool MoveNext()
         {
-            Current = Current?.Next;
-            return Current != null;
+            if (Interlocked.CompareExchange(ref _current, _head, null) == null)
+                return _head != null;
+            
+            _current = _current.Next;
+            return _current != null;
         }
 
         public void Reset()
         {
-            Current = _head;
+            _current = null;
         }
 
-        public IoZNode Current { get; private set; }
+        private volatile IoZNode _current;
+        public IoZNode Current => _current;
 
         object IEnumerator.Current => Current;
 

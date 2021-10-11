@@ -62,7 +62,7 @@ namespace zero.core.patterns.bushes
             parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
 
             if (SyncRecoveryModeEnabled)
-                _previousJobFragment = new IoZeroQueue<IoSink<TJob>>($"{Description}", 5, ZeroConcurrencyLevel());
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{Description}", 5, ZeroConcurrencyLevel());
         }
 
         /// <summary>
@@ -77,11 +77,11 @@ namespace zero.core.patterns.bushes
         {
             _description = description;
             
-            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage };
+            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size, source.ZeroConcurrencyLevel()) { Make = mallocMessage };
 
             Source = source;
 
-            _queue = new IoZeroQueue<IoSink<TJob>>($"zero Q: {_description}", ZeroConcurrencyLevel(), ZeroConcurrencyLevel());
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)ZeroConcurrencyLevel(), ZeroConcurrencyLevel());
         }
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The job queue
         /// </summary>
-        private IoZeroQueue<IoSink<TJob>> _queue;
+        private IoQueue<IoSink<TJob>> _queue;
         
         /// <summary>
         /// The heap where new consumable meta data is allocated from
@@ -144,14 +144,14 @@ namespace zero.core.patterns.bushes
         /// Maintains a handle to a job if fragmentation was detected so that the
         /// source can marshal fragments into the next production
         /// </summary>
-        private volatile IoZeroQueue<IoSink<TJob>> _previousJobFragment;
+        private volatile IoQueue<IoSink<TJob>> _previousJobFragment;
 
         /// <summary>
         /// Maximum amount of producers that can be buffered before we stop production of new jobs
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public long parm_max_q_size = 500; //TODO
+        public uint parm_max_q_size = 500; //TODO
 
         /// <summary>
         /// Minimum useful uptime in seconds
@@ -481,7 +481,7 @@ namespace zero.core.patterns.bushes
                             }
 
                             _logger.Warn(
-                                $"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.CurrentHeapSize}/{JobHeap.MaxSize}");
+                                $"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.MaxSize}");
                             await Task.Delay(parm_error_timeout, AsyncTasks.Token).ConfigureAwait(false);
                             return false;
                         }
@@ -524,7 +524,7 @@ namespace zero.core.patterns.bushes
                                 _logger.Error($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                             //TODO Double check this hack
-                            if (nextJob.State != IoJobMeta.JobState.Finished)
+                            if (nextJob.State != IoJobMeta.JobState.Halted)
                             {
                                 //_logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job status should be {nameof(IoJobMeta.CurrentState.Finished)}");
                                 nextJob.State = IoJobMeta.JobState.Reject;
@@ -626,11 +626,8 @@ namespace zero.core.patterns.bushes
                     {
                         //Was shutdown requested?
                         if (Zeroed() || AsyncTasks.IsCancellationRequested)
-                        {
-                            _logger.Trace($"{GetType().Name}: Consumer {Description} is shutting down");
                             return false;
-                        }
-
+                        
                         //wait...
                         _logger.Trace(
                             $"{GetType().Name}: Consumer {Description} [[ProducerPressure]] timed out waiting on {Description}, willing to wait `{parm_consumer_wait_for_producer_timeout}ms'");

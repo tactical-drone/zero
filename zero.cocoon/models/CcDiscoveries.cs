@@ -23,8 +23,8 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
-            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(parm_max_msg_batch_size) {Make = o => new CcDiscoveryBatch()};//TODO config
+            _protocolMsgBatch = _arrayPool.Rent((int)parm_max_msg_batch_size);
+            _batchMsgHeap = new IoHeap<CcDiscoveryBatch>(parm_max_msg_batch_size,source.ZeroConcurrencyLevel()) {Make = o => new CcDiscoveryBatch()};//TODO config
         }
 
         public override async ValueTask<bool> ConstructAsync()
@@ -252,7 +252,7 @@ namespace zero.cocoon.models
                         if (!Zeroed() && !MessageService.Zeroed())
                         {
                             _logger.Debug(e,
-                                $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(tmpBufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                                $"Parse failed: r = {totalBytesProcessed}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(tmpBufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
 
                             // var r = new ReadOnlyMemory<byte>(Buffer);
                             // if (__enableZeroCopyDebug && MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryBuffer, out var seg))
@@ -281,7 +281,7 @@ namespace zero.cocoon.models
                     }
                     finally
                     {
-                        Interlocked.Add(ref BufferOffset, (int)read);
+                        BufferOffset += (uint)read;
                     }
 
                     if (read == 0)
@@ -414,7 +414,7 @@ namespace zero.cocoon.models
                     if (CurrBatchSlot == parm_max_msg_batch_size - 1)
                         await ForwardToNeighborAsync().FastPath().ConfigureAwait(false);
 
-                    _batchMsgHeap.Take(out var batchMsg);
+                    var batchMsg = await _batchMsgHeap.TakeAsync().FastPath().ConfigureAwait(false);
                     if (batchMsg == null)
                         throw new OutOfMemoryException(nameof(_batchMsgHeap));
 
@@ -479,7 +479,7 @@ namespace zero.cocoon.models
                     //Retrieve a new batch buffer
                     try
                     {
-                        @this._protocolMsgBatch = @this._arrayPool.Rent(@this.parm_max_msg_batch_size);
+                        @this._protocolMsgBatch = @this._arrayPool.Rent((int)@this.parm_max_msg_batch_size);
                     }
                     catch (Exception e)
                     {

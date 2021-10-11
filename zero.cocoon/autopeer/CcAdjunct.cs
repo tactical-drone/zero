@@ -51,7 +51,7 @@ namespace zero.cocoon.autopeer
             //TODO tuning
             _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 10);
             _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 10);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1, parm_max_network_latency * 10, CcCollective.parm_max_adjunct);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.parm_max_adjunct);
 
             if (extraData != null)
             {
@@ -489,7 +489,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_discovery_peers = 6;
+        public uint parm_max_discovery_peers = 6;
 
         /// <summary>
         /// Maximum number of services supported
@@ -2040,7 +2040,7 @@ namespace zero.cocoon.autopeer
                 {
                     //send
 
-                    IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
+                    IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                     if ((challenge = await _pingRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
                         .FastPath().ConfigureAwait(false)) == null) 
                         return false;
@@ -2076,7 +2076,7 @@ namespace zero.cocoon.autopeer
                 {
                     var router = Hub.Router;
 
-                    IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
+                    IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                     if ((challenge = await router._pingRequest.ChallengeAsync(dest.IpPort, reqBuf).FastPath().ConfigureAwait(false)) == null)
                         return false;
 
@@ -2159,7 +2159,7 @@ namespace zero.cocoon.autopeer
 
                 var reqBuf = discoveryRequest.ToByteString();
 
-                IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
+                IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                 if ((challenge = await _discoveryRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
                     .FastPath().ConfigureAwait(false)) == null)
                 {
@@ -2247,7 +2247,7 @@ namespace zero.cocoon.autopeer
 
                 var peerRequestRaw = peerRequest.ToByteString();
 
-                IoZeroQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
+                IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                 if ((challenge = await _peerRequest.ChallengeAsync(RemoteAddress.IpPort, peerRequestRaw).FastPath().ConfigureAwait(false)) == null)
                 {
                     return false;
@@ -2532,9 +2532,14 @@ namespace zero.cocoon.autopeer
                 
                 var prevState = _currState;
                 _currState = nextState;
-                
-                if (StateTransitionHistory[(int) prevState.Value] != null)
+
+                if (StateTransitionHistory[(int)prevState.Value] != null)
+                {
+                    var c = StateTransitionHistory[(int)prevState.Value];
+                    while (c.Repeat != null)
+                        c = c.Repeat;
                     StateTransitionHistory[(int) prevState.Value].Repeat = prevState;
+                }
                 else
                     StateTransitionHistory[(int) prevState.Value] = prevState;
 #else

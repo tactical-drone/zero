@@ -65,7 +65,7 @@ namespace zero.core.network.ip
             //TODO tuning
             concurrencyLevel = 128;
 
-            _recvArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
+            _recvArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel, concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -75,7 +75,7 @@ namespace zero.core.network.ip
                 }
             };
 
-            _sendArgs = new IoHeap<SocketAsyncEventArgs>(concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel, concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -85,7 +85,7 @@ namespace zero.core.network.ip
                 }
             };
 
-            _tcsHeap = new IoHeap<IIoZeroSemaphore>(concurrencyLevel)
+            _tcsHeap = new IoHeap<IIoZeroSemaphore>((uint)concurrencyLevel, concurrencyLevel)
             {
                 Make = o =>
                 {
@@ -123,9 +123,17 @@ namespace zero.core.network.ip
             {
                 o.Completed -= SignalAsync;
                 o.UserToken = null;
-                //o.RemoteEndPoint = null;
-                o.SetBuffer(null,0,0);
-                //((IDisposable) o).Dispose();
+                o.RemoteEndPoint = null;
+                try
+                {
+                    o.SetBuffer(null,0,0);
+                }
+                catch
+                {
+                    // ignored
+                }
+                ((IDisposable) o).Dispose();
+
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
@@ -133,9 +141,16 @@ namespace zero.core.network.ip
             {
                 o.Completed -= SignalAsync;
                 o.UserToken = null;
-                //o.RemoteEndPoint = null;
-                o.SetBuffer(null, 0, 0);
-                //((IDisposable) o).Dispose();
+                o.RemoteEndPoint = null;
+                ((IDisposable) o).Dispose();
+                try
+                {
+                    o.SetBuffer(null,0,0);
+                }
+                catch
+                {
+                    // ignored
+                }
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
@@ -375,7 +390,7 @@ namespace zero.core.network.ip
 
                     //return sendTask.Result;
 
-                    _sendArgs.Take(out var args);
+                    var args = await _sendArgs.TakeAsync().FastPath().ConfigureAwait(false);
 
                     // var alloc = true;
                     // var args = new SocketAsyncEventArgs();
@@ -393,8 +408,7 @@ namespace zero.core.network.ip
                     //     _sendArgs.Take(out args);
                     // }
 
-                    _tcsHeap.Take(out var tcs);
-
+                    var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
                     if (tcs == null)
                         throw new OutOfMemoryException(nameof(_tcsHeap));
 
@@ -541,8 +555,8 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    _recvArgs.Take(out var args);
-                    _tcsHeap.Take(out var tcs);
+                    var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(false);
+                    var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
                     try
                     {
                         //var args = new SocketAsyncEventArgs();
@@ -627,8 +641,8 @@ namespace zero.core.network.ip
                             args.Dispose();
                         }
 
-                        await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false); ;
-                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false); ;
+                        await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false);
+                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
                     }
                 }
 

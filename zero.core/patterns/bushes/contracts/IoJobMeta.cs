@@ -25,7 +25,7 @@ namespace zero.core.patterns.bushes.contracts
             Race,
             Accept,
             Reject,
-            Finished,
+            Halted,
             Syncing,
             RSync,
             ProduceErr,

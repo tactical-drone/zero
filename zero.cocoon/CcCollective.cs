@@ -132,7 +132,7 @@ namespace zero.cocoon
                                     foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
                                             ((CcAdjunct) n).Direction == CcAdjunct.Heading.Undefined &&
                                             ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified)
-                                        .OrderBy(n => ((CcAdjunct) n).Priority).Take(@this.parm_max_outbound - @this.EgressConnections))
+                                        .OrderBy(n => ((CcAdjunct) n).Priority).Take((int)(@this.parm_max_outbound - @this.EgressConnections)))
                                     {
                                         if (@this.Zeroed())
                                             break;
@@ -389,14 +389,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_inbound = 4;
+        public uint parm_max_inbound = 4;
 
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_outbound = 4;
+        public uint parm_max_outbound = 4;
 
         /// <summary>
         /// Max adjuncts
@@ -410,7 +410,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_adjunct = 16;
+        public uint parm_max_adjunct = 16;
 
         /// <summary>
         /// Protocol version
@@ -438,18 +438,18 @@ namespace zero.cocoon
         /// <summary>
         /// Client to neighbor ratio
         /// </summary>
-        [IoParameter] public int parm_client_to_neighbor_ratio = 2;
+        [IoParameter] public uint parm_client_to_neighbor_ratio = 2;
 
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
-        public int MaxDrones => parm_max_outbound + parm_max_inbound;
+        public uint MaxDrones => parm_max_outbound + parm_max_inbound;
 
 
         /// <summary>
         /// Maximum number of allowed drones
         /// </summary>
-        public int MaxAdjuncts => MaxDrones * parm_client_to_neighbor_ratio;
+        public uint MaxAdjuncts => MaxDrones * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id

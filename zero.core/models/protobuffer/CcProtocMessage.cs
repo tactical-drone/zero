@@ -29,7 +29,7 @@ namespace zero.core.models.protobuffer
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
             
-            MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
+            MemoryOwner = MemoryPool<byte>.Shared.Rent((int)(BufferSize + DatumProvisionLengthMax));
 
             //Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
@@ -72,7 +72,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 5;
+        public uint parm_datums_per_buffer = 5;
 
         
         /// <summary>
@@ -87,7 +87,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 256;//TODO tuning
+        public uint parm_max_msg_batch_size = 256;//TODO tuning
 
         /// <summary>
         /// Message rate
@@ -154,7 +154,7 @@ namespace zero.core.models.protobuffer
                         //Async read the message from the message stream
                         if (job.MessageService.IsOperational && !job.Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, (int)job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -206,7 +206,7 @@ namespace zero.core.models.protobuffer
                             //    _this._msgCount = 0;
                             //}
 
-                            job.BytesRead += bytesRead;
+                            job.BytesRead += (uint)bytesRead;
 
                             job.JobSync();
 

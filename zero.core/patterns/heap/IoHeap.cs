@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.Protobuf.WellKnownTypes;
 using NLog;
-using zero.core.misc;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.heap
 {
@@ -32,12 +29,12 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <param name="maxSize">The maximum capacity of this heap</param>
         /// 
-        public IoHeap(long maxSize)
+        public IoHeap(uint maxSize, int concurrencyLevel)
         {
             _maxSize = maxSize;
-            _buffer = new ConcurrentBag<T>();
-            CurrentHeapSize = 0;
-            ReferenceCount = 0;
+            _ioHeapBuf = new IoBag<T>($"{nameof(_ioHeapBuf)}", _maxSize);
+            _count = 0;
+            _refCount = 0;
             //IoFpsCounter = new IoFpsCounter(500, 5000);
             Make = default;
         }
@@ -50,47 +47,47 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private ConcurrentBag<T> _buffer;
+        private IoBag<T> _ioHeapBuf;
 
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        public long CurrentHeapSize;
+        protected volatile uint _count;
+        
+        /// <summary>
+        /// The current WorkHeap size
+        /// </summary>
+        public uint Count => _count;
 
         /// <summary>
         /// The maximum heap size
         /// </summary>
-        private long _maxSize;
+        private uint _maxSize;
 
         /// <summary>
         /// The number of outstanding references
         /// </summary>
-        public long ReferenceCount; //TODO refactor
-
+        private volatile uint _refCount;
         /// <summary>
-        /// Jobs per second
+        /// The number of outstanding references
         /// </summary>
-        //public IoFpsCounter IoFpsCounter;
+        public uint ReferenceCount =>_refCount; //TODO refactor
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
         /// </summary>
-        public long MaxSize
+        public uint MaxSize
         {
             get => _maxSize;
 
             set
             {
-                var collect = value < CurrentHeapSize;
-
                 _maxSize = value;
 
                 //Clear some memory and it does not need to be the exact amount
-                while (value < CurrentHeapSize )
+                while (value > Count && _ioHeapBuf.TryTake(out var _))
                 {
-                    if(!_buffer.TryTake(out var flushed))
-                        break;
-                    Interlocked.Decrement(ref CurrentHeapSize);
+                    Interlocked.Decrement(ref _count);
                 }
             }
         }
@@ -102,7 +99,7 @@ namespace zero.core.patterns.heap
         {
 #if SAFE_RELEASE
             _logger = null;
-            _buffer = null;
+            _ioHeapBuf = null;
             Make = null;
 #endif
         }
@@ -110,25 +107,12 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public async ValueTask ZeroManagedAsync<TN>(Func<T,TN,ValueTask> zeroAction = null, TN nanite = default)
+        public async ValueTask ZeroManagedAsync<TC>(Func<T,TC,ValueTask> zeroAction = null, TC nanite = default)
         {
             if (zeroAction != null)
-            {
-                foreach (var h in _buffer)
-                {
-                    try
-                    {
-                        //Do we need to zero here? It is slowing teardown and jobs are supposed to be volatile
-                        // But maybe sometime jobs are expected to zero? We leave that to the IDisposable pattern
-                        // to zero eventually?
-                        await zeroAction(h,nanite).FastPath().ConfigureAwait(false);
-                    }
-                    catch { }
-                }
-            }
-            
-            _buffer.Clear();
-            return;
+                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(false);
+
+            await _ioHeapBuf.ZeroManagedAsync<object>(nanite:nanite, zero:true).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -137,37 +121,34 @@ namespace zero.core.patterns.heap
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="T"/></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Take(out T item, object userData = null)
+        public ValueTask<T> TakeAsync(object userData = null)
         {
             try
             {
                 //If the heap is empty
-                if (!_buffer.TryTake(out var newItem))
+                if (!_ioHeapBuf.TryTake(out var heapItem))
                 {
                     //And we can allocate more heap space
-                    if (Interlocked.Read(ref CurrentHeapSize) < _maxSize)
+                    if (Count < _maxSize)
                     {
                         //Allocate and return
-                        Interlocked.Increment(ref CurrentHeapSize);
-                        Interlocked.Increment(ref ReferenceCount);
-                        item = Make(userData);
-                        return true;
+                        Interlocked.Increment(ref _count);
+                        Interlocked.Increment(ref _refCount);
+                        return ValueTask.FromResult(Make(userData));
                     }
                     else //we have run out of capacity
                     {
-                        item = null;
-                        return false;
+                        return default;
                     }
                 }
                 else //take the item from the heap
                 {
-                    Interlocked.Increment(ref ReferenceCount);
-                    item = newItem;
-                    Prep?.Invoke(item, userData);
-                    return false;
+                    Interlocked.Increment(ref _refCount);
+                    Prep?.Invoke(heapItem, userData);
+                    return ValueTask.FromResult(heapItem);
                 }
             }
-            catch (NullReferenceException e)
+            catch (NullReferenceException e) //TODO IIoNanite
             {
                 _logger.Trace(e);
             }
@@ -175,9 +156,8 @@ namespace zero.core.patterns.heap
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
             }
-
-            item = null;
-            return false;
+            
+            return default;
         }
 
         private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) default);
@@ -198,11 +178,11 @@ namespace zero.core.patterns.heap
             {
                 //IoFpsCounter.TickAsync().ConfigureAwait(false).GetAwaiter();
                 if (!zero)
-                    _buffer.Add(item);
+                    _ioHeapBuf.Add(item);
                 else
-                    Interlocked.Decrement(ref CurrentHeapSize);
+                    Interlocked.Decrement(ref _count);
                 
-                Interlocked.Decrement(ref ReferenceCount);
+                Interlocked.Decrement(ref _refCount);
             }
             catch (NullReferenceException)
             {
@@ -226,20 +206,20 @@ namespace zero.core.patterns.heap
         /// Returns the amount of space left in the buffer
         /// </summary>
         /// <returns>The number of free slots</returns>
-        public long FreeCapacity() =>_maxSize - Interlocked.Read(ref CurrentHeapSize) ;
+        public long FreeCapacity() =>_maxSize - Count;
 
         /// <summary>
         /// Cache size.
         /// </summary>
         /// <returns>The number of unused heap items</returns>
-        public long CacheSize() => _buffer.Count;
+        public long CacheSize() => _ioHeapBuf.Count;
 
         /// <summary>
         /// Clear
         /// </summary>
-        public void Clear()
+        public async ValueTask ClearAsync()
         {
-            _buffer.Clear();
+            await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
         }
     }
 }

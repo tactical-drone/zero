@@ -29,7 +29,7 @@ namespace zero.cocoon.models
             //_protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
             //_batchMsgHeap = new IoHeap<CcGossipBatch>(concurrencyLevel) { Make = o => new CcGossipBatch() };
 
-            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2)
+            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2, concurrencyLevel)
             {
                 Make = o => new ConcurrentBag<string>(),
                 Prep = (popped, endpoint) =>
@@ -43,7 +43,7 @@ namespace zero.cocoon.models
         /// 
         /// </summary>
         /// <returns></returns>
-        public override ValueTask ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
             //if (_protocolMsgBatch != null)
             //    _arrayPool.ReturnAsync(_protocolMsgBatch, true);
@@ -55,8 +55,8 @@ namespace zero.cocoon.models
             //    batchMsg.RemoteEndPoint = null;
             //});
 
-            _dupHeap.Clear();
-            return base.ZeroManagedAsync();
+            await _dupHeap.ClearAsync().FastPath().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -107,7 +107,7 @@ namespace zero.cocoon.models
         readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
         private IoHeap<ConcurrentBag<string>> _dupHeap;
-        private int _poolSize = 10000;
+        private uint _poolSize = 10000;
         private long _maxReq = int.MinValue;
 
         // private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Shared;
@@ -139,14 +139,15 @@ namespace zero.cocoon.models
                         if (whispers == null)
                             break;
 
-                        Interlocked.Add(ref BufferOffset, read = whispers.CalculateSize());
+                        read = whispers.CalculateSize();
+                        BufferOffset += (uint)read;
                         State = IoJobMeta.JobState.Consumed;
                     }
                     catch (Exception e)
                     {
                         if (!Zeroed() && !MessageService.Zeroed())
                             _logger.Debug(e,
-                                $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice(BufferOffset - 2, 32).ToArray().HashSig()}, {Description}");
+                                $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(BufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
                         
                         //try again
                         State = IoJobMeta.JobState.ConInlined;
@@ -211,7 +212,7 @@ namespace zero.cocoon.models
                     //set this message as seen if seen before
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
                         .RemoteAddress;
-                    _dupHeap.Take(out var dupEndpoints, endpoint);
+                    var dupEndpoints = await _dupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(false);
 
                     if (dupEndpoints == null)
                         throw new OutOfMemoryException(
@@ -256,7 +257,7 @@ namespace zero.cocoon.models
                                         return;
 
                                     if (await source.IoNetSocket
-                                        .SendAsync(@this.Buffer, @this.BufferOffset - read, read).FastPath()
+                                        .SendAsync(@this.Buffer, (int)(@this.BufferOffset - read), read).FastPath()
                                         .ConfigureAwait(false) <= 0)
                                     {
                                         _logger.Trace($"Failed to forward new msg message to {drone.Description}");

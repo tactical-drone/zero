@@ -72,7 +72,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 20;
+            var total = 10;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -615,7 +615,7 @@ namespace zero.sync
                     s.Wait();
                     var task = Task.Run(() =>
                     {
-                        n.ZeroAsync(new IoNanoprobe("Zero.Sync")).ConfigureAwait(false);
+                        var t = n.ZeroAsync(new IoNanoprobe("Zero.Sync"));
                         Interlocked.Increment(ref zeroed);
                         s.Release();
                     });

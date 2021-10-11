@@ -77,37 +77,37 @@ namespace zero.core.models
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>
-        public volatile int BytesRead;
+        public volatile uint BytesRead;
 
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
-        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
+        public uint BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
         
         /// <summary>
         /// The current offset
         /// </summary>
-        public volatile int BufferOffset;
+        public volatile uint BufferOffset;
 
         /// <summary>
         /// Total number of datums contained inside the buffer
         /// </summary>
-        public volatile int DatumCount;
+        public volatile uint DatumCount;
 
         /// <summary>
         /// The number of bytes remaining of a fragmented datum
         /// </summary>
-        public volatile int DatumFragmentLength;
+        public volatile uint DatumFragmentLength;
 
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public volatile int DatumSize;
+        public volatile uint DatumSize;
 
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
         /// </summary>
-        public volatile int DatumProvisionLengthMax;
+        public volatile uint DatumProvisionLengthMax;
 
         ///// <summary>
         ///// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
@@ -117,7 +117,7 @@ namespace zero.core.models
         /// <summary>
         /// Message receive buffer size
         /// </summary>        
-        public volatile int BufferSize;
+        public volatile uint BufferSize;
    
         /// <summary>
         /// Prepares this item for use after being popped from the heap
@@ -165,7 +165,7 @@ namespace zero.core.models
                 BufferOffset-=bytesLeft;
                 BytesRead += bytesLeft;
 
-                p.MemoryBuffer.Slice(p.BufferOffset + p.BytesRead - p.BytesLeftToProcess).CopyTo(MemoryBuffer[BufferOffset..]);
+                p.MemoryBuffer.Slice((int)(p.BufferOffset + p.BytesRead - p.BytesLeftToProcess)).CopyTo(MemoryBuffer[(int)BufferOffset..]);
                 
                 p.State = IoJobMeta.JobState.Consumed;
                 p.State = IoJobMeta.JobState.Accept;

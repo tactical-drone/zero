@@ -19,15 +19,15 @@ namespace zero.core.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, uint capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoZeroQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
 
-            _valHeap = new IoHeap<IoChallenge>(_capacity)
+            _valHeap = new IoHeap<IoChallenge>(_capacity, concurrencyLevel)
             {
                 Make = _ => new IoChallenge()
             };
@@ -43,7 +43,7 @@ namespace zero.core.misc
         /// Holds requests
         /// </summary>
         //private readonly ConcurrentDictionary<string, System.Collections.Generic.List<IoChallenge>> _challenges = new ConcurrentDictionary<string, System.Collections.Generic.List<IoChallenge>>();
-        private IoZeroQueue<IoChallenge> _lut;
+        private IoQueue<IoChallenge> _lut;
 
         /// <summary>
         /// Time to live
@@ -98,22 +98,22 @@ namespace zero.core.misc
         /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<IoZeroQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
+        public async ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
         {
             IoChallenge challenge = null;
-            IoZeroQueue<IoChallenge>.IoZNode node = null;
+            IoQueue<IoChallenge>.IoZNode node = null;
             try
             {
-                _valHeap.Take(out challenge);
+                
 
-                if (challenge == null)
+                if ((challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(false)) == null)
                 {
                     await ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(false);
-                    _valHeap.Take(out challenge);
-                    
+
+                    challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(false);
                     if (challenge == null)
                         throw new OutOfMemoryException(
-                        $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.CurrentHeapSize}, ref = {_valHeap.ReferenceCount}");
+                        $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.Count}, ref = {_valHeap.ReferenceCount}");
                 }
                 
                 challenge.Payload = body;
@@ -146,7 +146,7 @@ namespace zero.core.misc
         /// <summary>
         /// The bucket capacity this matcher targets
         /// </summary>
-        private readonly int _capacity;
+        private readonly uint _capacity;
 
         /// <summary>
         /// Present a response
@@ -255,7 +255,7 @@ namespace zero.core.misc
         /// </summary>
         /// <param name="node">The challenge to remove</param>
         /// <returns>true on success, false otherwise</returns>
-        public async ValueTask<bool> RemoveAsync(IoZeroQueue<IoChallenge>.IoZNode node)
+        public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
             await _lut.RemoveAsync(node).FastPath().ConfigureAwait(false);
             await _valHeap.ReturnAsync(node.Value).FastPath().ConfigureAwait(false); ;

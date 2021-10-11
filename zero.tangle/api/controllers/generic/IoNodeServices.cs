@@ -121,7 +121,7 @@ namespace zero.tangle.api.controllers.generic
                         {
                             stopwatch.Start();
                             Interlocked.Exchange(ref count, 0);
-                            while (Interlocked.Read(ref relaySource.JobHeap.ReferenceCount) > 0)
+                            while (relaySource.JobHeap.ReferenceCount > 0)
                             {
                                 await relaySource.ConsumeAsync<object>((message,_) =>
                                 {

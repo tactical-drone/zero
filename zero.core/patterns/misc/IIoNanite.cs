@@ -40,6 +40,7 @@ namespace zero.core.patterns.misc
         /// Indicate zero status
         /// </summary>
         /// <returns>True if zeroed out, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Zeroed();
 
         /// <summary>
@@ -58,7 +59,7 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        ValueTask<IoZeroQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+        ValueTask<IoQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
             T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default);
@@ -68,7 +69,7 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        public ValueTask UnsubscribeAsync(IoZeroQueue<IoZeroSub>.IoZNode sub);
+        public ValueTask<bool> UnsubscribeAsync(IoQueue<IoZeroSub>.IoZNode sub);
 
         /// <summary>
         /// Ensures that this action is synchronized 
@@ -104,6 +105,6 @@ namespace zero.core.patterns.misc
         /// Return the hive mind
         /// </summary>
         /// <returns>The hive</returns>
-        IoZeroQueue<IIoNanite> ZeroHiveMind();
+        IoQueue<IIoNanite> ZeroHiveMind();
     }
 }

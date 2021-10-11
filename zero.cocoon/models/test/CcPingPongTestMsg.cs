@@ -58,14 +58,14 @@ namespace zero.cocoon.models.test
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_datums_per_buffer = 4;
+        public uint parm_datums_per_buffer = 4;
 
         /// <summary>
         /// Max gossip message size
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_datum_size = 8;
+        public uint parm_max_datum_size = 8;
         
         /// <summary>
         /// 
@@ -139,8 +139,8 @@ namespace zero.cocoon.models.test
                         //Async read the message from the message stream
                         if (_this.Source.IsOperational)
                         {
-                            _this.BytesRead += await ((IoSocket)ioSocket)
-                                .ReadAsync(_this.ArraySegment, _this.BufferOffset, _this.BufferSize).FastPath()
+                            _this.BytesRead += (uint)await ((IoSocket)ioSocket)
+                                .ReadAsync(_this.ArraySegment, (int)_this.BufferOffset, (int)_this.BufferSize).FastPath()
                                 .ConfigureAwait(false);
 
                             //TODO WTF
@@ -229,7 +229,7 @@ namespace zero.cocoon.models.test
                 try
                 {
                     var bytesToTransfer = previousJobFragment.DatumFragmentLength;
-                    Interlocked.Add(ref BufferOffset, -bytesToTransfer);
+                    BufferOffset -= bytesToTransfer;
                     //Interlocked.Add(ref DatumProvisionLength, -bytesToTransfer);
                     DatumCount = BytesLeftToProcess / DatumSize;
                     DatumFragmentLength = BytesLeftToProcess % DatumSize;
@@ -264,18 +264,18 @@ namespace zero.cocoon.models.test
             {
                 for (var i = 0; i < DatumCount; i++)
                 {
-                    var req = MemoryMarshal.Read<long>(MemoryBuffer.Span.Slice(BufferOffset, DatumSize));
+                    var req = MemoryMarshal.Read<long>(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize));
                     var exp = Interlocked.Read(ref ((CcDrone) IoZero).AccountingBit);
                     if (req == exp)
                     {
                         
                         req++;
-                        MemoryMarshal.Write(MemoryBuffer.Span.Slice(BufferOffset, DatumSize), ref req);
+                        MemoryMarshal.Write(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize), ref req);
 
                         //if (Id % 10 == 0)
                         await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
 
-                        var sentTask = ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ArraySegment, BufferOffset, DatumSize);
+                        var sentTask = ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize);
 
                         if (!sentTask.IsCompletedSuccessfully)
                             await sentTask.ConfigureAwait(false);
@@ -294,9 +294,9 @@ namespace zero.cocoon.models.test
 
                             req = 1;
 
-                            MemoryMarshal.Write(MemoryBuffer.Span.Slice(BufferOffset, DatumSize), ref req);
+                            MemoryMarshal.Write(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize), ref req);
                             if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
-                                .SendAsync(ArraySegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                                .SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 2);
                             }
@@ -306,9 +306,9 @@ namespace zero.cocoon.models.test
                             _logger.Fatal($"({DatumCount}) SET! {req} != {exp}");
 
                             req = 0;
-                            MemoryMarshal.Write(MemoryBuffer.Span.Slice(BufferOffset, DatumSize), ref req);
+                            MemoryMarshal.Write(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize), ref req);
                             if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
-                                .SendAsync(ArraySegment, BufferOffset, DatumSize).ConfigureAwait(false) > 0)
+                                .SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize).ConfigureAwait(false) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 1);
                             }

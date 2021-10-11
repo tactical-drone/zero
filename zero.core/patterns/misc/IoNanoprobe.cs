@@ -52,8 +52,8 @@ namespace zero.core.patterns.misc
 
             _concurrencyLevel = concurrencyLevel;
 
-            _zeroHive = new IoZeroQueue<IoZeroSub>($"{nameof(_zeroHive)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity, concurrencyLevel);
-            _zeroHiveMind = new IoZeroQueue<IIoNanite>($"{nameof(_zeroHiveMind)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity,concurrencyLevel);
+            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity, concurrencyLevel);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity,concurrencyLevel);
 
             _zeroed = 0;
             ZeroedFrom = default;
@@ -161,12 +161,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private IoZeroQueue<IoZeroSub> _zeroHive;
+        private IoQueue<IoZeroSub> _zeroHive;
 
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private IoZeroQueue<IIoNanite> _zeroHiveMind;
+        private IoQueue<IIoNanite> _zeroHiveMind;
         
         /// <summary>
         /// Max number of blockers
@@ -253,7 +253,7 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        public async ValueTask<IoZeroQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+        public async ValueTask<IoQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
             T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default)
@@ -270,7 +270,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask UnsubscribeAsync(IoZeroQueue<IoZeroSub>.IoZNode sub)
+        public ValueTask<bool> UnsubscribeAsync(IoQueue<IoZeroSub>.IoZNode sub)
         {
             return _zeroHive.RemoveAsync(sub);
         }
@@ -372,7 +372,7 @@ namespace zero.core.patterns.misc
 #if DEBUG
             if (_extracted < 2 && disposing)
             {
-                throw new ApplicationException($"{Description}: BUG!!! Memory leaks detected!!!");
+                throw new ApplicationException($"{Description}: BUG!!! Memory leaks detected in type {GetType().Name}!!!");
             }
 #endif
 
@@ -391,7 +391,6 @@ namespace zero.core.patterns.misc
                 // ignored
             }
         }
-
 
         /// <summary>
         /// Cancellation token source
@@ -668,7 +667,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns>The hive</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IoZeroQueue<IIoNanite> ZeroHiveMind()
+        public IoQueue<IIoNanite> ZeroHiveMind()
         {
             return _zeroHiveMind;
         }

@@ -135,19 +135,15 @@ namespace zero.core.patterns.bushes
                 await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(false);
                 _stateMeta = null;
             }
-
+            Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
 #else
             _stateMeta.Value = IoJobMeta.JobState.Undefined;
-            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
 #endif
-
             FinalState = State = IoJobMeta.JobState.Undefined;
             Syncing = false;
+            Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
 
             //var curState = 0;
-#if DEBUG
-            Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
-#endif
             //while (StateTransitionHistory[curState] != null)
             //{
             //    var prevState = curState;
@@ -218,6 +214,13 @@ namespace zero.core.patterns.bushes
             while (curState != null)
             {
                 PrintState(curState);
+                var c = curState;
+                while (c.Repeat != null)
+                {
+                    c = c.Repeat;
+                    PrintState(c, true);
+                }
+                
                 curState = curState.Next;
             }
 #endif
@@ -240,16 +243,36 @@ namespace zero.core.patterns.bushes
         /// Log the state
         /// </summary>
         /// <param name="_stateMeta">The instance to be printed</param>
-        public void PrintState(IoStateTransition<IoJobMeta.JobState> _stateMeta)
+        public void PrintState(IoStateTransition<IoJobMeta.JobState> _stateMeta, bool isRepeat = false)
         {
-            _logger.Fatal("Production: `{0}',[{1} {2}], [{3} ||{4}||], [{5} ({6})]",
-                Description,
-                _stateMeta.Previous == null ? _stateMeta.DefaultPadded : _stateMeta.Previous.PaddedStr(),
-                (_stateMeta.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                _stateMeta.PaddedStr(),
-                (_stateMeta.Mu.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
-                _stateMeta.Next == null ? _stateMeta.DefaultPadded : _stateMeta.Next.PaddedStr(),
-                (_stateMeta.Delta.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            if (isRepeat)
+            {
+                _logger.Fatal("Production:{0} `{1}',[{2} {3}], [{4} ||{5}||], [{6} ({7})]",
+                    _stateMeta.EnterTime.Ticks,
+                    Description,
+                    
+                    _stateMeta.Previous == null ? _stateMeta.DefaultPadded : _stateMeta.Previous.PaddedStr(),
+                    (_stateMeta.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    
+                    _stateMeta.PaddedStr(),(_stateMeta.Mu.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    
+                    _stateMeta.Next == null ? _stateMeta.DefaultPadded : _stateMeta.Next.PaddedStr(),
+                    (_stateMeta.Delta.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            }
+            else
+            {
+                _logger.Error("Production:{0} `{1}',[{2} {3}], [{4} ||{5}||], [{6} ({7})]",
+                    _stateMeta.EnterTime.Ticks,
+                    Description,
+                    
+                    _stateMeta.Previous == null ? _stateMeta.DefaultPadded : _stateMeta.Previous.PaddedStr(),
+                    (_stateMeta.Lambda.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    
+                    _stateMeta.PaddedStr(),(_stateMeta.Mu.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size),
+                    
+                    _stateMeta.Next == null ? _stateMeta.DefaultPadded : _stateMeta.Next.PaddedStr(),
+                    (_stateMeta.Delta.TotalMilliseconds.ToString(CultureInfo.InvariantCulture) + " ms ").PadLeft(parm_id_pad_size));
+            }
         }
 
         /// <summary>
@@ -268,7 +291,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG
         //TODO
-        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Finished} };
+        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new((uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2),5) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = IoJobMeta.JobState.Halted} };
 #endif
         /// <summary>
         /// Final state
@@ -293,17 +316,19 @@ namespace zero.core.patterns.bushes
             }
             set
             {
-                if(Source?.Zeroed()??true)
+                if(Zeroed())
                     return;
-
+                
                 //Update the previous state's exit time
                 if (_stateMeta != null)
                 {
-                    if (_stateMeta.Value == IoJobMeta.JobState.Finished)
+                    _stateMeta.ExitTime = DateTime.UtcNow;
+                    
+                    if (_stateMeta.Value == IoJobMeta.JobState.Halted)
                     {
-                        //PrintStateHistory();
+                        PrintStateHistory();
                         _stateMeta.Value = IoJobMeta.JobState.Race; //TODO
-                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Finished}' to `{value}'");
+                        throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
 
                     if (_stateMeta.Value == value)
@@ -312,41 +337,37 @@ namespace zero.core.patterns.bushes
                         return;
                     }
                     
-                    _stateMeta.ExitTime = DateTime.Now;
-                    
                     Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
                     Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], (long)(_stateMeta.Mu.TotalMilliseconds));
                 }
+#if DEBUG
                 else
                 {
-                    if (value != IoJobMeta.JobState.Undefined)
+                    if (value != IoJobMeta.JobState.Undefined && !Zeroed())
                     {
-                        //PrintStateHistory();
+                        PrintStateHistory();
                         throw new Exception($"{TraceDescription} First state transition history's first transition should be `{IoJobMeta.JobState.Undefined}', but is `{value}'");                        
                     }
                 }
+#endif
 
 #if DEBUG
                 //Allocate memory for a new current state
                 var prevState = _stateMeta;
-
-
-                _stateHeap.Take(out var newState);
-
+                var newState = _stateHeap.TakeAsync().AsTask().GetAwaiter().GetResult();
                 if (newState == null)
                 {
                     if (!Zeroed())
-                        throw new OutOfMemoryException();
+                        throw new OutOfMemoryException($"{Description}");
 
                     return;
                 }
 
                 newState.Previous = _stateMeta;
-                newState.EnterTime = DateTime.Now;
-                newState.ExitTime = DateTime.Now;
-
+                newState.EnterTime = DateTime.UtcNow;
+                newState.ExitTime = DateTime.UtcNow;
                 newState.Value = value;
-
+                
                 _stateMeta = newState;
                 
                 //Configure the current state
@@ -355,27 +376,29 @@ namespace zero.core.patterns.bushes
                     prevState.Next = _stateMeta;
                     if (StateTransitionHistory[(int)prevState.Value] != null)
                     {
-                        StateTransitionHistory[(int)prevState.Value].Repeat = prevState;
+                        var c = StateTransitionHistory[(int)prevState.Value];
+                        while (c.Repeat != null)
+                            c = c.Repeat;
+                        
+                        c.Repeat = prevState;
                     }
                     else
                         StateTransitionHistory[(int)prevState.Value] = prevState;
                 }
 #else
                 _stateMeta.Value = value;
-                _stateMeta.EnterTime = DateTime.Now;
-                _stateMeta.ExitTime = DateTime.Now;
+                _stateMeta.EnterTime = DateTime.UtcNow;
+                _stateMeta.ExitTime = DateTime.UtcNow;
 #endif
                 //generate a unique id
                 if (value == IoJobMeta.JobState.Undefined)
-                {
                     Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
-                }
-
+                
                 //terminate
                 if (value == IoJobMeta.JobState.Accept || value == IoJobMeta.JobState.Reject)
                 {
                     FinalState = State;
-                    State = IoJobMeta.JobState.Finished;
+                    State = IoJobMeta.JobState.Halted;
                 }                
             }
         }        

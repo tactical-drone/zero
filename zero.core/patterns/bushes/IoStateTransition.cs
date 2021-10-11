@@ -89,7 +89,7 @@ namespace zero.core.patterns.bushes
             ExitTime = EnterTime = DateTime.Now;
             Previous = Next = null;
             Repeat = null;
-            Value = default(TState);
+            Value = default;
             return new ValueTask<IIoHeapItem>(this);
         }
 

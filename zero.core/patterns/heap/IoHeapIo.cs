@@ -17,7 +17,8 @@ namespace zero.core.patterns.heap
         /// ConstructAsync
         /// </summary>
         /// <param name="maxSize"></param>
-        public IoHeapIo(long maxSize) : base(maxSize)
+        /// <param name="concurrencyLevel"></param>
+        public IoHeapIo(uint maxSize, int concurrencyLevel) : base(maxSize, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -33,7 +34,8 @@ namespace zero.core.patterns.heap
             try
             {
                 //Take from heap
-                if (Take(out next, userData) && next != null && !await next.ConstructAsync())
+                
+                if ((next = await TakeAsync(userData).FastPath().ConfigureAwait(false)) != null && !await next.ConstructAsync())
                     return null;
                 
                 //fail
@@ -49,10 +51,10 @@ namespace zero.core.patterns.heap
                 //The constructor signals a flush by returning null
                 while (next == null)
                 {
-                    Interlocked.Increment(ref CurrentHeapSize);
+                    Interlocked.Increment(ref _count);
                     _logger.Trace($"Flushing `{GetType()}'");
 
-                    Take(out next, userData);
+                    next = await TakeAsync(userData).FastPath().ConfigureAwait(false);
                     //Return another item from the heap
                     if (next == null)
                     {

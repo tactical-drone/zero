@@ -41,10 +41,10 @@ namespace zero.tangle.models
             _entangled = Entangled<TKey>.Default;            
 
             //Set some tangle specific protocol constants
-            DatumSize = Codec.MessageSize + ((Source is IoTcpClient<IoTangleMessage<TKey>>) ? Codec.MessageCrcSize : 0);
+            DatumSize = (uint)(Codec.MessageSize + ((Source is IoTcpClient<IoTangleMessage<TKey>>) ? Codec.MessageCrcSize : 0));
             
             //Init buffers
-            BufferSize = DatumSize * parm_datums_per_buffer;
+            BufferSize = (uint)(DatumSize * parm_datums_per_buffer);
             DatumProvisionLengthMax = DatumSize - 1;
             //DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new byte[BufferSize + DatumProvisionLengthMax];
@@ -195,7 +195,7 @@ namespace zero.tangle.models
                             continue;
                         }
                             
-                        var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Unsafe.As<sbyte[]>(Buffer), BufferOffset, TritBuffer);
+                        var interopTx = (IIoTransactionModel<TKey>)_entangled.ModelDecoder.GetTransaction(Unsafe.As<sbyte[]>(Buffer), (int)BufferOffset, TritBuffer);
                         interopTx.Uri = Source.Key; //TODO breaking
 
                         //check for pow
@@ -227,7 +227,7 @@ namespace zero.tangle.models
                                 {
                                     Source.Synced = false;
                                     localSync = false;
-                                    BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
+                                    BufferOffset -= (uint)(syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
                                 }
                             }                            
@@ -344,7 +344,7 @@ namespace zero.tangle.models
                         synced = true;
                         try
                         {
-                            var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
+                            var crc = _crc32.Get(new ArraySegment<byte>((byte[])(Array)Buffer, (int)BufferOffset, Codec.MessageSize)).ToString("x").PadLeft(16, '0');
 
                             for (var j = Codec.MessageCrcSize; j-- > 0;)
                             {
@@ -483,7 +483,7 @@ namespace zero.tangle.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync(ArraySegment, BufferOffset, BufferSize).AsTask().ContinueWith(async rx =>
+                        await ((IoSocket)ioSocket).ReadAsync(ArraySegment, (int)BufferOffset, (int)BufferSize).AsTask().ContinueWith(async rx =>
                         {                                                                    
                             switch (rx.Status)
                             {
@@ -497,7 +497,7 @@ namespace zero.tangle.models
                                 //Success
                                 case TaskStatus.RanToCompletion:
                                     var bytesRead = rx.Result;
-                                    BytesRead = bytesRead;
+                                    BytesRead = (uint)bytesRead;
 
                                     //TODO double check this hack
                                     if (BytesRead == 0)
@@ -509,7 +509,7 @@ namespace zero.tangle.models
 
                                     if (Id == 0 && Source is IoTcpClient<IoTangleMessage<TKey>>)
                                     {                                                                  
-                                        _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring(BufferOffset, 10)}'");
+                                        _logger.Info($"{TraceDescription} Got receiver port as: `{Encoding.ASCII.GetString((byte[])(Array)Buffer).Substring((int)BufferOffset, 10)}'");
                                         Interlocked.Add(ref BufferOffset, 10);
                                         bytesRead -= 10;
                                         if (BytesLeftToProcess == 0)
