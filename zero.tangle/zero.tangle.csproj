@@ -13,8 +13,8 @@
   <ItemGroup>
     <PackageReference Include="CassandraCSharpDriver" Version="3.16.3" />
     <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0-rc.1.21451.13" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0-rc.1.21451.13" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0-rc.2.21480.5" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0-rc.2.21480.5" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="NLog" Version="5.0.0-preview.2" />
   </ItemGroup>

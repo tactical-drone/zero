@@ -366,7 +366,7 @@ namespace zero.core.patterns.bushes
 #if DEBUG
                 //Allocate memory for a new current state
                 var prevState = _stateMeta;
-                var newState = _stateHeap.TakeAsync().FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+                var newState = _stateHeap.TakeAsync().AsTask().GetAwaiter().GetResult();
                 if (newState == null)
                 {
                     if (!Zeroed())

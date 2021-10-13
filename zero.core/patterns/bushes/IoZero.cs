@@ -774,7 +774,7 @@ namespace zero.core.patterns.bushes
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             //Producer
-            _producerTask = ZeroOptionAsync(static async @this =>
+            _producerTask = ZeroAsync(static async @this =>
             {
                 //While supposed to be working
                 try
@@ -815,10 +815,10 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.HideScheduler);
+            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness);
 
             //Consumer
-            _consumerTask = ZeroOptionAsync(static async @this =>
+            _consumerTask = ZeroAsync(static async @this =>
             {
                 //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working
@@ -853,7 +853,7 @@ namespace zero.core.patterns.bushes
                     }
 
                 }
-            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness, TaskScheduler.Default, true);
+            }, this, TaskCreationOptions.AttachedToParent);
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(false);

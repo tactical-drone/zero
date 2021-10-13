@@ -75,7 +75,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 10;
+            var total = 200;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -164,7 +164,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(250).ConfigureAwait(false);
+                    await Task.Delay(100).ConfigureAwait(false);
                 }
                 
             });
@@ -176,7 +176,7 @@ namespace zero.sync
 
             Console.CancelKeyPress += (sender, args) =>
             {
-                Zero(total);
+                ZeroAsync(total);
                 args.Cancel = true;
             };
 
@@ -785,10 +785,10 @@ namespace zero.sync
             Console.ReadLine();
         }
 
-        private static void Zero(int total)
+        private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
-            AutoPeeringEventService.Clear();
+            await AutoPeeringEventService.ClearAsync().FastPath().ConfigureAwait(false);
             Console.WriteLine("#");
             SemaphoreSlim s = new SemaphoreSlim(10);
             int zeroed = 0;
@@ -866,7 +866,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 2, 1); 
+                2, 2, 2, 1);
 
             _nodes.Add(cocoon);
 
@@ -874,9 +874,10 @@ namespace zero.sync
 
             var t = new Task<CcCollective>(() =>
             {
-                cocoon.StartAsync();
+                cocoon.EmitAsync().FastPath().ConfigureAwait(false);
+                cocoon.StartAsync().ConfigureAwait(false);
                 return cocoon;
-            });
+            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
             return t;
         }
     }

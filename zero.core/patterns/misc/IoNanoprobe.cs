@@ -81,7 +81,7 @@ namespace zero.core.patterns.misc
 #pragma warning disable 4014
             try
             {
-                ZeroAsync(false).FastPath().ConfigureAwait(false).GetAwaiter();
+                ZeroAsync(false).AsTask().GetAwaiter();
             }
             catch (Exception e)
             {
@@ -190,7 +190,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(Sentinel).FastPath().ConfigureAwait(false).GetAwaiter();
+            ZeroAsync(Sentinel).AsTask().GetAwaiter();
         }
 
         /// <summary>
@@ -255,14 +255,14 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        public async ValueTask<LinkedListNode<IoZeroSub>> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+        public ValueTask<LinkedListNode<IoZeroSub>> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
             T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default)
         {
             var newSub = new IoZeroSub($"{Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
             
-            return _zeroHive.AddFirst(newSub);
+            return ValueTask.FromResult(_zeroHive.AddFirst(newSub));
         }
 
         /// <summary>

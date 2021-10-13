@@ -263,7 +263,7 @@ namespace zero.cocoon
                         if(await ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.SendAsync(buf, 0, buf.Length).FastPath().ConfigureAwait(false) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
-                            AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                             {
                                 EventType = AutoPeerEventType.SendProtoMsg,
                                 Msg = new ProtoMsg
@@ -272,7 +272,7 @@ namespace zero.cocoon
                                     Id = Adjunct.Designation.IdString(),
                                     Type = "gossip"
                                 }
-                            });
+                            }).FastPath().ConfigureAwait(false);
                         }
                     }
                 }

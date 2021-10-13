@@ -94,6 +94,9 @@ namespace zero.core.patterns.heap
         /// <param name="zero">If the item is to be zeroed</param>
         public override async ValueTask<T> ReturnAsync(T item, bool zero = false)
         {
+            if (item == null)
+                return null;
+
             await base.ReturnAsync(item, zero).FastPath().ConfigureAwait(false);
 
             if (zero)

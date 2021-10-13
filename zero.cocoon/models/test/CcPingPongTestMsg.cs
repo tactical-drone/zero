@@ -91,7 +91,7 @@ namespace zero.cocoon.models.test
             if (!sentTask.IsCompletedSuccessfully)
                 await sentTask.ConfigureAwait(false);
 
-            //AutoPeeringEventService.AddEvent(new AutoPeerEvent
+            //AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
             //{
             //    EventType = AutoPeerEventType.SendProtoMsg,
             //    Msg = new ProtoMsg

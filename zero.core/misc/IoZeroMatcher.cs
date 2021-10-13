@@ -266,7 +266,7 @@ namespace zero.core.misc
         /// <summary>
         /// Challenges held
         /// </summary>
-        public uint Count => _lut.Count;
+        public uint Count => (uint)_lut.Count;
 
 #if DEBUG
         /// <summary>

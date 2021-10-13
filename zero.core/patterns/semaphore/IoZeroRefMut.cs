@@ -17,7 +17,7 @@ namespace zero.core.patterns.semaphore
             _cancellationToken = asyncTasks;
         }
         
-        private readonly AsyncAutoResetEvent _semaphore;
+        private AsyncAutoResetEvent _semaphore;
         private CancellationToken _cancellationToken;
         
         public bool GetResult(short token)
@@ -54,7 +54,7 @@ namespace zero.core.patterns.semaphore
 
         public void Zero()
         {
-            throw new NotImplementedException();
+            _semaphore = null;
         }
 
         public int ReadyCount { get; }

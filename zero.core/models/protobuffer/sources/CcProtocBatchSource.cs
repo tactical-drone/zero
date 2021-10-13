@@ -204,7 +204,7 @@ namespace zero.core.models.protobuffer.sources
         /// <returns>returns number of items in the q</returns>
         public uint Count()
         {
-            return MessageQueue.Count;
+            return (uint)MessageQueue.Count;
         }
 
         /// <summary>

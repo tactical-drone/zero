@@ -49,10 +49,10 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
 
             _autoPeering =  new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
-            _autoPeering.ZeroHiveAsync(this, true).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount:1);
-            DupSyncRoot.ZeroHiveAsync(DupSyncRoot).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            DupSyncRoot.ZeroHiveAsync(DupSyncRoot).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -208,17 +208,6 @@ namespace zero.cocoon
                     }
                 }
             },this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
-
-            //Emit collective event
-            AutoPeeringEventService.AddEvent(new AutoPeerEvent
-            {
-                EventType = AutoPeerEventType.AddCollective,
-                Collective = new Collective
-                {
-                    Id = CcId.IdString(), 
-                    Ip = ExtAddress.Url
-                }
-            });
         }
 
         /// <summary>
@@ -260,14 +249,14 @@ namespace zero.cocoon
             {
                 if (!string.IsNullOrEmpty(id))
                 {
-                    AutoPeeringEventService.AddEvent(new AutoPeerEvent
+                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.RemoveCollective,
                         Collective = new Collective()
                         {
                             Id = id
                         }
-                    });
+                    }).FastPath().ConfigureAwait(false);
                 }
             }
             catch 
@@ -1005,6 +994,20 @@ namespace zero.cocoon
                     }
                 }
             }
+        }
+
+        public ValueTask EmitAsync()
+        {
+            //Emit collective event
+            return AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+            {
+                EventType = AutoPeerEventType.AddCollective,
+                Collective = new Collective
+                {
+                    Id = CcId.IdString(),
+                    Ip = ExtAddress.Url
+                }
+            });
         }
     }
 }

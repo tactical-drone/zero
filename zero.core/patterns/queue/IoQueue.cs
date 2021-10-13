@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.queue
@@ -39,6 +40,8 @@ namespace zero.core.patterns.queue
                 maxBlockers: concurrencyLevel * 2, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks.Token);
 
+            _syncRoot = new IoZeroRefMut(_asyncTasks.Token);
+
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
@@ -65,12 +68,16 @@ namespace zero.core.patterns.queue
         
         private volatile IoZNode _tail = null;
         private volatile IoZNode _head = null;
-        private volatile uint _count;
+        private volatile int _count;
         private readonly bool _enableBackPressure;
         
-        public uint Count => _count;
+        public int Count => _count;
         public IoZNode Tail => _tail;
         public IoZNode Head => _head;
+
+        public IoHeap<IoZNode> NodeHeap => _nodeHeap;
+        public IIoZeroSemaphore Pressure => _backPressure;
+
         private readonly IoNanoprobe _zeroSentinel;
 
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
@@ -426,6 +433,40 @@ namespace zero.core.patterns.queue
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        public async ValueTask ClearAsync()
+        {
+            try
+            {
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                    return;
+            
+                var cur = Head;
+                while (cur != null)
+                {
+                    var tmp = cur.Prev;
+                    cur.Prev = null;
+                    cur.Value = default;
+                    cur.Next = null;
+                    await _nodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(false);
+                    cur = tmp;
+                }
+
+                _count = 0;
+                _head = _tail = null;
+            }
+            finally
+            {
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+            }
+
+        }
+
+        public void ResetTail(IoZNode cur, int count)
+        {
+            _head = cur;
+            Interlocked.Add(ref _count, -count);
         }
     }
 }
