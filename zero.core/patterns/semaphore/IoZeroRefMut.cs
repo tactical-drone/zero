@@ -1,86 +1,66 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using zero.core.patterns.misc;
+using Microsoft.VisualStudio.Threading;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.semaphore
 {
-    /// <summary>
-    /// Wraps a <see cref="IoZeroSemaphore"/> for use
-    /// </summary>
-    public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
+    public class IoZeroRefMut : IIoZeroSemaphore
     {
-        public IoZeroSemaphoreSlim(CancellationToken asyncTasks, 
-            string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, uint maxAsyncWork = 0, int initialCount = 0,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}", maxBlockers)
+        
+        public IoZeroRefMut(CancellationToken asyncTasks, bool allowInline = true)
         {
-            _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            _semaphore.ZeroRef(ref _semaphore, asyncTasks);
+            _semaphore = new AsyncAutoResetEvent(allowInline);
+            _semaphore.Set();
+            _cancellationToken = asyncTasks;
         }
-
-        private IIoZeroSemaphore _semaphore;
-
-        public override void ZeroUnmanaged()
-        {
-            base.ZeroUnmanaged();
-            _semaphore = null;
-        }
-
-        public override ValueTask ZeroManagedAsync()
-        {
-            _semaphore?.Zero();
-            return base.ZeroManagedAsync();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        
+        private readonly AsyncAutoResetEvent _semaphore;
+        private CancellationToken _cancellationToken;
+        
         public bool GetResult(short token)
         {
-            return _semaphore.GetResult(token);
+            throw new NotImplementedException();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTaskSourceStatus GetStatus(short token)
         {
-            return _semaphore.GetStatus(token);
+            throw new NotImplementedException();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
+        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
-            _semaphore.OnCompleted(continuation, state, token, flags);
+            throw new NotImplementedException();
         }
-        
+
         public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken)
         {
-            _semaphore.ZeroRef(ref @ref, asyncToken);
+            throw new NotImplementedException();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
-            return _semaphore.ReleaseAsync(releaseCount, async);
+            _semaphore.Set();
+            return ValueTask.FromResult(1);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<bool> WaitAsync()
+        public async ValueTask<bool> WaitAsync()
         {
-            return _semaphore.WaitAsync();
+            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(false);
+            return true;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Zero()
         {
-            _semaphore?.Zero();
+            throw new NotImplementedException();
         }
 
-        public int ReadyCount => _semaphore.ReadyCount;
-        
-        public uint CurNrOfBlockers => _semaphore.CurNrOfBlockers;
-        public uint MaxAsyncWorkers => _semaphore.MaxAsyncWorkers;
-        public int Capacity => _semaphore.Capacity;
+        public int ReadyCount { get; }
+        public uint CurNrOfBlockers { get; }
+        public uint MaxAsyncWorkers { get; }
+        public int Capacity { get; }
 
         int IIoZeroSemaphore.ZeroCount()
         {
@@ -168,6 +148,16 @@ namespace zero.core.patterns.semaphore
         }
 
         short IIoZeroSemaphore.ZeroTokenBump()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SignalWorker()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Zeroed()
         {
             throw new NotImplementedException();
         }

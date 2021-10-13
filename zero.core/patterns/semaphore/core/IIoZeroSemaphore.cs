@@ -14,24 +14,23 @@ namespace zero.core.patterns.semaphore.core
         ValueTask<bool> WaitAsync();
         void Zero();
         int ReadyCount { get; }
-        uint NrOfBlockers { get; }
-        
+        uint CurNrOfBlockers { get; }
+        public uint MaxAsyncWorkers { get; }
+        public int Capacity { get; }
+    
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroIncCount();
-        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroDecCount();
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroAddCount(int value);
-
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal uint ZeroHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal uint ZeroTail();
-        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal uint ZeroNextTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -41,12 +40,22 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal uint ZeroPrevHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal uint ZeroIncWait();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal uint ZeroDecWait();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal uint ZeroWaitCount();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal uint ZeroIncAsyncWait();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal uint ZeroDecAsyncWait();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal uint ZeroAsyncCount();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal short ZeroToken();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal short ZeroTokenBump();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void SignalWorker();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Zeroed();
     }

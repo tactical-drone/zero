@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -11,7 +13,7 @@ using zero.core.patterns.misc;
 namespace zero.core.patterns.queue
 {
     /// <summary>
-    /// A concurrent bag
+    /// A lighter concurrent bag implementation
     /// </summary>
     public class IoBag<T>:IEnumerator<T>, IEnumerable<T>
     where T:class
@@ -23,7 +25,7 @@ namespace zero.core.patterns.queue
         {
             _description = description;
             _capacity = capacity;
-            _storage = new T[_capacity + 1];
+            _storage = new T[_capacity];
             _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
         }
             
@@ -33,15 +35,26 @@ namespace zero.core.patterns.queue
         private readonly uint _capacity;
         private volatile uint _count;
         private volatile uint _next;
-        private volatile uint _iteratorIdx = UInt32.MaxValue;
+        private volatile uint _iteratorIdx;
         private readonly IoNanoprobe _zeroSentinel;
 
+        /// <summary>
+        /// Zero status
+        /// </summary>
         public bool Zeroed => _zeroed > 0;
-        
+
+        /// <summary>
+        /// Current number of items in the bag
+        /// </summary>
         public uint Count => _count;
-        private uint Next => _next % _capacity;
+
+        /// <summary>
+        /// The index to the latest insert, best effort
+        /// </summary>
         private uint Prev => (_next - 1) % _capacity;
-        
+
+        //private ConcurrentBag<T> _bag = new ConcurrentBag<T>();
+
         /// <summary>
         /// Add item to the bag
         /// </summary>
@@ -50,18 +63,22 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public void Add(T item)
         {
-            var latch = Interlocked.Increment(ref _next) - 1;
+            //_bag.Add(item);
+            //return;
+            
+            var nextIdx = Interlocked.Increment(ref _next); 
+            var latch = (nextIdx - 1)%_capacity;
             T fail = null;
             while (_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
             {
                 Interlocked.Decrement(ref _next);
-                latch = Interlocked.Increment(ref _next) - 1;
+                latch = (Interlocked.Increment(ref _next) - 1)%_capacity;
             }
-            
-            Interlocked.Increment(ref _count);
             
             if (fail != null)
                 throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+            
+            Interlocked.Increment(ref _count);
         }
         
 
@@ -73,7 +90,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {
-            return (result = _storage[Next]) != null;
+            return (result = _storage[Prev]) != null;
         }
         
         /// <summary>
@@ -84,25 +101,32 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool TryTake([MaybeNullWhen(false)] out T result)
         {
+            // _bag.TryTake(out var r);
+            // result = r;
+            // return result != null;
+                 
             result = null;
             
-            //fail fast
-            if (_count == 0)
-                return false;
-
-            while (_count > 0)
+            var latch = Interlocked.Decrement(ref _next) % _capacity;
+            var target = _storage[latch];
+            while (_next > 0 && target != null)
             {
-                var latch = Prev;
-                var target = _storage[latch];
                 if ((result = Interlocked.CompareExchange(ref _storage[latch], null, target)) == target)
                 {
+                    //Interlocked.Decrement(ref _next);
                     Interlocked.Decrement(ref _count);
-                    Interlocked.Decrement(ref _next);    
                     break;    
                 }
+
+                Interlocked.Increment(ref _next);
+                latch = Interlocked.Decrement(ref _next) % _capacity;
+                target = _storage[latch];
             }
-            
-            return (result != null);
+
+            if (result != null) return true;
+
+            Interlocked.Increment(ref _next);
+            return false;
         }
 
         
@@ -147,7 +171,7 @@ namespace zero.core.patterns.queue
                     }
                 }
             }
-            catch (Exception)
+            catch
             {
                 return false;
             }
@@ -166,7 +190,12 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
-            return _storage[Interlocked.Increment(ref _iteratorIdx)] != null;
+            if (_iteratorIdx == 0)
+                return false;
+            
+            Interlocked.Decrement(ref _iteratorIdx);
+            
+            return true;
         }
 
         /// <summary>
@@ -175,13 +204,13 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, 0);
+            Interlocked.Exchange(ref _iteratorIdx, _next);
         }
 
         /// <summary>
         /// Return the current element in the iterator
         /// </summary>
-        public T Current => _storage[_iteratorIdx];
+        public T Current => _storage[Prev];
 
         /// <summary>
         /// Return the current element in the iterator
@@ -208,9 +237,12 @@ namespace zero.core.patterns.queue
             return GetEnumerator();
         }
 
+        /// <summary>
+        /// Not used
+        /// </summary>
         public void Dispose()
         {
-            throw new NotImplementedException();
+            _storage = null;
         }
     }
 }

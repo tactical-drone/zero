@@ -122,6 +122,8 @@ namespace zero.core.patterns.heap
                 await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(false);
             else
                 await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+            
+            _ioHeapBuf = null;
         }
 
         /// <summary>

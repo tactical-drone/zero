@@ -23,7 +23,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSinks = 0, int maxAsyncSources = 0) : base(description, concurrencyLevel)
+        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, uint maxAsyncSinks = 0, uint maxAsyncSources = 0) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             
@@ -156,12 +156,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The number of concurrent sinks allowed
         /// </summary>
-        public int MaxAsyncSinks { get; protected set; }
+        public uint MaxAsyncSinks { get; protected set; }
 
         /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
-        public int MaxAsyncSources { get; protected set; }
+        public uint MaxAsyncSources { get; protected set; }
 
         /// <summary>
         /// If async workers are enabled

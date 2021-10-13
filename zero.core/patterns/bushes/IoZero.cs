@@ -1,13 +1,7 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.Eventing.Reader;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Threading;
 using NLog;
-using StackExchange.Redis;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.patterns.bushes.contracts;
@@ -61,6 +55,7 @@ namespace zero.core.patterns.bushes
 
             parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
 
+            //TODO tuning
             if (SyncRecoveryModeEnabled)
                 _previousJobFragment = new IoQueue<IoSink<TJob>>($"{Description}", 5, ZeroConcurrencyLevel());
         }
@@ -81,7 +76,8 @@ namespace zero.core.patterns.bushes
 
             Source = source;
 
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)ZeroConcurrencyLevel(), ZeroConcurrencyLevel());
+            //TODO tuning
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)(ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
         }
 
         /// <summary>

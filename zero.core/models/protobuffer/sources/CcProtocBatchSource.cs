@@ -28,7 +28,9 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="batchSize">Batch size</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, uint batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSinks = 0, int maxAsyncSources = 0) 
+        /// <param name="maxAsyncSinks"></param>
+        /// <param name="maxAsyncSources"></param>
+        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, uint batchSize, int prefetchSize, int concurrencyLevel, uint maxAsyncSinks = 0, uint maxAsyncSources = 0) 
             : base(description, prefetchSize, concurrencyLevel, maxAsyncSinks, maxAsyncSources)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -200,7 +202,7 @@ namespace zero.core.models.protobuffer.sources
         /// Queue count
         /// </summary>
         /// <returns>returns number of items in the q</returns>
-        public int Count()
+        public uint Count()
         {
             return MessageQueue.Count;
         }

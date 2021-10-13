@@ -32,17 +32,16 @@ namespace zero.core.patterns.queue
         public IoQueue(string description, uint capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
         {
             _description = description;
-            _zeroSentinel = new IoNanoprobe($"{nameof(IoQueue<T>)}: {description}");
 
             _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
             
-            _syncRoot = new IoZeroSemaphore(description,
-                maxBlockers: concurrencyLevel*2, maxAsyncWork:0, initialCount: 1);
+            _syncRoot = new IoZeroSemaphore($"{nameof(_syncRoot)} {description}",
+                maxBlockers: concurrencyLevel * 2, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks.Token);
 
             if (!disablePressure)
             {
-                _pressure = new IoZeroSemaphore($"q pressure at {description}",
+                _pressure = new IoZeroSemaphore($"qp {description}",
                     maxBlockers: concurrencyLevel * 2, maxAsyncWork: 0, initialCount: 0);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks.Token);
             }
@@ -50,7 +49,7 @@ namespace zero.core.patterns.queue
             _enableBackPressure = enableBackPressure;
             if (_enableBackPressure)
             {
-                _backPressure = new IoZeroSemaphore($"q back pressure at {description}",
+                _backPressure = new IoZeroSemaphore($"qbp {description}",
                     maxBlockers: concurrencyLevel * 2, maxAsyncWork: 0, initialCount: 1);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks.Token);
             }
@@ -64,14 +63,14 @@ namespace zero.core.patterns.queue
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
         
-        private volatile IoZNode _head = null;
         private volatile IoZNode _tail = null;
-        private volatile int _count;
+        private volatile IoZNode _head = null;
+        private volatile uint _count;
         private readonly bool _enableBackPressure;
         
-        public int Count => _count;
-        public IoZNode First => _head;
-        public IoZNode Last => _tail;
+        public uint Count => _count;
+        public IoZNode Tail => _tail;
+        public IoZNode Head => _head;
         private readonly IoNanoprobe _zeroSentinel;
 
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
@@ -91,18 +90,17 @@ namespace zero.core.patterns.queue
 
                 if (op != null)
                 {
-                    var cur = First;
+                    var cur = Head;
                     while (cur != null)
                     {
                         try
                         {
                             if (!zero)
                                 await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
-
                             else
                             {
                                 if(!((IIoNanite)cur.Value).Zeroed())
-                                    await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite??_zeroSentinel).FastPath().ConfigureAwait(false);
+                                    await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite?? new IoNanoprobe($"{nameof(IoQueue<T>)}: {_description}")).FastPath().ConfigureAwait(false);
                             }
                         }
                         catch(Exception e)
@@ -114,9 +112,9 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                _head = null;
                 _tail = null;
-                _current = null;
+                _head = null;
+                _iteratorIoZNode = null;
 
                 await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
                 _nodeHeap = null;
@@ -130,6 +128,7 @@ namespace zero.core.patterns.queue
                 //unmanaged
                 _pressure = null;
                 _backPressure = null;
+
             }
             catch (Exception)
             {
@@ -143,14 +142,16 @@ namespace zero.core.patterns.queue
             _syncRoot.Zero();
             _syncRoot = null;
 
+            Dispose();
+
             return true;
         }
 
         /// <summary>
-        /// Blocking enqueue item
+        /// Blocking enqueue at the front
         /// </summary>
         /// <param name="item">The item to enqueue</param>
-        /// <returns>The enqueued item node</returns>
+        /// <returns>The queued item's linked list node</returns>
         public async ValueTask<IoZNode> PushAsync(T item)
         {
             try
@@ -174,18 +175,19 @@ namespace zero.core.patterns.queue
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
                     return null;
                 }
-
                 
-                node.Prev = _tail;
-                if (_tail == null)
+                node.Prev = _head;
+                if (_head == null)
                 {
-                    _head = _tail = node;
+                    _tail = _head = node;
                 }
-                else if (_tail.Prev != null)
+                else if (_head.Prev != null)
                 {
-                    _tail.Prev.Next = node;
+                    _head.Prev.Next = node;
                 }
 
+                _head = node;
+                
                 Interlocked.Increment(ref _count);
 
                 return node;
@@ -199,17 +201,18 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Blocking enqueue item
+        /// Blocking enqueue item at the back
         /// </summary>
         /// <param name="item">The item to enqueue</param>
-        /// <returns>The enqueued item node</returns>
+        /// <returns>The queued item node</returns>
         public async ValueTask<IoZNode> EnqueueAsync(T item)
         {
+            if (_zeroed > 0 || item == null)
+                return null;
+            
+            var blocked = false;
             try
             {
-                if (_zeroed > 0 || item == null)
-                    return null;
-
                 //wait on back pressure
                 if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
                         return null;
@@ -217,38 +220,41 @@ namespace zero.core.patterns.queue
                 var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(false);
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
-
+                
                 //set value
                 node.Value = item;
-
+                
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
                 {
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
                     return null;
                 }
-                
+                blocked = true;
+
                 //set hooks
-                node.Next = _head;
+                node.Next = _tail;
 
                 //plumbing
-                if (_head == null)
+                if (_tail == null)
                 {
-                    _head = _tail = node;
+                    _tail = _head = node;
                 }
                 else //hook
                 {
-                    node.Prev = _head.Prev;
-                    _head.Prev = node;
-                    _head = node;
+                    _tail.Prev = node;
+                    _tail = node;
                 }
                 
                 Interlocked.Increment(ref _count);
-
                 return node;
             }
             finally
             {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if (blocked)
+                {
+                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);    
+                }
+                
                 if(_pressure != null)
                     await _pressure.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
@@ -261,38 +267,50 @@ namespace zero.core.patterns.queue
         public async ValueTask<T> DequeueAsync()
         {
             IoZNode dq = null;
+
+            if (_zeroed > 0 || _count == 0)
+            {
+                return default;
+            }
+            
+            var blocked = false;
             try
             {
-                if (_zeroed > 0 || _count == 0)
-                    return default;
-
                 if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                {
                     return default;
+                }
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                {
                     return default;
+                }
+                
+                blocked = true;
 
                 //fail fast
-                if (_tail == null)
+                if (_head == null)
+                {
                     return default;
-
-                //un-hook
-                dq = _tail;
-                var p = _tail.Prev;
-                if (p != null)
-                    p.Next = null;
+                }
                 
-                //plumbing
-                if(Interlocked.Decrement(ref _count) > 0)
-                    _tail = p;
+                //un-hook
+                dq = _head;
+                _head = _head.Prev;
+                if (_head != null)
+                    _head.Next = null;
                 else
-                    _head = _tail = null;
+                    _tail = null;
+
+                Interlocked.Decrement(ref _count);
             }
             finally
             {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if (blocked)
+                {
+                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                }
             }
-
             //return dequeued item
             if (dq != null)
             {
@@ -342,14 +360,17 @@ namespace zero.core.patterns.queue
 
                     if (next != null)
                         next.Prev = node.Prev;
+                    else //we were at the front
+                        _head = node.Prev;
                 }
-                
-                //plumbing
-                if (_head == node)
-                    _head = node.Next;
-
-                if (_tail == node)
-                    _tail = node.Prev;
+                else //we were at the back
+                {
+                    _tail = _tail.Next;
+                    if (_tail != null)
+                        _tail.Prev = null;
+                    else
+                        _head = null;
+                }
 
                 Interlocked.Decrement(ref _count);
             }
@@ -367,26 +388,34 @@ namespace zero.core.patterns.queue
 
         public bool MoveNext()
         {
-            if (Interlocked.CompareExchange(ref _current, _head, null) == null)
-                return _head != null;
+            if (_count == 0)
+                return false;
+
+            _iteratorIoZNode = _iteratorIoZNode == null ? _head : _iteratorIoZNode.Prev;
             
-            _current = _current.Next;
-            return _current != null;
+            return _iteratorIoZNode != null;
         }
 
         public void Reset()
         {
-            _current = null;
+            _iteratorIoZNode = null;
         }
 
-        private volatile IoZNode _current;
-        public IoZNode Current => _current;
+        private volatile IoZNode _iteratorIoZNode;
+        public IoZNode Current => _iteratorIoZNode;
 
         object IEnumerator.Current => Current;
 
         public void Dispose()
         {
-            
+            _backPressure = null;
+            _asyncTasks = null;
+            _head = null;
+            _iteratorIoZNode = null;
+            _nodeHeap = null;
+            _pressure = null;
+            _syncRoot = null;
+            _tail = null;
         }
 
         public IEnumerator<IoZNode> GetEnumerator()

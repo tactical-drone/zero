@@ -31,12 +31,11 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
-        /// <param name="concurrencyLevel">Concurrency level</param>
-        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket,
-            remoteEndPoint)
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint) : base(nativeSocket, remoteEndPoint)
         {
             Proxy = true;
-            Init(concurrencyLevel);
+            //TODO tuning
+            Init(16);
         }
 
 
@@ -48,10 +47,10 @@ namespace zero.core.network.ip
         {
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
-            _sendSync = new IoZeroSemaphore("udp send lock", 128, 1, 0);
+            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
             _sendSync.ZeroRef(ref _sendSync, AsyncTasks.Token);
 
-            _rcvSync = new IoZeroSemaphore("udp receive lock", 128, 1, 0);
+            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);
             _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks.Token);
 
             InitHeap(concurrencyLevel);
@@ -62,9 +61,6 @@ namespace zero.core.network.ip
         /// </summary>
         private void InitHeap(int concurrencyLevel)
         {
-            //TODO tuning
-            concurrencyLevel = 128;
-
             _recvArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
             {
                 Make = o =>
@@ -108,7 +104,7 @@ namespace zero.core.network.ip
             _recvArgs = null;
             _sendArgs = null;
             _tcsHeap = null;
-            //RemoteNodeAddress = null;
+            RemoteNodeAddress = null;
             _sendSync = null;
             _rcvSync = null;
 #endif
@@ -123,7 +119,7 @@ namespace zero.core.network.ip
             {
                 o.Completed -= SignalAsync;
                 o.UserToken = null;
-                o.RemoteEndPoint = null;
+                //o.RemoteEndPoint = null;
                 try
                 {
                     o.SetBuffer(null,0,0);
@@ -141,7 +137,7 @@ namespace zero.core.network.ip
             {
                 o.Completed -= SignalAsync;
                 o.UserToken = null;
-                o.RemoteEndPoint = null;
+                //o.RemoteEndPoint = null;
                 ((IDisposable) o).Dispose();
                 try
                 {
@@ -151,6 +147,7 @@ namespace zero.core.network.ip
                 {
                     // ignored
                 }
+                ((IDisposable)o).Dispose();
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
 
@@ -353,9 +350,9 @@ namespace zero.core.network.ip
             try
             {
 #if DEBUG
-                if (_sendSync.NrOfBlockers >= _sendArgs.MaxSize / 2)
+                if (_sendSync.CurNrOfBlockers >= _sendArgs.MaxSize / 2)
                     _logger.Warn(
-                        $"{Description}: Send semaphore is running lean {_sendSync.NrOfBlockers}/{_sendArgs.MaxSize}");
+                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.MaxSize}");
 #endif
 
                 if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(false))

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -6,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
-using zero.core.patterns.queue;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
@@ -52,8 +52,8 @@ namespace zero.core.patterns.misc
 
             _concurrencyLevel = concurrencyLevel;
 
-            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity, concurrencyLevel);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)}[{nameof(MaxElasticity)} = {MaxElasticity}]: {description}", MaxElasticity,concurrencyLevel);
+            _zeroHive = new LinkedList<IoZeroSub>();
+            _zeroHiveMind = new LinkedList<IIoNanite>();
 
             _zeroed = 0;
             ZeroedFrom = default;
@@ -151,23 +151,25 @@ namespace zero.core.patterns.misc
         /// </summary>
         private volatile int _zeroed;
 
-        #if DEBUG
+#if DEBUG
         /// <summary>
         /// Have are there any leaks?
         /// </summary>
         private volatile int _extracted;
-        #endif
+#endif
 
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private IoQueue<IoZeroSub> _zeroHive;
+        //private IoQueue<IoZeroSub> _zeroHive;
+        private LinkedList<IoZeroSub> _zeroHive;
 
         /// <summary>
         /// All subscriptions
         /// </summary>
-        private IoQueue<IIoNanite> _zeroHiveMind;
-        
+        //private IoQueue<IIoNanite> _zeroHiveMind;
+        private LinkedList<IIoNanite> _zeroHiveMind;
+
         /// <summary>
         /// Max number of blockers
         /// </summary>
@@ -253,16 +255,14 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        public async ValueTask<IoQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+        public async ValueTask<LinkedListNode<IoZeroSub>> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
             T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default)
         {
             var newSub = new IoZeroSub($"{Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
-            return await 
-                
-                
-                _zeroHive.EnqueueAsync(newSub).FastPath().ConfigureAwait(false);
+            
+            return _zeroHive.AddFirst(newSub);
         }
 
         /// <summary>
@@ -270,9 +270,10 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <param name="sub">The original subscription</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<bool> UnsubscribeAsync(IoQueue<IoZeroSub>.IoZNode sub)
+        public ValueTask<bool> UnsubscribeAsync(LinkedListNode<IoZeroSub> sub)
         {
-            return _zeroHive.RemoveAsync(sub);
+            _zeroHive.Remove(sub);
+            return ValueTask.FromResult(true);
         }
 
         /// <summary>
@@ -284,8 +285,8 @@ namespace zero.core.patterns.misc
         {
             if (_zeroed > 0)
                 return (default, false);
-            
-            await _zeroHiveMind.EnqueueAsync(target).FastPath().ConfigureAwait(false);
+
+            _zeroHiveMind.AddFirst(target);
 
             if (twoWay) //zero
                 await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
@@ -311,26 +312,25 @@ namespace zero.core.patterns.misc
             catch (Exception) when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                #if DEBUG
+#if DEBUG
                 _logger.Trace(e, $"{Description}: Cancel async tasks failed!!!");
-                #endif
+#endif
             }
             
             //Dispose managed
             if (disposing)
             {
-                //hive sub teardown
-                await _zeroHive.ZeroManagedAsync(static async (zeroSub, @this) =>
-                {
-                    if (!await zeroSub.ExecuteAsync(@this).FastPath().ConfigureAwait(false))
-                        _logger.Error($"{zeroSub?.From} - zero sub {((IIoNanite)zeroSub?.Target)?.Description} on {@this.Description} returned with errors!");
-                }, this).FastPath().ConfigureAwait(false);
 
-                //hive mind teardown
-                await _zeroHiveMind.ZeroManagedAsync(static async (zeroSub, @this) =>
+                foreach (var zeroSub in _zeroHive)
                 {
-                    await zeroSub.ZeroAsync(@this).FastPath().ConfigureAwait(false);
-                }, this).FastPath().ConfigureAwait(false);
+                    if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(false))
+                        _logger.Error($"{zeroSub?.From} - zero sub {((IIoNanite)zeroSub?.Target)?.Description} on {Description} returned with errors!");
+                }
+
+                foreach (var zeroSub in _zeroHiveMind)
+                {
+                    await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                }
 
                 CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;
                 TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -364,9 +364,9 @@ namespace zero.core.patterns.misc
             }
             catch (Exception e)
             {
-                #if DEBUG
+#if DEBUG
                 _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
-                #endif
+#endif
             }
 
 #if DEBUG
@@ -405,6 +405,7 @@ namespace zero.core.patterns.misc
         {
             _nanoMutex = null;
             _zeroHive = null;
+            _zeroHiveMind = null;
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
@@ -417,6 +418,8 @@ namespace zero.core.patterns.misc
         public virtual ValueTask ZeroManagedAsync()
         {
             _nanoMutex.Zero();
+            _zeroHive.Clear();
+            _zeroHiveMind.Clear();
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
@@ -529,9 +532,9 @@ namespace zero.core.patterns.misc
                         catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                    nanoprobe == null && @this._zeroed == 0)
                         {
-                            #if DEBUG
+#if DEBUG
                             _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-                            #endif
+#endif
                         }
                         catch (NullReferenceException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                                nanoprobe == null && @this._zeroed == 0)
@@ -668,7 +671,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns>The hive</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IoQueue<IIoNanite> ZeroHiveMind()
+        public LinkedList<IIoNanite> ZeroHiveMind()
         {
             return _zeroHiveMind;
         }

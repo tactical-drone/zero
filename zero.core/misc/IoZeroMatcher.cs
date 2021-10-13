@@ -163,7 +163,7 @@ namespace zero.core.misc
 
             try
             {
-                var cur = _lut.Last;
+                var cur = _lut.Tail;
                 while(cur != null)
                 {
                     if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
@@ -200,7 +200,7 @@ namespace zero.core.misc
                 {
                     if (_lut.Count > _capacity / 2)
                     {
-                        for (var n = _lut.Last; n != null; n = n.Prev)
+                        for (var n = _lut.Tail; n != null; n = n.Prev)
                         {
                             if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                             {
@@ -236,7 +236,7 @@ namespace zero.core.misc
                 return;
             try
             {
-                var cur = _lut.First;
+                var cur = _lut.Head;
                 while (cur != null)
                 {
                     await target._lut.EnqueueAsync(cur.Value).FastPath().ConfigureAwait(false);
@@ -266,7 +266,7 @@ namespace zero.core.misc
         /// <summary>
         /// Challenges held
         /// </summary>
-        public int Count => _lut.Count;
+        public uint Count => _lut.Count;
 
 #if DEBUG
         /// <summary>

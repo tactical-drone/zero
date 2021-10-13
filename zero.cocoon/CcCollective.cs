@@ -385,14 +385,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_inbound = 5;
+        public uint parm_max_inbound = 3;
 
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_outbound = 3;
+        public uint parm_max_outbound = 5;
 
         /// <summary>
         /// Max adjuncts

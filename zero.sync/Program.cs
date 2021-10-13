@@ -18,6 +18,7 @@ using zero.cocoon.identity;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using zero.tangle;
 using zero.tangle.entangled;
@@ -55,7 +56,9 @@ namespace zero.sync
 
         static void Main(string[] args)
         {
-            //Test();
+            //SemTest();
+            //QueueTest();
+            
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = -2000;
             
@@ -333,18 +336,184 @@ namespace zero.sync
             Console.ReadLine();
         }
 
-        private static void Test()
+        /// <summary>
+        /// Tests queue
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private static async Task QueueTest() //TODO make unit tests
+        {
+
+            IoQueue<int> q = new IoQueue<int>("test", 2000000000, 10);
+            var head = q.EnqueueAsync(1).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            q.EnqueueAsync(2).FastPath().ConfigureAwait(false).GetAwaiter();
+            q.EnqueueAsync(3).FastPath().ConfigureAwait(false).GetAwaiter();
+            q.EnqueueAsync(4).FastPath().ConfigureAwait(false).GetAwaiter();
+            var five = q.EnqueueAsync(5).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+            q.EnqueueAsync(6).FastPath().ConfigureAwait(false).GetAwaiter();
+            q.EnqueueAsync(7).FastPath().ConfigureAwait(false).GetAwaiter();
+            q.EnqueueAsync(8).FastPath().ConfigureAwait(false).GetAwaiter();
+            var tail = q.EnqueueAsync(9).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+
+            Console.WriteLine("Init");
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+            Console.WriteLine("\nDQ mid");
+            q.RemoveAsync(five).FastPath().ConfigureAwait(false).GetAwaiter();
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+
+            Console.WriteLine();
+            var c = q.Tail;
+            while (c != null)
+            {
+                Console.Write(c.Value);
+                c = c.Next;
+            }
+            
+            Console.WriteLine("\nDQ head");
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(false).GetAwaiter();
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+
+            Console.WriteLine();
+            c = q.Tail;
+            while (c != null)
+            {
+                Console.Write(c.Value);
+                c = c.Next;
+            }
+            
+            Console.WriteLine("\nDQ tail");
+            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(false).GetAwaiter();
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+
+            Console.WriteLine();
+            c = q.Tail;
+            while (c != null)
+            {
+                Console.Write(c.Value);
+                c = c.Next;
+            }
+            
+
+            Console.WriteLine("\nDQ second last prime");
+            q.DequeueAsync().FastPath().ConfigureAwait(false).GetAwaiter();
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(false).GetAwaiter();
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(false).GetAwaiter();
+            q.DequeueAsync().FastPath().ConfigureAwait(false).GetAwaiter();
+
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+
+            Console.WriteLine();
+            c = q.Tail;
+            while (c != null)
+            {
+                Console.Write(c.Value);
+                c = c.Next;
+            }
+            
+            Console.WriteLine("\nDQ second last");
+
+            if (true)
+            {
+                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(false).GetAwaiter();
+                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(false).GetAwaiter();    
+            }
+            else
+            {
+                q.DequeueAsync().FastPath().ConfigureAwait(false).GetAwaiter();
+                q.DequeueAsync().FastPath().ConfigureAwait(false).GetAwaiter();   
+            }
+
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+
+            Console.WriteLine();
+            c = q.Tail;
+            while (c != null)
+            {
+                Console.Write(c.Value);
+                c = c.Next;
+            }
+
+            var _concurrentTasks = new List<Task>();
+
+            var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var rounds = 10;
+            var mult = 100000;
+            for (var i = 0; i < rounds; i++)
+            {
+                var i3 = i;
+                _concurrentTasks.Add(Task.Factory.StartNew(async () =>
+                {
+                    for (int j = 0; j < mult; j++)
+                    {
+                        try
+                        {
+                            await q.EnqueueAsync(i3).FastPath().ConfigureAwait(false);
+                            await q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(false);
+                            //var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+                            //var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(false).GetAwaiter().GetResult();
+                            await q.EnqueueAsync(i3 + 4).FastPath().ConfigureAwait(false);
+
+                            //q.RemoveAsync(i2).FastPath().ConfigureAwait(false).GetAwaiter();
+                            await q.DequeueAsync().FastPath().ConfigureAwait(false);
+                            //q.RemoveAsync(i1).FastPath().ConfigureAwait(false).GetAwaiter();
+                            await q.DequeueAsync().FastPath().ConfigureAwait(false);
+                            await q.DequeueAsync().FastPath().ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                    }
+                    Console.Write($"({i3}-{q.Count})");
+                }, new CancellationToken(), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
+            }
+            Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();
+            
+            Console.WriteLine($"count = {q.Count}, Head = {q?.Head?.Value}, tail = {q?.Tail?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds*mult*6/(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
+            
+            q.Reset();
+            foreach (var ioZNode in q)
+            {
+                Console.Write($"{ioZNode.Value},");
+            }
+            
+            Console.ReadLine();
+            throw new Exception("done");
+        }
+        
+        /// <summary>
+        /// Tests the semaphore
+        /// </summary>
+        private static void SemTest() //TODO make unit tests
         {
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
             var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
-            //var mutex = new IoZeroNativeMutex(asyncTasks);
+            //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
             var releaseCount = 1;
             var enableThrottle = true;
             var waiters = 3;
-            var releasers = 2;
+            var releasers = 3;
             var targetSleep = (long)0;
             var logSpam = 30000;//at least 1
 
@@ -367,7 +536,7 @@ namespace zero.sync
             var eq2_fps = 0.0;
             var eq3_fps = 0.0;
             var dq_fps = new double[10];
-
+            var r = new Random();
             var dq = new uint[10];
 
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
@@ -375,7 +544,7 @@ namespace zero.sync
             TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach;
 
             var startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
+            
             var t1 = Task.Factory.StartNew(async o =>
              {
                  try
@@ -402,12 +571,12 @@ namespace zero.sync
 
                              if (delta > 5)
                              {
-                                 eq1_fps = (int)(eq1 / delta);
-                                 eq2_fps = (int)(eq2 / delta);
-                                 eq3_fps = (int)(eq3 / delta);
+                                 eq1_fps = (eq1 / delta);
+                                 eq2_fps = (eq2 / delta);
+                                 eq3_fps = (eq3 / delta);
                                  for (int i = 0; i < releasers; i++)
                                  {
-                                     dq_fps[i] = (int)(dq[i] / delta);
+                                     dq_fps[i] = (dq[i] / delta);
                                  }
                              }
                              
@@ -416,14 +585,16 @@ namespace zero.sync
                              if (Interlocked.Increment(ref c) % logSpam == 0)
                              {
                                  var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                 Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {eq1 + eq2 - totalDq}");
+                                 Console.WriteLine($"T1:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
                                  Console.ResetColor();
                              }
                               
+                             // if(r.Next()%2 != 0)
+                             //     await Task.Delay(1).ConfigureAwait(false);
                          }
                          else
                          {
-                             break;
+                             //break;
                          }
 
                      }
@@ -451,7 +622,7 @@ namespace zero.sync
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq2);
-           
+
                            Action a = (tt - targetSleep * targetSleepMult) switch
                            {
                                > 5 => () => Console.ForegroundColor = ConsoleColor.Red,
@@ -459,20 +630,36 @@ namespace zero.sync
                                _ => () => Console.ForegroundColor = ConsoleColor.Green,
                            };
                            a();
+                           
+                           var curTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                           double delta = (curTime - startTime + 1) / 1000.0;
+
+                           if (delta > 5)
+                           {
+                               eq1_fps = (eq1 / delta);
+                               eq2_fps = (eq2 / delta);
+                               eq3_fps = (eq3 / delta);
+                               for (int i = 0; i < releasers; i++)
+                               {
+                                   dq_fps[i] = (dq[i] / delta);
+                               }
+                           }
                             
-                            var curTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                            double delta = (curTime - startTime + 1)/1000.0;
+                            curTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            delta = (curTime - startTime + 1)/1000.0;
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {eq1 + eq2 - totalDq}");
+                                Console.WriteLine($"T2:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
                                 Console.ResetColor();
                             }
-                               
+                            
+                            // if(r.Next()%2 != 0)
+                            //     await Task.Delay(1).ConfigureAwait(false);
                        }
                        else
                        {
-                           break;
+                           //break;
                        }
            
                    }
@@ -514,7 +701,7 @@ namespace zero.sync
                             if (Interlocked.Increment(ref c) % logSpam == 0)
                             {
                                 var totalDq = dq.Aggregate((u, u1) => u + u1);
-                                Console.WriteLine($"T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {eq1 + eq2 - totalDq}");
+                                Console.WriteLine($"T3:{mutex}({c}) t = {tt - targetSleep * targetSleepMult}ms, [{eq1_fps + eq2_fps + eq3_fps: 0}, ({eq1_fps: 0}, {eq2_fps: 0}, {eq3_fps: 0})], [{totalDq/delta: 0.0} ({dq_fps[0]: 0}, {dq_fps[1]: 0}, {dq_fps[2]: 0}, {dq_fps[3]: 0})], s = {semCount / (double)(semPollCount+1):0.0}, S = {mutex.ReadyCount}, D = {(int)(eq1 + eq2 + eq3) - (int)totalDq}");
                                 Console.ResetColor();
                             }
                                
@@ -545,12 +732,10 @@ namespace zero.sync
                        
                        while (releasers > 0)
                        {
-                           
-                        
                            if (targetSleep > 0)
                                await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(false);
 
-                           if (curCount > 500)
+                           if (mutex.CurNrOfBlockers >= mutex.Capacity*4/5)
                            {
                                await Task.Delay(200).ConfigureAwait(false);
                            }
@@ -558,16 +743,20 @@ namespace zero.sync
                            try
                            {
                                Interlocked.Add(ref semCount, curCount = await mutex.ReleaseAsync(releaseCount, true).FastPath().ConfigureAwait(false));
+
+                               Interlocked.Increment(ref semPollCount);
+                               Interlocked.Increment(ref dq[i1]);
                            }
                            catch (SemaphoreFullException)
                            {
-                               var f = eq1_fps + eq2_fps + 1;
+                               // var f = eq1_fps + eq2_fps + 1;
+                               //
+                               // var d = mutex.ReadyCount / (f) * 1000.0;
+                               // var val = (int)d;
+                               // val = Math.Min(1, val);
 
-                               var d = mutex.ReadyCount / (f) * 1000.0;
-                               var val = (int)d;
-
-                               Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
-                               await Task.Delay(Math.Max(1, val), asyncTasks.Token).ConfigureAwait(false);
+                               //Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
+                               await Task.Delay(10, asyncTasks.Token).ConfigureAwait(false);
                            }
                            catch (TaskCanceledException)
                            {
@@ -577,9 +766,6 @@ namespace zero.sync
                            {
                                Console.WriteLine(e);
                            }
-
-                           Interlocked.Increment(ref semPollCount);
-                           Interlocked.Increment(ref dq[i1]);
                        }
                        
                    }

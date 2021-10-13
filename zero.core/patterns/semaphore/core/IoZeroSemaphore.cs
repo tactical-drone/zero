@@ -1,6 +1,7 @@
 ﻿//#define TOKEN
 
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,7 +32,7 @@ namespace zero.core.patterns.semaphore.core
             string description, 
             int maxBlockers = 1, 
             int initialCount = 0,
-            int maxAsyncWork = 0,
+            uint maxAsyncWork = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
@@ -42,13 +43,13 @@ namespace zero.core.patterns.semaphore.core
             if(initialCount < 0)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
 
-            //if(initialCount > maxBlockers)
-            //    throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} = {maxBlockers}");
+            if(initialCount > maxBlockers * 2)
+                throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
 
             _maxBlockers = maxBlockers;
             _useMemoryBarrier = enableFairQ;
             _maxAsyncWorkers = maxAsyncWork;
-            _signalCount = initialCount;
+            _curSignalCount = initialCount;
             _zeroRef = null;
             _asyncToken = default;
             _asyncTokenReg = default;
@@ -80,22 +81,6 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         private volatile uint _token;
 #endif
-        // private string ID
-        // {
-        //     get
-        //     {
-        //         GCHandle gch = GCHandle.Alloc(_head, GCHandleType.Pinned);
-        //         IntPtr pObj = gch.AddrOfPinnedObject();
-        //
-        //         GCHandle gch2 = GCHandle.Alloc(_tail, GCHandleType.Pinned);
-        //         IntPtr pObj2 = gch2.AddrOfPinnedObject();
-        //
-        //         GCHandle gch3 = GCHandle.Alloc(_id, GCHandleType.Pinned);
-        //         IntPtr pObj3 = gch3.AddrOfPinnedObject();
-        //
-        //         return $"({pObj3.ToString()}) {pObj.ToString()} -> {pObj2.ToString()}";
-        //     }
-        // }
         /// <summary>
         /// A semaphore description
         /// </summary>
@@ -104,7 +89,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_zeroRef.ZeroCount()}, qSize = {_maxBlockers}, h = {_zeroRef.ZeroNextHead()}, t = {_zeroRef.ZeroTail()}";
+        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_zeroRef.ZeroCount()}, qStatus = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -116,17 +101,22 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Max number of async workers
         /// </summary>
-        private readonly int _maxAsyncWorkers;
+        private readonly uint _maxAsyncWorkers;
 
         /// <summary>
         /// Current number of async workers
         /// </summary>
-        private volatile int _asyncWorkerCount;
+        private volatile uint _curAsyncWorkerCount;
 
         /// <summary>
-        /// The number of threads that can enter the semaphore without blocking 
+        /// The current available number of threads that can enter the semaphore without blocking 
         /// </summary>
-        private volatile int _signalCount;
+        private volatile int _curSignalCount;
+
+        /// <summary>
+        /// The current number of threads blocking on this semaphore
+        /// </summary>
+        private volatile uint _curWaitCount;
 
         /// <summary>
         /// The number of threads that can enter the semaphore without blocking 
@@ -134,45 +124,21 @@ namespace zero.core.patterns.semaphore.core
         public int ReadyCount => _zeroRef.ZeroCount();
 
         /// <summary>
-        /// Nr of threads currently blocking on this
+        /// Nr of threads currently waiting on this semaphore
         /// </summary>
-        public uint NrOfBlockers => _waitCount;
+        public uint CurNrOfBlockers => _zeroRef.ZeroWaitCount();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroCount()
-        {
-            return _signalCount;
-        }
+        /// <summary>
+        /// Maximum allowed concurrent "not inline" continuations before
+        /// they become inline.
+        /// </summary>
+        public uint MaxAsyncWorkers => _maxAsyncWorkers;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroIncCount()
-        {
-            return Interlocked.Increment(ref _signalCount);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroDecCount()
-        {
-            return Interlocked.Decrement(ref _signalCount);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroAddCount(int value)
-        {
-            return Interlocked.Add(ref _signalCount, value);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroHead()
-        {
-            return (uint)(_head % _maxBlockers);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroTail()
-        {
-            return (uint)(_tail % _maxBlockers);
-        }
+        /// <summary>
+        /// Maximum concurrent blockers this semaphore can accomodate. Each extra thread
+        /// requires extra storage space for continuations.
+        /// </summary>
+        public int Capacity => _maxBlockers;
 
         /// <summary>
         /// Allows for zero alloc <see cref="ValueTask"/> to be emitted
@@ -213,10 +179,14 @@ namespace zero.core.patterns.semaphore.core
         /// Whether this semaphore has been cleared out
         /// </summary>
         private volatile int _zeroed;
-        
+
+        /// <summary>
+        /// A wait sentinel
+        /// </summary>
+        private ValueTask<bool> _zeroWait;
         #endregion
 
-#region core
+        #region core
 
         /// <summary>
         /// Validation failed exception
@@ -345,17 +315,6 @@ namespace zero.core.patterns.semaphore.core
         /// if auto scaling is enabled 
         /// </summary>
         private readonly bool _enableAutoScale;
-
-        /// <summary>
-        /// A wait sentinel
-        /// </summary>
-        private ValueTask<bool> _zeroWait;
-
-        /// <summary>
-        /// Number of threads currently waiting on this semaphore
-        /// </summary>
-        private volatile uint _waitCount;
-
         #endregion
 
         /// <summary>
@@ -434,35 +393,37 @@ namespace zero.core.patterns.semaphore.core
 #endif
 
             //fast path
-            if (Signalled() || _zeroed == 1 || _asyncToken.IsCancellationRequested)
+            if (Signalled())
             {
-                continuation(state);
+                ZeroComply(continuation, state);
                 return;
             }
             
             //lock
             ZeroLock();
-            
+
             //choose a head index for blocking state
             var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
             Action<object> slot = null;
 
-            var c = 0;
             //Did we win?
-            while ( c < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) == null )
+            while ( _zeroRef.ZeroWaitCount() < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) != null )
             {
-                if (Interlocked.CompareExchange(ref _signalAwaiterState[headIdx], state, null) == null) continue;
+                _signalAwaiter[headIdx] = slot;
+                Thread.Yield();//The continuation executer wants this slot that we just put back, give it time to take it.
 
-                Volatile.Write(ref _signalAwaiter[headIdx], slot);
-                c++;
+                headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
             }
-
-            //Is there still capacity?
-            if(slot == null && _enableAutoScale) //EXPERIMENTAL: double concurrent capacity
+            
+            if (slot == null)
             {
-                Volatile.Write(ref _signalAwaiter[headIdx], slot);
-                _zeroRef.ZeroPrevHead();
+                _zeroRef.ZeroIncWait();
+                _signalAwaiterState[headIdx] = state;
 
+                ZeroUnlock();
+            }
+            else if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
+            {
                 //release lock
                 ZeroUnlock();
                 
@@ -474,38 +435,33 @@ namespace zero.core.patterns.semaphore.core
                 }
                 else
                 {
-                    //throw new ZeroValidationException($"{Description}: semaphore DRAINED!!! {_waitCount}/{_maxBlockers} w[{headIdx % _maxBlockers}] = {_signalAwaiter[headIdx]} : {_signalAwaiterState[headIdx]}");
-                    throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_waitCount)} = {_waitCount}/{_maxBlockers}, {nameof(_asyncWorkerCount)} = {_asyncWorkerCount}/{_maxAsyncWorkers}");
+                    throw new ZeroSemaphoreFullException($"{_description}: FATAL!, {nameof(_curWaitCount)} = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, {nameof(_curAsyncWorkerCount)} = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}");
                 }
             }
-
-            ZeroUnlock();
         }
 
         /// <summary>
         /// Executes a worker
         /// </summary>
-        /// <param name="worker">The worker continuation</param>
+        /// <param name="callback">The callback</param>
+        /// <param name="state">The state</param>
+        /// <param name="zeroed">If we are zeroed</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining|MethodImplOptions.AggressiveOptimization)]
-        private bool ZeroComply(IoZeroWorker worker)
+        private bool ZeroComply(Action<object> callback, object state, bool zeroed = false)
         {
-            IoNanoprobe nanite = default;
             try
             {
-                nanite = worker.Continuation.Target as IoNanoprobe;
-                worker.Continuation(worker.State);
+                callback(state);
                 return true;
             }
             catch (TaskCanceledException) {return true;}
-            catch (Exception) when (nanite == null && worker.Semaphore.Zeroed()){}
-            catch (Exception) when (nanite != null && nanite.Zeroed()){}
-            catch (Exception e) when (nanite == null && !worker.Semaphore.Zeroed() ||
-                                      nanite != null && !nanite.Zeroed())
+            catch (Exception) when (zeroed){}
+            catch (Exception e) when (!zeroed)
             {
                 //LogManager.GetCurrentClassLogger().Error(e, $"{_description}: {nameof(ThreadPool.QueueUserWorkItem)}, {nameof(worker.Continuation)} = {worker.Continuation}, {nameof(worker.State)} = {worker.State}");
                 throw IoNanoprobe.ZeroException.ErrorReport($"{nameof(ThreadPool.QueueUserWorkItem)}", 
-                    $"{nameof(worker.Continuation)} = {worker.Continuation}, " +
-                    $"{nameof(worker.State)} = {worker.State}",e);
+                    $"{nameof(callback)} = {callback}, " +
+                    $"{nameof(state)} = {state}",e);
             }
 
             return false;
@@ -515,7 +471,7 @@ namespace zero.core.patterns.semaphore.core
         /// Attempts to scale the semaphore to handle higher volumes of concurrency experienced. (for example if worker counts were tied to F(#CPUs))
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ZeroScale()
+        private void ZeroScale() //TODO, does this still work?
         {
             var acquiredLock = false;
             
@@ -598,13 +554,11 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
-#if DEBUG
-            if(_zeroRef == null)
-                throw new NullReferenceException($"{nameof(_zeroRef)}: BUG!!! Value cannot be null, {nameof(ZeroRef)} was not set!!!");
-#endif
+            Debug.Assert(_zeroRef != null);
+
             //preconditions
-            if(releaseCount < 1 || releaseCount + _zeroRef.ZeroCount() > _maxBlockers)
-                throw new ZeroValidationException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_signalCount)}({releaseCount + _signalCount}) > {nameof(_maxBlockers)}({_maxBlockers})");
+            if(releaseCount < 1 || releaseCount - _zeroRef.ZeroCount() > _maxBlockers)
+                throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
 
             //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
@@ -612,90 +566,93 @@ namespace zero.core.patterns.semaphore.core
             
             //lock in return value
             var released = 0;
-            var c = 0;
 
             IoZeroWorker worker = default;
             worker.Semaphore = _zeroRef;
 
             //awaiter entries
-            while (released < releaseCount && c++ < _maxBlockers)
+            while (released < releaseCount && _zeroRef.ZeroWaitCount() > 0)
             {
                 //Lock
                 ZeroLock();
 
                 //choose a tail index to release
-                var oldTail = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
+                var latchIdx = (_zeroRef.ZeroNextTail() -1) % _maxBlockers;
+                var latch = _signalAwaiterState[latchIdx];
 
                 ////latch a chosen tail state
-                worker.State = Interlocked.CompareExchange(ref _signalAwaiterState[oldTail], null, _signalAwaiterState[oldTail]);
+                worker.State = Interlocked.CompareExchange(ref _signalAwaiterState[latchIdx], null, latch);
                 
                 //Did we loose?
                 if (worker.State == null)
                 {
+                    //restore the tail
+                    _zeroRef.ZeroPrevTail(); 
+
                     ZeroUnlock();
-                
-                    //reset latch 
-                    _zeroRef.ZeroPrevTail();
-                    
-                    //abort
-                    if(_signalAwaiterState[_zeroRef.ZeroHead()] != null)
-                        break;
-                
+
                     //try again
                     continue;
                 }
+                
+                //count the number of overall waiters
+                _zeroRef.ZeroDecWait();
 
                 //latch a chosen tail
-                while((worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[oldTail], null, _signalAwaiter[oldTail])) ! == null) {}
+                while ((worker.Continuation =
+                    Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, _signalAwaiter[latchIdx])) == null) {}
 
                 //unlock
                 ZeroUnlock();
                 
-                Volatile.Write(ref _signalAwaiter[oldTail], null);
-                //_signalAwaiter[tailIdx] = null;
 #if DEBUG
                 //validate
                 if (worker.State == null)
                     throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
 
-                //count the number of overall waiters
-                Interlocked.Decrement(ref _waitCount);
-
                 //async workers
                 var parallelized = false;
-                switch (async && _maxAsyncWorkers > 0 && Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers)
+                switch (async && _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers)
                 {
-                    case true when Interlocked.Increment(ref _asyncWorkerCount) < _maxAsyncWorkers:
+                    case true when _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers:
                         await Task.Factory.StartNew(static state =>
                             {
                                 var (@this, worker) = (ValueTuple<IoZeroSemaphore, IoZeroWorker>)state;
 
                                 try
                                 {
-                                    @this.ZeroComply(worker);
+                                    @this.ZeroComply(worker.Continuation, worker.State,
+                                        worker.Semaphore.Zeroed() ||
+                                        worker.State is IIoNanite nanite && nanite.Zeroed());
                                 }
                                 catch (Exception e)
                                 {
-                                    LogManager.GetCurrentClassLogger().Error(e,$@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
+                                    LogManager.GetCurrentClassLogger().Error(e,
+                                        $@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
                                     return ValueTask.FromException(e);
+                                }
+                                finally
+                                {
+                                    worker.Semaphore.ZeroDecAsyncWait();
                                 }
 
                                 return ValueTask.CompletedTask;
                             }, ValueTuple.Create(this, worker),_asyncToken,
                             TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness,TaskScheduler.Default);
-                    
+
+                        _zeroRef.ZeroIncAsyncWait();
                         parallelized = true;
                         break;
                     case true when (_maxAsyncWorkers > 0):
-                        Interlocked.Decrement(ref _asyncWorkerCount);
+                        _zeroRef.ZeroDecAsyncWait();
                         break;
                 }
 
                 //synced workers
                 if (!parallelized)
                 {
-                    if (!ZeroComply(worker))
+                    if (!ZeroComply(worker.Continuation, worker.State, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                     {
                         //update current count
                         _zeroRef.ZeroAddCount(releaseCount - released);
@@ -708,10 +665,12 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //update current count
-            _zeroRef.ZeroAddCount(releaseCount - released);
+            var delta = releaseCount - released;
+            if(delta > 0)
+                _zeroRef.ZeroAddCount(delta);
             
             //return previous number of waiters
-            return _zeroRef.ZeroCount();
+            return released;
         }
         
         /// <summary>
@@ -725,11 +684,16 @@ namespace zero.core.patterns.semaphore.core
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
                 return ValueTask.FromResult(false);
 
+            //fast path
             if (Signalled())
                 return new ValueTask<bool>(!_asyncToken.IsCancellationRequested && _zeroed == 0);
             
-            Interlocked.Increment(ref _waitCount);
-            return new ValueTask<bool>(this, _zeroRef.ZeroToken());
+            //insane checks
+            if (_zeroRef.ZeroWaitCount() >= _maxBlockers)
+                return ValueTask.FromResult(false);
+            
+            //thread will attempt to block
+            return _zeroWait;
         }
 
         /// <summary>
@@ -738,28 +702,109 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroNextTail()
         {
+            //return _tail++;
             return Interlocked.Increment(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroNextHead()
         {
+            //return _head++;
             return Interlocked.Increment(ref _head);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroPrevTail()
         {
+            //return _tail--;
             return Interlocked.Decrement(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroPrevHead()
         {
+            //return _head--;
             return Interlocked.Decrement(ref _head);
         }
 
-        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroIncWait()
+        {
+            //return _curWaitCount++;
+            return Interlocked.Increment(ref _curWaitCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroDecWait()
+        {
+
+            //return _curWaitCount--;
+            return Interlocked.Decrement(ref _curWaitCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroWaitCount()
+        {
+            return _curWaitCount;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroIncAsyncWait()
+        {
+            //return _curAsyncWorkerCount++;
+            return Interlocked.Increment(ref _curAsyncWorkerCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroDecAsyncWait()
+        {
+            //return _curAsyncWorkerCount--;
+            return Interlocked.Decrement(ref _curAsyncWorkerCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroAsyncCount()
+        {
+            return _curAsyncWorkerCount;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int IIoZeroSemaphore.ZeroCount()
+        {
+            return _curSignalCount;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int IIoZeroSemaphore.ZeroIncCount()
+        {
+            return Interlocked.Increment(ref _curSignalCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int IIoZeroSemaphore.ZeroDecCount()
+        {
+            return Interlocked.Decrement(ref _curSignalCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int IIoZeroSemaphore.ZeroAddCount(int value)
+        {
+            return Interlocked.Add(ref _curSignalCount, value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroHead()
+        {
+            return (uint)(_head % _maxBlockers);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint IIoZeroSemaphore.ZeroTail()
+        {
+            return (uint)(_tail % _maxBlockers);
+        }
+
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         short IIoZeroSemaphore.ZeroToken()
         {
@@ -780,16 +825,11 @@ namespace zero.core.patterns.semaphore.core
 #endif
         }
         
-        
-        /// <summary>
-        /// Increment free worker threads by 1
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SignalWorker()
-        {
-            Interlocked.Decrement(ref _asyncWorkerCount);
-        }
 
+        /// <summary>
+        /// Are we zeroed out?
+        /// </summary>
+        /// <returns>True if zeroed, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Zeroed()
         {
