@@ -35,9 +35,9 @@ namespace zero.cocoon.autopeer
     /// <summary>
     /// Processes (UDP) discovery messages from the collective.
     /// </summary>
-    public class CcAdjunct : IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>
+    public class CcAdjunct : IoNeighbor<CcProtocMessage<Packet, CcDiscoveryMessage>>
     {
-        public CcAdjunct(CcHub node, IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>> ioNetClient,
+        public CcAdjunct(CcHub node, IoNetClient<CcProtocMessage<Packet, CcDiscoveryMessage>> ioNetClient,
             object extraData = null, CcService services = null)
             : base
             (
@@ -192,7 +192,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Source
         /// </summary>
-        protected IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>> MessageService => (IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>) Source;
+        protected IoNetClient<CcProtocMessage<Packet, CcDiscoveryMessage>> MessageService => (IoNetClient<CcProtocMessage<Packet, CcDiscoveryMessage>>) Source;
 
         /// <summary>
         /// The udp routing table 
@@ -339,7 +339,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Receives protocol messages from here
         /// </summary>
-        private IoConduit<CcProtocBatch<Packet, CcDiscoveryBatch>> _protocolConduit;
+        private IoConduit<CcProtocBatch<Packet, CcDiscoveryMessage>> _protocolConduit;
 
         /// <summary>
         /// Seconds since pat
@@ -419,7 +419,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Message heap
         /// </summary>
-        public ArrayPool<CcDiscoveryBatch> ArrayPoolProxy { get; protected set; }
+        public ArrayPool<CcDiscoveryMessage> ArrayPoolProxy { get; protected set; }
         
         /// <summary>
         /// Producer tasks
@@ -815,19 +815,19 @@ namespace zero.cocoon.autopeer
         /// <param name="processCallback">The process callback</param>
         /// <param name="nanite"></param>
         /// <returns>Task</returns>
-        private async ValueTask ProcessMsgBatchAsync<T>(IoSink<CcProtocBatch<Packet, CcDiscoveryBatch>> msg,
-            IoConduit<CcProtocBatch<Packet, CcDiscoveryBatch>> msgArbiter,
-            Func<CcDiscoveryBatch, IoConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>, T, ValueTask>
+        private async ValueTask ProcessMsgBatchAsync<T>(IoSink<CcProtocBatch<Packet, CcDiscoveryMessage>> msg,
+            IoConduit<CcProtocBatch<Packet, CcDiscoveryMessage>> msgArbiter,
+            Func<CcDiscoveryMessage, IoConduit<CcProtocBatch<Packet, CcDiscoveryMessage>>, T, ValueTask>
                 processCallback, T nanite)
         {
             if (msg == null)
                 return;
 
             //var stopwatch = Stopwatch.StartNew();
-            CcDiscoveryBatch[] protocolMsgs = default;
+            CcDiscoveryMessage[] protocolMsgs = default;
             try
             {
-                protocolMsgs = ((CcProtocBatch<Packet, CcDiscoveryBatch>) msg).Get();
+                protocolMsgs = ((CcProtocBatch<Packet, CcDiscoveryMessage>) msg).Get();
                 foreach (var message in protocolMsgs)
                 {
                     if (message == default)
@@ -856,7 +856,7 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                //Array.Clear(((CcProtocBatch<Packet, CcDiscoveryBatch>)msg).Batch, 0, ((CcProtocBatch<Packet, CcDiscoveryBatch>)msg).Batch.Length);
+                //Array.Clear(((CcProtocBatch<Packet, CcDiscoveryMessage>)msg).Batch, 0, ((CcProtocBatch<Packet, CcDiscoveryMessage>)msg).Batch.Length);
                 if(protocolMsgs != null)
                     ArrayPoolProxy?.Return(protocolMsgs);
             }
@@ -876,10 +876,10 @@ namespace zero.cocoon.autopeer
                 {
                     if (_protocolConduit == null)
                     {
-                        _protocolConduit = MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct));
+                        _protocolConduit = MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryMessage>>(nameof(CcAdjunct));
                         if (_protocolConduit != null)
                         {
-                            ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
+                            ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryMessage>)_protocolConduit.Source).ArrayPool;
                             _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                             _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                             break;
@@ -895,7 +895,7 @@ namespace zero.cocoon.autopeer
                     //Init the conduit
                     if (_protocolConduit != null)
                     {
-                        ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)_protocolConduit.Source).ArrayPool;
+                        ArrayPoolProxy = ((CcProtocBatchSource<Packet, CcDiscoveryMessage>)_protocolConduit.Source).ArrayPool;
                         _produceTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                         _consumeTaskPool = new ValueTask<bool>[_protocolConduit.ZeroConcurrencyLevel()];
                     }
@@ -978,7 +978,7 @@ namespace zero.cocoon.autopeer
                                                                 @this.Router._routingTable[extraData.Port] ??
                                                                 (CcAdjunct) @this.Hub.Neighbors.Values.FirstOrDefault(n =>
                                                                     ((IoNetClient<CcProtocMessage<Packet,
-                                                                            CcDiscoveryBatch>>)
+                                                                            CcDiscoveryMessage>>)
                                                                         ((CcAdjunct) n).Source).IoNetSocket
                                                                     .RemoteNodeAddress
                                                                     .Port == extraData.Port);
@@ -1523,7 +1523,7 @@ namespace zero.cocoon.autopeer
             
             CcAdjunct newAdjunct = null;
 
-            var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
+            var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryMessage>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
             newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source, Tuple.Create(id, services, newRemoteEp));
 
             if (!Zeroed() && await Hub.ZeroAtomicAsync(static async (s, state, ___) =>
@@ -1592,7 +1592,7 @@ namespace zero.cocoon.autopeer
                 , ValueTuple.Create(this, newAdjunct, synAck)).FastPath().ConfigureAwait(false))
             {
                 //setup conduits to messages
-                newAdjunct.MessageService.SetConduit(nameof(CcAdjunct), MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryBatch>>(nameof(CcAdjunct)));
+                newAdjunct.MessageService.SetConduit(nameof(CcAdjunct), MessageService.GetConduit<CcProtocBatch<Packet, CcDiscoveryMessage>>(nameof(CcAdjunct)));
                 newAdjunct.ExtGossipAddress = ExtGossipAddress; 
                 newAdjunct.State = AdjunctState.Unverified;
                 newAdjunct.Verified = false;

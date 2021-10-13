@@ -104,8 +104,9 @@ namespace zero.core.models.protobuffer
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            MemoryOwner.Dispose();
             base.ZeroUnmanaged();
+
+            MemoryOwner.Dispose();
 #if SAFE_RELEASE
             MemoryOwner = null;
             ProtocolConduit = null;
@@ -124,6 +125,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            ArrayPool<byte>.Shared.Return(Buffer);
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 

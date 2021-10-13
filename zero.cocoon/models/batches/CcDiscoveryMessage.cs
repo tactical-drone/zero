@@ -7,13 +7,13 @@ using zero.core.patterns.misc;
 
 namespace zero.cocoon.models.batches
 {
-    public class CcDiscoveryBatch:IoNanoprobe
+    public class CcDiscoveryMessage:IoNanoprobe
     {
         public IIoZero Zero;
         public IMessage EmbeddedMsg;
         public string RemoteEndPoint;
         public Packet Message;
-        public IoHeap<CcDiscoveryBatch> HeapRef;
+        public IoHeap<CcDiscoveryMessage> HeapRef;
 
         public override async ValueTask ZeroManagedAsync()
         {

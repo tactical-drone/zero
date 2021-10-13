@@ -109,11 +109,6 @@ namespace zero.core.models
         /// </summary>
         public volatile uint DatumProvisionLengthMax;
 
-        ///// <summary>
-        ///// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
-        ///// </summary>
-        //public volatile int DatumProvisionLength;
-
         /// <summary>
         /// Message receive buffer size
         /// </summary>        

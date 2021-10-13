@@ -289,7 +289,7 @@ namespace zero.cocoon
             }
         }
 
-        private IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>> _autoPeering;
+        private IoNode<CcProtocMessage<Packet, CcDiscoveryMessage>> _autoPeering;
         
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
