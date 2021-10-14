@@ -14,8 +14,7 @@ namespace zero.core.patterns.misc
     /// <summary>
     /// ZeroAsync teardown
     /// </summary>
-    [AttributeUsageAttribute(AttributeTargets.All)]
-    public class IoNanoprobe : Attribute, IIoNanite, IDisposable
+    public class IoNanoprobe : IIoNanite, IDisposable
     {
         /// <summary>
         /// static constructor

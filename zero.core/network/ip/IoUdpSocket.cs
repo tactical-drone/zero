@@ -556,8 +556,7 @@ namespace zero.core.network.ip
                             return 0;
                         }
 
-                        remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint)!.Address.GetAddressBytes());
-                        //remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint)!.Address.Address);
+                        remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
 
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;

@@ -143,7 +143,6 @@ namespace zero.sync
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
 
-                c = 0;
                 long v = 0;
                 while (_running)
                 {
@@ -155,16 +154,9 @@ namespace zero.sync
                             v++;
                             break;
                         }
-
-                        c++;
-                        //if (c % 20 == 0)
-                        {
-                            //Console.WriteLine($"<<<Testing {c}/{total}...>>>");
-                            //Thread.Sleep(1000);
-                        }
                     }
 
-                    await Task.Delay(500).ConfigureAwait(false);
+                    await Task.Delay(1000).ConfigureAwait(false);
                 }
                 
             });
@@ -864,7 +856,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 2, 2);
+                2, 2, 2, 1);
 
             _nodes.Add(cocoon);
 

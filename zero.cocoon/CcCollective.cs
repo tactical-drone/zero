@@ -98,7 +98,10 @@ namespace zero.cocoon
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var random = new Random((int)DateTime.Now.Ticks);
-                
+
+                double peerAttempts = 0;
+                double peerSuggests = 0;
+
                 //while running
                 while (!@this.Zeroed())
                 {
@@ -111,24 +114,23 @@ namespace zero.cocoon
                     {
                         var totalConnections = @this.TotalConnections;
                         double scanRatio = 1;
-                        double peerAttempts = 0;
                         CcAdjunct susceptible = null;
                         
                         //Attempt to peer with standbys
                         if (totalConnections < @this.MaxDrones * scanRatio &&
-                            secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay / 4)
+                            secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4)
                         {
-                            if (@this.Neighbors.Count > 1 && @this.EgressConnections < @this.parm_max_outbound)
+                            if (@this.EgressConnections < @this.parm_max_outbound)
                             {
                                 @this._logger.Trace($"Scanning {@this.Neighbors.Count} < {@this.MaxDrones * scanRatio:0}, {@this.Description}");
 
-                                if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay / 3)
+                                //if (secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 3)
                                 {
                                     //Send peer requests
                                     foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
-                                            ((CcAdjunct) n).Direction == CcAdjunct.Heading.Undefined &&
-                                            ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified)
-                                        .OrderBy(n => ((CcAdjunct) n).Priority).Take((int)(@this.parm_max_outbound - @this.EgressConnections)))
+                                            ((CcAdjunct) n).IsDroneAttached == false && //quick slot
+                                            ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified and < CcAdjunct.AdjunctState.Peering)
+                                        .OrderByDescending(n => ((CcAdjunct) n).Priority).Take((int)(@this.parm_max_outbound - @this.EgressConnections)))
                                     {
                                         if (@this.Zeroed())
                                             break;
@@ -139,12 +141,21 @@ namespace zero.cocoon
                                         //to work.
                                         susceptible ??= (CcAdjunct) adjunct;
 
+                                        //brute force
                                         if (@this.EgressConnections < @this.parm_max_outbound)
                                         {
-                                            if (await ((CcAdjunct) adjunct).SendPeerRequestAsync()
-                                                .FastPath().ConfigureAwait(false))
+                                            if (await ((CcAdjunct) adjunct).SendPeerRequestAsync().FastPath().ConfigureAwait(false))
                                             {
                                                 peerAttempts++;
+                                            }
+                                        }
+
+                                        //tractor
+                                        if (@this.IngressConnections < @this.parm_max_inbound)
+                                        {
+                                            if (await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false))
+                                            {
+                                                peerSuggests++;
                                             }
                                         }
                                     }
@@ -156,9 +167,9 @@ namespace zero.cocoon
                                     while (c++ < @this.parm_max_adjunct)
                                     {
                                         var adjunct = @this._autoPeering.Neighbors.Values.Where(n =>
-                                                ((CcAdjunct)n).State is > CcAdjunct.AdjunctState.Unverified)
+                                                ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified)
                                             .OrderBy(n => ((CcAdjunct)n).Priority)
-                                            .Skip(@this._random.Next(@this._autoPeering.Neighbors.Count-2)).FirstOrDefault();
+                                            .Skip(@this._random.Next(@this._autoPeering.Neighbors.Count*4/5)).FirstOrDefault();
 
                                         if (adjunct != default)
                                         {
@@ -175,11 +186,12 @@ namespace zero.cocoon
                                 //bootstrap every now and again
                                 if (secondsSinceBoot.Elapsed() > @this.parm_mean_pat_delay * 4)
                                 {
-                                    await @this.DeepScanAsync().ConfigureAwait(false);
+                                    await @this.DeepScanAsync().FastPath().ConfigureAwait(false);
                                     secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                                 }
-                            }
-                            else if(@this.Neighbors.Count == 0)
+                            } 
+                            
+                            if(@this.Neighbors.Count == 0)
                             {
                                 //bootstrap if alone
                                 if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
@@ -189,7 +201,7 @@ namespace zero.cocoon
                                 }
                             }
 
-                            if (peerAttempts > 0)
+                            if (peerAttempts > 0 || peerSuggests > 0)
                             {
                                 if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
                                 {
@@ -910,7 +922,7 @@ namespace zero.cocoon
         private static readonly int _maxAsyncConnectionAttempts = 2;
 
         private int _currentOutboundConnectionAttempts;
-        private readonly Poisson _poisson = new Poisson(_lambda);
+        private readonly Poisson _poisson = new(_lambda, Random.Shared);
 
         /// <summary>
         /// Boots the node
