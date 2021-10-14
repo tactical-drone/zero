@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.core;
@@ -75,25 +76,18 @@ namespace zero.core.models.protobuffer
         /// get
         /// </summary>
         /// <returns>The current batch</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TBatch[] Get()
         {
-            var tmp = _batch;
-            if (_batch != null)
-            {
-                _batch = null;
-            }
-            else
-            {
-                throw new NullReferenceException($"{Description}: Unable to fetch batch. Non set!");
-            }
-            
-            return tmp;
+            //transfer ownership
+            return Interlocked.CompareExchange(ref _batch, null, _batch);
         }
 
         /// <summary>
         /// set
         /// </summary>
         /// <param name="batch">The current batch</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask SetAsync(TBatch[] batch)
         {
             if (_batch != null)
@@ -147,18 +141,18 @@ namespace zero.core.models.protobuffer
         /// </returns>
         public override async ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {
-            if (!await Source.ProduceAsync(static async (_, backPressure, ioZero, ioJob )=>
+            if (!await Source.ProduceAsync(static async (_, backPressure, state, ioJob )=>
             {
                 var job = (CcProtocBatch<TModel, TBatch>)ioJob;
                 
-                if (!await backPressure(ioJob, ioZero).FastPath().ConfigureAwait(false))
+                if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(false))
                     return false;
 
                 try
                 {
                     job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(false);
                 }
-                catch (Exception e)
+                catch (Exception e) when(!job.Zeroed())
                 {
                     _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {job.Description}"); 
                 }

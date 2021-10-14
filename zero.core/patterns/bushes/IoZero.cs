@@ -346,7 +346,7 @@ namespace zero.core.patterns.bushes
                                 catch (Exception) when (@this.Zeroed()) { }
                                 catch (Exception e) when (!@this.Zeroed())
                                 {
-                                    @this?._logger.Error(e, $"Producer barrier failed for {@this.Description}");
+                                    @this._logger.Error(e, $"Producer barrier failed for {@this.Description}");
                                     job.State = IoJobMeta.JobState.ProduceErr;
                                     return false;
                                 }

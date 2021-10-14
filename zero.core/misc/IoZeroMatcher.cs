@@ -78,13 +78,6 @@ namespace zero.core.misc
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            //await _heap.ZeroManaged(challenge =>
-            //{
-            //    challenge.Payload = default;
-            //    challenge.Key = null;
-            //    return ValueTask.CompletedTask;
-            //}).FastPath().ConfigureAwait(false);
-
             await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
 
             await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
@@ -106,8 +99,6 @@ namespace zero.core.misc
             IoQueue<IoChallenge>.IoZNode node = null;
             try
             {
-                
-
                 if ((challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(false)) == null)
                 {
                     await ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(false);
@@ -126,7 +117,8 @@ namespace zero.core.misc
                 node = await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(false);
                 return node;
             }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
                 LogManager.GetCurrentClassLogger().Fatal(e);
                 // ignored
@@ -212,7 +204,7 @@ namespace zero.core.misc
             {
                 try
                 {
-                    if (_lut.Count > _capacity / 2)
+                    if (_lut.Count > _capacity *4/5)
                     {
                         for (var n = _lut.Tail; n != null; n = n.Prev)
                         {

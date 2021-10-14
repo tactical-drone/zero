@@ -854,7 +854,6 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                //Array.Clear(((CcProtocBatch<Packet, CcDiscoveryMessage>)msg).Batch, 0, ((CcProtocBatch<Packet, CcDiscoveryMessage>)msg).Batch.Length);
                 if(protocolMsgs != null)
                     ArrayPoolProxy?.Return(protocolMsgs);
             }

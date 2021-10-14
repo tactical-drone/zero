@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.Extensions.Logging;
 using NLog;
 using zero.core.patterns.misc;
@@ -24,11 +23,11 @@ namespace zero.cocoon.events.services
         private static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
             //TODO tuning
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 200, disablePressure:false),
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 200, disablePressure:false)
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000, disablePressure:false),
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000, disablePressure:false)
         };
 
-        private static volatile int _operational = 1;
+        private static volatile int _operational = 0;
         private static long _seq;
         private static volatile uint _curIdx;
         

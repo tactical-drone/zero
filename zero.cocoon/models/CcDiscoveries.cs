@@ -37,7 +37,7 @@ namespace zero.cocoon.models
             {
                 CcProtocBatchSource<Packet, CcDiscoveryMessage> channelSource = null;
                 //TODO tuning
-                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryMessage>(Description, MessageService, _arrayPool , (uint)cc, cc/2, cc, 0,0);
+                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryMessage>(Description, MessageService, _arrayPool , (uint)cc, cc, cc, 0,0);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitName,
                     Source.ZeroConcurrencyLevel(),
@@ -351,23 +351,8 @@ namespace zero.cocoon.models
                 //Release a waiter
                 await ForwardToNeighborAsync().FastPath().ConfigureAwait(false);
             }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
+            catch when(!Zeroed()){}
+            catch (Exception e) when (Zeroed())
             {
                 _logger.Error(e, $"Unmarshal Packet failed in {Description}");
             }
@@ -471,7 +456,7 @@ namespace zero.cocoon.models
                             return false;
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception e) when(!@this.Zeroed())
                     {
                         _logger.Error(e, $"{@this.Description}");
                         return false;
@@ -494,23 +479,8 @@ namespace zero.cocoon.models
                     return true;
                 }, this).FastPath().ConfigureAwait(false);
             }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Debug(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
             }
