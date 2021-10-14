@@ -195,14 +195,13 @@ namespace zero.core.network.ip
                 _logger.Trace($"Connected to `{RemoteNodeAddress}': ({Description})");
                 return true;
             }
-            catch (NullReferenceException e) { _logger.Trace(e, Description); }
-            catch (TaskCanceledException e) { _logger.Trace(e, Description); }
-            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
-            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"Connected to `{remoteAddress}' failed: {Description}");
+                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
+
             return false;
         }
 
@@ -233,7 +232,7 @@ namespace zero.core.network.ip
                 NativeSocket.SendTimeout = 0;
                 return sent; //TODO optimize copy
             }
-            catch (SocketException e)
+            catch (SocketException e) when (!Zeroed())
             {
                 _logger.Trace(e, $"{Description}");
             }
@@ -241,9 +240,9 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
+                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
 
-            await ZeroAsync(this).FastPath().ConfigureAwait(false);
             return 0;
         }
 
@@ -281,7 +280,7 @@ namespace zero.core.network.ip
                     return read;
                 }
             }
-            catch (SocketException e)
+            catch (SocketException e) when (!Zeroed())
             {
                 _logger?.Trace(e, $"{Description}");
             }
@@ -289,9 +288,8 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed()) 
             {
                 _logger?.Error(e, $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
+                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
-            await ZeroAsync(this).FastPath().ConfigureAwait(false);
-
             return 0;
         }
 
@@ -305,13 +303,14 @@ namespace zero.core.network.ip
         {
             try
             {
-                return NativeSocket is {IsBound: true, Connected: true};//&& NativeSocket.Connected;//&& NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
+                return NativeSocket is {IsBound: true};//&& NativeSocket.Connected;//&& NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
             }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
-                _logger.Trace(e, Description);
-                return false;
+                _logger.Error(e, Description);
             }
+            return false;
         }
 
     }

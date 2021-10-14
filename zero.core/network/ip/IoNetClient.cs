@@ -136,10 +136,10 @@ namespace zero.core.network.ip
         /// </summary>
         /// <returns>True if succeeded, false otherwise</returns>
         public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
-        {            
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false); 
+        {
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false);
 
-            if(connected)
+            if (connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', {Description}");
             else
                 _logger.Error($"Failed connecting to `{remoteAddress}', {Description} [FAILED]");
@@ -230,7 +230,7 @@ namespace zero.core.network.ip
                             )
                         {
                             if(Uptime.ElapsedSec() > 5)
-                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}");
+                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(Uptime.ElapsedSec())}");
 
                             //Do cleanup
                             return _operational = false;
@@ -242,11 +242,12 @@ namespace zero.core.network.ip
                     //Check UDP
                     return _operational = (bool) IoNetSocket?.IsConnected();
                 }
-                catch (Exception e)
+                catch when (Zeroed()){}
+                catch (Exception e) when(!Zeroed())
                 {
                     _logger.Trace(e, $"{Description}");
-                    return _operational = false;
                 }
+                return _operational = false;
             }            
         }
 

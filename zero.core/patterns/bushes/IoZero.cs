@@ -76,6 +76,7 @@ namespace zero.core.patterns.bushes
             JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
             Source = source;
+            Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
 
             //TODO tuning
             _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)(ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
@@ -717,7 +718,7 @@ namespace zero.core.patterns.bushes
                     }
 
                 }
-            }, this, TaskCreationOptions.LongRunning/*CONFIRMED TUNE*/); //TODO tuning
+            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness/*CONFIRMED TUNE*/); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(false);

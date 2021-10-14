@@ -217,9 +217,8 @@ namespace zero.core.network.ip
                     _logger.Error(e, $"There was an error handling a new connection from {this.RemoteNodeAddress} to `{this.LocalNodeAddress}'");
                 }
                 
-                //Call the new connection established handler
                 
-
+                
                 //Bootstrap on listener start
                 if (bootstrapAsync != null)
                     await bootstrapAsync().FastPath().ConfigureAwait(false);
@@ -231,19 +230,8 @@ namespace zero.core.network.ip
 
                 _logger.Trace($"Stopped listening at {LocalNodeAddress}");
             }
-            catch (NullReferenceException)
-            {
-            }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-            catch (Exception e)
+            catch when (Zeroed()) { }
+            catch (Exception e)when (!Zeroed())
             {
                 _logger.Error(e, $"Error while listening: {Description}");
             }
@@ -262,7 +250,8 @@ namespace zero.core.network.ip
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.RemoteEndPoint);
             }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, Description);
                 return false;
@@ -359,11 +348,10 @@ namespace zero.core.network.ip
                     return 0;
 
                 //fail fast
-                if (Zeroed() || NativeSocket == null || !(NativeSocket.IsBound))
+                if (Zeroed() || NativeSocket is { IsBound: false })
                 {
                     if (!Zeroed())
-                        _logger.Error(
-                            $"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom?.Description} bound = {NativeSocket?.IsBound}");
+                        _logger.Error($"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom?.Description} bound = {NativeSocket?.IsBound}");
                     return 0;
                 }
 
@@ -411,26 +399,20 @@ namespace zero.core.network.ip
 
                     try
                     {
-                        //args.BufferList = null;
-                        //args.DisconnectReuseSocket = false;
-                        //args.AcceptSocket = null;
-                        //args.SocketFlags = SocketFlags.None;
                         var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                        //_sendPin = buf.Pin();
                         args.SetBuffer(buf);
                         args.RemoteEndPoint = endPoint;
                         args.UserToken = tcs;
 
                         //receive
                         if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
-                        {
                             return 0;
-                        }
-
+                        
                         //args.SetBuffer(_tmpBuf, 0, 0);
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                     }
-                    catch (Exception e)
+                    catch when(Zeroed()){}
+                    catch (Exception e) when(!Zeroed())
                     {
                         _logger.Error(e, "Send udp failed:");
                     }
@@ -463,11 +445,12 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e,$"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
-                //await ZeroAsync(this).ConfigureAwait(false);
+                await ZeroAsync(this).ConfigureAwait(false);
             }
             finally
             {
-                await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if(_sendSync != null)
+                    await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             return 0;
@@ -562,9 +545,11 @@ namespace zero.core.network.ip
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                         
                     }
+                    catch when(Zeroed()){}
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
+                        await ZeroAsync(this).ConfigureAwait(false); //TODO ?
                     }
                     finally
                     {
@@ -639,11 +624,12 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed())
             {
                 _logger?.Error(e, $"Unable to read from socket: {Description}");
-                //await ZeroAsync(this).ConfigureAwait(false); //TODO ?
+                await ZeroAsync(this).ConfigureAwait(false); //TODO ?
             }
             finally
             {
-                await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if(_recvArgs != null)
+                    await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             return 0;

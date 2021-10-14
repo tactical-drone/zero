@@ -179,7 +179,8 @@ namespace zero.core.models.protobuffer.sources
                 
                 return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(false);
             }
-            catch (Exception e)
+            catch when (Zeroed()){}
+            catch (Exception e)when (!Zeroed())
             {
                 _logger.Trace(e, $"{Description}");
             }

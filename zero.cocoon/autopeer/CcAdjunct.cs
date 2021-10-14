@@ -92,7 +92,7 @@ namespace zero.cocoon.autopeer
                             {
                                 await @this.WatchdogAsync().FastPath().ConfigureAwait(false);
                             }
-                            catch (Exception e) when (@this.Zeroed()) { }
+                            catch (Exception) when (@this.Zeroed()) { }
                             catch (Exception e) when (!@this.Zeroed())
                             {
                                 if (@this.Collected)
@@ -595,6 +595,8 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+
             if (Proxy)
             {
                 try
@@ -604,19 +606,22 @@ namespace zero.cocoon.autopeer
                     {
                         _logger.Warn($"Router reset [FAILED], value is {Router._routingTable[_routingIndex]}: {Description}");
                     }
-
-                    if(_drone != null)
-                        await _drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
                 }
                 catch
                 {
                     // ignored
                 }
 
-                if (IsDroneConnected)
+                await DetachPeerAsync().FastPath().ConfigureAwait(false);
+                
+                await ZeroAsync(async @this =>
                 {
-                    await Router.SendPeerDropAsync(RemoteAddress).FastPath().ConfigureAwait(false);
-                }
+                    await Task.Delay(parm_max_network_latency, AsyncTasks.Token);
+                    await @this.Router.SendPingAsync(RemoteAddress).FastPath().ConfigureAwait(false);
+                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+
+                if (Assimilated && Direction != Heading.Undefined && WasAttached)
+                    _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
             }
             else
             {
@@ -624,59 +629,14 @@ namespace zero.cocoon.autopeer
             }
 
             State = AdjunctState.ZeroState;
-
-            if (Assimilated && Direction != Heading.Undefined && WasAttached)
-                _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, from: {ZeroedFrom?.Description}");
-
-            await DetachPeerAsync().FastPath().ConfigureAwait(false);
-            
-            //await _pingRequest.DumpAsync(Router._pingRequest).FastPath().ConfigureAwait(false);
             
             await _pingRequest.ZeroAsync(this).FastPath().ConfigureAwait(false);
             await _peerRequest.ZeroAsync(this).FastPath().ConfigureAwait(false);
             await _discoveryRequest.ZeroAsync(this).FastPath().ConfigureAwait(false);
             
-            // try
-            // {
-            //     foreach (var produceTask in _produceTaskPool)
-            //         produceTask.AsTask().Dispose();
-            // }
-            // catch //(Exception e)
-            // {
-            //     //_logger.Trace(e, $"{Description}");
-            // }
-
-            // try{
-            //     foreach (var consumeTask in _consumeTaskPool)
-            //         consumeTask.AsTask().Dispose();
-            // }
-            // catch //(Exception e)
-            // {
-            //     //_logger.Trace(e, $"{Description}");
-            // }
-
-            // try
-            // {
-            //     _baseTask?.Dispose();
-            // }
-            // catch
-            // {
-            //     // ignored
-            // }
-            //
-            // try
-            // {
-            //     _protocolTask?.Dispose();
-            // }
-            // catch
-            // {
-            //     // ignored
-            // }
-
 #if DEBUG
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
 #endif
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -693,7 +653,6 @@ namespace zero.cocoon.autopeer
             if (!Assimilating)
                 return;
             
-
             try
             {
                 await ZeroAsync(static async @this =>
@@ -710,12 +669,12 @@ namespace zero.cocoon.autopeer
                     
                     //Are we limping?
                     if (@this.Hub.Neighbors.Count <= 2)
-                    {
                         await @this.CcCollective.DeepScanAsync().FastPath().ConfigureAwait(false);
-                    }
-                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                    
+                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
             }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"{Description}");
             }
@@ -737,7 +696,7 @@ namespace zero.cocoon.autopeer
                     await collective.DeepScanAsync().FastPath().ConfigureAwait(false);
                 },CcCollective, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                 
-                await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs()).TotalHours:0.00}h"));
+                await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs()).TotalHours:0.00}h")).FastPath().ConfigureAwait(false);
             }
         }
         
@@ -758,7 +717,7 @@ namespace zero.cocoon.autopeer
                     await ZeroAsync(static async @this =>
                     {
                         await @this.ProcessMessagesAsync().ConfigureAwait(false);
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach/*CONFIRMED TUNE*/ );
+                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach /*CONFIRMED TUNE*/ | TaskCreationOptions.PreferFairness);
                 
                     await base.AssimilateAsync().ConfigureAwait(false);
                 }
@@ -865,7 +824,6 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async Task ProcessMessagesAsync()
         {
-            _logger.Debug($"$ {Description}");
             try
             {
                 //ensure the channel
@@ -1038,30 +996,15 @@ namespace zero.cocoon.autopeer
                                                                 break;
                                                         }
                                                     }
-                                                    catch (TaskCanceledException e)
+                                                    catch when(@this.Zeroed()){}
+                                                    catch (Exception e) when (!@this.Zeroed())
                                                     {
-                                                        @this._logger?.Trace(e, @this.Description);
-                                                    }
-                                                    catch (OperationCanceledException e)
-                                                    {
-                                                        @this._logger?.Trace(e, @this.Description);
-                                                    }
-                                                    catch (NullReferenceException e)
-                                                    {
-                                                        @this._logger?.Trace(e, @this.Description);
-                                                    }
-                                                    catch (ObjectDisposedException e)
-                                                    {
-                                                        @this._logger?.Trace(e, @this.Description);
-                                                    }
-                                                    catch (Exception e)
-                                                    {
-                                                        @this._logger?.Debug(e,
-                                                            $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
+                                                        @this._logger?.Debug(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
                                                     }
                                                     finally
                                                     {
-                                                        await msgBatch.HeapRef.ReturnAsync(msgBatch).FastPath().ConfigureAwait(false);
+                                                        if(msgBatch !=  null)
+                                                            await msgBatch.HeapRef.ReturnAsync(msgBatch).FastPath().ConfigureAwait(false);
                                                     }
                                                 }, @this).FastPath().ConfigureAwait(false);
                                         }
@@ -1086,35 +1029,17 @@ namespace zero.cocoon.autopeer
                             }
                         }
                     }
-                    catch (NullReferenceException e)
-                    {
-                        @this._logger?.Trace(e, $"{@this.Description}");
-                    }
-                    catch (Exception e)
+                    catch when(@this.Zeroed()){}
+                    catch (Exception e) when (!@this.Zeroed())
                     {
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
-                }, this, TaskCreationOptions.LongRunning/*CONFIRMED TUNE*/);
+                }, this, TaskCreationOptions.LongRunning /*CONFIRMED TUNE*/| TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
 
                 await Task.WhenAll(producer.AsTask(), consumer.AsTask());
             }
-            catch (TaskCanceledException e)
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (NullReferenceException e)
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger?.Trace(e, Description);
-            }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
                 if (Collected)
                     _logger?.Debug(e, $"Error processing {Description}");
@@ -2049,14 +1974,12 @@ namespace zero.cocoon.autopeer
                 if (Proxy)
                 {
                     //send
-
                     IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                     if ((challenge = await _pingRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
                         .FastPath().ConfigureAwait(false)) == null) 
                         return false;
 
-                    var sent = await SendMessageAsync(data: reqBuf, type: CcDiscoveries.MessageTypes.Ping)
-                        .FastPath().ConfigureAwait(false);
+                    var sent = await SendMessageAsync(data: reqBuf, type: CcDiscoveries.MessageTypes.Ping).FastPath().ConfigureAwait(false);
 
                     if (sent > 0)
                     {
@@ -2117,27 +2040,10 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
             }
-            catch (NullReferenceException e)
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
-            {
-                if (Collected)
-                    _logger.Debug(e,
-                        $"ERROR z = {Zeroed()}, dest = {dest}, source = {MessageService}, _discoveryRequest = {_discoveryRequest.Count}");
+                _logger.Debug(e,$"ERROR z = {Zeroed()}, dest = {dest}, source = {MessageService}, _discoveryRequest = {_discoveryRequest.Count}");
             }
 
             return false;
@@ -2486,12 +2392,14 @@ namespace zero.cocoon.autopeer
             //send drop request
             await SendPeerDropAsync().FastPath().ConfigureAwait(false);
 
+            
+            if(direction == Heading.Ingress && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
             //back off for a while... Try to re-establish a link 
             await ZeroAsync(static async @this =>
             {
                 await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(false);
                 await @this.SendPingAsync().FastPath().ConfigureAwait(false);
-            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
 
             //emit event
             
@@ -2505,12 +2413,12 @@ namespace zero.cocoon.autopeer
                 }
             }).FastPath().ConfigureAwait(false);
 
-            if(direction == Heading.Egress && CcCollective.Neighbors.Count < CcCollective.MaxDrones)
+            if(direction == Heading.Egress && CcCollective.EgressConnections < CcCollective.parm_max_outbound)
             {
                 await ZeroAsync(static async @this =>
                 {
                     await @this.SendPeerRequestAsync().FastPath().ConfigureAwait(false);
-                },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);    
+                },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);    
             }
         }
 

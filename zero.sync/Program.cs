@@ -206,7 +206,7 @@ namespace zero.sync
                         minOutC = 0;
                         minInC = 0;
                         uptime = 0;
-                        uptimeCount = 1;
+                        uptimeCount = 0;
                         foreach (var ioCcNode in _nodes)
                         {
                             opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsDroneConnected ?? false);
@@ -235,14 +235,14 @@ namespace zero.sync
                             ooutBound += e;
                             oinBound += i;
                             oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).Proxy);
-                            if (ioCcNode.Hub.Neighbors.Count > 0)
-                                uptime += (long)ioCcNode.Hub.Neighbors.Values.Select(static n =>
+                            if ((uptimeCount = ioCcNode.Hub.Neighbors.Count + 1) > 0)
+                                uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
                                 {
                                     if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
                                         return ((CcAdjunct)n).AttachTimestamp.Elapsed();
                                     
                                     return 0;
-                                }).Average();
+                                }).Sum();
                         }
 
 
@@ -856,7 +856,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 2, 1);
+                4, 2, 2, 1);
 
             _nodes.Add(cocoon);
 
