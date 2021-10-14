@@ -218,19 +218,15 @@ namespace zero.tangle
                 putResult = await dataSource.PutAsync(transaction);
 
                 //indicate that loading is happening
-                if (!transactionArbiter.IsArbitrating)
-                    transactionArbiter.IsArbitrating = true;                
             }
             catch (Exception e)
             {
                 _logger.Fatal(e, $"{consumer.TraceDescription} `{nameof(dataSource.PutAsync)}' should never throw exceptions. BUG!");
-                transactionArbiter.IsArbitrating = false;
             }
             finally
             {
                 if (putResult == null && consumer.State != IoJobMeta.JobState.SlowDup)
                 {
-                    transactionArbiter.IsArbitrating = false;
                     consumer.State = IoJobMeta.JobState.DbError;
 
                     //if(transactionArbiter.Source.ChannelSource.RecentlyProcessed != null)

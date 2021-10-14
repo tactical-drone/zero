@@ -1,5 +1,4 @@
-﻿//#define TOKEN
-
+﻿//#define TOKEN //TODO this primitive does not work this way
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -79,7 +78,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The current token
         /// </summary>
-        private uint _token;
+        private volatile uint _token;
 #endif
         /// <summary>
         /// A semaphore description
@@ -106,17 +105,17 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Current number of async workers
         /// </summary>
-        private uint _curAsyncWorkerCount;
+        private volatile uint _curAsyncWorkerCount;
 
         /// <summary>
         /// The current available number of threads that can enter the semaphore without blocking 
         /// </summary>
-        private int _curSignalCount;
+        private volatile int _curSignalCount;
 
         /// <summary>
         /// The current number of threads blocking on this semaphore
         /// </summary>
-        private uint _curWaitCount;
+        private volatile uint _curWaitCount;
 
         /// <summary>
         /// The number of threads that can enter the semaphore without blocking 
@@ -168,17 +167,17 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private uint _head;
+        private volatile uint _head;
 
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private uint _tail;
+        private volatile uint _tail;
 
         /// <summary>
         /// Whether this semaphore has been cleared out
         /// </summary>
-        private int _zeroed;
+        private volatile int _zeroed;
 
         /// <summary>
         /// A wait sentinel
@@ -417,9 +416,8 @@ namespace zero.core.patterns.semaphore.core
             
             if (slot == null)
             {
-                _zeroRef.ZeroIncWait();
                 _signalAwaiterState[headIdx] = state;
-
+                _zeroRef.ZeroIncWait();
                 ZeroUnlock();
             }
             else if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
@@ -594,13 +592,12 @@ namespace zero.core.patterns.semaphore.core
                     //try again
                     continue;
                 }
-                
-                //count the number of overall waiters
-                _zeroRef.ZeroDecWait();
-
                 //latch a chosen tail
                 while ((worker.Continuation =
                     Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, _signalAwaiter[latchIdx])) == null) {}
+
+                //count the number of overall waiters
+                _zeroRef.ZeroDecWait();
 
                 //unlock
                 ZeroUnlock();
@@ -691,9 +688,13 @@ namespace zero.core.patterns.semaphore.core
             //insane checks
             if (_zeroRef.ZeroWaitCount() >= _maxBlockers)
                 return ValueTask.FromResult(false);
-            
+
             //thread will attempt to block
+#if TOKEN
+            return new ValueTask<bool>(_zeroRef, _zeroRef.ZeroToken());
+#else
             return _zeroWait;
+#endif
         }
 
         /// <summary>
@@ -702,38 +703,37 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroNextTail()
         {
-            return _tail++;
+            return Interlocked.Increment(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroNextHead()
         {
-            return _head++;
+            return Interlocked.Increment(ref _head);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroPrevTail()
         {
-            return _tail--;
+            return Interlocked.Decrement(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroPrevHead()
         {
-            return _head--;
+            return Interlocked.Decrement(ref _head);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroIncWait()
         {
-            return _curWaitCount++;
+            return Interlocked.Increment(ref _curWaitCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroDecWait()
         {
-
-            return _curWaitCount--; 
+            return Interlocked.Decrement(ref _curWaitCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -745,13 +745,13 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroIncAsyncWait()
         {
-            return _curAsyncWorkerCount++;
+            return Interlocked.Increment(ref _curAsyncWorkerCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         uint IIoZeroSemaphore.ZeroDecAsyncWait()
         {
-            return _curAsyncWorkerCount--;
+            return Interlocked.Decrement(ref _curAsyncWorkerCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -769,19 +769,19 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IIoZeroSemaphore.ZeroIncCount()
         {
-            return _curSignalCount++;
+            return Interlocked.Increment(ref _curSignalCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IIoZeroSemaphore.ZeroDecCount()
         {
-            return _curSignalCount--;
+            return Interlocked.Decrement(ref _curSignalCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IIoZeroSemaphore.ZeroAddCount(int value)
         {
-            return _curSignalCount += value;
+            return Interlocked.Add(ref _curSignalCount, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

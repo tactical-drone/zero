@@ -37,10 +37,10 @@ namespace zero.core.patterns.queue
             _nodeHeap = new IoHeap<IoZNode>(capacity){Make = o => new IoZNode()};
             
             _syncRoot = new IoZeroSemaphore($"{nameof(_syncRoot)} {description}",
-                maxBlockers: concurrencyLevel * 2, initialCount: 1);
+                maxBlockers: concurrencyLevel, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks.Token);
 
-            _syncRoot = new IoZeroRefMut(_asyncTasks.Token);
+            //_syncRoot = new IoZeroRefMut(_asyncTasks.Token);
 
             if (!disablePressure)
             {

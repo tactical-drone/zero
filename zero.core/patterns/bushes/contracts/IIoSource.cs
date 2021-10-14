@@ -9,7 +9,7 @@ namespace zero.core.patterns.bushes.contracts
     /// <summary>
     /// Universal source of stuff
     /// </summary>
-    public interface IIoSource : IIoSourceBase, IIoNanoprobe
+    public interface IIoSource : IIoSourceBase, IIoNanite
     {
         /// <summary>
         /// Keys this instance.

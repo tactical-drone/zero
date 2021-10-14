@@ -3,7 +3,7 @@ using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoJob : IIoHeapItem, IIoNanoprobe
+    public interface IIoJob : IIoHeapItem, IIoNanite
     {
         /// <summary>
         /// The Id of this job

@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.SignalR.Protocol;
+﻿using System.Threading.Tasks;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes.contracts
 {
-    public interface IIoZero: IIoNanoprobe
+    public interface IIoZero: IIoNanite
     {
         IIoSource IoSource { get; }
         

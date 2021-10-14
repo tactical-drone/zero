@@ -179,7 +179,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="zero">Whether to destroy this object</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual ValueTask<T> ReturnAsync(T item, bool zero = false)
+        public virtual ValueTask ReturnAsync(T item, bool zero = false)
         {
 #if DEBUG
              if (item == null)
@@ -195,13 +195,15 @@ namespace zero.core.patterns.heap
                 
                 Interlocked.Decrement(ref _refCount);
             }
-            catch (Exception) when(_ioHeapBuf.Zeroed){}
-            catch (NullReferenceException) when(!_ioHeapBuf.Zeroed)
+            catch (Exception e) when(_zeroed > 0){ return ValueTask.FromException(e); }
+            catch (Exception e) when(_ioHeapBuf.Zeroed){ return ValueTask.FromException(e); }
+            catch (NullReferenceException e) when(!_ioHeapBuf.Zeroed && _zeroed == 0)
             {
-                _logger.Fatal($"Unexpected error while returning item to the heap! ");
+                _logger.Fatal(e ,$"{item}: Unexpected error while returning item to the heap! ");
+                return ValueTask.FromException(e);
             }
 
-            return ValueTask.FromResult(item);
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

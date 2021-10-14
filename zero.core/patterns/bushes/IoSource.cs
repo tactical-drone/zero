@@ -428,6 +428,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPressureAsync()
         {
             return _pressure.WaitAsync();
@@ -449,6 +450,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForBackPressureAsync()
         {
             return _backPressure.WaitAsync();
@@ -469,6 +471,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<bool> WaitForPrefetchPressureAsync()
         {
             return _prefetchPressure.WaitAsync();

@@ -14,7 +14,8 @@ namespace zero.core.patterns.misc
     /// <summary>
     /// ZeroAsync teardown
     /// </summary>
-    public class IoNanoprobe : IIoNanite, IDisposable
+    [AttributeUsageAttribute(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field)]
+    public class IoNanoprobe : Attribute, IIoNanite, IDisposable
     {
         /// <summary>
         /// static constructor
@@ -414,7 +415,6 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Manages managed objects
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual ValueTask ZeroManagedAsync()
         {
             _nanoMutex.Zero();

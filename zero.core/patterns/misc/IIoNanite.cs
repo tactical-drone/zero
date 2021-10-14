@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using zero.core.patterns.queue;
 
 namespace zero.core.patterns.misc
 {
@@ -83,10 +82,11 @@ namespace zero.core.patterns.misc
         ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
             T userData = default,
             bool disposing = false, bool force = false);
-        
+
         /// <summary>
         /// Collect unmanaged resources
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void ZeroUnmanaged();
 
         /// <summary>
