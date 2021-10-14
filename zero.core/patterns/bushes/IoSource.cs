@@ -52,16 +52,16 @@ namespace zero.core.patterns.bushes
             try
             {
                 _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_pressure)}, {description}",
-                    maxBlockers: concurrencyLevel*2, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                    maxBlockers: concurrencyLevel, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
                 _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_backPressure)}, {description}",
-                    maxBlockers: concurrencyLevel*2,
+                    maxBlockers: concurrencyLevel,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
                     enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
                 _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_prefetchPressure)}, {description}"
-                    , maxBlockers: concurrencyLevel*2,
+                    , maxBlockers: concurrencyLevel,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
                     enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);

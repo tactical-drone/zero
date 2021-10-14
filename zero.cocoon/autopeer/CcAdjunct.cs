@@ -49,8 +49,8 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 10);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 10);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 20, CcCollective.MaxAdjuncts * 10);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 20, CcCollective.MaxAdjuncts * 10);
             _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.parm_max_adjunct);
 
             if (extraData != null)
@@ -77,25 +77,25 @@ namespace zero.cocoon.autopeer
                     {
                         while (!@this.Zeroed())
                         {
-                            var status = @this.IsDroneConnected;
                             var patTime = @this.IsDroneConnected ? @this.CcCollective.parm_mean_pat_delay * 2 : @this.CcCollective.parm_mean_pat_delay;
                             var targetDelay = @this._random.Next(patTime / 2 * 1000) + patTime * 1000 / 4;
                         
                             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(false);
 
-                            if (status == @this.IsDroneConnected && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts > targetDelay * 1.1)
+                            if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts > targetDelay * 1.1)
                             {
                                 @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ts)/1000.0:0.0}s");
                             }
-                        
+
                             try
                             {
                                 await @this.WatchdogAsync().FastPath().ConfigureAwait(false);
                             }
-                            catch (Exception e)
+                            catch (Exception e) when (@this.Zeroed()) { }
+                            catch (Exception e) when (!@this.Zeroed())
                             {
-                                if(@this.Collected)
+                                if (@this.Collected)
                                     @this._logger.Fatal(e, $"{@this.Description}: Watchdog down!");
                             }
                         }
@@ -691,15 +691,14 @@ namespace zero.cocoon.autopeer
         {
             // Verify request
             if (!Assimilating)
-            {
                 return;
-            }
+            
 
             try
             {
                 await ZeroAsync(static async @this =>
                 {
-                    if (!@this.Zeroed() && await @this.SendPingAsync().FastPath().ConfigureAwait(false))
+                    if (await @this.SendPingAsync().FastPath().ConfigureAwait(false))
                     {
                         @this._logger.Trace($"-/> {nameof(WatchdogAsync)}: PAT to = {@this.Description}");
                     }
@@ -712,8 +711,7 @@ namespace zero.cocoon.autopeer
                     //Are we limping?
                     if (@this.Hub.Neighbors.Count <= 2)
                     {
-                        await @this.CcCollective.DeepScanAsync().ConfigureAwait(false);
-                        return;
+                        await @this.CcCollective.DeepScanAsync().FastPath().ConfigureAwait(false);
                     }
                 }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
             }
@@ -1782,8 +1780,6 @@ namespace zero.cocoon.autopeer
                 var fpcAddress =
                     Hub.Services.CcRecord.Endpoints[CcService.Keys.fpc];
 
-                
-
                 pong = new Pong
                 {
                     ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
@@ -1917,9 +1913,15 @@ namespace zero.cocoon.autopeer
 
             if (!pingRequest)
             {
+#if DEBUG
                 if (Collected)
+                {
+
                     _logger.Error($"<\\- {nameof(Pong)} {packet.Data.Memory.PayloadSig()}: SEC! {pong.ReqHash.Memory.HashSig()}, hash = {MemoryMarshal.Read<long>(packet.Data.ToByteArray())}, d = {_pingRequest.Count}, t = {TotalPats},  " +
                                   $"PK={Designation.PkString()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span)} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {extraData}, {Description}");
+                }
+#endif
+
                 return;
             }
             

@@ -45,7 +45,7 @@ namespace zero.core.patterns.queue
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: concurrencyLevel * 2, maxAsyncWork: 0, initialCount: 0);
+                    maxBlockers: concurrencyLevel, maxAsyncWork: 0, initialCount: 0);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks.Token);
             }
             
@@ -53,7 +53,7 @@ namespace zero.core.patterns.queue
             if (_enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel * 2, maxAsyncWork: 0, initialCount: 1);
+                    maxBlockers: concurrencyLevel, maxAsyncWork: 0, initialCount: concurrencyLevel);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks.Token);
             }
         }
@@ -80,6 +80,14 @@ namespace zero.core.patterns.queue
 
         private readonly IoNanoprobe _zeroSentinel;
 
+        /// <summary>
+        /// Whether the collection has been modified
+        /// </summary>
+        private volatile bool _modified;
+
+        public bool Modified => _modified;
+
+
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
             try
@@ -100,6 +108,7 @@ namespace zero.core.patterns.queue
                     var cur = Head;
                     while (cur != null)
                     {
+                        _modified = true;
                         try
                         {
                             if (!zero)
@@ -161,6 +170,7 @@ namespace zero.core.patterns.queue
         /// <returns>The queued item's linked list node</returns>
         public async ValueTask<IoZNode> PushAsync(T item)
         {
+            var blocked = false;
             try
             {
                 if (_zeroed > 0 || item == null)
@@ -182,6 +192,7 @@ namespace zero.core.patterns.queue
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
                     return null;
                 }
+                blocked = true;
                 
                 node.Prev = _head;
                 if (_head == null)
@@ -201,7 +212,9 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if(blocked)
+                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+
                 if(_pressure != null)
                     await _pressure.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
@@ -257,6 +270,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                _modified = false;
                 if (blocked)
                 {
                     await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);    
@@ -284,14 +298,13 @@ namespace zero.core.patterns.queue
             try
             {
                 if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
-                {
                     return default;
-                }
+                
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
-                {
                     return default;
-                }
+
+                _modified = true;
                 
                 blocked = true;
 
@@ -313,6 +326,9 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                if(dq == null)
+                    _modified = false;
+
                 if (blocked)
                 {
                     await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
@@ -334,6 +350,7 @@ namespace zero.core.patterns.queue
                 }
                 finally
                 {
+                    _modified = false;
                     if (_enableBackPressure)
                         await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(false);
                 }
@@ -351,14 +368,14 @@ namespace zero.core.patterns.queue
         /// <returns>True if the item was removed</returns>
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
+            if (_zeroed > 0 || node == null)
+                return false;
+
             try
             {
-                if(_zeroed > 0 || node == null)
-                    return false;
-
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
                     return false;
-
+                _modified = true;
                 //unhook
                 if (node.Prev != null)
                 {
@@ -383,6 +400,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                _modified = false;
                 await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
                 node!.Prev = null;
                 node!.Next = null;

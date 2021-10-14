@@ -388,7 +388,7 @@ namespace zero.core.patterns.bushes
 
                                 //ReturnJobToHeapAsync job
                                 nextJob.State = IoJobMeta.JobState.Reject;
-                                nextJob = await ReturnJobToHeapAsync(nextJob, true).FastPath()
+                                await ReturnJobToHeapAsync(nextJob, true).FastPath()
                                     .ConfigureAwait(false);
 
                                 //Are we in teardown?
@@ -467,12 +467,17 @@ namespace zero.core.patterns.bushes
         /// <param name="freeCurrent">If the current and previous job is to be returned</param>
         /// <returns>The job</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private async ValueTask<IoSink<TJob>> ReturnJobToHeapAsync(IoSink<TJob> job, bool freeCurrent = false)
+        private async ValueTask ReturnJobToHeapAsync(IoSink<TJob> job, bool freeCurrent = false)
         {
             try
             {
                 Debug.Assert(job!= null);
-                
+
+#if RELEASE
+                if (job == null)
+                    return;
+#endif
+
                 if (SyncRecoveryModeEnabled && job.PreviousJob != null)
                 {
 #if DEBUG
@@ -489,7 +494,7 @@ namespace zero.core.patterns.bushes
                         await _previousJobFragment.PushAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(false);
 
                     job.PreviousJob = null;
-                    return job;
+                    return;
                 }
                 //else if (!parent && job.CurrentState.Previous.CurrentState == IoJobMeta.CurrentState.Accept)
                 //{
@@ -500,12 +505,11 @@ namespace zero.core.patterns.bushes
                     await JobHeap.ReturnAsync(job, job.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(false); ;
                 
             }
-            catch (NullReferenceException e)
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Fatal(e,Description);
             }
-
-            return job;
         }
 
         private long _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -604,7 +608,7 @@ namespace zero.core.patterns.bushes
                                 }
                             }
 
-                            curJob = await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(false);
+                            await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(false);
                         }
                         catch
                         {

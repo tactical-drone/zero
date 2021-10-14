@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
@@ -154,26 +156,38 @@ namespace zero.core.misc
         /// <param name="key">The response key</param>
         /// <param name="reqHash"></param>
         /// <returns>The response payload</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
             IoChallenge potential = default;
             var cmp = reqHash.Memory;
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
             try
             {
                 var cur = _lut.Tail;
                 while(cur != null)
                 {
+                    //restart on collisions
+                    if (_lut.Modified)
+                    {
+                        cur = _lut.Tail;
+                        Thread.Yield();
+                        continue;
+                    }
                     if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
                     {
                         potential = cur.Value;
                         if (potential.Hash == 0)
                         {
-                            var hash = Sha256.ComputeHash((potential.Payload as ByteString)?.Memory.AsArray() ?? Array.Empty<byte>());
+                            var h = ArrayPool<byte>.Shared.Rent(32);
+                            if (!Sha256.TryComputeHash((potential.Payload as ByteString)!.Memory.Span,
+                                h, out var written))
+                            {
+                                LogManager.GetCurrentClassLogger().Fatal($"{_description}: Unable to compute hash");
+                            }
+
                             potential.Payload = default;
-                            potential.Hash = MemoryMarshal.Read<long>(hash);
+                            potential.Hash = MemoryMarshal.Read<long>(h);
+                            ArrayPool<byte>.Shared.Return(h);
                         }
 
                         if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
