@@ -1759,7 +1759,9 @@ namespace zero.cocoon.autopeer
                 if ((sent = await SendMessageAsync(pong.ToByteString(), CcDiscoveries.MessageTypes.Pong, toAddress)
                     .FastPath().ConfigureAwait(false)) > 0)
                 {
+#if DEBUG
                     _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent SYN-ACK, {MessageService.IoNetSocket.LocalAddress} ~> {toAddress}");
+#endif
 
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
@@ -1778,7 +1780,9 @@ namespace zero.cocoon.autopeer
                     if ((sent = await SendMessageAsync(pong.ToByteString(), CcDiscoveries.MessageTypes.Pong, toAddress)
                         .FastPath().ConfigureAwait(false)) > 0)
                     {
+#if DEBUG
                         _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent SYN-ACK, {MessageService.IoNetSocket.LocalAddress} ~> {toAddress}");
+#endif
                     }
                 }
             }
@@ -1790,10 +1794,12 @@ namespace zero.cocoon.autopeer
                 if ((sent = await SendMessageAsync(data: pong.ToByteString(), type: CcDiscoveries.MessageTypes.Pong)
                     .FastPath().ConfigureAwait(false)) > 0)
                 {
+#if DEBUG
                     if (IsDroneConnected)
                         _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent KEEPALIVE, {Description}");
                     else
                         _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent ACK SYN, {Description}");
+#endif
 
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
@@ -1977,7 +1983,9 @@ namespace zero.cocoon.autopeer
 
                     if (sent > 0)
                     {
+#if DEBUG
                         _logger.Trace($"-/> {nameof(Ping)}({sent})[{reqBuf.Span.PayloadSig()}, {challenge.Value.Payload.Memory.PayloadSig()}]: {Description}");
+#endif
 
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
@@ -1995,8 +2003,10 @@ namespace zero.cocoon.autopeer
 
                     await _pingRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(false);
 
+#if DEBUG
                     if (Collected)
                         _logger.Error($"-/> {nameof(Ping)}: [FAILED], {Description}");
+#endif
                     return false;
                 }
                 else //The destination state was undefined, this is local

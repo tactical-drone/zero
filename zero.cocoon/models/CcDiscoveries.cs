@@ -453,7 +453,7 @@ namespace zero.cocoon.models
                     {
                         if (source == null || !await ((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(false))
                         {
-                            if (!((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).Zeroed())
+                            if (source != null && !((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).Zeroed())
                                 _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
                             return false;
                         }
