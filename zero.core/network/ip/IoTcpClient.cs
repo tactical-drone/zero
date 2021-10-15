@@ -47,10 +47,10 @@ namespace zero.core.network.ip
         /// <returns>
         /// True if succeeded, false otherwise
         /// </returns>
-        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
             IoNetSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(false)).target;
-            return await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false);
+            return await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false);
         }
 
         /// <summary>

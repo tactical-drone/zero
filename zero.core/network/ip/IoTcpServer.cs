@@ -66,18 +66,20 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Connects the asynchronous.
+        /// Connect to remote.
         /// </summary>
         /// <param name="remoteAddress">The address.</param>
         /// <param name="_">The .</param>
+        /// <param name="timeout"></param>
         /// <returns>The tcp client object managing this dotNetSocket connection</returns>
-        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _)
+        public override ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress,
+            IoNetClient<TJob> _, int timeout = 0)
         {
             if (!remoteAddress.Validated)
-                return null;
+                return ValueTask.FromResult<IoNetClient<TJob>>(null);
 
             //ZEROd later on inside net server once we know the connection succeeded 
-            return await base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", ReadAheadBufferSize, ConcurrencyLevel)).ConfigureAwait(false);
+            return base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", ReadAheadBufferSize, ConcurrencyLevel), timeout);
         }
     }
 }

@@ -135,9 +135,13 @@ namespace zero.core.network.ip
         /// Connects to a remote listener
         /// </summary>
         /// <returns>True if succeeded, false otherwise</returns>
-        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false);
+            //fail fast
+            if (Zeroed())
+                return false;
+
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false);
 
             if (connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', {Description}");

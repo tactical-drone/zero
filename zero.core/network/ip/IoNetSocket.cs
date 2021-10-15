@@ -60,21 +60,19 @@ namespace zero.core.network.ip
             // Set the receive buffer size to 32k
             NativeSocket.ReceiveBufferSize = 8192 * 4;
 
+            // Set the send buffer size to 32k.
+            NativeSocket.SendBufferSize = 8192 * 4;
+
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
-            NativeSocket.ReceiveTimeout = 10000;
-
-            // Set the send buffer size to 8k.
-            NativeSocket.SendBufferSize = 8192 * 2;
+            NativeSocket.ReceiveTimeout = 1000;
 
             // Set the timeout for synchronous send methods
             // to 1 second (1000 milliseconds.)
             NativeSocket.SendTimeout = 1000;
 
-            // Set the Time To Live (TTL) to 42 router hops.
-            NativeSocket.Ttl = 42;
-
-
+            // Set the Time To Live (TTL) to 64 router hops.
+            NativeSocket.Ttl = 64;
 
             //var v = new uint[] {1, 1000, 2000}.SelectMany(BitConverter.GetBytes).ToArray();
             //var r = NativeSocket.IOControl(

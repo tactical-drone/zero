@@ -329,7 +329,8 @@ namespace zero.core.patterns.misc
 
                 foreach (var zeroSub in _zeroHiveMind)
                 {
-                    await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                    if(!zeroSub.Zeroed())
+                        await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(false);
                 }
 
                 CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;

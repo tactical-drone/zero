@@ -172,9 +172,10 @@ namespace zero.core.network.ip
         /// Connect to a remote endpoint
         /// </summary>
         /// <param name="remoteAddress">The address to connect to</param>
+        /// <param name="timeout"></param>
         /// <returns>True on success, false otherwise</returns>
 #pragma warning disable 1998
-        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        public virtual async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
 #pragma warning restore 1998
         {
             if (NativeSocket == null)

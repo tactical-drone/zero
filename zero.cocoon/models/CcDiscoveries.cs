@@ -32,12 +32,13 @@ namespace zero.cocoon.models
             var conduitName = nameof(CcAdjunct);
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatch<Packet, CcDiscoveryMessage>>(conduitName).FastPath().ConfigureAwait(false);
 
-            var cc = 256;
+            var batchSize = 256;
+            var cc = 32;
             if (ProtocolConduit == null)
             {
                 CcProtocBatchSource<Packet, CcDiscoveryMessage> channelSource = null;
                 //TODO tuning
-                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryMessage>(Description, MessageService, _arrayPool , (uint)cc, cc, cc, 0,0);
+                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryMessage>(Description, MessageService, _arrayPool , (uint)batchSize, cc, cc, 1,1);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitName,
                     Source.ZeroConcurrencyLevel(),

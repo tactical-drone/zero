@@ -421,7 +421,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_time_e = 20;
+        public int parm_time_e = 2;
 
 
         /// <summary>
@@ -541,288 +541,283 @@ namespace zero.cocoon
         /// <returns></returns>
         private async ValueTask<bool> HandshakeAsync(CcDrone drone)
         {
-            return await ZeroAtomicAsync(static async (nanite, drone, d) =>
+            
+            var handshakeSuccess = false;
+            var bytesRead = 0;
+            if (Zeroed()) return false;
+
+            try
             {
-                var handshakeSuccess = false;
-                var @this = (CcCollective)nanite;
-                var bytesRead = 0;
-                if (@this.Zeroed()) return false;
+                var handshakeBuffer = new byte[_handshakeBufferSize];
+                var ioNetSocket = drone.IoSource.IoNetSocket;
 
-                try
+                //inbound
+                if (drone.IoSource.IoNetSocket.Ingress)
                 {
-                    var handshakeBuffer = new byte[@this._handshakeBufferSize];
-                    var ioNetSocket = drone.IoSource.IoNetSocket;
-
-                    //inbound
-                    if (drone.IoSource.IoNetSocket.Ingress)
+                    var verified = false;
+                    
+                    _sw.Restart();
+                    //read from the socket
+                    do
                     {
-                        var verified = false;
-                        
-                        @this._sw.Restart();
-                        //read from the socket
-                        do
-                        {
-                            bytesRead+= await ioNetSocket
-                                .ReadAsync(handshakeBuffer, bytesRead, @this._handshakeRequestSize - bytesRead,
-                                    timeout: @this.parm_handshake_timeout).FastPath().ConfigureAwait(false);
+                        bytesRead+= await ioNetSocket
+                            .ReadAsync(handshakeBuffer, bytesRead, _handshakeRequestSize - bytesRead).FastPath().ConfigureAwait(false);
 
-                        } while (
-                            !@this.Zeroed() &&
-                            bytesRead < @this._handshakeRequestSize &&
-                            ioNetSocket.NativeSocket.Available > 0 &&
-                            bytesRead < handshakeBuffer.Length &&
-                            ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
-                        );
+                    } while (
+                        !Zeroed() &&
+                        bytesRead < _handshakeRequestSize &&
+                        ioNetSocket.NativeSocket.Available > 0 &&
+                        bytesRead < handshakeBuffer.Length &&
+                        ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                    );
 
 
-                        if (bytesRead == 0)
-                        {
-                            @this._logger.Trace(
-                                $"Failed to read inbound challange request, waited = {@this._sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
-                            return false;
-                        }
-                        else
-                        {
-                            @this._logger.Trace(
-                                $"{nameof(HandshakeRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
-                        }
-                        
-                        //parse a packet
-                        var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
-                        
-                        if (packet != null && packet.Data != null && packet.Data.Length > 0)
-                        {
-                            var packetData = packet.Data.Memory.AsArray();
-                            
-                            //verify the signature
-                            if (packet.Signature != null || packet.Signature!.Length != 0)
-                            {
-                                verified = @this.CcId.Verify(packetData, 0,
-                                    packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
-                                    packet!.Signature!.Memory.AsArray(), 0);
-                            }
-                            
-                            //Don't process unsigned or unknown messages
-                            if (!verified)
-                                return false;
-
-                            
-                            //process handshake request 
-                            var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
-                            bool won = false;
-                            if (handshakeRequest != null)
-                            {
-                                //reject old handshake requests
-                                if (handshakeRequest.Timestamp.ElapsedDelta() > @this.parm_time_e)
-                                {
-                                    @this._logger.Error(
-                                        $"Rejected old handshake request from {ioNetSocket.Key} - d = {handshakeRequest.Timestamp.ElapsedDelta()}s, {handshakeRequest.Timestamp.Elapsed()}");
-                                    return false;
-                                }
-                                
-                                //reject invalid protocols
-                                if (handshakeRequest.Version != @this.parm_version)
-                                {
-                                    @this._logger.Error(
-                                        $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {handshakeRequest.Version}, wants {@this.parm_version}");
-                                    return false;
-                                }
-
-                                //reject requests to invalid ext ip
-                                //if (handshakeRequest.To != ((CcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
-                                //{
-                                //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((CcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
-                                //    return false;
-                                //}
-
-                                //race for connection
-                                won = await @this.ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath().ConfigureAwait(false);
-
-                                @this._logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
-
-
-                                //send response
-                                var handshakeResponse = new HandshakeResponse
-                                {
-                                    ReqHash = won? UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))): ByteString.Empty
-                                };
-                                
-                                var handshake = handshakeResponse.ToByteString();
-                                
-                                @this._sw.Restart();
-                                
-                                var sent = await @this.SendMessageAsync(drone, handshake, nameof(HandshakeResponse),
-                                    @this.parm_handshake_timeout).FastPath().ConfigureAwait(false);
-                                if (sent == 0)
-                                {
-                                    @this._logger.Trace($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
-                                    return false;
-                                }
-                            }
-                            //Race
-                            //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
-                            //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                            //    .FastPath().ConfigureAwait(false);
-                            handshakeSuccess = !@this.Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && @this.IngressConnections < @this.parm_max_inbound;
-                            return handshakeSuccess;
-                        }
+                    if (bytesRead == 0)
+                    {
+                        _logger.Trace(
+                            $"Failed to read inbound challange request, waited = {_sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
+                        return false;
                     }
-                    //-----------------------------------------------------//
-                    else if (drone.IoSource.IoNetSocket.Egress) //Outbound
+                    else
                     {
-                        var handshakeRequest = new HandshakeRequest
-                        {
-                            Version = @this.parm_version,
-                            To = ioNetSocket.LocalNodeAddress.IpPort,
-                            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                        };
+                        _logger.Trace(
+                            $"{nameof(HandshakeRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
+                    }
+                    
+                    //parse a packet
+                    var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
+                    
+                    if (packet != null && packet.Data != null && packet.Data.Length > 0)
+                    {
+                        var packetData = packet.Data.Memory.AsArray();
                         
-                        var handshake = handshakeRequest.ToByteString();
-                        
-                        @this._sw.Restart();
-                        var sent = await @this.SendMessageAsync(drone, handshake, nameof(HandshakeResponse),
-                                @this.parm_handshake_timeout)
-                            .FastPath().ConfigureAwait(false);
-                        if (sent > 0)
+                        //verify the signature
+                        if (packet.Signature != null || packet.Signature!.Length != 0)
                         {
-                            @this._logger.Trace(
-                                $"Sent {sent} egress handshake challange, socket = {ioNetSocket.Description}");
+                            verified = CcId.Verify(packetData, 0,
+                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
+                                packet!.Signature!.Memory.AsArray(), 0);
                         }
-                        else
-                        {
-                            @this._logger.Trace(
-                                $"Failed to send egress handshake challange, socket = {ioNetSocket.Description}");
+                        
+                        //Don't process unsigned or unknown messages
+                        if (!verified)
                             return false;
-                        }
 
-                        do
+                        
+                        //process handshake request 
+                        var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
+                        bool won = false;
+                        if (handshakeRequest != null)
                         {
-                            bytesRead = await ioNetSocket
-                            .ReadAsync(handshakeBuffer, bytesRead, @this._handshakeResponseSize - bytesRead,
-                                timeout: @this.parm_handshake_timeout).FastPath().ConfigureAwait(false);
-                        } while (
-                            !@this.Zeroed() &&
-                            bytesRead < @this._handshakeResponseSize &&
-                            ioNetSocket.NativeSocket.Available > 0 &&
-                            bytesRead < handshakeBuffer.Length &&
-                            ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
-                        );
-
-                        if (bytesRead == 0)
-                        {
-                            @this._logger.Trace(
-                                $"Failed to read egress  handshake challange response, waited = {@this._sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {@this.Zeroed()}");
-                            return false;
-                        }
-                        
-                        @this._logger.Trace(
-                            $"Read egress  handshake challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
-                        
-                        var verified = false;
-                        
-                        var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
-                        
-                        if (packet != null && packet.Data != null && packet.Data.Length > 0)
-                        {
-
-                            var packetData = packet.Data.Memory.AsArray();
-                        
-                            //verify signature
-                            if (packet.Signature != null || packet.Signature!.Length != 0)
+                            //reject old handshake requests
+                            if (handshakeRequest.Timestamp.ElapsedDelta() > parm_time_e)
                             {
-                                verified = @this.CcId.Verify(packetData, 0,
-                                    packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
-                                    packet.Signature.Memory.AsArray(), 0);
+                                _logger.Error(
+                                    $"Rejected old handshake request from {ioNetSocket.Key} - d = {handshakeRequest.Timestamp.ElapsedDelta()}s, {handshakeRequest.Timestamp.Elapsed()}");
+                                return false;
                             }
-                        
-                            //Don't process unsigned or unknown messages
-                            if (!verified)
+                            
+                            //reject invalid protocols
+                            if (handshakeRequest.Version != parm_version)
                             {
+                                _logger.Error(
+                                    $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
                                 return false;
                             }
 
-                            @this._logger.Trace(
-                                $"HandshakeResponse [signed], from = egress, read = {bytesRead}, {drone.IoSource.Key}");
+                            //reject requests to invalid ext ip
+                            //if (handshakeRequest.To != ((CcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
+                            //{
+                            //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((CcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
+                            //    return false;
+                            //}
 
                             //race for connection
-                            var won = await @this.ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
-                                    (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                                .FastPath().ConfigureAwait(false);
+                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
-                            if(!won)
-                                return false;
+                            _logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
 
-                            //validate handshake response
-                            var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
-                        
-                            if (handshakeResponse != null)
+                            //send response
+                            var handshakeResponse = new HandshakeResponse
                             {
-                                if (handshakeResponse.ReqHash.Length == 32)
+                                ReqHash = won? UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))): ByteString.Empty
+                            };
+                            
+                            var handshake = handshakeResponse.ToByteString();
+                            
+                            _sw.Restart();
+                            
+                            var sent = await SendMessageAsync(drone, handshake, nameof(HandshakeResponse),
+                                parm_handshake_timeout).FastPath().ConfigureAwait(false);
+                            if (sent == 0)
+                            {
+                                _logger.Trace($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
+                                return false;
+                            }
+                        }
+                        //Race
+                        //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
+                        //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
+                        //    .FastPath().ConfigureAwait(false);
+                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressConnections < parm_max_inbound;
+                        return handshakeSuccess;
+                    }
+                }
+                //-----------------------------------------------------//
+                else if (drone.IoSource.IoNetSocket.Egress) //Outbound
+                {
+                    var handshakeRequest = new HandshakeRequest
+                    {
+                        Version = parm_version,
+                        To = ioNetSocket.LocalNodeAddress.IpPort,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    };
+                    
+                    var handshake = handshakeRequest.ToByteString();
+                    
+                    _sw.Restart();
+                    var sent = await SendMessageAsync(drone, handshake, nameof(HandshakeResponse))
+                        .FastPath().ConfigureAwait(false);
+                    if (sent > 0)
+                    {
+                        _logger.Trace(
+                            $"Sent {sent} egress handshake challange, socket = {ioNetSocket.Description}");
+                    }
+                    else
+                    {
+                        _logger.Trace(
+                            $"Failed to send egress handshake challange, socket = {ioNetSocket.Description}");
+                        return false;
+                    }
+
+                    do
+                    {
+                        bytesRead = await ioNetSocket
+                        .ReadAsync(handshakeBuffer, bytesRead, _handshakeResponseSize - bytesRead,
+                            timeout: parm_handshake_timeout).FastPath().ConfigureAwait(false);
+                    } while (
+                        !Zeroed() &&
+                        bytesRead < _handshakeResponseSize &&
+                        ioNetSocket.NativeSocket.Available > 0 &&
+                        bytesRead < handshakeBuffer.Length &&
+                        ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
+                    );
+
+                    if (bytesRead == 0)
+                    {
+                        _logger.Trace(
+                            $"Failed to read egress  handshake challange response, waited = {_sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {Zeroed()}");
+                        return false;
+                    }
+                    
+                    _logger.Trace(
+                        $"Read egress  handshake challange response size = {bytesRead} b, addess = {ioNetSocket.RemoteAddress}");
+                    
+                    var verified = false;
+                    
+                    var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
+                    
+                    if (packet != null && packet.Data != null && packet.Data.Length > 0)
+                    {
+
+                        var packetData = packet.Data.Memory.AsArray();
+                    
+                        //verify signature
+                        if (packet.Signature != null || packet.Signature!.Length != 0)
+                        {
+                            verified = CcId.Verify(packetData, 0,
+                                packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
+                                packet.Signature.Memory.AsArray(), 0);
+                        }
+                    
+                        //Don't process unsigned or unknown messages
+                        if (!verified)
+                        {
+                            return false;
+                        }
+
+                        _logger.Trace(
+                            $"HandshakeResponse [signed], from = egress, read = {bytesRead}, {drone.IoSource.Key}");
+
+                        //race for connection
+                        var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
+                                (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
+                            .FastPath().ConfigureAwait(false);
+
+                        if(!won)
+                            return false;
+
+                        //validate handshake response
+                        var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
+                    
+                        if (handshakeResponse != null)
+                        {
+                            if (handshakeResponse.ReqHash.Length == 32)
+                            {
+                                if (!CcDesignation.Sha256
+                                    .ComputeHash(handshake.Memory.AsArray())
+                                    .SequenceEqual(handshakeResponse.ReqHash))
                                 {
-                                    if (!CcDesignation.Sha256
-                                        .ComputeHash(handshake.Memory.AsArray())
-                                        .SequenceEqual(handshakeResponse.ReqHash))
-                                    {
-                                        @this._logger.Error($"Invalid handshake response! Closing {ioNetSocket.Key}");
-                                        return false;
-                                    }
-                                }
-                                else
-                                {
+                                    _logger.Error($"Invalid handshake response! Closing {ioNetSocket.Key}");
                                     return false;
                                 }
                             }
-                        
-                            handshakeSuccess = !@this.Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational && @this.EgressConnections < @this.parm_max_outbound;
-                            return handshakeSuccess;
+                            else
+                            {
+                                return false;
+                            }
                         }
+                    
+                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational && EgressConnections < parm_max_outbound;
+                        return handshakeSuccess;
                     }
                 }
-                catch (NullReferenceException e)
+            }
+            catch (NullReferenceException e)
+            {
+                _logger.Trace(e, Description);
+            }
+            catch (TaskCanceledException e)
+            {
+                _logger.Trace(e, Description);
+            }
+            catch (ObjectDisposedException e)
+            {
+                _logger.Trace(e, Description);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,
+                    $"Handshake (size = {bytesRead}/{_handshakeRequestSize}/{_handshakeResponseSize}) for {Description} failed with:");
+            }
+            finally
+            {
+                if (handshakeSuccess)
                 {
-                    @this._logger.Trace(e, @this.Description);
-                }
-                catch (TaskCanceledException e)
-                {
-                    @this._logger.Trace(e, @this.Description);
-                }
-                catch (ObjectDisposedException e)
-                {
-                    @this._logger.Trace(e, @this.Description);
-                }
-                catch (Exception e)
-                {
-                    @this._logger.Error(e,
-                        $"Handshake (size = {bytesRead}/{@this._handshakeRequestSize}/{@this._handshakeResponseSize}) for {@this.Description} failed with:");
-                }
-                finally
-                {
-                    if (handshakeSuccess)
+                    if (drone.IoSource.IoNetSocket.Egress)
                     {
-                        if (drone.IoSource.IoNetSocket.Egress)
+                        await drone.ZeroSubAsync(static (_,@this) =>
                         {
-                            await drone.ZeroSubAsync(static (_,@this) =>
-                            {
-                                Interlocked.Decrement(ref @this.EgressConnections);
-                                return ValueTask.FromResult(true);
-                            }, @this).FastPath().ConfigureAwait(false);
+                            Interlocked.Decrement(ref @this.EgressConnections);
+                            return ValueTask.FromResult(true);
+                        }, this).FastPath().ConfigureAwait(false);
 
-                            Interlocked.Increment(ref @this.EgressConnections);
-                        }
-                        else if (drone.IoSource.IoNetSocket.Ingress)
+                        Interlocked.Increment(ref EgressConnections);
+                    }
+                    else if (drone.IoSource.IoNetSocket.Ingress)
+                    {
+                        await drone.ZeroSubAsync( static (from, @this) =>
                         {
-                            await drone.ZeroSubAsync( static (from, @this) =>
-                            {
-                                Interlocked.Decrement(ref @this.IngressConnections);
-                                return ValueTask.FromResult(true);
-                            },@this).FastPath().ConfigureAwait(false);
-                            Interlocked.Increment(ref @this.IngressConnections);
-                        }
+                            Interlocked.Decrement(ref @this.IngressConnections);
+                            return ValueTask.FromResult(true);
+                        },this).FastPath().ConfigureAwait(false);
+                        Interlocked.Increment(ref IngressConnections);
                     }
                 }
+            }
 
-                return false;
-            }, drone).FastPath().ConfigureAwait(false);
+            return false;
+            
         }
 
         /// <summary>
@@ -881,7 +876,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct).ConfigureAwait(false);
+                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency * 2).FastPath().ConfigureAwait(false);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) await drone.ZeroAsync(this).FastPath().ConfigureAwait(false);

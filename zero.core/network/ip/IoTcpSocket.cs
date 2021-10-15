@@ -149,10 +149,11 @@ namespace zero.core.network.ip
         /// Connect to a remote endpoint
         /// </summary>
         /// <param name="remoteAddress">The address to connect to</param>
+        /// <param name="timeout"></param>
         /// <returns>True on success, false otherwise</returns>
-        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
         {
-            if (!await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false))
                 return false;
 
             NativeSocket.Blocking = false;
@@ -163,7 +164,22 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token).FastPath().ConfigureAwait(false);
+                var connectTask = NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token);
+
+                if (timeout > 0)
+                {
+                    await ZeroAsync(static async state =>
+                    {
+                        var (@this, timeout) = state;
+                        await Task.Delay(timeout, @this.AsyncTasks.Token).ConfigureAwait(false);
+
+                        if (!@this.IsConnected())
+                            @this.AsyncTasks.Cancel();
+                        
+                    }, ValueTuple.Create(this, timeout), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+                }
+
+                await connectTask.FastPath().ConfigureAwait(false);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint( "tcp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint) NativeSocket.RemoteEndPoint);
 
@@ -199,7 +215,6 @@ namespace zero.core.network.ip
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"Connected to `{remoteAddress}' failed: {Description}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
 
             return false;
@@ -232,9 +247,11 @@ namespace zero.core.network.ip
                 NativeSocket.SendTimeout = 0;
                 return sent; //TODO optimize copy
             }
-            catch (SocketException e) when (!Zeroed())
+            catch (SocketException) when (!Zeroed())
             {
-                _logger.Trace(e, $"{Description}");
+                //TODO why is this spamming An established connection was aborted?
+                //_logger.Trace( $"{nameof(SendAsync)}: {Description}, {e.Message}");
+                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
@@ -282,7 +299,8 @@ namespace zero.core.network.ip
             }
             catch (SocketException e) when (!Zeroed())
             {
-                _logger?.Trace(e, $"{Description}");
+                _logger.Trace($"{nameof(ReadAsync)}: {Description}, {e.Message}");
+                await ZeroAsync(this).FastPath().ConfigureAwait(false);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed()) 

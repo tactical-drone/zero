@@ -75,7 +75,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 1000;
+            var total = 100;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -113,14 +113,14 @@ namespace zero.sync
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
-                var rateLimit = 12000;
+                var rateLimit = 9000;
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
                     if (c % injectionCount == 0)
                     {
-                        await Task.Delay(rateLimit += 100).ConfigureAwait(false);
+                        await Task.Delay(rateLimit += 10).ConfigureAwait(false);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -206,7 +206,7 @@ namespace zero.sync
                         minOutC = 0;
                         minInC = 0;
                         uptime = 0;
-                        uptimeCount = 0;
+                        uptimeCount = 1;
                         foreach (var ioCcNode in _nodes)
                         {
                             opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsDroneConnected ?? false);
@@ -235,7 +235,7 @@ namespace zero.sync
                             ooutBound += e;
                             oinBound += i;
                             oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).Proxy);
-                            if ((uptimeCount = ioCcNode.Hub.Neighbors.Count + 1) > 0)
+                            if ((uptimeCount = ioCcNode.Hub.Neighbors.Count - 1) > 0)
                                 uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
                                 {
                                     if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
@@ -243,8 +243,9 @@ namespace zero.sync
                                     
                                     return 0;
                                 }).Sum();
-                        }
 
+                            uptimeCount += ioCcNode.TotalConnections;
+                        }
 
                         if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
                         {

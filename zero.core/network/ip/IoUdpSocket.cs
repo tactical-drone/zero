@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -237,9 +238,9 @@ namespace zero.core.network.ip
             }
         }
 
-        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            if (!await base.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false))
                 return false;
 
             Configure();
@@ -336,121 +337,56 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
-            try
-            {
+
 #if DEBUG
                 if (_sendSync.CurNrOfBlockers >= _sendArgs.MaxSize / 2)
                     _logger.Warn(
                         $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.MaxSize}");
-#endif
 
+                Debug.Assert(endPoint != null);
+#endif
+            SocketAsyncEventArgs args = default;
+            IIoZeroSemaphore tcs = default;
+            try
+            {
                 if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;
 
-                //fail fast
-                if (Zeroed() || NativeSocket is { IsBound: false })
-                {
-                    if (!Zeroed())
-                        _logger.Error($"Socket is ded? z = {Zeroed()}, from = {ZeroedFrom?.Description} bound = {NativeSocket?.IsBound}");
+                args = await _sendArgs.TakeAsync().FastPath().ConfigureAwait(false);
+                if (args == null)
+                    throw new OutOfMemoryException(nameof(_sendArgs));
+
+                tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
+                if (tcs == null)
+                    throw new OutOfMemoryException(nameof(_tcsHeap));
+
+                var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
+                args.SetBuffer(buf);
+                args.RemoteEndPoint = endPoint;
+                args.UserToken = tcs;
+
+                //receive
+                if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;
-                }
 
-                if (endPoint == null)
-                {
-                    _logger.Fatal("No endpoint supplied!");
-                    return 0;
-                }
-
-
-                //if (MemoryMarshal.TryGetArray(buffer, out var buf))
-                {
-
-                    //Task<int> sendTask;
-                    ////lock(Socket)
-                    //sendTask = NativeSocket.SendToAsync(buf, SocketFlags.None, endPoint);
-
-                    ////slow path
-                    //if (!sendTask.IsCompletedSuccessfully)
-                    //    await sendTask.ConfigureAwait(false);
-
-                    //return sendTask.Result;
-
-                    var args = await _sendArgs.TakeAsync().FastPath().ConfigureAwait(false);
-
-                    // var alloc = true;
-                    // var args = new SocketAsyncEventArgs();
-                    // args.Completed += Signal;
-
-                    if (args == null)
-                        throw new OutOfMemoryException(nameof(_sendArgs));
-
-                    // while (/*args.Disposed ||*/
-                    //        args.LastOperation != SocketAsyncOperation.None &&
-                    //        args.LastOperation != SocketAsyncOperation.SendTo ||
-                    //        args.SocketError != SocketError.Success)
-                    // {
-                    //     await _sendArgs.ReturnAsync(args, true).FastPath().ConfigureAwait(false); ;
-                    //     _sendArgs.Take(out args);
-                    // }
-
-                    var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
-                    if (tcs == null)
-                        throw new OutOfMemoryException(nameof(_tcsHeap));
-
-                    try
-                    {
-                        var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
-                        args.SetBuffer(buf);
-                        args.RemoteEndPoint = endPoint;
-                        args.UserToken = tcs;
-
-                        //receive
-                        if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
-                            return 0;
-                        
-                        //args.SetBuffer(_tmpBuf, 0, 0);
-                        return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
-                    }
-                    catch when(Zeroed()){}
-                    catch (Exception e) when(!Zeroed())
-                    {
-                        _logger.Error(e, "Send udp failed:");
-                    }
-                    finally
-                    {
-                        // if (!alloc)
-                        // {
-                        //     var dispose = args.SocketError != SocketError.Success;//|| args.Disposed;
-                        //
-                        //     if (dispose /*&& !args.Disposed*/)
-                        //     {
-                        //         args.SetBuffer(null, 0, 0);
-                        //         args.Completed -= Signal;
-                        //         args.Dispose();
-                        //     }
-                        //
-                        //     await _sendArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false); ;
-                        // }
-                        // else
-                        // {
-                        //     args.Completed -= Signal;
-                        // }
-
-                        await _sendArgs.ReturnAsync(args).FastPath().ConfigureAwait(false);
-                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
-                    }
-                }
+                return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
             }
-            catch (Exception) when (Zeroed()){}
-            catch (Exception e) when(!Zeroed())
+            catch (Exception) when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e,$"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
+                _logger.Error(e,
+                    $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
                 await ZeroAsync(this).ConfigureAwait(false);
             }
             finally
             {
-                if(_sendSync != null)
-                    await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(false);
+                if (args != default)
+                    await _sendArgs.ReturnAsync(args).FastPath().ConfigureAwait(false);
+                
+                if (tcs != default)
+                    await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
+
+                await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             return 0;
@@ -478,8 +414,8 @@ namespace zero.core.network.ip
             {
                 await ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
-            catch(Exception) when(!Zeroed()){}
-            catch(Exception e)
+            catch(Exception) when(Zeroed()){}
+            catch(Exception e) when (!Zeroed())
             {
                 _logger.Fatal(e,$"{Description}: udp signal callback failed!");
                 // ignored
@@ -503,10 +439,6 @@ namespace zero.core.network.ip
             {
                 //concurrency
                 if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(false))
-                    return 0;
-                
-                //fail fast
-                if (Zeroed())
                     return 0;
 
                 if (timeout == 0)
@@ -553,59 +485,25 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-
-                        //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>) buffer, out var seg))
-                        //{
-                        //    StringWriter w = new StringWriter();
-                        //    w.Write($"{buffer.GetHashCode()} ({args.BytesTransferred}):");
-                        //    var nullc = 0;
-                        //    var nulld = 0;
-                        //    for (int i = 0; i < args.BytesTransferred; i++)
-                        //    {
-                        //        if (args.MemoryBuffer.Span[i] == 0)
-                        //            nullc++;
-
-                        //        if (buffer.Span[i + offset] == 0)
-                        //            nulld++;
-
-                        //        w.Write($" {seg[i + offset]}.");
-                        //    }
-
-                        //    if (nullc > 0 && (double) nullc / args.BytesTransferred > 0.2)
-                        //    {
-
-                        //    }
-
-                        //    if (nulld > 0 && (double) nulld / args.BytesTransferred > 0.2)
-                        //    {
-
-                        //    }
-
-                        //    _logger.Fatal(w);
-
-                        //}
-                        //args.UserToken = null;
-                        //args.AcceptSocket = null;
-                        //args.RemoteEndPoint = null;
-                        
-                        
-                        //args.SetBuffer(null, 0, 0);
-
-                        var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
-                        if (dispose)
+                        if (args != null)
                         {
-                            args.SetBuffer(null, 0, 0);
-                            args.Completed -= SignalAsync;
-                            args.Dispose();
-                        }
+                            var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
+                            if (dispose)
+                            {
+                                args.SetBuffer(null, 0, 0);
+                                args.Completed -= SignalAsync;
+                                args.Dispose();
+                            }
 
-                        await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false);
-                        await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
+                            await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false);
+                        }
+                        
+                        if (tcs != null)
+                            await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
                     }
                 }
 
-                if (timeout <= 0) return 0;
-
+                if (timeout < 0) return 0;
 
                 EndPoint remoteEpAny = null;
                 if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>) buffer, out var tBuf))
@@ -628,8 +526,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                if(_recvArgs != null)
-                    await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(false);
             }
 
             return 0;
@@ -647,13 +544,10 @@ namespace zero.core.network.ip
             {
                 return NativeSocket is {IsBound: true, LocalEndPoint: { }};
             }
-            catch (ObjectDisposedException)
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
-                //ignored
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e, Description);
+                _logger?.Trace(e, Description);
             }
 
             return false;
@@ -675,20 +569,18 @@ namespace zero.core.network.ip
             NativeSocket.ExclusiveAddressUse = true;
 
             // Set the receive buffer size to 32k
-            //NativeSocket.ReceiveBufferSize = 8192 * 4;
             NativeSocket.ReceiveBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
-            NativeSocket.ReceiveTimeout = 100;
+            NativeSocket.ReceiveTimeout = 300;
 
-            // Set the send buffer size to 8k.
-            //NativeSocket.SendBufferSize = 8192 * 2;
+            // Set the send buffer size to 32k.
             NativeSocket.SendBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous send methods
             // to 1 second (1000 milliseconds.)
-            NativeSocket.SendTimeout = 2000;
+            NativeSocket.SendTimeout = 300;
 
             // Set the Time To Live (TTL) to 42 router hops.
             NativeSocket.Ttl = 64;

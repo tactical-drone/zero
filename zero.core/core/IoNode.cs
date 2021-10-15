@@ -261,15 +261,16 @@ namespace zero.core.core
 
         /// <summary>
         /// Make sure a connection stays up
-        /// </summary>        
+        /// </summary>
         /// <param name="remoteAddress">The remote node address</param>
         /// <param name="extraData">Any extra data you want to send to the neighbor constructor</param>
         /// <param name="retry">Retry on failure</param>
-        /// <param name="retryTimeoutMs">Retry timeout in ms</param>
+        /// <param name="timeout">Retry timeout in ms</param>
         /// <returns>The async task</returns>
-        public async Task<IoNeighbor<TJob>> ConnectAsync(IoNodeAddress remoteAddress, object extraData = null, bool retry = false, int retryTimeoutMs = 10000)
+        public async ValueTask<IoNeighbor<TJob>> ConnectAsync(IoNodeAddress remoteAddress, object extraData = null,
+            bool retry = false, int timeout = 0)
         {
-            var newClient = await _netServer.ConnectAsync(remoteAddress).ConfigureAwait(false);
+            var newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath().ConfigureAwait(false);
 
             if (newClient != null)
             {

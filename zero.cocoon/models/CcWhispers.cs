@@ -266,9 +266,10 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
                                 continue;
 
-                            if (await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(false) <= 0)
+                            if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(false) <= 0)
                             {
-                                _logger.Trace($"Failed to forward new msg message to {drone.Description}");
+                                if(source.IsOperational)
+                                    _logger.Trace($"Failed to forward new msg message to {drone.Description}");
                             }
                             else
                             {
@@ -284,82 +285,18 @@ namespace zero.cocoon.models
                                 }).FastPath().ConfigureAwait(false);
                             }
                         }
-                        catch (Exception e)
+                        catch when( Zeroed()){}
+                        catch (Exception e)when(!Zeroed())
                         {
-                            _logger.Trace(e);
+                            _logger.Trace(e, Description);
                         }
                     }
-
-
-                    //await ZeroOptionAsync(static async state =>
-                    //    {
-                    //        var (@this, read, endpoint, dupEndpoints) = state;
-
-                    //        var vt = ValueTuple.Create(@this, read, endpoint, dupEndpoints);
-                    //        await @this.CcCollective.WhisperingDrones.ForEachAsync(static async (drone, state) =>
-                    //        {
-                    //            var (@this, read, endpoint, dupEndpoints) = state;
-                    //            try
-                    //            {
-                    //                var source =
-                    //                    (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)drone.Source;
-
-                    //                //Don't forward new messages to nodes from which we have received the msg in the mean time.
-                    //                //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
-                    //                //which in turn lowers the traffic causing less congestion
-                    //                if (source.IoNetSocket.RemoteAddress == endpoint ||
-                    //                    dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
-                    //                    return;
-
-                    //                if (await source.IoNetSocket
-                    //                    .SendAsync(@this.Buffer, (int)(@this.BufferOffset - read), read).FastPath()
-                    //                    .ConfigureAwait(false) <= 0)
-                    //                {
-                    //                    _logger.Trace($"Failed to forward new msg message to {drone.Description}");
-                    //                }
-                    //                else
-                    //                {
-                    //                    AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    //                    {
-                    //                        EventType = AutoPeerEventType.SendProtoMsg,
-                    //                        Msg = new ProtoMsg
-                    //                        {
-                    //                            CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
-                    //                            Id = drone.Adjunct.Designation.IdString(),
-                    //                            Type = $"gossip{@this.Id % 6}"
-                    //                        }
-                    //                    });
-                    //                }
-                    //            }
-                    //            catch (Exception e)
-                    //            {
-                    //                _logger.Trace(e);
-                    //            }
-
-                    //        }, vt).FastPath().ConfigureAwait(false);
-
-                    //    }, vt,TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
                 }
 
                 State = IoJobMeta.JobState.Consumed;
             }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e)when(!Zeroed())
             {
                 _logger.Error(e, $"Unmarshal Packet failed in {Description}");
             }

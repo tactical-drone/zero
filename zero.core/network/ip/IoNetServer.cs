@@ -107,12 +107,11 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="remoteAddress">A stub</param>
         /// <param name="ioNetClient">The client to connect to</param>
+        /// <param name="timeout"></param>
         /// <returns>The client object managing this socket connection</returns>
-        public virtual async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> ioNetClient = null)
+        public virtual async ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress,
+            IoNetClient<TJob> ioNetClient = null, int timeout = 0)
         {
-            if (ioNetClient == null)
-                return null;
-
             if (!_connectionAttempts.TryAdd(remoteAddress.Key, ioNetClient))
             {
                 return null;
@@ -131,46 +130,50 @@ namespace zero.core.network.ip
             var connected = false;
             try
             {
-                connected = await ioNetClient.ConnectAsync(remoteAddress).FastPath().ConfigureAwait(false);
-                if (connected)
+                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false);
+                if (connected && ioNetClient.IsOperational)
                 {
                     //Check things
-                    if (ioNetClient.IsOperational)
-                    {
-                        //Ensure ownership
-                        if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(false)).success,ioNetClient).FastPath().ConfigureAwait(false))
-                        {
-                            _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
-                            //REJECT
-                            connected = false;
-                        }
 
-                        _logger.Trace($"{nameof(ConnectAsync)}: [SUCCESS], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
-                    }
-                    else // On connection failure after successful connect?
+                    //Ensure ownership
+                    //if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(false)).success,ioNetClient).FastPath().ConfigureAwait(false))
+                    //{
+                    //    _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
+                    //    //REJECT
+                    //    connected = false;
+                    //}
+
+                    if (!(await ZeroHiveAsync(ioNetClient).FastPath().ConfigureAwait(false)).success)
                     {
-                        _logger.Trace($"{nameof(ConnectAsync)}: [STALE], {ioNetClient.IoNetSocket.RemoteNodeAddress}");
+                        _logger.Trace($"{Description}: {nameof(ConnectAsync)} [FAILED], unable to ensure ownership!");
                         //REJECT
                         connected = false;
                     }
 
+                    _logger.Trace(
+                        $"{Description}: {nameof(ConnectAsync)} [SUCCESS], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
                     //ACCEPT
                 }
+                else // On connection failure after successful connect?
+                {
+                    _logger.Trace($"{Description}: {nameof(ConnectAsync)} [STALE], {remoteAddress}");
+                    //REJECT
+                    connected = false;
+                }
             }
-            catch (TaskCanceledException e) {_logger.Trace(e, Description);}
-            catch (NullReferenceException e) { _logger.Trace(e, Description); }
-            catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
-            catch (OperationCanceledException e) { _logger.Trace(e, Description); }
+            catch when (Zeroed()) { }
+            catch (Exception e)when (!Zeroed())
+            {
+                _logger.Error(e, $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]!");
+            }
             finally
             {
                 if (!connected)
                 {
-                    await ioNetClient.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                    await ioNetClient!.ZeroAsync(this).FastPath().ConfigureAwait(false);
 
                     if (!Zeroed())
-                        _logger.Error($"{nameof(ConnectAsync)}: [FAILED], dest = {ioNetClient.IoNetSocket.RemoteNodeAddress}");
-
-                    ioNetClient = null;
+                        _logger.Error($"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]");
                 }
 
                 if (!_connectionAttempts.TryRemove(remoteAddress.Key, out _))

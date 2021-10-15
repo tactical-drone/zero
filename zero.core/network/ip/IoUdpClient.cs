@@ -62,10 +62,10 @@ namespace zero.core.network.ip
         /// <returns>
         /// True if succeeded, false otherwise
         /// </returns>
-        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress)
+        public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
             IoNetSocket = (await ZeroHiveAsync(new IoUdpSocket(ZeroConcurrencyLevel()), true)).target;
-            return await base.ConnectAsync(remoteAddress).ConfigureAwait(false);
+            return await base.ConnectAsync(remoteAddress, timeout).ConfigureAwait(false);
         }
 
         public override void Blacklist(int remoteAddressPort)

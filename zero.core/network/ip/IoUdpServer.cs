@@ -79,12 +79,13 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="remoteAddress">The address.</param>
         /// <param name="_">The .</param>
+        /// <param name="timeout"></param>
         /// <returns>The udp client object managing this socket connection</returns>
-        public override async Task<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _)
+        public override ValueTask<IoNetClient<TJob>> ConnectAsync(IoNodeAddress remoteAddress, IoNetClient<TJob> _, int timeout = 0)
         {
             //ZEROd later on inside net server once we know the connection succeeded
             var ioUdpClient = new IoUdpClient<TJob>($"{nameof(IoUdpServer<TJob>)} ~> {Description}",ReadAheadBufferSize, ConcurrencyLevel);
-            return await base.ConnectAsync(remoteAddress, ioUdpClient).ConfigureAwait(false);
+            return base.ConnectAsync(remoteAddress, ioUdpClient, timeout);
         }
 
     }

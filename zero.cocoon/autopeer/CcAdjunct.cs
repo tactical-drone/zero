@@ -886,13 +886,10 @@ namespace zero.cocoon.autopeer
                             }
                         }
                     }
-                    catch (NullReferenceException e)
+                    catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) { }
+                    catch (Exception e) when (!@this.Zeroed())
                     {
-                        @this._logger?.Trace(e, $"{@this.Description}");
-                    }
-                    catch (Exception e)
-                    {
-                        @this._logger?.Fatal(e, $"{@this.Description}");
+                        @this._logger?.Error(e, $"{@this.Description}");
                     }
                     
                 },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness/*CONFIRMED TUNE*/);
@@ -1029,7 +1026,7 @@ namespace zero.cocoon.autopeer
                             }
                         }
                     }
-                    catch when(@this.Zeroed()){}
+                    catch when(@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) {}
                     catch (Exception e) when (!@this.Zeroed())
                     {
                         @this._logger?.Error(e, $"{@this.Description}");
@@ -1041,11 +1038,8 @@ namespace zero.cocoon.autopeer
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                if (Collected)
-                    _logger?.Debug(e, $"Error processing {Description}");
+                _logger?.Debug(e, $"Error processing {Description}");
             }
-
-            _logger?.Debug($"Stopped processing messages from {Description}!");
         }
 
         /// <summary>

@@ -83,7 +83,7 @@ namespace zero.tangle
             
             if (!Neighbors.ContainsKey(connectBackAddress.Key))
             {
-                var newNeighbor = await ConnectAsync(connectBackAddress).ConfigureAwait(false);
+                var newNeighbor = await ConnectAsync(connectBackAddress).FastPath().ConfigureAwait(false);
                 if (newNeighbor!= null)
                 {
                     await ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubAsync<object>(async (_,_) => await newNeighbor.ZeroAsync(this).ConfigureAwait(false)).FastPath().ConfigureAwait(false);
