@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.queue
@@ -479,10 +478,17 @@ namespace zero.core.patterns.queue
 
         }
 
-        public void ResetTail(IoZNode cur, int count)
+        /// <summary>
+        /// Clip the queue
+        /// </summary>
+        /// <param name="cur">The new head pointer</param>
+        /// <param name="count">The number of elements clipped</param>
+        public void Clip(IoZNode cur, int count)
         {
             _head = cur;
             Interlocked.Add(ref _count, -count);
+            if (_count == 0)
+                _tail = null;
         }
     }
 }

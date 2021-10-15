@@ -23,8 +23,8 @@ namespace zero.cocoon.events.services
         private static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
             //TODO tuning
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000, disablePressure:false),
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000, disablePressure:false)
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000),
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
         };
 
         private static volatile int _operational = 1;
@@ -35,7 +35,6 @@ namespace zero.cocoon.events.services
         public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)
         {
             var response = new EventResponse();
-            var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             try
             {
                 if (_operational == 0)
@@ -45,12 +44,14 @@ namespace zero.cocoon.events.services
                 if (_queuedEvents[_curIdx%2].Count == 0)
                     await Task.Delay(200).ConfigureAwait(false);
 
-                int c = 0;
-                
-                var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx)-1)% 2];
+                var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx)-1) % 2];
                 var cur = curQ.Head;
-            
-                while (c < EventBatchSize && curQ.Count > 0 && cur != null)
+
+                if (cur == null)
+                    return response;
+
+                int c = 0;
+                while (c < EventBatchSize && cur != null)
                 {
                     response.Events.Add(cur.Value);
 
@@ -58,16 +59,13 @@ namespace zero.cocoon.events.services
                     cur.Prev = null;
                     cur.Next = null;
                     cur.Value = default;
-
+                    await curQ.NodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(false);
                     cur = tmp;
                     c++;
                 }
 
-                if(cur == null)
-                    await curQ.ClearAsync().FastPath().ConfigureAwait(false);
-                else if (c > 0)
-                    curQ.ResetTail(cur, c);
-                
+                curQ.Clip(cur, curQ.Count);
+
             }
             catch (Exception e)
             {
