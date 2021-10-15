@@ -61,12 +61,6 @@ namespace zero.core.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ElapsedToSec(this long timestamp)
-        {
-            return (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp)/1000;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ElapsedMs(this long timestamp)
         {
             return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;

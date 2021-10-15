@@ -153,7 +153,7 @@ namespace zero.sync
                     foreach (var task in tasks)
                     {
                         //continue;
-                        if (await task.Result.BootAsync(v).FastPath().ConfigureAwait(false))
+                        if (await task.Result.BootAsync(v, tasks.Count).FastPath().ConfigureAwait(false))
                         {
                             v++;
                             break;
@@ -231,7 +231,7 @@ namespace zero.sync
                                 foreach (var d in ioCcNode.Neighbors.Values)
                                 {
                                     var drone = (CcDrone) d;
-                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedToSec():0.0}s");
+                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
                                 }
                             }
                                 

@@ -233,8 +233,8 @@ namespace zero.core.network.ip
                             // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
                             )
                         {
-                            if(Uptime.ElapsedToSec() > 5)
-                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(Uptime.ElapsedToSec())}");
+                            if(Uptime.ElapsedMs() > 5)
+                                _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMs())}");
 
                             //Do cleanup
                             return _operational = false;

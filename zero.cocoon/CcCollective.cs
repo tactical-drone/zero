@@ -307,20 +307,18 @@ namespace zero.cocoon
         /// </summary>
         public int TotalConnections => IngressConnections + EgressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Ingress => Drones.Where(kv=>(((CcDrone) kv).Adjunct.IsIngress)).ToList();
+        public List<CcDrone> Ingress => Drones.Where(kv=>(kv.Adjunct.IsIngress)).ToList();
 
-        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Drones => Neighbors.Values.Where(kv =>
-            ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList();
+        public List<CcDrone> Drones => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsDroneConnected: true }).Cast<CcDrone>().ToList();
 
-        public List<CcDrone> WhisperingDrones => Neighbors.Values.Where(kv =>
-            ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneAttached).ToList().Cast<CcDrone>().ToList();
+        public List<CcDrone> WhisperingDrones => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsGossiping: true }).Cast<CcDrone>().ToList();
 
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
         public volatile int IngressConnections;
 
-        public List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.IsEgress)).ToList();
+        public List<CcDrone> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.IsEgress)).ToList();
 
         /// <summary>
         /// Number of outbound neighbors
@@ -874,7 +872,7 @@ namespace zero.cocoon
             }
         }
 
-        private static readonly float _lambda = 100;
+        private static readonly double _lambda = 0.5;
         private static readonly int _maxAsyncConnectionAttempts = 2;
 
         private int _currentOutboundConnectionAttempts;
@@ -883,13 +881,12 @@ namespace zero.cocoon
         /// <summary>
         /// Boots the node
         /// </summary>
-        public async ValueTask<bool> BootAsync(long v = 0)
+        public async ValueTask<bool> BootAsync(long v = 0, int total = 1)
         {            
             Interlocked.Exchange(ref Testing, 1);
-            foreach (var ioNeighbor in Drones)
+            foreach (var ioNeighbor in WhisperingDrones)
             {
-                var s = _poisson.Sample();
-                if (Math.Abs(s - _lambda) > 5)
+                if (Poisson.Sample(Random.Shared, 1 / (double)total) == 0)
                 {
                     continue;
                 }
@@ -898,7 +895,8 @@ namespace zero.cocoon
                     await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(false);
                     return true;
                 }
-                catch (Exception e)
+                catch when(Zeroed()){}
+                catch (Exception e)when(!Zeroed())
                 {
                     _logger.Debug(e,Description);
                 }

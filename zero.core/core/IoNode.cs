@@ -290,7 +290,7 @@ namespace zero.core.core
                     }
 
                     //Existing and not broken neighbor?
-                    if(@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedToSec() > @this.parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
+                    if(@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedMs() > @this.parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
                     {
                         return false;
                     }
