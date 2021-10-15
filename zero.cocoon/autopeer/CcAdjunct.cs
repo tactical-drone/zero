@@ -503,7 +503,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_zombie_max_connection_attempts = 3;
+        public int parm_zombie_max_connection_attempts = 100;
 
         /// <summary>
         /// Minimum pats before a node could be culled
@@ -1417,7 +1417,14 @@ namespace zero.cocoon.autopeer
                 {
                     var (@this, newRemoteEp, id, services) = state;
                     if (!await @this.CollectAsync(newRemoteEp, id, services).FastPath().ConfigureAwait(false))
+                    {
+#if DEBUG
                         @this._logger.Error($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
+#else
+                        @this._logger.Debug($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
+#endif
+                    }
+                        
                 }, ValueTuple.Create(this,newRemoteEp, id, services), TaskCreationOptions.LongRunning|TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                 
                 count++;
@@ -1473,7 +1480,7 @@ namespace zero.cocoon.autopeer
                         var badList = bad.ToList();
                         if (badList.Count > 0)
                         {
-                            var dropped = badList.Skip(@this._random.Next(badList.Count)).FirstOrDefault();
+                            var dropped = badList.FirstOrDefault();
                             if (dropped != default) 
                             {
                                 await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("got collected")).FastPath().ConfigureAwait(false);
@@ -1482,8 +1489,7 @@ namespace zero.cocoon.autopeer
                         }
                         else if (synAck) //try harder when this comes from a synack 
                         {
-                            var goodList = good.TakeWhile(dropped=>((CcAdjunct)dropped).State < AdjunctState.Peering).ToList();
-                            var dropped = goodList.Skip(@this._random.Next(goodList.Count)).FirstOrDefault();
+                            var dropped = good.TakeWhile(dropped=>((CcAdjunct)dropped).State < AdjunctState.Peering).ToList().FirstOrDefault();
                             if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Peering)
                             {
                                 await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(false);
@@ -1663,6 +1669,11 @@ namespace zero.cocoon.autopeer
                         _logger.Debug($"<\\- {nameof(DiscoveryRequest)}({sent}): [FAILED], {Description}, {MetaDesc}");
                 }
             }
+
+            if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound)
+            {
+                await SendPeerRequestAsync().FastPath().ConfigureAwait(false);
+            }
         }
 
         private volatile ServiceMap _serviceMapLocal;
@@ -1683,7 +1694,7 @@ namespace zero.cocoon.autopeer
             //Drop old messages
             if (ping.Timestamp.ElapsedMs() > parm_max_network_latency * 2) //TODO params
             {
-                _logger.Error($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.ElapsedSec()}s");
+                _logger.Error($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.ElapsedToSec()}s");
                 return;
             }
 
@@ -1884,8 +1895,16 @@ namespace zero.cocoon.autopeer
                 await ZeroAsync(static async state =>
                 {
                     var (@this, fromAddress, remoteServices, idCheck) = state;
-                    if (!await @this.CollectAsync(fromAddress.IpEndPoint, idCheck, remoteServices, true).FastPath().ConfigureAwait(false))
+                    if (!await @this.CollectAsync(fromAddress.IpEndPoint, idCheck, remoteServices, true).FastPath()
+                        .ConfigureAwait(false))
+                    {
+#if DEBUG
                         @this._logger.Error($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
+#else 
+                        @this._logger.Debug($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
+#endif
+                    }
+
                 }, ValueTuple.Create(this, fromAddress, remoteServices, idCheck), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
 
             }
@@ -2396,14 +2415,17 @@ namespace zero.cocoon.autopeer
             //send drop request
             await SendPeerDropAsync().FastPath().ConfigureAwait(false);
 
-            
-            if(direction == Heading.Ingress && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
-            //back off for a while... Try to re-establish a link 
-            await ZeroAsync(static async @this =>
+
+            if (direction == Heading.Ingress && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
             {
-                await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(false);
-                await @this.SendPingAsync().FastPath().ConfigureAwait(false);
-            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
+                //back off for a while... Try to re-establish a link 
+                await ZeroAsync(static async @this =>
+                {
+                    await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(false);
+                    await @this.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false);
+                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
+            }
+                
 
             //emit event
             

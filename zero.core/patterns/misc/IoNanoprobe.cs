@@ -383,7 +383,7 @@ namespace zero.core.patterns.misc
 
             try
             {
-                if (Uptime.ElapsedSec() > 10 && CascadeTime > TearDownTime * 2 && TearDownTime > 0)
+                if (Uptime.ElapsedToSec() > 10 && CascadeTime > TearDownTime * 2 && TearDownTime > 0)
                     _logger.Fatal(
                         $"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms, count = {_zeroHive.Count}");
             }

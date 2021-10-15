@@ -114,82 +114,49 @@ namespace zero.cocoon
                     {
                         var totalConnections = @this.TotalConnections;
                         double scanRatio = 1;
-                        CcAdjunct susceptible = null;
-                        
+
                         //Attempt to peer with standbys
                         if (totalConnections < @this.MaxDrones * scanRatio &&
                             secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4)
                         {
-                            if (@this.EgressConnections < @this.parm_max_outbound)
+                            @this._logger.Trace($"Scanning {@this.Neighbors.Count} < {@this.MaxDrones * scanRatio:0}, {@this.Description}");
+
+                            //Send peer requests
+                            foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
+                                    ((CcAdjunct) n).IsDroneAttached == false && //quick slot
+                                    ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified and < CcAdjunct.AdjunctState.Peering)
+                                .OrderByDescending(n => ((CcAdjunct) n).Priority).Take((int)(@this.parm_max_outbound - @this.EgressConnections)))
                             {
-                                @this._logger.Trace($"Scanning {@this.Neighbors.Count} < {@this.MaxDrones * scanRatio:0}, {@this.Description}");
+                                if (@this.Zeroed())
+                                    break;
 
-                                //if (secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 3)
+                                //brute force
+                                if (@this.EgressConnections < @this.parm_max_outbound)
                                 {
-                                    //Send peer requests
-                                    foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
-                                            ((CcAdjunct) n).IsDroneAttached == false && //quick slot
-                                            ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified and < CcAdjunct.AdjunctState.Peering)
-                                        .OrderByDescending(n => ((CcAdjunct) n).Priority).Take((int)(@this.parm_max_outbound - @this.EgressConnections)))
+                                    if (await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false))
                                     {
-                                        if (@this.Zeroed())
-                                            break;
-
-                                        //We select the neighbor that makes least requests which means it is saturated,
-                                        //but that means it is probably not depleting its standby neighbors which is what 
-                                        //we are after. It's a long shot that relies on probability in the long run
-                                        //to work.
-                                        susceptible ??= (CcAdjunct) adjunct;
-
-                                        //brute force
-                                        if (@this.EgressConnections < @this.parm_max_outbound)
-                                        {
-                                            if (await ((CcAdjunct) adjunct).SendPeerRequestAsync().FastPath().ConfigureAwait(false))
-                                            {
-                                                peerAttempts++;
-                                            }
-                                        }
-
-                                        //tractor
-                                        if (@this.IngressConnections < @this.parm_max_inbound)
-                                        {
-                                            if (await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false))
-                                            {
-                                                peerSuggests++;
-                                            }
-                                        }
+                                        peerAttempts++;
                                     }
                                 }
 
-                                if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
+                                //tractor
+                                if (@this.IngressConnections < @this.parm_max_inbound)
                                 {
-                                    var c = 0;
-                                    while (c++ < @this.parm_max_adjunct)
+                                    if (await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
                                     {
-                                        var adjunct = @this._autoPeering.Neighbors.Values.Where(n =>
-                                                ((CcAdjunct)n).State > CcAdjunct.AdjunctState.Unverified)
-                                            .OrderBy(n => ((CcAdjunct)n).Priority)
-                                            .Skip(@this._random.Next(@this._autoPeering.Neighbors.Count*4/5)).FirstOrDefault();
-
-                                        if (adjunct != default)
-                                        {
-                                            if (await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
-                                            {
-                                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                                @this._logger.Debug($"& {adjunct.Description}");
-                                                break;
-                                            }
-                                        }
+                                        peerSuggests++;
                                     }
                                 }
+                            }
+                            
 
-                                //bootstrap every now and again
-                                if (secondsSinceBoot.Elapsed() > @this.parm_mean_pat_delay * 4)
-                                {
-                                    await @this.DeepScanAsync().FastPath().ConfigureAwait(false);
-                                    secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                }
-                            } 
+                            //bootstrap every now and again
+                            if (secondsSinceBoot.Elapsed() > @this.parm_mean_pat_delay * 4)
+                            {
+                                await @this.DeepScanAsync().FastPath().ConfigureAwait(false);
+                                secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                            }
+                            
                             
                             if(@this.Neighbors.Count == 0)
                             {
@@ -201,20 +168,14 @@ namespace zero.cocoon
                                 }
                             }
 
-                            if (peerAttempts > 0 || peerSuggests > 0)
+                            if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
                             {
-                                if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
-                                {
-                                    secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                }
+                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                             }
                         }
                     }
-                    catch (NullReferenceException e) { @this._logger?.Trace(e, @this.Description); }
-                    catch (TaskCanceledException e) { @this._logger?.Trace(e, @this.Description);}
-                    catch (ObjectDisposedException e) { @this._logger?.Trace(e, @this.Description);}
-                    catch (OperationCanceledException e) { @this._logger?.Trace(e, @this.Description);}
-                    catch (Exception e)
+                    catch when(@this.Zeroed()){}
+                    catch (Exception e) when (!@this.Zeroed())
                     {
                         @this._logger?.Error(e, $"Failed to ensure {@this._autoPeering.Neighbors.Count} peers");
                     }
@@ -421,7 +382,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_time_e = 2;
+        public int parm_time_e = 4;
 
 
         /// <summary>
@@ -613,7 +574,7 @@ namespace zero.cocoon
                             if (handshakeRequest.Timestamp.ElapsedDelta() > parm_time_e)
                             {
                                 _logger.Error(
-                                    $"Rejected old handshake request from {ioNetSocket.Key} - d = {handshakeRequest.Timestamp.ElapsedDelta()}s, {handshakeRequest.Timestamp.Elapsed()}");
+                                    $"Rejected old handshake request from {ioNetSocket.Key} - d = {handshakeRequest.Timestamp.ElapsedDelta()}s, > {parm_time_e}");
                                 return false;
                             }
                             

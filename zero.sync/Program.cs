@@ -54,6 +54,10 @@ namespace zero.sync
 
                 });
 
+        /// <summary>
+        /// Cluster test mode
+        /// </summary>
+        /// <param name="args"></param>
         static void Main(string[] args)
         {
             //SemTest();
@@ -75,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 100;
+            var total = 300;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -156,7 +160,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(100).ConfigureAwait(false);
+                    await Task.Delay(500).ConfigureAwait(false);
                 }
                 
             });
@@ -227,7 +231,7 @@ namespace zero.sync
                                 foreach (var d in ioCcNode.Neighbors.Values)
                                 {
                                     var drone = (CcDrone) d;
-                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedSec():0.0}s");
+                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedToSec():0.0}s");
                                 }
                             }
                                 

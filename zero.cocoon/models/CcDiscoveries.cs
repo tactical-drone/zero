@@ -33,7 +33,7 @@ namespace zero.cocoon.models
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatch<Packet, CcDiscoveryMessage>>(conduitName).FastPath().ConfigureAwait(false);
 
             var batchSize = 256;
-            var cc = 32;
+            var cc = 64;
             if (ProtocolConduit == null)
             {
                 CcProtocBatchSource<Packet, CcDiscoveryMessage> channelSource = null;
@@ -417,11 +417,8 @@ namespace zero.cocoon.models
                     Interlocked.Increment(ref CurrBatchSlot);
                 }
             }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e,
                     $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
