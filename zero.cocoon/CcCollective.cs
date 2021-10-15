@@ -125,7 +125,7 @@ namespace zero.cocoon
                             foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
                                     ((CcAdjunct) n).IsDroneAttached == false && //quick slot
                                     ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified and < CcAdjunct.AdjunctState.Peering)
-                                .OrderByDescending(n => ((CcAdjunct) n).Priority).Take((int)(@this.parm_max_outbound - @this.EgressConnections)))
+                                .OrderBy(n => ((CcAdjunct) n).Priority))
                             {
                                 if (@this.Zeroed())
                                     break;
@@ -336,14 +336,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_inbound = 4;
+        public uint parm_max_inbound = 5;
 
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_outbound = 4;
+        public uint parm_max_outbound = 3;
 
         /// <summary>
         /// Max adjuncts

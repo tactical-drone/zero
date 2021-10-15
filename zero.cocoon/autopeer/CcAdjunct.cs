@@ -158,16 +158,16 @@ namespace zero.cocoon.autopeer
                 try
                 {
                     if(Proxy)
-                        return _description = $"`adjunct ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Hub?.Designation.IdString()}, {Designation.IdString()}]'";
+                        return _description = $"`adjunct ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequestsRecvCount}:{PeerRequestSentCount}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Hub?.Designation.IdString()}, {Designation.IdString()}]'";
                     else
-                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Hub?.Designation?.IdString()}, {Designation.IdString()}]'";
+                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequestsRecvCount}:{PeerRequestSentCount}] local: {MessageService.IoNetSocket.LocalAddress} - {MessageService.IoNetSocket.RemoteAddress}, [{Hub?.Designation?.IdString()}, {Designation.IdString()}]'";
                 }
                 catch (Exception)
                 {
                     if(Proxy)
-                        return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress},' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}]'";    
+                        return _description?? $"`adjunct({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequestsRecvCount}:{PeerRequestSentCount}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress},' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}]'";    
                     else
-                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequests}:{PeeringAttempts}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}]'";
+                        return _description = $"`hub ({(Verified ? "+v" : "-v")},{(WasAttached ? "C!" : "dc")})[{TotalPats}:{Priority}:{PeerRequestsRecvCount}:{PeerRequestSentCount}] local: {MessageService?.IoNetSocket?.LocalAddress} - {MessageService?.IoNetSocket?.RemoteAddress}, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}]'";
                 }
             }
         }
@@ -176,7 +176,7 @@ namespace zero.cocoon.autopeer
         /// return extra information about the state
         /// </summary>
         public string MetaDesc =>
-            $"(d= {Direction}, s= {State}, v= {Verified}, a= {Assimilating}, att= {IsDroneAttached}, c= {IsDroneConnected}, r= {PeeringAttempts}, g= {IsGossiping}, arb= {IsArbitrating}, o= {MessageService.IsOperational}, w= {TotalPats})";
+            $"(d= {Direction}, s= {State}, v= {Verified}, a= {Assimilating}, att= {IsDroneAttached}, c= {IsDroneConnected}, r= {PeerRequestSentCount}, g= {IsGossiping}, arb= {IsArbitrating}, o= {MessageService.IsOperational}, w= {TotalPats})";
 
         /// <summary>
         /// Random number generator
@@ -236,18 +236,17 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Indicates whether we have successfully established a connection before
         /// </summary>
-        protected volatile uint PeeringAttempts;
+        protected volatile uint PeerRequestSentCount;
 
         /// <summary>
         /// Number of peer requests
         /// </summary>
-        public uint PeerRequests { get; protected set; }
+        public uint PeerRequestsRecvCount { get; protected set; }
 
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        public long Priority =>
-            Enum.GetNames(typeof(Heading)).Length - (long) Direction - 1 + PeerRequests - PeeringAttempts > 1 ? 1 : 0;
+        public long Priority => PeerRequestSentCount - PeerRequestsRecvCount;
 
         //uptime
         private long _attachTimestamp;
@@ -316,7 +315,6 @@ namespace zero.cocoon.autopeer
         {
             Undefined = 0,
             Ingress = 1,
-            [Description(" Egress")]
             Egress = 2
         }
 
@@ -611,8 +609,9 @@ namespace zero.cocoon.autopeer
                     // ignored
                 }
 
-                await DetachPeerAsync().FastPath().ConfigureAwait(false);
+                await DetachPeerAsync(false).FastPath().ConfigureAwait(false);
                 
+                //swarm 
                 await ZeroAsync(async @this =>
                 {
                     await Task.Delay(parm_max_network_latency, AsyncTasks.Token);
@@ -1083,7 +1082,7 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            PeerRequests++;
+            PeerRequestsRecvCount++;
 
             //fail fast
             int sent;
@@ -1468,7 +1467,7 @@ namespace zero.cocoon.autopeer
                                 ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_max_network_latency * 2 &&
                                 ((CcAdjunct)n).State < AdjunctState.Peering &&
                                 ((CcAdjunct)n).TotalPats > @this.parm_min_pats_before_shuffle)
-                            .OrderBy(n => ((CcAdjunct)n).Priority);
+                            .OrderByDescending(n => ((CcAdjunct)n).Priority);
 
                         var badList = bad.ToList();
                         if (badList.Any())
@@ -1623,8 +1622,8 @@ namespace zero.cocoon.autopeer
             //     .OrderByDescending(n => (int) ((CcNeighbor) n).Priority).ToList();
             var certified = Hub.Neighbors.Values.Where(n =>
                     ((CcAdjunct) n).Assimilating && n != this)
-                .OrderByDescending(n => (int) ((CcAdjunct) n).Priority).ToList();
-            foreach (var ioNeighbor in certified.TakeWhile(ioNeighbor => count != parm_max_discovery_peers))
+                .OrderBy(n => (int) ((CcAdjunct) n).Priority).ToList();
+            foreach (var ioNeighbor in certified.Take((int)parm_max_discovery_peers))
             {
                 discoveryResponse.Peers.Add(new Peer
                 {
@@ -1666,6 +1665,7 @@ namespace zero.cocoon.autopeer
             if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound)
             {
                 await SendPeerRequestAsync().FastPath().ConfigureAwait(false);
+                PeerRequestsRecvCount++;
             }
         }
 
@@ -1948,7 +1948,7 @@ namespace zero.cocoon.autopeer
                 LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 
                 _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
-                if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound && PeeringAttempts < parm_zombie_max_connection_attempts)
+                if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound && PeerRequestSentCount < parm_zombie_max_connection_attempts)
                 {
                     _logger.Trace($"<\\- {nameof(Pong)}(acksyn-fast): {(CcCollective.EgressConnections < CcCollective.parm_max_outbound ? "Send Peer REQUEST" : "Withheld Peer REQUEST")}, to = {Description}, from nat = {ExtGossipAddress}");
                     await SendPeerRequestAsync().FastPath().ConfigureAwait(false);
@@ -2171,7 +2171,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 //assimilate count
-                Interlocked.Increment(ref PeeringAttempts);
+                Interlocked.Increment(ref PeerRequestSentCount);
 
                 var peerRequest = new PeeringRequest
                 {
@@ -2379,7 +2379,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Detaches a peer from this neighbor
         /// </summary>
-        public async ValueTask DetachPeerAsync()
+        public async ValueTask DetachPeerAsync(bool swarm = true)
         {
             CcDrone latch = null;
             var state = ValueTuple.Create(this, latch);
@@ -2405,14 +2405,14 @@ namespace zero.cocoon.autopeer
             Interlocked.Exchange(ref _direction, 0);
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             Interlocked.Exchange(ref _totalPats, 0);
-            PeeringAttempts = 0;
+            PeerRequestSentCount = 0;
             State = AdjunctState.Disconnected;
 
             //send drop request
             await SendPeerDropAsync().FastPath().ConfigureAwait(false);
 
 
-            if (direction == Heading.Ingress && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
+            if (swarm && direction == Heading.Ingress && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
             {
                 //back off for a while... Try to re-establish a link 
                 await ZeroAsync(static async @this =>
@@ -2435,7 +2435,7 @@ namespace zero.cocoon.autopeer
                 }
             }).FastPath().ConfigureAwait(false);
 
-            if(direction == Heading.Egress && CcCollective.EgressConnections < CcCollective.parm_max_outbound)
+            if(swarm && direction == Heading.Egress && CcCollective.EgressConnections < CcCollective.parm_max_outbound)
             {
                 await ZeroAsync(static async @this =>
                 {
