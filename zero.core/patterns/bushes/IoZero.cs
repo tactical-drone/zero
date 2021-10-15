@@ -450,7 +450,7 @@ namespace zero.core.patterns.bushes
                     }
                 }
             }
-            catch (Exception e) when (Zeroed()){}
+            catch (Exception) when (Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
                 _logger?.Fatal(e, $"{GetType().Name}: {Description ?? "N/A"}: ");

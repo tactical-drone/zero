@@ -160,14 +160,14 @@ namespace zero.core.network.ip
         /// <param name="nanite"></param>
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask<bool> ProduceAsync<T>(
-            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
             IIoJob jobClosure = null,
             Func<IIoJob, T, ValueTask<bool>> barrier = null,
             T nanite = default)
         {
             try
             {
-                return await callback((IIoSourceBase) IoNetSocket, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
+                return await callback(IoNetSocket, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
             }
             catch (TimeoutException)
             {

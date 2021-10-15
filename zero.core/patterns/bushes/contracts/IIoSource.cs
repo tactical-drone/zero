@@ -9,7 +9,7 @@ namespace zero.core.patterns.bushes.contracts
     /// <summary>
     /// Universal source of stuff
     /// </summary>
-    public interface IIoSource : IIoSourceBase, IIoNanite
+    public interface IIoSource : IIoNanite
     {
         /// <summary>
         /// Keys this instance.
@@ -130,7 +130,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <param name="nanite"></param>
         /// <returns></returns>
         ValueTask<bool> ProduceAsync<T>(
-            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
             IIoJob jobClosure = null,
             Func<IIoJob, T, ValueTask<bool>> barrier = null,
             T nanite = default);

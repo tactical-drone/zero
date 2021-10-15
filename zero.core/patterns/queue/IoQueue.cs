@@ -78,8 +78,6 @@ namespace zero.core.patterns.queue
         public IoHeap<IoZNode> NodeHeap => _nodeHeap;
         public IIoZeroSemaphore Pressure => _backPressure;
 
-        private readonly IoNanoprobe _zeroSentinel;
-
         /// <summary>
         /// Whether the collection has been modified
         /// </summary>

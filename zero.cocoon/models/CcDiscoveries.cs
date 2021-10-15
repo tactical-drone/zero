@@ -129,7 +129,8 @@ namespace zero.cocoon.models
             PeeringDrop = 22
         }
 
-        
+        public override string Description => $"{base.Description}: {Source?.Description}";
+
         /// <summary>
         /// Batch of messages
         /// </summary>
@@ -450,13 +451,14 @@ namespace zero.cocoon.models
 
                     try
                     {
-                        if (source != null && !await ((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(false))
+                        if (source == null || !await ((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(false))
                         {
                             if (!((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).Zeroed())
                                 _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
                             return false;
                         }
                     }
+                    catch (Exception) when(@this.Zeroed()){}
                     catch (Exception e) when(!@this.Zeroed())
                     {
                         _logger.Error(e, $"{@this.Description}");
@@ -468,10 +470,10 @@ namespace zero.cocoon.models
                     {
                         @this._currentBatch = @this._arrayPool.Rent((int)@this.parm_max_msg_batch_size);
                     }
-                    catch (Exception e)
+                    catch (Exception) when (@this.Zeroed()) { }
+                    catch (Exception e) when (!@this.Zeroed())
                     {
-                        if(!@this.Zeroed())
-                            _logger.Fatal(e, $"Unable to rent from mempool: {@this.Description}");
+                        _logger.Fatal(e, $"Unable to rent from mempool: {@this.Description}");
                         return false;
                     }
 

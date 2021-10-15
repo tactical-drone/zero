@@ -218,7 +218,7 @@ namespace zero.core.models.protobuffer.sources
         /// <returns>The async task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override async ValueTask<bool> ProduceAsync<T>(
-            Func<IIoSourceBase, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
+            Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
             IIoJob jobClosure = null,
             Func<IIoJob, T, ValueTask<bool>> barrier = null,
             T nanite = default)

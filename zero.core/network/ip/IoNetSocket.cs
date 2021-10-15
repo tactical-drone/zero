@@ -1,10 +1,5 @@
-﻿using System;
-using System.Linq;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
-using System.Threading;
-using zero.core.data.contracts;
 using zero.core.patterns.bushes.contracts;
 
 namespace zero.core.network.ip
@@ -14,7 +9,7 @@ namespace zero.core.network.ip
     /// </summary>
     /// <seealso cref="zero.core.network.ip.IoSocket" />
     /// <seealso cref="IIoSource" />
-    public abstract class IoNetSocket : IoSocket, IIoSourceBase
+    public abstract class IoNetSocket : IoSocket
     {
         /// <summary>
         /// TCP and UDP connections
