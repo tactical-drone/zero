@@ -50,7 +50,7 @@ namespace zero.cocoon.events.services
                 var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx)-1)% 2];
                 var cur = curQ.Head;
             
-                while (c++ < EventBatchSize && curQ.Count > 0 && cur != null)
+                while (c < EventBatchSize && curQ.Count > 0 && cur != null)
                 {
                     response.Events.Add(cur.Value);
 
@@ -60,12 +60,13 @@ namespace zero.cocoon.events.services
                     cur.Value = default;
 
                     cur = tmp;
+                    c++;
                 }
 
                 if(cur == null)
                     await curQ.ClearAsync().FastPath().ConfigureAwait(false);
-                else
-                    curQ.ResetTail(cur, c-1);
+                else if (c > 0)
+                    curQ.ResetTail(cur, c);
                 
             }
             catch (Exception e)

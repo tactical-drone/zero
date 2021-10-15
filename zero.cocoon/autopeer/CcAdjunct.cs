@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,8 +48,8 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 20, CcCollective.MaxAdjuncts * 10);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 20, CcCollective.MaxAdjuncts * 10);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 5, CcCollective.MaxAdjuncts * 10);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 5, CcCollective.MaxAdjuncts * 10);
             _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.parm_max_adjunct);
 
             if (extraData != null)
@@ -735,7 +734,7 @@ namespace zero.cocoon.autopeer
         protected async ValueTask<bool> ConnectAsync()
         {
             //Validate request
-            if (!Assimilating && !IsDroneConnected && State < AdjunctState.Verified && State >= AdjunctState.Standby)
+            if (!Assimilating && !IsDroneConnected && State < AdjunctState.Verified && State > AdjunctState.Standby)
             {
                 _logger.Fatal($"{Description}: Connect aborted, wrong state: {MetaDesc}, ");
                 return false;
@@ -1483,7 +1482,7 @@ namespace zero.cocoon.autopeer
                         }
                         else //try harder 
                         {
-                            var dropped = good.TakeWhile(dropped=>((CcAdjunct)dropped).State < AdjunctState.Peering).ToList().FirstOrDefault();
+                            var dropped = good.FirstOrDefault();
                             if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Peering)
                             {
                                 await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(false);
@@ -1741,8 +1740,11 @@ namespace zero.cocoon.autopeer
             //PROCESS DMZ/SYNs
             if (!Proxy)
             {
+                //zero adjunct 
+                if(Hub.CcCollective.Neighbors.Count > CcCollective.MaxAdjuncts)
+                    return;
+                
                 IoNodeAddress toProxyAddress = null;
-
                 if (CcCollective.UdpTunnelSupport)
                 {
                     if (ping.SrcAddr != "0.0.0.0" && remoteEp.Address.ToString() != ping.SrcAddr)

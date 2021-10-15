@@ -149,15 +149,6 @@ namespace zero.cocoon
                                 }
                             }
                             
-
-                            //bootstrap every now and again
-                            if (secondsSinceBoot.Elapsed() > @this.parm_mean_pat_delay * 4)
-                            {
-                                await @this.DeepScanAsync().FastPath().ConfigureAwait(false);
-                                secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            }
-                            
-                            
                             if(@this.Neighbors.Count == 0)
                             {
                                 //bootstrap if alone
@@ -345,14 +336,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_inbound = 3;
+        public uint parm_max_inbound = 4;
 
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_outbound = 5;
+        public uint parm_max_outbound = 4;
 
         /// <summary>
         /// Max adjuncts
@@ -914,6 +905,7 @@ namespace zero.cocoon
             if (Hub.Neighbors.Count > 1)
             {
                 var c = 0;
+                var foundVector = false;
                 foreach (var vector in Hub.Neighbors.Values.TakeWhile(n=>((CcAdjunct)n).Assimilating))
                 {
                     var adjunct = (CcAdjunct)vector;
@@ -931,12 +923,14 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"? {nameof(adjunct.SendDiscoveryRequestAsync)}");
+                        foundVector = true;
                     }
-                
+                    
                     await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(false);
                 }
                 
-                return;
+                if(foundVector)
+                    return;
             }
             
             _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");

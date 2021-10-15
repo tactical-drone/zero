@@ -239,14 +239,14 @@ namespace zero.sync
                             ooutBound += e;
                             oinBound += i;
                             oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).Proxy);
-                            if ((uptimeCount = ioCcNode.Hub.Neighbors.Count - 1) > 0)
-                                uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
-                                {
-                                    if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
-                                        return ((CcAdjunct)n).AttachTimestamp.Elapsed();
-                                    
-                                    return 0;
-                                }).Sum();
+                            
+                            uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
+                            {
+                                if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
+                                    return ((CcAdjunct)n).AttachTimestamp.Elapsed();
+                                
+                                return 0;
+                            }).Sum();
 
                             uptimeCount += ioCcNode.TotalConnections;
                         }
@@ -266,7 +266,7 @@ namespace zero.sync
                             try
                             {
                                 Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                                Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / ((double)_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt}), con = {CcAdjunct.ConnectionTime/(CcAdjunct.ConnectionCount + 1):0.0}ms");
+                                Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / ((double)_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt}), con = {CcAdjunct.ConnectionTime/(CcAdjunct.ConnectionCount + 1):0.0}ms");
                             }
                             catch{}
                             finally
@@ -283,7 +283,7 @@ namespace zero.sync
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / (double)(_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / uptimeCount)}, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}, con = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1):0.0}ms");
+                            Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / (double)(_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}, con = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1):0.0}ms");
                             Console.ResetColor();
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }

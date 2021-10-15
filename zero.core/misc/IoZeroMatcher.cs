@@ -27,7 +27,7 @@ namespace zero.core.misc
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, capacity), concurrencyLevel);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, capacity), concurrencyLevel * 2);
 
             _valHeap = new IoHeap<IoChallenge>(_capacity)
             {

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -67,7 +65,7 @@ namespace zero.core.patterns.queue
             //return;
             
             var nextIdx = Interlocked.Increment(ref _next); 
-            var latch = (nextIdx - 1)%_capacity;
+            var latch = (nextIdx - 1) % _capacity;
             T fail = null;
             while (_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
             {
