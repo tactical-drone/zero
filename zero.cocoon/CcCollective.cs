@@ -106,7 +106,7 @@ namespace zero.cocoon
                 while (!@this.Zeroed())
                 {
                     //periodically
-                    await Task.Delay(random.Next(@this.parm_mean_pat_delay)/4 * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay((random.Next(@this.parm_mean_pat_delay/4)+ @this.parm_mean_pat_delay/4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
                     if (@this.Zeroed())
                         break;
 
@@ -117,7 +117,7 @@ namespace zero.cocoon
 
                         //Attempt to peer with standbys
                         if (totalConnections < @this.MaxDrones * scanRatio &&
-                            secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4)
+                            secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4) //delta q
                         {
                             @this._logger.Trace($"Scanning {@this.Neighbors.Count} < {@this.MaxDrones * scanRatio:0}, {@this.Description}");
 
