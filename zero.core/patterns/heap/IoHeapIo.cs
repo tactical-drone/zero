@@ -28,14 +28,14 @@ namespace zero.core.patterns.heap
         /// Take an item but call the constructor first
         /// </summary>
         /// <returns>The constructed heap item</returns>
-        public async ValueTask<T> TakeAsync(Func<T, object, ValueTask<T>> parms = null, object userData = null)
+        public async ValueTask<T> TakeAsync<TC>(Func<T, TC, ValueTask<T>> constructor = null, TC context = default)
         {
             T next = null;
             try
             {
                 //Take from heap
                 
-                if ((next = await TakeAsync(userData).FastPath().ConfigureAwait(false)) != null && !await next.ConstructAsync())
+                if ((next = await TakeAsync(context).FastPath().ConfigureAwait(false)) != null && !await next.ConstructAsync())
                     return null;
                 
                 //fail
@@ -46,7 +46,7 @@ namespace zero.core.patterns.heap
                 next = (T) await next.ConstructorAsync().FastPath().ConfigureAwait(false);
 
                 //Custom constructor
-                parms?.Invoke(next, userData);
+                constructor?.Invoke(next, context);
 
                 //The constructor signals a flush by returning null
                 while (next == null)
@@ -54,7 +54,7 @@ namespace zero.core.patterns.heap
                     Interlocked.Increment(ref _count);
                     _logger.Trace($"Flushing `{GetType()}'");
 
-                    next = await TakeAsync(userData).FastPath().ConfigureAwait(false);
+                    next = await TakeAsync(context).FastPath().ConfigureAwait(false);
                     //Return another item from the heap
                     if (next == null)
                     {

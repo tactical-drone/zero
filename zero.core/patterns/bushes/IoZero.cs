@@ -281,9 +281,9 @@ namespace zero.core.patterns.bushes
                 IoSink<TJob> nextJob = null;
                 try
                 {
-                    nextJob = await JobHeap.TakeAsync(parms: static (load, closure) =>
+                    nextJob = await JobHeap.TakeAsync(constructor: static (load, ioZero) =>
                     {
-                        load.IoZero = (IIoZero)closure;
+                        load.IoZero = ioZero;
                         return new ValueTask<IoSink<TJob>>(load);
                     }, this).FastPath().ConfigureAwait(false);
 
@@ -301,7 +301,7 @@ namespace zero.core.patterns.bushes
 
                         if (!Zeroed())
                         {
-//sanity check _previousJobFragment
+                            //sanity check _previousJobFragment
                             if (SyncRecoveryModeEnabled && _previousJobFragment.Count >= JobHeap.MaxSize * 2 / 3)
                             {
                                 _logger.Warn(

@@ -82,7 +82,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// The drone this whisper belongs too
         /// </summary>
-        private CcDrone CcDrone => ((CcDrone)IoZero);
+        private CcDrone CcDrone => (CcDrone)IoZero;
 
         /// <summary>
         /// The adjunct this job belongs too
@@ -216,8 +216,8 @@ namespace zero.cocoon.models
                         }
                         catch (Exception e) when (!Zeroed() && !Source.Zeroed())
                         {
-                            _logger.Fatal(e,$"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcAdjunct}, cc = {CcCollective}, sync = `{CcCollective.DupSyncRoot}'");
-                            PrintStateHistory();
+                            _logger?.Fatal(e,$"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcDrone?.Adjunct}, cc = {CcDrone?.Adjunct?.CcCollective}, sync = `{CcDrone?.Adjunct?.CcCollective?.DupSyncRoot}'");
+                            //PrintStateHistory();
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
                         

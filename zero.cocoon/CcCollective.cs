@@ -96,7 +96,6 @@ namespace zero.cocoon
             var task = ZeroAsync(static async @this =>
             {
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                var secondsSinceBoot = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var random = new Random((int)DateTime.Now.Ticks);
 
                 double peerAttempts = 0;
@@ -106,7 +105,7 @@ namespace zero.cocoon
                 while (!@this.Zeroed())
                 {
                     //periodically
-                    await Task.Delay((random.Next(@this.parm_mean_pat_delay/4)+ @this.parm_mean_pat_delay/4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay((random.Next(@this.parm_mean_pat_delay/4) + @this.parm_mean_pat_delay/4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
                     if (@this.Zeroed())
                         break;
 
@@ -125,7 +124,8 @@ namespace zero.cocoon
                             foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
                                     ((CcAdjunct) n).IsDroneAttached == false && //quick slot
                                     ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified and < CcAdjunct.AdjunctState.Peering)
-                                .OrderBy(n => ((CcAdjunct) n).Priority))
+                                .OrderBy(n => ((CcAdjunct) n).Priority)
+                                .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                             {
                                 if (@this.Zeroed())
                                     break;
@@ -136,15 +136,6 @@ namespace zero.cocoon
                                     if (await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false))
                                     {
                                         peerAttempts++;
-                                    }
-                                }
-
-                                //tractor
-                                if (@this.IngressConnections < @this.parm_max_inbound)
-                                {
-                                    if (await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
-                                    {
-                                        peerSuggests++;
                                     }
                                 }
                             }
@@ -207,7 +198,6 @@ namespace zero.cocoon
             }
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
-            //GC.Collect(GC.MaxGeneration);
 
             try
             {
@@ -902,41 +892,39 @@ namespace zero.cocoon
         /// <returns></returns>
         public async ValueTask DeepScanAsync()
         {
-            if (Hub.Neighbors.Count > 1)
+            
+            var c = 0;
+            var foundVector = false;
+            foreach (var vector in Hub.Neighbors.Values.TakeWhile(n=>((CcAdjunct)n).Assimilating))
             {
-                var c = 0;
-                var foundVector = false;
-                foreach (var vector in Hub.Neighbors.Values.TakeWhile(n=>((CcAdjunct)n).Assimilating))
-                {
-                    var adjunct = (CcAdjunct)vector;
+                var adjunct = (CcAdjunct)vector;
 
-                    //Only probe when we are running lean
-                    if (adjunct.CcCollective.Hub.Neighbors.Count > adjunct.CcCollective.MaxAdjuncts)
-                        break;
-                
-                    //probe
-                    if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
-                    {
-                        if(!Zeroed())
-                            _logger.Trace($"{nameof(DeepScanAsync)}: Unable to probe adjuncts");
-                    }
-                    else
-                    {
-                        _logger.Debug($"? {nameof(adjunct.SendDiscoveryRequestAsync)}");
-                        foundVector = true;
-                    }
-                    
-                    await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(false);
+                //Only probe when we are running lean
+                if (adjunct.CcCollective.Hub.Neighbors.Count > adjunct.CcCollective.MaxAdjuncts)
+                    break;
+            
+                //probe
+                if (!await adjunct.SendPingAsync().FastPath().ConfigureAwait(false))
+                {
+                    if(!Zeroed())
+                        _logger.Trace( $"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                }
+                else
+                {
+                    _logger.Debug($"? {Description}");
+                    foundVector = true;
                 }
                 
-                if(foundVector)
-                    return;
+                await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(false);
             }
+            
+            if(foundVector)
+                return;
             
             _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
             if (BootstrapAddress != null)
             {
-                var c = 0;
+                c = 0;
                 foreach (var ioNodeAddress in BootstrapAddress)
                 {
                     if (!ioNodeAddress.Equals(_peerAddress))
