@@ -538,7 +538,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_virality_ms = 30;
+        public uint parm_virality = 30;
 
         /// <summary>
         /// The service map
@@ -1956,7 +1956,7 @@ namespace zero.cocoon.autopeer
                 //PAT
                 LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                if (_viral.ElapsedMsToSec() > parm_virality_ms)
+                if (Volatile.Read(ref _viral).ElapsedMsToSec() > parm_virality)
                 {
                     //ensure egress
                     _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
@@ -1973,6 +1973,8 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"<\\- {nameof(Pong)}(acksyn-rst): Send Peer HUP to = {Description}, from nat = {ExtGossipAddress}");
                         await SendPeerDropAsync().FastPath().ConfigureAwait(false);
                     }
+
+                    Volatile.Write(ref _viral, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 }
             }
         }
