@@ -25,6 +25,15 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
+        /// One shot ctor
+        /// </summary>
+        public IoNodeAddress(IPEndPoint endPoint)
+        {
+            IpEndPoint = endPoint;
+            Url = IpEndPoint.ToString();
+        }
+
+        /// <summary>
         /// Constructor from endpoint
         /// </summary>
         /// <param name="url">The url</param>
@@ -127,7 +136,6 @@ namespace zero.core.network.ip
         /// Creates a new node address descriptor
         /// </summary>
         /// <param name="url">The node url in the form tcp:// or udp://</param>
-        /// <param name="port">The node listening port</param>
         /// <returns></returns>
         public static IoNodeAddress Create(string url)
         {

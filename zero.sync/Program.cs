@@ -79,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 300;
+            var total = 200;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -507,10 +507,10 @@ namespace zero.sync
 
             var releaseCount = 1;
             var enableThrottle = true;
-            var waiters = 3;
-            var releasers = 3;
+            var waiters = 1;
+            var releasers = 1;
             var targetSleep = (long)0;
-            var logSpam = 30000;//at least 1
+            var logSpam = 20000;//at least 1
 
             var targetSleepMult = waiters>1 ? 2 : 1;
             var sw = new Stopwatch();

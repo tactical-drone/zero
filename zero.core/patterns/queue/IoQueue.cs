@@ -52,7 +52,7 @@ namespace zero.core.patterns.queue
             if (_enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, maxAsyncWork: 0, initialCount: concurrencyLevel);
+                    maxBlockers: concurrencyLevel, maxAsyncWork: 0, initialCount: concurrencyLevel * 2);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks.Token);
             }
         }

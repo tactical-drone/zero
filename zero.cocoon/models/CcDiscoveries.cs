@@ -455,7 +455,7 @@ namespace zero.cocoon.models
                             return false;
                         }
                     }
-                    catch (Exception) when(@this.Zeroed()){}
+                    catch (Exception) when(@this.Zeroed()){ return false; }
                     catch (Exception e) when(!@this.Zeroed())
                     {
                         _logger.Error(e, $"{@this.Description}");

@@ -98,9 +98,6 @@ namespace zero.cocoon
                 var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var random = new Random((int)DateTime.Now.Ticks);
 
-                double peerAttempts = 0;
-                double peerSuggests = 0;
-
                 //while running
                 while (!@this.Zeroed())
                 {
@@ -118,42 +115,25 @@ namespace zero.cocoon
                         if (totalConnections < @this.MaxDrones * scanRatio &&
                             secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4) //delta q
                         {
-                            @this._logger.Trace($"Scanning {@this.Neighbors.Count} < {@this.MaxDrones * scanRatio:0}, {@this.Description}");
+                            @this._logger.Trace($"Scanning {@this._autoPeering.Neighbors.Values.Count}, {@this.Description}");
 
                             //Send peer requests
                             foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
-                                    ((CcAdjunct) n).IsDroneAttached == false && //quick slot
-                                    ((CcAdjunct) n).State is > CcAdjunct.AdjunctState.Unverified and < CcAdjunct.AdjunctState.Peering)
+                                    ((CcAdjunct) n).State is CcAdjunct.AdjunctState.Verified)//quick slot
                                 .OrderBy(n => ((CcAdjunct) n).Priority)
                                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                             {
-                                if (@this.Zeroed())
-                                    break;
-
-                                //brute force
-                                if (@this.EgressConnections < @this.parm_max_outbound)
-                                {
-                                    if (await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false))
-                                    {
-                                        peerAttempts++;
-                                    }
-                                }
+                                await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false);
                             }
                             
-                            if(@this.Neighbors.Count == 0)
+                            if(@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay)
                             {
                                 //bootstrap if alone
-                                if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
-                                {
-                                    await @this.DeepScanAsync().ConfigureAwait(false);
-                                    secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                }
+                                await @this.DeepScanAsync().ConfigureAwait(false);
                             }
 
                             if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
-                            {
                                 secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            }
                         }
                     }
                     catch when(@this.Zeroed()){}

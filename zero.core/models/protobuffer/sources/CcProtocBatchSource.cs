@@ -65,7 +65,7 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// Shared heap
         /// </summary>
-        public ArrayPool<TBatch> ArrayPool { get; protected set; }
+        public ArrayPool<TBatch> ArrayPool { get; private set; }
 
         /// <summary>
         /// Used to load the next value to be produced

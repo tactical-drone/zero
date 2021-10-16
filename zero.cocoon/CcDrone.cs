@@ -44,7 +44,7 @@ namespace zero.cocoon
                 while (!@this.Zeroed())
                 {
                     await Task.Delay(@this.parm_insane_checks_delay * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
-                    if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Verified)
+                    if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined)
                     {
                         @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State}, {@this.Adjunct?.MetaDesc}");
                         await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
@@ -136,7 +136,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_insane_checks_delay = 30;
+        public int parm_insane_checks_delay = 2;
 
         /// <summary>
         /// zero unmanaged

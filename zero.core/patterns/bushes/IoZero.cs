@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -68,14 +69,14 @@ namespace zero.core.patterns.bushes
         /// <param name="source">An instance of the source</param>
         /// <param name="mallocMessage"></param>
         /// <param name="sourceZeroCascade"></param>
-        public void ConfigureProducer(string description, IoSource<TJob> source,
+        private void ConfigureProducer(string description, IoSource<TJob> source,
             Func<object, IoSink<TJob>> mallocMessage, bool sourceZeroCascade = false)
         {
             _description = description;
             
             JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage };
 
-            Source = source;
+            Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
             Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
 
             //TODO tuning
@@ -85,7 +86,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// The source of the work
         /// </summary>
-        public IoSource<TJob> Source;
+        public volatile IoSource<TJob> Source;
 
         ///// <summary>
         ///// Number of concurrent producers
@@ -149,7 +150,7 @@ namespace zero.core.patterns.bushes
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_q_size = 500; //TODO
+        public uint parm_max_q_size = 256; //TODO
 
         /// <summary>
         /// Minimum useful uptime in seconds
