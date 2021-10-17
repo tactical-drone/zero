@@ -27,7 +27,8 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="nativeSocket">The socket to wrap</param>
         /// <param name="remoteEndPoint">Optional remote endpoint specification</param>
-        protected IoNetSocket(Socket nativeSocket, EndPoint remoteEndPoint = null) : base(nativeSocket, 1,remoteEndPoint)
+        /// <param name="concurrencyLevel"></param>
+        protected IoNetSocket(Socket nativeSocket, EndPoint remoteEndPoint = null, int concurrencyLevel = 1) : base(nativeSocket, concurrencyLevel,remoteEndPoint)
         {
 
         }

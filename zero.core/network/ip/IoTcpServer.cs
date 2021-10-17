@@ -24,7 +24,7 @@ namespace zero.core.network.ip
         /// <param name="readAheadBufferSizeBuffer"></param>
         /// <param name="concurrencyLevel"></param>
         /// <inheritdoc />
-        public IoTcpServer(IoNodeAddress listeningAddress, int readAheadBufferSizeBuffer = 1,  int concurrencyLevel = 1) : base(listeningAddress, readAheadBufferSizeBuffer, concurrencyLevel)
+        public IoTcpServer(IoNodeAddress listeningAddress, int readAheadBufferSizeBuffer = 2,  int concurrencyLevel = 1) : base(listeningAddress, readAheadBufferSizeBuffer, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }

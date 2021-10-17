@@ -79,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 200;
+            var total = 10;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -175,6 +175,7 @@ namespace zero.sync
                 ZeroAsync(total);
                 args.Cancel = true;
             };
+
 
             _running = true;
             var outBound = 0;
@@ -306,7 +307,36 @@ namespace zero.sync
             _nodes.Clear();
 
 
-            Console.ReadLine();
+            string line;
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var tsOrig = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var cOrig = ThreadPool.CompletedWorkItemCount;
+            var c = ThreadPool.CompletedWorkItemCount;
+            while ((line = Console.ReadLine()) != null)
+            {
+                if (line.StartsWith("quit"))
+                    break;
+
+                if (line == "q")
+                    break;
+
+                if (line == "t")
+                {
+                    Console.WriteLine($"w = {ThreadPool.ThreadCount}, p = {ThreadPool.PendingWorkItemCount}, t = {ThreadPool.CompletedWorkItemCount}, {(ThreadPool.CompletedWorkItemCount - cOrig) / (double)tsOrig.ElapsedMsToSec():0.0} ops, c = {ThreadPool.CompletedWorkItemCount-c}, {(ThreadPool.CompletedWorkItemCount-c)/(double)ts.ElapsedMsToSec():0.0} tps");
+                    ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    c = ThreadPool.CompletedWorkItemCount;
+                }
+
+                if (line.StartsWith("log"))
+                {
+                    try
+                    {
+                        LogManager.Configuration.Variables["zeroLogLevel"] = $"{line.Split(' ')[1]}";
+                        LogManager.ReconfigExistingLoggers();
+                    }
+                    catch { }
+                }
+            };
             Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
             _nodes.Clear();
             _nodes = null;
@@ -861,7 +891,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                4, 2, 2, 1);
+                2, 2, 1, 1);
 
             _nodes.Add(cocoon);
 

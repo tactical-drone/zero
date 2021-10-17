@@ -93,7 +93,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Sets an upstream source
         /// </summary>
-        public IIoSource Upstream { get; set; }
+        public IIoSource UpstreamSource { get; protected set; }
         
         /// <summary>
         /// Counters for <see cref="IoJobMeta.JobState"/>
@@ -216,7 +216,7 @@ namespace zero.core.patterns.bushes
             _pressure = null;
             _backPressure = null;
             _prefetchPressure = null;
-            Upstream = null;
+            UpstreamSource = null;
             RecentlyProcessed = null;
             IoConduits = null;
             ObjectStorage = null;
@@ -253,6 +253,19 @@ namespace zero.core.patterns.bushes
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
             _logger.Trace($"Closed {Description} from {ZeroedFrom}");
+        }
+
+        /// <summary>
+        /// Whether we are in teardown
+        /// </summary>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Zeroed()
+        {
+            if(UpstreamSource != null)
+                return base.Zeroed() && UpstreamSource.Zeroed();
+
+            return base.Zeroed();
         }
 
         /// <summary>

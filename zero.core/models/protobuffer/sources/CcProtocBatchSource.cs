@@ -35,7 +35,7 @@ namespace zero.core.models.protobuffer.sources
         {
             _logger = LogManager.GetCurrentClassLogger();
 
-            Upstream = ioSource;
+            UpstreamSource = ioSource;
             ArrayPool = arrayPool;
 
             //Set Q to be blocking
@@ -85,7 +85,7 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => $"{nameof(CcProtocBatchSource<TModel, TBatch>)}({Upstream?.Key})";
+        public override string Key => $"{nameof(CcProtocBatchSource<TModel, TBatch>)}({UpstreamSource?.Key})";
         
         /// <summary>
         /// A description
@@ -227,8 +227,8 @@ namespace zero.core.models.protobuffer.sources
             {
                 return await callback(this, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
             }
-            catch (Exception) when(!Zeroed()){}
-            catch (Exception e)
+            catch (Exception) when(Zeroed() || UpstreamSource.Zeroed()){}
+            catch (Exception e) when (!Zeroed() && !UpstreamSource.Zeroed())
             {
                 _logger.Error(e, $"Source `{Description??"N/A"}' callback failed:");
             }

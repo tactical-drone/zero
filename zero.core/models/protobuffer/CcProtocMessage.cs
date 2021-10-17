@@ -53,7 +53,7 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// Message batch broadcast channel
         /// </summary>
-        public IoConduit<CcProtocBatch<TModel, TBatch>> ProtocolConduit;
+        protected IoConduit<CcProtocBatch<TModel, TBatch>> ProtocolConduit;
 
         /// <summary>
         /// Base source
@@ -152,11 +152,13 @@ namespace zero.core.models.protobuffer
                         //----------------------------------------------------------------------------
                         if (!await producerPressure(ioJob, ioZero).FastPath().ConfigureAwait(false))
                             return false;
-                    
+
                         //Async read the message from the message stream
                         if (job.MessageService.IsOperational && !job.Zeroed())
                         {
-                            var bytesRead = await ((IoSocket)ioSocket).ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, (int)job.BufferSize, job.RemoteEndPoint).FastPath().ConfigureAwait(false);
+                            var bytesRead = await ((IoSocket)ioSocket)
+                                .ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, (int)job.BufferSize,
+                                    job.RemoteEndPoint).FastPath().ConfigureAwait(false);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -229,52 +231,21 @@ namespace zero.core.models.protobuffer
 
                         return true;
                     }
-                    catch (NullReferenceException e)
+                    catch when (job.Zeroed())
                     {
-                        _logger.Trace(e, job.Description);
-                        return false;
                     }
-                    catch (TaskCanceledException e)
-                    {
-                        _logger.Trace(e, job.Description);
-                        return false;
-                    }
-                    catch (OperationCanceledException e)
-                    {
-                        _logger.Trace(e, job.Description);
-                        return false;
-                    }
-                    catch (ObjectDisposedException e)
-                    {
-                        _logger.Trace(e, job.Description);
-                        return false;
-                    }
-                    catch (Exception e)
+                    catch (Exception e) when (!job.Zeroed())
                     {
                         job.State = IoJobMeta.JobState.ProduceErr;
                         _logger.Error(e, $"ReadAsync {job.Description}:");
                         //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(false);
-                        return false;
                     }
+
+                    return false;
                 }, this, barrier, nanite).FastPath().ConfigureAwait(false);
             }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (OperationCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
+            catch when (Zeroed()) { }
+            catch (Exception e)when (!Zeroed())
             {
                 _logger.Warn(e, $"Producing job for {Description} returned with errors:");
             }

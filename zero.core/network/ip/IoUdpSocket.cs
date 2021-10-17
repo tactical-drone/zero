@@ -22,9 +22,9 @@ namespace zero.core.network.ip
         /// Constructs the UDP socket
         /// </summary>
         /// <param name="concurrencyLevel"></param>
-        public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
+        public IoUdpSocket(int prefetchCount, int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
         {
-            Init(concurrencyLevel);
+            Init(prefetchCount, concurrencyLevel);
         }
 
         /// <summary>
@@ -36,22 +36,23 @@ namespace zero.core.network.ip
         {
             Proxy = true;
             //TODO tuning
-            Init(16);
+            Init(2,32);
         }
 
 
         /// <summary>
         /// Initializes the socket
         /// </summary>
+        /// <param name="prefetchCount"></param>
         /// <param name="concurrencyLevel"></param>
-        public void Init(int concurrencyLevel)
+        public void Init(int prefetchCount, int concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
-            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, 1, 0);
+            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, prefetchCount, 0);
             _sendSync.ZeroRef(ref _sendSync, AsyncTasks.Token);
 
-            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, 1, 0);
+            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, prefetchCount, 0);
             _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks.Token);
 
             InitHeap(concurrencyLevel);
@@ -86,7 +87,7 @@ namespace zero.core.network.ip
             {
                 Make = o =>
                 {
-                    IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", concurrencyLevel, 0, 0);
+                    IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", 1, 0, 0);
                     tcs.ZeroRef(ref tcs, AsyncTasks.Token);
                     return tcs;
                 }
@@ -461,7 +462,6 @@ namespace zero.core.network.ip
 
                         args.AcceptSocket = null;
                         args.SocketFlags = SocketFlags.None;
-
                         args.SetBuffer(buffer.Slice(offset, length));
 
                         args.UserToken = tcs;
@@ -471,6 +471,7 @@ namespace zero.core.network.ip
                             return 0;
                         }
 
+                        //remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint)?.Address.GetAddressBytes() ?? Array.Empty<byte>());
                         remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
 

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
+using Org.BouncyCastle.Utilities;
 using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -44,10 +45,11 @@ namespace zero.cocoon
                 while (!@this.Zeroed())
                 {
                     await Task.Delay(@this.parm_insane_checks_delay * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
-                    if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined)
+                    if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
                     {
-                        @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State}, {@this.Adjunct?.MetaDesc}");
-                        await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
+                        if(!@this.Zeroed() && @this.Adjunct == null)
+                            @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
+                        await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
                     }
                 }
             },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach| TaskCreationOptions.PreferFairness);
@@ -74,11 +76,11 @@ namespace zero.cocoon
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction}, {IoSource.Key}'";
+                    return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction}, {IoSource.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {IoSource?.Key}'";
+                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {IoSource?.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
                 }
             }
         }
@@ -131,12 +133,21 @@ namespace zero.cocoon
         /// </summary>
         private bool _assimulated;
 
+#if DEBUG
         /// <summary>
         /// Grace time for sanity checks
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_insane_checks_delay = 2;
+        public int parm_insane_checks_delay = 30;
+#else
+        /// <summary>
+        /// Grace time for sanity checks
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_insane_checks_delay = 1;
+#endif
 
         /// <summary>
         /// zero unmanaged

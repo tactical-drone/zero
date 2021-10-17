@@ -42,7 +42,7 @@ namespace zero.tangle.models.sources
         /// <summary>
         /// Keys this instance.
         /// </summary>
-        public override string Key => Upstream.Key;
+        public override string Key => UpstreamSource.Key;
 
         /// <summary>
         /// Description of this upstream

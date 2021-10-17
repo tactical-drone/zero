@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -24,6 +26,9 @@ namespace zero.cocoon.models
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryMessage>> source) : base(sinkDesc, jobDesc, source)
         {
             _currentBatch = _arrayPool.Rent((int)parm_max_msg_batch_size);
+            if (_currentBatch == null)
+                throw new OutOfMemoryException($"{sinkDesc}: {nameof(CcDiscoveries)}.{nameof(_arrayPool)}");
+
             _batchMsgHeap = new IoHeap<CcDiscoveryMessage>(parm_max_msg_batch_size) {Make = o => new CcDiscoveryMessage()};//TODO config
         }
 
@@ -111,6 +116,16 @@ namespace zero.cocoon.models
                 return ValueTask.CompletedTask;
             }).FastPath().ConfigureAwait(false);
             
+        }
+
+        /// <summary>
+        /// If we are in teardown
+        /// </summary>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Zeroed()
+        {
+            return base.Zeroed() && Source.Zeroed();
         }
 
         /// <summary>
@@ -404,7 +419,7 @@ namespace zero.cocoon.models
 
                     var batchMsg = await _batchMsgHeap.TakeAsync().FastPath().ConfigureAwait(false);
                     if (batchMsg == null)
-                        throw new OutOfMemoryException(nameof(_batchMsgHeap));
+                        throw new OutOfMemoryException($"{nameof(_batchMsgHeap)}: c = {_batchMsgHeap.Count}/{_batchMsgHeap.MaxSize}, r = {_batchMsgHeap.ReferenceCount}");
 
                     batchMsg.Zero = zero;
                     batchMsg.EmbeddedMsg = request;
@@ -442,7 +457,7 @@ namespace zero.cocoon.models
                 }
 
                 //cog the source
-                await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
+                if (!await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
                 {
                     var @this = (CcDiscoveries)ioJob;
 
@@ -451,38 +466,42 @@ namespace zero.cocoon.models
                         if (source == null || !await ((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(false))
                         {
                             if (source != null && !((CcProtocBatchSource<Packet, CcDiscoveryMessage>)source).Zeroed())
-                                _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
+                                _logger.Fatal(
+                                    $"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
                             return false;
                         }
+
+                        @this._currentBatch = @this._arrayPool?.Rent((int)@this.parm_max_msg_batch_size);
+                        if (@this._currentBatch == null)
+                            throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._arrayPool)}");
+
+                        @this.CurrBatchSlot = 0;
+
+                        return true;
                     }
-                    catch (Exception) when(@this.Zeroed()){ return false; }
-                    catch (Exception e) when(!@this.Zeroed())
+                    catch (Exception) when (@this.Zeroed() ) { }
+                    catch (Exception e) when (!@this.Zeroed() )
                     {
-                        _logger.Error(e, $"{@this.Description}");
-                        return false;
+                        _logger.Error(e, $"{@this.Description} - Forward failed!");
                     }
 
-                    //Retrieve a new batch buffer
-                    try
-                    {
-                        @this._currentBatch = @this._arrayPool.Rent((int)@this.parm_max_msg_batch_size);
-                    }
-                    catch (Exception) when (@this.Zeroed()) { }
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        _logger.Fatal(e, $"Unable to rent from mempool: {@this.Description}");
-                        return false;
-                    }
-
-                    @this.CurrBatchSlot = 0;
-
-                    return true;
-                }, this).FastPath().ConfigureAwait(false);
+                    return false;
+                }, this).FastPath().ConfigureAwait(false))
+                {
+                    if(!Zeroed())
+                        _logger.Debug($"{nameof(ForwardToNeighborAsync)} - {Description}: Failed to produce jobs from {ProtocolConduit.Description}");
+                }
             }
-            catch when(Zeroed()){}
-            catch (Exception e) when (!Zeroed())
+            catch when(Zeroed() || ProtocolConduit == null || ProtocolConduit.Source == null) {}
+            catch (Exception e) when (
+                !Zeroed() && ProtocolConduit is { Source: { } } && !ProtocolConduit.Source.Zeroed())
             {
-                _logger.Debug(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
+                var c = 0;
+                while (e != null)
+                {
+                    _logger.Fatal(e, $"[PART({c++})] ~> Forwarding from {Description} to {ProtocolConduit.Description} failed");
+                    e = e.InnerException;
+                }
             }
         }
     }

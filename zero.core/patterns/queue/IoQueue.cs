@@ -118,7 +118,7 @@ namespace zero.core.patterns.queue
                         }
                         catch(Exception e)
                         {
-                            LogManager.GetCurrentClassLogger().Trace(e,$"{_description}: {op}, {cur.Value}, {nanite}");
+                            LogManager.GetCurrentClassLogger().Trace($"{_description}: {op}, {cur.Value}, {nanite}, {e.Message}");
                         }
 
                         cur = cur.Next;

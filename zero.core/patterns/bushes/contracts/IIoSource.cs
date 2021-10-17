@@ -18,6 +18,11 @@ namespace zero.core.patterns.bushes.contracts
         string Key { get; }
 
         /// <summary>
+        /// UpstreamSource Source
+        /// </summary>
+        public IIoSource UpstreamSource { get; }
+
+        /// <summary>
         /// Apply source pressure
         /// </summary>
         public ValueTask<int> PressureAsync(int releaseCount = 1);

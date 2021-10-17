@@ -241,7 +241,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns>True if zeroed out, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Zeroed()
+        public virtual bool Zeroed()
         {
             return _zeroed > 0 || AsyncTasks.IsCancellationRequested;
         }
@@ -605,13 +605,14 @@ namespace zero.core.patterns.misc
             try
             {
                 return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
-                    unwrap, filePath, methodName: methodName, lineNumber);
+                    unwrap, filePath, methodName, lineNumber);
             }
-            catch (Exception) when(Zeroed()){ return ValueTask.CompletedTask;}
-            catch (Exception e)when (!Zeroed())
+            catch (Exception e) when(Zeroed()){ return ValueTask.FromException(e);}
+            catch (Exception e) when (!Zeroed())
             {
-                return ValueTask.FromException(e);//TODO why am I doing it this way?
+                _logger.Error(e, $"{Description}, c = {continuation}, s = {state}, {Path.GetFileName(filePath)}:{methodName} line {lineNumber}");
             }
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

@@ -39,14 +39,13 @@ namespace zero.cocoon
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
             _peerAddress = peerAddress;
-            _fpcAddress = fpcAddress;
             BootstrapAddress = bootstrap;
             ExtAddress = extAddress; //this must be the external or NAT address.
             CcId = ccDesignation;
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
-            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, _fpcAddress);
+            Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
             _autoPeering =  new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
@@ -92,57 +91,79 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            //ensure some liveness
-            var task = ZeroAsync(static async @this =>
+            //ensure robotics
+            ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask().GetAwaiter();
+        }
+
+        /// <summary>
+        /// Robotics
+        /// </summary>
+        /// <param name="this"></param>
+        /// <returns></returns>
+        private async ValueTask RoboAsync(CcCollective @this)
+        {
+            var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            
+            //while running
+            while (!@this.Zeroed())
             {
-                var secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                var random = new Random((int)DateTime.Now.Ticks);
+                //periodically
+                await Task.Delay((_random.Next(@this.parm_mean_pat_delay / 4) + @this.parm_mean_pat_delay / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
+                
+                if (@this.Zeroed())
+                    break;
 
-                //while running
-                while (!@this.Zeroed())
+                try
                 {
-                    //periodically
-                    await Task.Delay((random.Next(@this.parm_mean_pat_delay/4) + @this.parm_mean_pat_delay/4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
-                    if (@this.Zeroed())
-                        break;
+                    var totalConnections = @this.TotalConnections;
+                    double scanRatio = 1;
 
-                    try
+                    //Attempt to peer with standbys
+                    if (totalConnections < @this.MaxDrones * scanRatio &&
+                        secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4) //delta q
                     {
-                        var totalConnections = @this.TotalConnections;
-                        double scanRatio = 1;
+                        @this._logger.Trace($"Scanning {@this._autoPeering.Neighbors.Values.Count}, {@this.Description}");
 
-                        //Attempt to peer with standbys
-                        if (totalConnections < @this.MaxDrones * scanRatio &&
-                            secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4) //delta q
+                        var c = 0;
+                        //Send peer requests
+                        foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
+                                ((CcAdjunct)n).State is CcAdjunct.AdjunctState.Verified) //quick slot
+                            .OrderBy(n => ((CcAdjunct)n).Priority)
+                            .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                         {
-                            @this._logger.Trace($"Scanning {@this._autoPeering.Neighbors.Values.Count}, {@this.Description}");
+                            await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false);
+                            c++;
+                        }
 
-                            //Send peer requests
+                        //Scan for peers
+                        if (c == 0)
+                        {
                             foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
-                                    ((CcAdjunct) n).State is CcAdjunct.AdjunctState.Verified)//quick slot
-                                .OrderBy(n => ((CcAdjunct) n).Priority)
+                                    ((CcAdjunct)n).State is > CcAdjunct.AdjunctState.Verified) //quick slot
+                                .OrderBy(n => ((CcAdjunct)n).Priority)
                                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                             {
-                                await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false);
+                                await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false);
+                                c++;
                             }
-                            
-                            if(@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay)
-                            {
-                                //bootstrap if alone
-                                await @this.DeepScanAsync().ConfigureAwait(false);
-                            }
-
-                            if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
-                                secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }
-                    }
-                    catch when(@this.Zeroed()){}
-                    catch (Exception e) when (!@this.Zeroed())
-                    {
-                        @this._logger?.Error(e, $"Failed to ensure {@this._autoPeering.Neighbors.Count} peers");
+
+                        if (@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay)
+                        {
+                            //bootstrap if alone
+                            await @this.DeepScanAsync().ConfigureAwait(false);
+                        }
+
+                        if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
+                            secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     }
                 }
-            },this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+                catch when (@this.Zeroed()) { }
+                catch (Exception e) when (!@this.Zeroed())
+                {
+                    @this._logger?.Error(e, $"Failed to ensure {@this._autoPeering.Neighbors.Count} peers");
+                }
+            }
         }
 
         /// <summary>
@@ -216,9 +237,8 @@ namespace zero.cocoon
         
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
-        private readonly IoNodeAddress _fpcAddress;
 
-        readonly Random _random = new Random((int) DateTime.Now.Ticks);
+        readonly Random _random = new((int)DateTime.Now.Ticks);
 
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new ConcurrentDictionary<long, ConcurrentBag<string>>();
@@ -349,7 +369,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 60 * 10;
+        public int parm_mean_pat_delay = 60 * 2;
 
 
         /// <summary>

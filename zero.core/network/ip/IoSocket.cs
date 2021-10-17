@@ -221,7 +221,7 @@ namespace zero.core.network.ip
                 if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
                 {
                     NativeSocket.Shutdown(SocketShutdown.Both);
-                    NativeSocket.Disconnect(false);
+                    await NativeSocket.DisconnectAsync(false).FastPath().ConfigureAwait(false);
                 }
             }
             catch (SocketException e) { _logger.Trace(e, Description); }

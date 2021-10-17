@@ -105,7 +105,7 @@ namespace zero.core.patterns.bushes
         public bool SyncRecoveryModeEnabled { get; protected set; }
 
         /// <summary>
-        /// Upstream <see cref="Source"/> reference
+        /// UpstreamSource <see cref="Source"/> reference
         /// </summary>
         public IIoSource IoSource => Source;
 
