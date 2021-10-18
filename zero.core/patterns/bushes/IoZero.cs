@@ -29,7 +29,7 @@ namespace zero.core.patterns.bushes
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// <param name="enableSync"></param>
         /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
-        protected IoZero(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob,
+        protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
             bool enableSync, bool sourceZeroCascade = false, int concurrencyLevel = -1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
         {
             ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
@@ -70,11 +70,11 @@ namespace zero.core.patterns.bushes
         /// <param name="mallocMessage"></param>
         /// <param name="sourceZeroCascade"></param>
         private void ConfigureProducer(string description, IoSource<TJob> source,
-            Func<object, IoSink<TJob>> mallocMessage, bool sourceZeroCascade = false)
+            Func<object, IIoNanite, IoSink<TJob>> mallocMessage, bool sourceZeroCascade = false)
         {
             _description = description;
             
-            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage };
+            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage, Context = source};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
             Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);

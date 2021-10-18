@@ -153,7 +153,7 @@ namespace zero.core.patterns.bushes.contracts
         /// <returns></returns>
         ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
             int concurrencyLevel = 1, bool cascade = false,
-            IoSource<TFJob> channelSource = null, Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
+            IoSource<TFJob> channelSource = null, Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
         
     }
 }

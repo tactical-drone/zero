@@ -4,6 +4,7 @@ using NLog;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 using Logger = NLog.Logger;
 
 namespace zero.core.core
@@ -22,7 +23,7 @@ namespace zero.core.core
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocJob">The callback that allocates new message buffer space</param>
         /// <param name="enableSync"></param>
-        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IoSink<TJob>> mallocJob,
+        public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
             bool enableSync)
             : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableSync, true)
         {

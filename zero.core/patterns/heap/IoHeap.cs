@@ -13,8 +13,10 @@ namespace zero.core.patterns.heap
     /// Basic heap construct
     /// </summary>
     /// <typeparam name="T">The type of item managed</typeparam>
-    public class IoHeap<T>
+    /// <typeparam name="TC">The context of this heap</typeparam>
+    public class IoHeap<T,TC>
         where T : class
+        where TC : class
     {
         /// <summary>
         /// ctor
@@ -23,16 +25,17 @@ namespace zero.core.patterns.heap
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
-        
+
         /// <summary>
         /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
         /// </summary>
         /// <param name="maxSize">The maximum capacity of this heap</param>
         /// 
-        public IoHeap(uint maxSize)
+        public IoHeap(uint maxSize, TC context = null)
         {
             _maxSize = maxSize;
             _ioHeapBuf = new IoBag<T>($"{nameof(_ioHeapBuf)}", _maxSize);
+            Context = context;
             _count = 0;
             _refCount = 0;
             //IoFpsCounter = new IoFpsCounter(500, 5000);
@@ -145,7 +148,7 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref _count);
                         Interlocked.Increment(ref _refCount);
-                        return ValueTask.FromResult(Make(userData));
+                        return ValueTask.FromResult(Make(userData, Context));
                     }
                     else //we have run out of capacity
                     {
@@ -209,7 +212,9 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Makes a new item
         /// </summary>
-        public Func<object,T> Make;
+        public Func<object,TC,T> Make;
+
+        public TC Context;
 
         /// <summary>
         /// Prepares an item from the stack
@@ -235,5 +240,23 @@ namespace zero.core.patterns.heap
         {
             await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
         }
+
+        public override string ToString()
+        {
+            return $"{GetType()}"; //TODO
+        }
     }
+
+    /// <summary>
+    /// Legacy implementation
+    /// </summary>
+    /// <typeparam name="T2"></typeparam>
+    public class IoHeap<T2> : IoHeap<T2, object> 
+        where T2 : class
+    {
+        public IoHeap(uint maxSize, object context = null) : base(maxSize, context)
+        {
+        }
+    }
+
 }

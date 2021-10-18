@@ -285,7 +285,7 @@ namespace zero.core.patterns.bushes
         public async ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
             int concurrencyLevel = -1, bool cascade = false,
             IoSource<TFJob> channelSource = null,
-            Func<object, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
+            Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
         {
             if (!IoConduits.ContainsKey(id))
             {

@@ -1,6 +1,7 @@
 ﻿using System;
 using NLog;
 using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.patterns.bushes
 {
@@ -19,7 +20,7 @@ namespace zero.core.patterns.bushes
         /// <param name="description">A description of the channel destination</param>
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
-        public IoConduit(string description, IoSource<TJob> source, Func<object, IoSink<TJob>> mallocJob, int concurrencyLevel = -1) : base(description, source, mallocJob, false, true, concurrencyLevel)
+        public IoConduit(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob, int concurrencyLevel = -1) : base(description, source, mallocJob, false, true, concurrencyLevel)
         {
             
         }

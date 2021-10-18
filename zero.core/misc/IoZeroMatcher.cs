@@ -31,7 +31,7 @@ namespace zero.core.misc
 
             _valHeap = new IoHeap<IoChallenge>(_capacity)
             {
-                Make = _ => new IoChallenge()
+                Make = (o,s) => new IoChallenge()
             };
         }
 

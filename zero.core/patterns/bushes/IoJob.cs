@@ -300,7 +300,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG
         //TODO
-        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new((uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2)) { Make = o => new IoStateTransition<IoJobMeta.JobState>(){FinalState = (int)IoJobMeta.JobState.Halted} };
+        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new((uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2)) { Make = (o,s) => new IoStateTransition<IoJobMeta.JobState>(){FinalState = (int)IoJobMeta.JobState.Halted} };
 #endif
         /// <summary>
         /// Final state

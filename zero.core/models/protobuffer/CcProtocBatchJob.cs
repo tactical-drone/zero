@@ -26,18 +26,19 @@ namespace zero.core.models.protobuffer
     ///
     /// <see cref="CcAdjunct"/> -> <see cref="CcProtocMessage{TModel,TBatch}"/>     -> <see cref="CcProtocBatchSource"/> -> <see cref="IoConduit{TJob}"/>
     /// <see cref="BlockingCollection{T}"/> -                 instead of this we use                     <see cref="IoConduit{TJob}"/>
-    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatch{TModel,TBatch}"/> <- <see cref="CcProtocBatchSource{TModel,TBatch}"/> <- <see cref="IoConduit{TJob}"/>
+    /// <see cref="CcAdjunct"/> <- <see cref="CcProtocBatchJobJob{TModel,TBatch}"/> <- <see cref="CcProtocBatchSource{TModel,TBatch}"/> <- <see cref="IoConduit{TJob}"/>
     /// </summary>
-    public class CcProtocBatch<TModel, TBatch> : IoSink<CcProtocBatch<TModel, TBatch>>
-    where TModel:IMessage where TBatch : IoNanoprobe
+    public class CcProtocBatchJob<TModel, TBatch> : IoSink<CcProtocBatchJob<TModel, TBatch>>
+    where TModel:IMessage
+    where TBatch : class, IDisposable
     {
         /// <summary>
         /// ctor
         /// </summary>
         /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource{TModel,TBatch}"/></param>
         /// <param name="concurrencyLevel"></param>
-        public CcProtocBatch(IoSource<CcProtocBatch<TModel, TBatch>> originatingSource, int concurrencyLevel = 1)
-            : base("conduit", $"{nameof(CcProtocBatch<TModel, TBatch>)}", originatingSource, concurrencyLevel)
+        public CcProtocBatchJob(IoSource<CcProtocBatchJob<TModel, TBatch>> originatingSource, int concurrencyLevel = 1)
+            : base("conduit", $"{nameof(CcProtocBatchJob<TModel, TBatch>)}", originatingSource, concurrencyLevel)
         {
             
         }
@@ -45,13 +46,13 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// Empty constructor
         /// </summary>
-        public CcProtocBatch(){}
+        public CcProtocBatchJob(){}
 
 
         /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
-        private volatile TBatch[] _batch;
+        private volatile TBatch _batch;
         
         /// <summary>
         /// zero unmanaged
@@ -59,7 +60,7 @@ namespace zero.core.models.protobuffer
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
-            _batch = null;
+            _batch = default;
         }
 
         /// <summary>
@@ -77,7 +78,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         /// <returns>The current batch</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public TBatch[] Get()
+        public TBatch Get()
         {
             //transfer ownership
             return Interlocked.CompareExchange(ref _batch, null, _batch);
@@ -88,7 +89,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         /// <param name="batch">The current batch</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask SetAsync(TBatch[] batch)
+        public async ValueTask SetAsync(TBatch batch)
         {
             if (_batch != null)
                 await ClearAsync().FastPath().ConfigureAwait(false);
@@ -96,25 +97,10 @@ namespace zero.core.models.protobuffer
             _batch = batch;
         }
         
-        private async ValueTask ClearAsync()
+        private ValueTask ClearAsync()
         {
-            if (_batch != null)
-            {
-                foreach (var msg in _batch)
-                {
-                    if (msg == default)
-                        break;
-
-                    try
-                    {
-                        await msg.ZeroAsync(this).FastPath().ConfigureAwait(false);
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Trace(e, $"{Description}");
-                    }
-                }    
-            }
+            _batch?.Dispose();
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>
@@ -143,7 +129,7 @@ namespace zero.core.models.protobuffer
         {
             if (!await Source.ProduceAsync(static async (_, backPressure, state, ioJob )=>
             {
-                var job = (CcProtocBatch<TModel, TBatch>)ioJob;
+                var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
                 
                 if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(false))
                     return false;

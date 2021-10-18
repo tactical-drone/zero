@@ -15,33 +15,31 @@ namespace zero.core.models.protobuffer.sources
     /// <summary>
     /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/> for <see cref="CcAdjunct"/>
     /// </summary>
-    public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatch<TModel, TBatch>>
+    public class CcProtocBatchSource<TModel, TBatch> : IoSource<CcProtocBatchJob<TModel, TBatch>>
     where TModel : IMessage
-    where TBatch : IoNanoprobe
+    where TBatch : class, IDisposable
     {
         /// <summary>
         /// ctor
         /// </summary>
         /// <param name="description">A description</param>
         /// <param name="ioSource">The source of this model</param>
-        /// <param name="arrayPool">Used to establish a pool</param>
         /// <param name="batchSize">Batch size</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="maxAsyncSinks"></param>
         /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource,ArrayPool<TBatch> arrayPool, uint batchSize, int prefetchSize, int concurrencyLevel, uint maxAsyncSinks = 0, uint maxAsyncSources = 0) 
+        public CcProtocBatchSource(string description, IIoSource ioSource, uint batchSize, int prefetchSize, int concurrencyLevel, uint maxAsyncSinks = 0, uint maxAsyncSources = 0) 
             : base(description, prefetchSize, concurrencyLevel, maxAsyncSinks, maxAsyncSources)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
             UpstreamSource = ioSource;
-            ArrayPool = arrayPool;
 
             //Set Q to be blocking
             //TODO tuning
 
-            MessageQueue = new IoQueue<TBatch[]>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
+            MessageQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
     
             var enableFairQ = false;
             var enableDeadlockDetection = true;
@@ -63,14 +61,9 @@ namespace zero.core.models.protobuffer.sources
         private Logger _logger;
 
         /// <summary>
-        /// Shared heap
-        /// </summary>
-        public ArrayPool<TBatch> ArrayPool { get; private set; }
-
-        /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected IoQueue<TBatch[]> MessageQueue;
+        protected IoQueue<TBatch> MessageQueue;
 
         /// <summary>
         /// Sync used to access the Q
@@ -112,7 +105,6 @@ namespace zero.core.models.protobuffer.sources
             _queuePressure = null;
             //_queueBackPressure = null;
             MessageQueue = null;
-            ArrayPool = null;
 #endif
         }
 
@@ -123,16 +115,10 @@ namespace zero.core.models.protobuffer.sources
         {
             _queuePressure.Zero();
             //_queueBackPressure.Zero();
-            await MessageQueue.ZeroManagedAsync(static async (msgBatch,@this) =>
+            await MessageQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
-                foreach (var msg in msgBatch)
-                {
-                    if(msg == null)
-                        break;
-                    
-                    await msg.ZeroAsync(@this).FastPath().ConfigureAwait(false);
-                }
-                    
+                msgBatch.Dispose();
+                return ValueTask.CompletedTask;
             },this).FastPath().ConfigureAwait(false);
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
@@ -143,7 +129,7 @@ namespace zero.core.models.protobuffer.sources
         /// </summary>
         /// <param name="item">The messages</param>
         /// <returns>Async task</returns>
-        public async ValueTask<bool> EnqueueAsync(TBatch[] item)
+        public async ValueTask<bool> EnqueueAsync(TBatch item)
         {
             try
             {
@@ -170,12 +156,12 @@ namespace zero.core.models.protobuffer.sources
         /// Dequeue item
         /// </summary>
         /// <returns></returns>
-        public async ValueTask<TBatch[]> DequeueAsync()
+        public async ValueTask<TBatch> DequeueAsync()
         {
             try
             {
                 if (!await _queuePressure.WaitAsync().FastPath().ConfigureAwait(false))
-                    return null;
+                    return default;
                 
                 return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(false);
             }
@@ -196,7 +182,7 @@ namespace zero.core.models.protobuffer.sources
                 }
             }
 
-            return null;
+            return default;
         }
 
         /// <summary>

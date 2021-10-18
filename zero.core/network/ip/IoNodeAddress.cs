@@ -22,6 +22,7 @@ namespace zero.core.network.ip
             _performDns = lookup;
             Init(url);
             IpEndPoint = new IPEndPoint(IPAddress.Parse(Ip),Port);
+            Key = IpEndPoint.ToString();
         }
 
         /// <summary>
@@ -31,6 +32,7 @@ namespace zero.core.network.ip
         {
             IpEndPoint = endPoint;
             Url = IpEndPoint.ToString();
+            Key = IpEndPoint.ToString();
         }
 
         /// <summary>
@@ -41,6 +43,7 @@ namespace zero.core.network.ip
         private IoNodeAddress(string url, IPEndPoint endpoint):this(url)
         {
             IpEndPoint = endpoint;
+            Key = IpEndPoint.ToString();
         }
 
         /// <summary>
@@ -52,7 +55,7 @@ namespace zero.core.network.ip
         public string Url { get; set; }
 
         [DataMember]
-        public string Key => IpEndPoint.ToString();
+        public string Key { get; }
 
         [DataMember]
         public IPAddress ResolvedIpAddress { get; protected set; }

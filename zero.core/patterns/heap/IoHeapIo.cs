@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.heap
@@ -12,7 +11,8 @@ namespace zero.core.patterns.heap
     /// A heap construct that works with Iot types
     /// </summary>
     /// <typeparam name="T">The item type</typeparam>
-    public class IoHeapIo<T>: IoHeap<T> where T: class, IIoHeapItem, IIoNanite
+    /// <typeparam name="TC">Heap context type</typeparam>
+    public class IoHeapIo<T,TC>: IoHeap<T, TC> where T: class, IIoHeapItem, IIoNanite where TC : class
     {
         /// <summary>
         /// ConstructAsync
@@ -103,6 +103,13 @@ namespace zero.core.patterns.heap
 
             if (zero)
                 await item.ZeroAsync(new IoNanoprobe($"{GetType()}")).FastPath().ConfigureAwait(false);
+        }
+    }
+
+    public class IoHeapIo<T>: IoHeapIo<T, IIoNanite> where T : class, IIoHeapItem, IIoNanite
+    {
+        public IoHeapIo(uint maxSize) : base(maxSize)
+        {
         }
     }
 }

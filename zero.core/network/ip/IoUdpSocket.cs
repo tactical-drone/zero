@@ -65,7 +65,7 @@ namespace zero.core.network.ip
         {
             _recvArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
             {
-                Make = o =>
+                Make = (o,s) =>
                 {
                     var args = new SocketAsyncEventArgs{ RemoteEndPoint = new IPEndPoint(0, 0)};
                     args.Completed += SignalAsync;
@@ -75,7 +75,7 @@ namespace zero.core.network.ip
 
             _sendArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
             {
-                Make = o =>
+                Make = (o, s) =>
                 {
                     var args = new SocketAsyncEventArgs();
                     args.Completed += SignalAsync;
@@ -85,7 +85,7 @@ namespace zero.core.network.ip
 
             _tcsHeap = new IoHeap<IIoZeroSemaphore>((uint)concurrencyLevel)
             {
-                Make = o =>
+                Make = (o, s) =>
                 {
                     IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", 1, 0, 0);
                     tcs.ZeroRef(ref tcs, AsyncTasks.Token);

@@ -15,7 +15,7 @@ using zero.core.patterns.misc;
 namespace zero.core.models.protobuffer
 {
     public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessage<TModel, TBatch>>
-    where TModel:IMessage where TBatch : IoNanoprobe
+    where TModel:IMessage where TBatch : class, IDisposable
     {
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
@@ -53,12 +53,13 @@ namespace zero.core.models.protobuffer
         /// <summary>
         /// Message batch broadcast channel
         /// </summary>
-        protected IoConduit<CcProtocBatch<TModel, TBatch>> ProtocolConduit;
+        protected IoConduit<CcProtocBatchJob<TModel, TBatch>> ProtocolConduit;
 
         /// <summary>
         /// Base source
         /// </summary>
         protected IoNetClient<CcProtocMessage<TModel, TBatch>> MessageService => (IoNetClient<CcProtocMessage<TModel, TBatch>>)Source;
+
 
         /// <summary>
         /// The time a consumer will wait for a source to release it before aborting in ms
@@ -87,7 +88,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_msg_batch_size = 256;//TODO tuning
+        public int parm_max_msg_batch_size = 32;//TODO tuning
 
         /// <summary>
         /// Message rate
@@ -138,7 +139,6 @@ namespace zero.core.models.protobuffer
         {
             try
             {
-                //MemoryBufferPin = MemoryBuffer.Pin();
                 await MessageService.ProduceAsync(static async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
                     var job = (CcProtocMessage<TModel, TBatch>)ioJob;
@@ -292,13 +292,6 @@ namespace zero.core.models.protobuffer
         //        StillHasUnprocessedFragments = false;
         //    }
         //}
-
-      
-
-        /// <summary>
-        /// offset into the batch
-        /// </summary>
-        protected volatile int CurrBatchSlot;
 
     }
 }
