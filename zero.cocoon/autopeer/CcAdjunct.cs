@@ -110,7 +110,7 @@ namespace zero.cocoon.autopeer
 
                     try
                     {
-                        @this._logger.Debug($"R> {@this.Description}");
+                        //@this._logger.Debug($"R> {@this.Description}");
                         await @this.EnsureRoboticsAsync().FastPath().ConfigureAwait(false);
                     }
                     catch (Exception) when (@this.Zeroed()) {}
@@ -184,8 +184,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// return extra information about the state
         /// </summary>
-        public string MetaDesc =>
-            $"(d= {Direction}, s= {State}, v= {Verified}, a= {Assimilating}, drone= {IsDroneAttached}, c= {IsDroneConnected}, r= {PeerRequestsRecvCount}, g= {IsGossiping}, arb= {IsArbitrating}, o= {MessageService.IsOperational}, w= {TotalPats})";
+        public string MetaDesc => $"{(Zeroed()?"Zeroed!!!,":"")} d={Direction}, s={State}, v={Verified}, a={Assimilating}, da={IsDroneAttached}, cc={IsDroneConnected}, g={IsGossiping}, arb={IsArbitrating}, s={MessageService.IsOperational}";
 
         /// <summary>
         /// Random number generator
@@ -364,7 +363,7 @@ namespace zero.cocoon.autopeer
             {
                 Interlocked.Exchange(ref _lastPat, value);
                 Interlocked.Increment(ref _totalPats);
-                Console.WriteLine(".");
+                Console.WriteLine($"{Description} PATTED!!!!!!!");
             }
         }
 
@@ -672,7 +671,12 @@ namespace zero.cocoon.autopeer
 
                 //send PAT
                 if (await SendPingAsync().FastPath().ConfigureAwait(false))
-                        _logger.Trace($"-/> {nameof(EnsureRoboticsAsync)}: PAT to = {Description}");
+                {
+#if DEBUG
+                    _logger.Trace($"-/> {nameof(EnsureRoboticsAsync)}: PAT to = {Description}");
+#endif
+                }
+
                 else if (Collected)
                     _logger.Error($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
             }
@@ -1131,11 +1135,11 @@ namespace zero.cocoon.autopeer
                 //DMZ-syn
                 if (!Collected) return;
                 
-                //We syn here (Instead of in process ping) to force the other party to do some work (this) before we do work (verify).
+                //We syn here (Instead of in process ping) to force the other party to do some work (prepare to connect) before we do work (verify).
                 if (await Router
                     .SendPingAsync(remote, CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString())
                     .FastPath().ConfigureAwait(false))
-                    _logger.Trace($"{nameof(PeeringRequest)}: DMZ/SYN => {extraData}");
+                    _logger.Trace($"-/> {nameof(PeeringRequest)}: [[DMZ/SYN]] => {extraData}");
                 
                 return;
             }
@@ -1251,13 +1255,16 @@ namespace zero.cocoon.autopeer
                     if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
                         _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
 
-                        await ZeroAsync(static async @this =>
+                    if (_peerRequestsSentCount > 1)
                     {
-                        if (!await @this.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
-                            @this._logger.Debug($"{nameof(PeeringResponse)} - {@this.Description}: {nameof(SendDiscoveryRequestAsync)} did not execute...");
+                        await ZeroAsync(static async @this =>
+                        {
+                            if (!await @this.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false))
+                                @this._logger.Debug($"{nameof(PeeringResponse)} - {@this.Description}: {nameof(SendDiscoveryRequestAsync)} did not execute...");
 
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
-                        
+                        }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
+                    }
+
                     break;
                 }
                 case false:
@@ -1651,11 +1658,14 @@ namespace zero.cocoon.autopeer
         /// <returns></returns>
         private async ValueTask ProcessAsync(DiscoveryRequest request, object extraData, Packet packet)
         {
-            if (!Assimilating || request.Timestamp.ElapsedMs() > parm_max_network_latency * 2)
+            if (!Assimilating || request.Timestamp.CurrentMsDelta() > parm_max_network_latency * 2)
             {
-                if (Collected)
+                if (Assimilating)
+                {
                     _logger.Trace(
-                        $"<\\- {nameof(DiscoveryRequest)}: [ABORTED], age = {request.Timestamp.ElapsedDelta()}, {Description}, {MetaDesc}");
+                        $"<\\- {nameof(DiscoveryRequest)}: [ABORTED] {!Assimilating}, age = {request.Timestamp.CurrentMsDelta():0.0}ms/{parm_max_network_latency * 2:0.0}ms, {Description}, {MetaDesc}");
+                }
+                    
                 return;
             }
 
@@ -1731,7 +1741,7 @@ namespace zero.cocoon.autopeer
             //Drop old messages
             if (ping.Timestamp.ElapsedMs() > parm_max_network_latency * 2) //TODO params
             {
-                _logger.Error($"<\\- {(Proxy ? "V>" : "X>")}{nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.ElapsedMs()}ms");
+                _logger.Error($"<\\- {nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.ElapsedMs()}ms");
                 return;
             }
 
@@ -1811,7 +1821,7 @@ namespace zero.cocoon.autopeer
                     .FastPath().ConfigureAwait(false)) > 0)
                 {
 #if DEBUG
-                    _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent SYN-ACK, {MessageService.IoNetSocket.LocalAddress} ~> {toAddress}");
+                    _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
 #endif
 
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -1832,7 +1842,7 @@ namespace zero.cocoon.autopeer
                         .FastPath().ConfigureAwait(false)) > 0)
                     {
 #if DEBUG
-                        _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent SYN-ACK, {MessageService.IoNetSocket.LocalAddress} ~> {toAddress}");
+                        _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
 #endif
                     }
                 }
@@ -1847,9 +1857,9 @@ namespace zero.cocoon.autopeer
                 {
 #if DEBUG
                     if (IsDroneConnected)
-                        _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent KEEPALIVE, {Description}");
+                        _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[KEEPALIVE]], {Description}");
                     else
-                        _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent ACK SYN, {Description}");
+                        _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[ACK SYN]], {Description}");
 #endif
 
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -1866,7 +1876,7 @@ namespace zero.cocoon.autopeer
                 else
                 {
                     if (Collected)
-                        _logger.Debug($"<\\- {nameof(Ping)}: [FAILED] Sent ACK SYN/KEEPALIVE, to = {Description}");
+                        _logger.Error($"-/> {nameof(Ping)}: [FAILED] Send [[ACK SYN/KEEPALIVE]], to = {Description}");
                 }
             }
         }
@@ -1941,13 +1951,6 @@ namespace zero.cocoon.autopeer
             }
             else if (!Verified) //Process ACK SYN
             {
-                AdjunctState oldstate;
-                if ((oldstate = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
-                {
-                    _logger.Warn($"{Description}: Invalid state, {oldstate}. Wanted {nameof(AdjunctState.Unverified)}");
-                    return;
-                }
-
                 //PAT
                 LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 
@@ -1961,12 +1964,21 @@ namespace zero.cocoon.autopeer
                     IoNodeAddress.Create(
                         $"udp://{pong.DstAddr}:{CcCollective.Services.CcRecord.Endpoints[CcService.Keys.peering].Port}");
 
+                AdjunctState oldState;
+                if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
+                {
+                    _logger.Warn($"{Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Unverified)}");
+                    return;
+                }
+                Thread.MemoryBarrier();
                 Verified = true;
 
-                _logger.Trace($"<\\- {nameof(Pong)}: ACK SYN: {Description}");
+#if DEBUG
+                _logger.Trace($"<\\- {nameof(Pong)}: <<ACK SYN>>: {Description}");
+#endif
 
-
-                await SendPeerRequestAsync().FastPath().ConfigureAwait(false);
+                if (!await SendPeerRequestAsync().FastPath().ConfigureAwait(false))
+                    _logger.Trace($"-/> {nameof(SendPeerRequestAsync)}: FAILED to send, {Description}");
             }
             else 
             {
@@ -1979,16 +1991,20 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"<\\- {nameof(Pong)}: {Description}");
                     if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound && PeerRequestsRecvCount < parm_zombie_max_connection_attempts)
                     {
-                        _logger.Trace($"<\\- {nameof(Pong)} (acksyn-fast): Send Peer REQUEST), to = {Description}, from nat = {ExtGossipAddress}");
-                        await SendPeerRequestAsync().FastPath().ConfigureAwait(false);
+                        if (!await SendPeerRequestAsync().FastPath().ConfigureAwait(false))
+                            _logger.Trace($"<\\- {nameof(SendPeerRequestAsync)} (acksyn-fast): [FAILED] Send Peer request, {Description}");
+                        else
+                            _logger.Trace($"-/> {nameof(Pong)} (acksyn-fast): Send Peer REQUEST), to = {Description}");
                     }
 
                     //ensure ingress
                     if (Direction == Heading
                         .Undefined && CcCollective.IngressConnections < CcCollective.parm_max_inbound && PeerRequestsSentCount < parm_zombie_max_connection_attempts)
                     {
-                        _logger.Trace($"<\\- {nameof(Pong)}(acksyn-rst): Send Peer HUP to = {Description}, from nat = {ExtGossipAddress}");
-                        await SendPeerDropAsync().FastPath().ConfigureAwait(false);
+                        if (!await SendPeerDropAsync().FastPath().ConfigureAwait(false))
+                            _logger.Trace($"<\\- {nameof(SendPeerDropAsync)}(acksyn-rst): [FAILED ]Send Peer HUP");
+                        else
+                            _logger.Trace($"-/> {nameof(Pong)}(acksyn-rst): Send Peer HUP to = {Description}");
                     }
 
                     Volatile.Write(ref _viral, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
@@ -2058,10 +2074,9 @@ namespace zero.cocoon.autopeer
 
                     await _pingRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(false);
 
-#if DEBUG
                     if (Collected)
                         _logger.Error($"-/> {nameof(Ping)}: [FAILED], {Description}");
-#endif
+
                     return false;
                 }
                 else //The destination state was undefined, this is local
@@ -2077,8 +2092,9 @@ namespace zero.cocoon.autopeer
 
                     if (sent > 0)
                     {
-                        _logger.Trace($"-/> {nameof(SendPingAsync)}({sent})[{reqBuf.Span.PayloadSig()}]: dest = {dest}, {Description}");
-
+#if DEBUG
+                        _logger.Trace($"-/> {nameof(Ping)}({sent})[{reqBuf.Span.PayloadSig()}]: dest = {dest}, {Description}");
+#endif
                         await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
                             EventType = AutoPeerEventType.SendProtoMsg,
@@ -2094,8 +2110,8 @@ namespace zero.cocoon.autopeer
                     }
 
                     await router._pingRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(false);
-                    if (!router.Zeroed() && !router.MessageService.Zeroed())
-                        _logger.Error($"-/> {nameof(SendPingAsync)}:(X) [FAILED], {Description}");
+                    if(Collected)
+                        _logger.Trace($"-/> {nameof(Ping)}:(X) [FAILED], {Description}");
                     return false;
                 }
             }
@@ -2150,7 +2166,7 @@ namespace zero.cocoon.autopeer
                 {
                     Interlocked.Increment(ref _peerRequestsSentCount);
                     _logger.Trace(
-                        $"-/> {nameof(SendDiscoveryRequestAsync)}({sent}){reqBuf.Memory.PayloadSig()}: Sent, {Description}");
+                        $"-/> {nameof(DiscoveryRequest)}({sent}){reqBuf.Memory.PayloadSig()}: Sent, {Description}");
 
                     //Emit message event
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -2169,12 +2185,12 @@ namespace zero.cocoon.autopeer
 
                 await _discoveryRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(false);
                 if (Collected)
-                    _logger.Debug($"-/> {nameof(SendDiscoveryRequestAsync)}: [FAILED], {Description} ");
+                    _logger.Debug($"-/> {nameof(DiscoveryRequest)}: [FAILED], {Description} ");
             }
             catch when (Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Debug(e,$"{nameof(SendDiscoveryRequestAsync)}: [ERROR] z = {Zeroed()}, state = {State}, dest = {RemoteAddress}, source = {MessageService}, _discoveryRequest = {_discoveryRequest.Count}");
+                _logger.Debug(e,$"{nameof(DiscoveryRequest)}: [ERROR] z = {Zeroed()}, state = {State}, dest = {RemoteAddress}, source = {MessageService}, _discoveryRequest = {_discoveryRequest.Count}");
             }
 
             return false;
@@ -2223,7 +2239,7 @@ namespace zero.cocoon.autopeer
                 {
                     Interlocked.Increment(ref _peerRequestsSentCount);
                     _logger.Trace(
-                        $"-/> {nameof(SendPeerRequestAsync)}({sent})[{peerRequestRaw.Memory.PayloadSig()}]: Sent, {Description}");
+                        $"-/> {nameof(PeeringRequest)}({sent})[{peerRequestRaw.Memory.PayloadSig()}]: Sent, {Description}");
 
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
@@ -2242,12 +2258,12 @@ namespace zero.cocoon.autopeer
                 await _peerRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(false);
 
                 if (Collected)
-                    _logger.Debug($"-/> {nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
+                    _logger.Debug($"-/> {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
             }
             catch when(Zeroed()){}
             catch (Exception e)when (!Zeroed())
             {
-                _logger.Debug(e, $"{nameof(SendPeerRequestAsync)}: [FAILED], {Description}, {MetaDesc}");
+                _logger.Debug(e, $"{nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
             }
             
             return false;
@@ -2257,7 +2273,7 @@ namespace zero.cocoon.autopeer
         /// Tell peer to drop us when things go wrong. (why or when? cause it wont reconnect otherwise. This is a bug)
         /// </summary>
         /// <returns></returns>
-        private async ValueTask SendPeerDropAsync(IoNodeAddress dest = null)
+        private async ValueTask<bool> SendPeerDropAsync(IoNodeAddress dest = null)
         {
             try
             {
@@ -2286,6 +2302,8 @@ namespace zero.cocoon.autopeer
                             Type = $"peer disconnect"
                         }
                     }).FastPath().ConfigureAwait(false);
+
+                    return true;
                 }
             }
             catch (Exception) when(Zeroed()){}
@@ -2295,6 +2313,8 @@ namespace zero.cocoon.autopeer
                     _logger.Debug(e,
                         $"{nameof(SendPeerDropAsync)}: [ERROR], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}, d = {dest}, s = {MessageService}");
             }
+
+            return false;
         }
 
         //TODO complexity
@@ -2506,6 +2526,21 @@ namespace zero.cocoon.autopeer
             }
 #endif
         }
+
+        /// <summary>
+        /// Print state history
+        /// </summary>
+        void PrintStateHistory()
+        {
+            var c = StateTransitionHistory[0];
+            var i = 0;
+            while (c != null)
+            {
+                Console.WriteLine($"{i++} ~> {(AdjunctState)c.Value}");
+                c = c.Next;
+            }
+        }
+
         /// <summary>
         /// Gets and sets the state of the work
         /// </summary>

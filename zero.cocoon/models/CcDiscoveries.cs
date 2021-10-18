@@ -324,7 +324,9 @@ namespace zero.cocoon.models
                     }
 
                     var messageType = Enum.GetName(typeof(MessageTypes), packet.Type);
-                    _logger.Trace($"<\\= {messageType ?? "Unknown"} {RemoteEndPoint} ~> {MessageService.IoNetSocket.LocalNodeAddress} ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}:, <{MessageService.Description}> id = {Id}, o = {CurrBatchSlot}, r = {BytesRead}");
+#if DEBUG
+                    _logger.Trace($"<\\= {messageType ?? "Unknown"} [{RemoteEndPoint} ~> {MessageService.IoNetSocket.LocalNodeAddress}], ({CcCollective.CcId.IdString()})<<[{(verified ? "signed" : "un-signed")}]{packet.Data.Memory.PayloadSig()}: <{MessageService.Description}> id = {Id}, bs = {CurrBatchSlot}, r = {BytesRead}");
+#endif
 
                     //Don't process unsigned or unknown messages
                     if (!verified || messageType == null)

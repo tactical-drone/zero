@@ -46,7 +46,7 @@ namespace zero.core.misc
         /// <param name="timestamp"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ElapsedMsDelta(this long timestamp)
+        public static long CurrentMsDelta(this long timestamp)
         {
             var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp ;
             if (delta < 0)

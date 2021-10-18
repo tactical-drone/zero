@@ -234,7 +234,10 @@ namespace zero.core.network.ip
                 NativeSocket.Close();
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+
+#if DEBUG
             _logger.Trace($"Closed {Description}");
+#endif
         }
 
         /// <summary>

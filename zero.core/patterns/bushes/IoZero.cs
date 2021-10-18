@@ -264,7 +264,9 @@ namespace zero.core.patterns.bushes
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
 
+#if DEBUG
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
+#endif
         }
 
         /// <summary>

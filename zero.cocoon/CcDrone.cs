@@ -70,7 +70,7 @@ namespace zero.cocoon
         {
             get
             {
-                //if (_lastDescGen.ElapsedMsDelta() > 100 && _description != null)
+                //if (_lastDescGen.CurrentMsDelta() > 100 && _description != null)
                 //    return _description;
                 
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
