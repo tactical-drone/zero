@@ -441,6 +441,7 @@ namespace zero.core.network.ip
         {
             try
             {
+                Debug.Assert(remoteEp != null);
                 //concurrency
                 if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(false))
                     return 0;

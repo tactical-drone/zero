@@ -243,7 +243,7 @@ namespace zero.core.core
                 await ZeroAsync(static async newNeighbor =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
-                }, newNeighbor, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                }, newNeighbor, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(false);
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

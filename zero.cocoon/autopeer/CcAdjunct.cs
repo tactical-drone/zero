@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using Google.Protobuf;
 using NLog;
 using Proto;
@@ -1901,7 +1902,7 @@ namespace zero.cocoon.autopeer
 
                 return;
             }
-
+            
             //Process SYN-ACK
             if (!Proxy)
             {

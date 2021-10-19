@@ -59,6 +59,9 @@ namespace zero.core.patterns.semaphore.core
             
             _signalAwaiter = new Action<object>[_maxBlockers];
             _signalAwaiterState = new object[_maxBlockers];
+            _signalExecutionState = new ExecutionContext[_maxBlockers];
+            _signalCapturedContext = new object[_maxBlockers];
+
             _head = 0;
             _tail = 0;
         }
@@ -163,7 +166,17 @@ namespace zero.core.patterns.semaphore.core
         /// Holds the state of a queued item
         /// </summary>
         private object[] _signalAwaiterState;
-        
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private ExecutionContext[] _signalExecutionState;
+
+        /// <summary>
+        /// Holds the state of a queued item
+        /// </summary>
+        private object[] _signalCapturedContext;
+
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
@@ -391,10 +404,25 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
 #endif
 
+            ExecutionContext executionContext = default;
+            object capturedContext = default;
+
+            if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
+            {
+                executionContext = ExecutionContext.Capture();
+            }
+
+            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
+            {
+                capturedContext = SynchronizationContext.Current;
+                if (capturedContext == null && TaskScheduler.Current != TaskScheduler.Default)
+                    capturedContext = TaskScheduler.Current;
+            }
+
             //fast path
             if (Signalled())
             {
-                ZeroComply(continuation, state);
+                ZeroComply(continuation, state, executionContext, capturedContext);
                 return;
             }
             
@@ -416,7 +444,14 @@ namespace zero.core.patterns.semaphore.core
             
             if (slot == null)
             {
-                _signalAwaiterState[headIdx] = state;
+                //_signalAwaiterState[headIdx] = state;
+                //_signalExecutionState[headIdx] = executionContext;
+                //_signalCapturedContext[headIdx] = capturedContext;
+
+                Volatile.Write(ref _signalAwaiterState[headIdx] , state);
+                Volatile.Write(ref _signalExecutionState[headIdx],executionContext);
+                Volatile.Write(ref _signalCapturedContext[headIdx] , capturedContext);
+                
                 _zeroRef.ZeroIncWait();
                 ZeroUnlock();
             }
@@ -443,13 +478,39 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <param name="callback">The callback</param>
         /// <param name="state">The state</param>
+        /// <param name="capturedContext"></param>
         /// <param name="zeroed">If we are zeroed</param>
+        /// <param name="executionContext"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining|MethodImplOptions.AggressiveOptimization)]
-        private bool ZeroComply(Action<object> callback, object state, bool zeroed = false)
+        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool zeroed = false)
         {
             try
             {
-                callback(state);
+                switch (capturedContext)
+                {
+                    case null:
+                        if (executionContext != null)
+                        {
+                            ThreadPool.QueueUserWorkItem(callback, state, preferLocal: true);
+                        }
+                        else
+                        {
+                            ThreadPool.UnsafeQueueUserWorkItem(callback, state, preferLocal: true);
+                        }
+                        break;
+
+                    case SynchronizationContext sc:
+                        sc.Post(static s =>
+                        {
+                            var tuple = (ValueTuple<Action<object?>, object?>)s!;
+                            tuple.Item1(tuple.Item2);
+                        }, new ValueTuple<Action<object?>, object?>(callback, state));
+                        break;
+
+                    case TaskScheduler ts:
+                        Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                        break;
+                }
                 return true;
             }
             catch (TaskCanceledException) {return true;}
@@ -596,6 +657,9 @@ namespace zero.core.patterns.semaphore.core
                 while ((worker.Continuation =
                     Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, _signalAwaiter[latchIdx])) == null) {}
 
+                worker.ExecutionContext = Interlocked.CompareExchange(ref _signalExecutionState[latchIdx], null, _signalExecutionState[latchIdx]);
+                worker.CapturedContext = Interlocked.CompareExchange(ref _signalCapturedContext[latchIdx], null, _signalCapturedContext[latchIdx]);
+
                 //count the number of overall waiters
                 _zeroRef.ZeroDecWait();
 
@@ -608,46 +672,47 @@ namespace zero.core.patterns.semaphore.core
                     throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
 
+                
                 //async workers
-                var parallelized = false;
-                switch (async && _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers)
-                {
-                    case true when _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers:
-                        await Task.Factory.StartNew(static state =>
-                            {
-                                var (@this, worker) = (ValueTuple<IoZeroSemaphore, IoZeroWorker>)state;
+                //var parallelized = false;
+                //switch (async && _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers)
+                //{
+                //    case true when _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers:
+                //        await Task.Factory.StartNew(static state =>
+                //            {
+                //                var (@this, worker) = (ValueTuple<IoZeroSemaphore, IoZeroWorker>)state;
 
-                                try
-                                {
-                                    @this.ZeroComply(worker.Continuation, worker.State,
-                                        worker.Semaphore.Zeroed() ||
-                                        worker.State is IIoNanite nanite && nanite.Zeroed());
-                                }
-                                catch (Exception e)
-                                {
-                                    LogManager.GetCurrentClassLogger().Error(e,$@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
-                                    return ValueTask.FromException(e);
-                                }
-                                finally
-                                {
-                                    worker.Semaphore.ZeroDecAsyncWait();
-                                }
+                //                try
+                //                {
+                //                    @this.ZeroComply(worker.Continuation, worker.State,
+                //                        worker.Semaphore.Zeroed() ||
+                //                        worker.State is IIoNanite nanite && nanite.Zeroed());
+                //                }
+                //                catch (Exception e)
+                //                {
+                //                    LogManager.GetCurrentClassLogger().Error(e,$@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
+                //                    return ValueTask.FromException(e);
+                //                }
+                //                finally
+                //                {
+                //                    worker.Semaphore.ZeroDecAsyncWait();
+                //                }
 
-                                return ValueTask.CompletedTask;
-                            }, ValueTuple.Create(this, worker),_asyncToken, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+                //                return ValueTask.CompletedTask;
+                //            }, ValueTuple.Create(this, worker),_asyncToken, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
 
-                        _zeroRef.ZeroIncAsyncWait();
-                        parallelized = true;
-                        break;
-                    case true when (_maxAsyncWorkers > 0):
-                        _zeroRef.ZeroDecAsyncWait();
-                        break;
-                }
+                //        _zeroRef.ZeroIncAsyncWait();
+                //        parallelized = true;
+                //        break;
+                //    case true when (_maxAsyncWorkers > 0):
+                //        _zeroRef.ZeroDecAsyncWait();
+                //        break;
+                //}
 
                 //synced workers
-                if (!parallelized)
+                //if (!parallelized)
                 {
-                    if (!ZeroComply(worker.Continuation, worker.State, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                    if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                     {
                         //update current count
                         _zeroRef.ZeroAddCount(releaseCount - released);
@@ -834,6 +899,8 @@ namespace zero.core.patterns.semaphore.core
             public IIoZeroSemaphore Semaphore;
             public Action<object> Continuation;
             public object State;
+            public ExecutionContext ExecutionContext;
+            public object CapturedContext;
         }
     }
 }
