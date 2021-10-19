@@ -3,13 +3,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using NLog.Web;
 using zero.cocoon;
@@ -80,7 +80,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 4;
+            var total = 50;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -300,17 +300,7 @@ namespace zero.sync
                 }
             }, TaskCreationOptions.LongRunning);
 
-            Console.ReadLine();
-
-            _running = false;
-            
-            
-            foreach (var ccCollective in _nodes)
-            {
-                var t = ccCollective.ZeroAsync(null);
-            }
-            _nodes.Clear();
-
+           
 
             string line;
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -343,6 +333,14 @@ namespace zero.sync
                 }
             };
             Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
+            
+
+            _running = false;
+            foreach (var ccCollective in _nodes)
+            {
+                var t = ccCollective.ZeroAsync(new IoNanoprobe($"{Assembly.GetCallingAssembly()}"));
+            }
+
             _nodes.Clear();
             _nodes = null;
 
@@ -838,7 +836,6 @@ namespace zero.sync
                     {
                         var t = n.ZeroAsync(new IoNanoprobe("Zero.Sync"));
                         Interlocked.Increment(ref zeroed);
-                        s.Release();
                     });
 
                     if (zeroed > 0 && zeroed % 100 == 0)
@@ -847,9 +844,13 @@ namespace zero.sync
                             $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
                     }
                 }
-                catch
+                catch(Exception e)
                 {
-
+                    Console.WriteLine(e);
+                }
+                finally
+                {
+                    s.Release();
                 }
             });
 

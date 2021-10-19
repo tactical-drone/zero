@@ -29,7 +29,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         protected IoNanoprobe()
         {
-            
+            _zId = Interlocked.Increment(ref _uidSeed);
         }
 
         /// <summary>
@@ -39,6 +39,7 @@ namespace zero.core.patterns.misc
         public IoNanoprobe(string reason)
         {
             Description = reason;
+            _zId = Interlocked.Increment(ref _uidSeed);
         }
 
         /// <summary>
@@ -214,11 +215,8 @@ namespace zero.core.patterns.misc
                 return true;
 
             ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
+            await ZeroAsync(true).FastPath().ConfigureAwait(Zc);
 
-            await ZeroOptionAsync(static async @this =>
-            {
-                await @this.ZeroAsync(true).FastPath().ConfigureAwait(@this.Zc);    
-            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
             GC.SuppressFinalize(this);
             return true;
         }
@@ -308,7 +306,7 @@ namespace zero.core.patterns.misc
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
-            
+
             CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             try
             {
@@ -397,6 +395,10 @@ namespace zero.core.patterns.misc
             {
                 // ignored
             }
+
+#if DEBUG
+            _logger.Trace($"serial ~> {SerialNr} - Resistence is futile...");
+#endif
         }
 
         /// <summary>
