@@ -65,12 +65,12 @@ namespace zero.core.core
         /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        public ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new ConcurrentDictionary<string, IoNeighbor<TJob>>();
+        public ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new();
 
         /// <summary>
         /// Allowed clients
         /// </summary>
-        private ConcurrentDictionary<string, IoNodeAddress> _whiteList = new ConcurrentDictionary<string, IoNodeAddress>();
+        private ConcurrentDictionary<string, IoNodeAddress> _whiteList = new();
 
         /// <summary>
         /// On Connected
@@ -236,27 +236,20 @@ namespace zero.core.core
         /// Assimilate neighbor
         /// </summary>
         /// <param name="newNeighbor"></param>
-        public ValueTask AssimilateAsync(IoNeighbor<TJob> newNeighbor)
+        public async ValueTask AssimilateAsync(IoNeighbor<TJob> newNeighbor)
         {
             try
             {
-                var assimilation = ZeroAsync(static async newNeighbor =>
+                await ZeroAsync(static async newNeighbor =>
                 {
                     await newNeighbor.AssimilateAsync().ConfigureAwait(false);
-                },newNeighbor, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
-
-                NeighborTasks.Add(assimilation.AsTask());
-
-                //prune finished tasks
-                var remainTasks = NeighborTasks.Where(t => !t.IsCompleted).ToList();
-                NeighborTasks.Clear();
-                remainTasks.ForEach(NeighborTasks.Add);
+                }, newNeighbor, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
             }
-            catch (Exception e)
+            catch when(Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"Neighbor `{newNeighbor.Source.Description}' processing thread returned with errors:");
             }
-            return ValueTask.CompletedTask;
         }
 
         /// <summary>

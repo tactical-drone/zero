@@ -1,6 +1,5 @@
 ﻿//#define LOSS
 using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
@@ -25,7 +24,6 @@ using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
-using zero.core.models.protobuffer.sources;
 using zero.core.network.ip;
 using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
@@ -719,21 +717,17 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (Proxy)
+                if (!Proxy)
                 {
-                    await ProcessDiscoveriesAsync().ConfigureAwait(false);
-                }
-                else
-                {
-                    await ZeroAsync(static async @this =>
-                    {
-                        await @this.ProcessDiscoveriesAsync().ConfigureAwait(false);
-                    }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach /*CONFIRMED TUNE*/ | TaskCreationOptions.PreferFairness);
-                
-                    await base.AssimilateAsync().ConfigureAwait(false);
+                    await ZeroAsync(static @this => @this.ProcessDiscoveriesAsync()
+                    , this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                    //await ProcessDiscoveriesAsync();
+                    //ProcessDiscoveriesAsync();
+                    await base.AssimilateAsync();
                 }
             }
-            catch(Exception e)
+            catch when(Zeroed()){}
+            catch(Exception e)when (!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(AssimilateAsync)} Failed!");
             }
@@ -800,7 +794,7 @@ namespace zero.cocoon.autopeer
                         break;
                     try
                     {
-                        await processCallback(message, msgBatch, channel, nanite).FastPath().ConfigureAwait(false);
+                        await processCallback(message, msgBatch, channel, nanite).FastPath();
                     }
                     catch (Exception) when (!Zeroed()){}
                     catch (Exception e)when(Zeroed())
@@ -820,7 +814,8 @@ namespace zero.cocoon.autopeer
             }
             finally
             {
-                if (msgBatch != null) await msgBatch.ReturnToHeapAsync().FastPath().ConfigureAwait(false);
+                if (msgBatch != null) 
+                    await msgBatch.ReturnToHeapAsync().FastPath();
             }
         }
         
@@ -828,7 +823,7 @@ namespace zero.cocoon.autopeer
         /// Processes protocol messages
         /// </summary>
         /// <returns></returns>
-        private async Task ProcessDiscoveriesAsync()
+        private async ValueTask ProcessDiscoveriesAsync()
         {
             try
             {
@@ -889,7 +884,7 @@ namespace zero.cocoon.autopeer
 
                             for (var i = 0; i < @this._produceTaskPool.Length; i++)
                             {
-                                if (!await @this._produceTaskPool[i].FastPath().ConfigureAwait(false))
+                                if (!await @this._produceTaskPool[i].FastPath())
                                     return;
                             }
                         }
@@ -900,7 +895,7 @@ namespace zero.cocoon.autopeer
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
                     
-                },this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness/*CONFIRMED TUNE*/);
+                },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach);
 
                 var consumer = ZeroOptionAsync(static async @this  =>
                 {
@@ -979,40 +974,40 @@ namespace zero.cocoon.autopeer
                                                         case CcDiscoveries.MessageTypes.Ping:
                                                             await ccNeighbor.ProcessAsync((Ping) message, extraData,
                                                                     packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                         case CcDiscoveries.MessageTypes.Pong:
                                                             await ccNeighbor.ProcessAsync((Pong) message, extraData,
                                                                     packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                         case CcDiscoveries.MessageTypes.DiscoveryRequest:
                                                             await ccNeighbor
                                                                 .ProcessAsync((DiscoveryRequest) message, extraData,
                                                                     packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                         case CcDiscoveries.MessageTypes.DiscoveryResponse:
                                                             await ccNeighbor.ProcessAsync((DiscoveryResponse) message,
                                                                     extraData, packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                         case CcDiscoveries.MessageTypes.PeeringRequest:
                                                             await ccNeighbor
                                                                 .ProcessAsync((PeeringRequest) message, extraData,
                                                                     packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                         case CcDiscoveries.MessageTypes.PeeringResponse:
                                                             await ccNeighbor
                                                                 .ProcessAsync((PeeringResponse) message, extraData,
                                                                     packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                         case CcDiscoveries.MessageTypes.PeeringDrop:
                                                             await ccNeighbor
                                                                 .ProcessAsync((PeeringDrop) message, extraData, packet)
-                                                                .FastPath().ConfigureAwait(false);
+                                                                .FastPath();
                                                             break;
                                                     }
                                                 }
@@ -1021,7 +1016,7 @@ namespace zero.cocoon.autopeer
                                                 {
                                                     @this._logger?.Debug(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
                                                 }
-                                            }, @this).FastPath().ConfigureAwait(false);
+                                            }, @this).FastPath();
                                         }
                                         finally
                                         {
@@ -1039,7 +1034,7 @@ namespace zero.cocoon.autopeer
 
                             for (var i = 0; i < @this._consumeTaskPool.Length; i++)
                             {
-                                if (!await @this._consumeTaskPool[i].FastPath().ConfigureAwait(false))
+                                if (!await @this._consumeTaskPool[i].FastPath())
                                     return;
                             }
                         }
@@ -1049,7 +1044,7 @@ namespace zero.cocoon.autopeer
                     {
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
-                }, this, TaskCreationOptions.LongRunning /*CONFIRMED TUNE*/| TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+                }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness );
 
                 await Task.WhenAll(producer.AsTask(), consumer.AsTask());
             }
@@ -1086,7 +1081,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 //Hup
-                if (Direction == Heading.Undefined && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
+                if (Direction == Heading.Undefined && CcCollective.IngressCount < CcCollective.parm_max_inbound)
                     await SendPingAsync().FastPath().ConfigureAwait(false);
             }
         }
@@ -1153,7 +1148,7 @@ namespace zero.cocoon.autopeer
             {
                 ReqHash = UnsafeByteOperations.UnsafeWrap(
                     CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
-                Status = CcCollective.IngressConnections < CcCollective.parm_max_inbound & _direction == 0
+                Status = CcCollective.IngressCount < CcCollective.parm_max_inbound & _direction == 0
             };
 
             if ((sent= await SendMessageAsync(peeringResponse.ToByteString(),
@@ -1964,7 +1959,7 @@ namespace zero.cocoon.autopeer
                 AdjunctState oldState;
                 if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
                 {
-                    _logger.Warn($"{Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Unverified)}");
+                    _logger.Warn($"{nameof(Pong)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Unverified)}");
                     return;
                 }
                 Thread.MemoryBarrier();
@@ -1990,7 +1985,7 @@ namespace zero.cocoon.autopeer
                 if (Volatile.Read(ref _viral).ElapsedMsToSec() >= parm_virality)
                 {
                     //ensure egress
-                    if (Direction == Heading.Undefined && CcCollective.EgressConnections < CcCollective.parm_max_outbound && PeerRequestsRecvCount < parm_zombie_max_connection_attempts)
+                    if (Direction == Heading.Undefined && CcCollective.EgressCount < CcCollective.parm_max_outbound && PeerRequestsRecvCount < parm_zombie_max_connection_attempts)
                     {
                         if (!await SendPeerRequestAsync().FastPath().ConfigureAwait(false))
                             _logger.Trace($"<\\- {nameof(SendPeerRequestAsync)} (acksyn-fast): [FAILED] Send Peer request, {Description}");
@@ -2003,7 +1998,7 @@ namespace zero.cocoon.autopeer
                     }
 
                     //ensure ingress
-                    if (Direction == Heading.Undefined && CcCollective.IngressConnections < CcCollective.parm_max_inbound && PeerRequestsSentCount < parm_zombie_max_connection_attempts)
+                    if (Direction == Heading.Undefined && CcCollective.IngressCount < CcCollective.parm_max_inbound && PeerRequestsSentCount < parm_zombie_max_connection_attempts)
                     {
                         if (!await SendPeerDropAsync().FastPath().ConfigureAwait(false))
                             _logger.Trace($"<\\- {nameof(SendPeerDropAsync)}(acksyn-rst): [FAILED ]Send Peer HUP");
@@ -2354,8 +2349,8 @@ namespace zero.cocoon.autopeer
                     var (@this, ioCcDrone, direction) = state;
 
                     //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
-                    if (direction == Heading.Ingress && @this.CcCollective.IngressConnections >= @this.CcCollective.parm_max_inbound || 
-                        direction == Heading.Egress && @this.CcCollective.EgressConnections >= @this.CcCollective.parm_max_outbound)
+                    if (direction == Heading.Ingress && @this.CcCollective.IngressCount >= @this.CcCollective.parm_max_inbound || 
+                        direction == Heading.Egress && @this.CcCollective.EgressCount >= @this.CcCollective.parm_max_outbound)
                     {
                         AdjunctState oldState;
                         if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
@@ -2447,7 +2442,7 @@ namespace zero.cocoon.autopeer
             //send drop request
             await SendPeerDropAsync().FastPath().ConfigureAwait(false);
 
-            if (direction == Heading.Ingress && CcCollective.IngressConnections < CcCollective.parm_max_inbound)
+            if (direction == Heading.Ingress && CcCollective.IngressCount < CcCollective.parm_max_inbound)
             {
                 //back off for a while... Try to re-establish a link 
                 await ZeroAsync(static async @this =>

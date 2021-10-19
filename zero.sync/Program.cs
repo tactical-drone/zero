@@ -79,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 10;
+            var total = 50;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -214,16 +214,17 @@ namespace zero.sync
                         uptimeCount = 1;
                         foreach (var ioCcNode in _nodes)
                         {
-                            opeers += ioCcNode.Neighbors.Values.Count(n => ((CcDrone)n).Adjunct?.IsDroneConnected ?? false);
-                            var e = ioCcNode.EgressConnections;
-                            var i = ioCcNode.IngressConnections;
+
+                            opeers += ioCcNode.Drones.Count;
+                            var e = ioCcNode.EgressCount;
+                            var i = ioCcNode.IngressCount;
                             minOut = Math.Min(minOut, e);
                             minIn = Math.Min(minIn, i);
                             if (ioCcNode.TotalConnections == 0)
                                 empty++;
-                            if (ioCcNode.EgressConnections == 0)
+                            if (ioCcNode.EgressCount == 0)
                                 minOutC++;
-                            if (ioCcNode.IngressConnections == 0)
+                            if (ioCcNode.IngressCount == 0)
                                 minInC++;
 
                             if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)

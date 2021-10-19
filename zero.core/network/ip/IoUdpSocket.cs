@@ -63,34 +63,37 @@ namespace zero.core.network.ip
         /// </summary>
         private void InitHeap(int concurrencyLevel)
         {
-            _recvArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
+            _recvArgs = new IoHeap<SocketAsyncEventArgs,IoUdpSocket>((uint)concurrencyLevel)
             {
-                Make = (o,s) =>
+                Make = static (o,s) =>
                 {
                     var args = new SocketAsyncEventArgs{ RemoteEndPoint = new IPEndPoint(0, 0)};
-                    args.Completed += SignalAsync;
+                    args.Completed += s.SignalAsync;
                     return args;
-                }
+                },
+                Context = this
             };
 
-            _sendArgs = new IoHeap<SocketAsyncEventArgs>((uint)concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>((uint)concurrencyLevel)
             {
-                Make = (o, s) =>
+                Make = static (o, s) =>
                 {
                     var args = new SocketAsyncEventArgs();
-                    args.Completed += SignalAsync;
+                    args.Completed += s.SignalAsync;
                     return args;
-                }
+                },
+                Context = this
             };
 
-            _tcsHeap = new IoHeap<IIoZeroSemaphore>((uint)concurrencyLevel)
+            _tcsHeap = new IoHeap<IIoZeroSemaphore, IoUdpSocket>((uint)concurrencyLevel)
             {
-                Make = (o, s) =>
+                Make = static (o, s) =>
                 {
                     IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", 1, 0, 0);
-                    tcs.ZeroRef(ref tcs, AsyncTasks.Token);
+                    tcs.ZeroRef(ref tcs, s.AsyncTasks.Token);
                     return tcs;
-                }
+                }, 
+                Context = this
             };
         }
 
@@ -396,17 +399,17 @@ namespace zero.core.network.ip
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs> _recvArgs;
+        private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _recvArgs;
 
         /// <summary>
         /// socket args heap
         /// </summary>
-        private IoHeap<SocketAsyncEventArgs> _sendArgs;
+        private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _sendArgs;
 
         /// <summary>
         /// task completion source
         /// </summary>
-        private IoHeap<IIoZeroSemaphore> _tcsHeap;
+        private IoHeap<IIoZeroSemaphore, IoUdpSocket> _tcsHeap;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private async void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
@@ -444,15 +447,12 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(false);
+                    //var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(false);
                     var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
                     try
                     {
-                        //var args = new SocketAsyncEventArgs();
-                        //args.Completed += Signal;
-
-                        //args = new SocketAsyncEventArgsExt();
-                        //args.Completed += Signal;
+                        var args = new SocketAsyncEventArgs();
+                        args.Completed += SignalAsync;
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
@@ -460,11 +460,9 @@ namespace zero.core.network.ip
                         if (tcs == null)
                             throw new OutOfMemoryException(nameof(_tcsHeap));
 
-                        args.AcceptSocket = null;
-                        args.SocketFlags = SocketFlags.None;
                         args.SetBuffer(buffer.Slice(offset, length));
-
                         args.UserToken = tcs;
+                        args.RemoteEndPoint = remoteEp;
 
                         if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
                         {
@@ -486,18 +484,18 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        if (args != null)
-                        {
-                            var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
-                            if (dispose)
-                            {
-                                args.SetBuffer(null, 0, 0);
-                                args.Completed -= SignalAsync;
-                                args.Dispose();
-                            }
+                        //if (args != null)
+                        //{
+                        //    var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
+                        //    if (dispose)
+                        //    {
+                        //        args.SetBuffer(null, 0, 0);
+                        //        args.Completed -= SignalAsync;
+                        //        args.Dispose();
+                        //    }
 
-                            await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false);
-                        }
+                        //    await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false);
+                        //}
                         
                         if (tcs != null)
                             await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);

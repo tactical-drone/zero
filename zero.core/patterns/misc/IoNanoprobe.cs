@@ -93,6 +93,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// A cheap logger
         /// </summary>
+        // ReSharper disable once InconsistentNaming
         private static readonly ILogger _logger;
 
         /// <summary>
@@ -583,9 +584,9 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, TaskCreationOptions options, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return ZeroAsync(continuation, state, AsyncTasks.Token, options, TaskScheduler.Default, unwrap, filePath, methodName: methodName, lineNumber);
+            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Current, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>

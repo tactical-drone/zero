@@ -88,7 +88,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 32;//TODO tuning
+        public int parm_max_msg_batch_size = 64;//TODO tuning 4 x MaxAdjuncts
 
         /// <summary>
         /// Message rate
@@ -247,7 +247,7 @@ namespace zero.core.models.protobuffer
             catch when (Zeroed()) { }
             catch (Exception e)when (!Zeroed())
             {
-                _logger.Warn(e, $"Producing job for {Description} returned with errors:");
+                _logger?.Warn(e, $"Producing job for {Description} returned with errors:");
             }
             finally
             {

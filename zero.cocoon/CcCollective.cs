@@ -34,7 +34,7 @@ namespace zero.cocoon
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
+            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -47,7 +47,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
-            _autoPeering =  new CcHub(this, _peerAddress,(node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
+            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount:1);
@@ -233,7 +233,7 @@ namespace zero.cocoon
             }
         }
 
-        private IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>> _autoPeering;
+        private CcHub _autoPeering;
         
         private readonly IoNodeAddress _gossipAddress;
         private readonly IoNodeAddress _peerAddress;
@@ -280,36 +280,32 @@ namespace zero.cocoon
         /// <summary>
         /// The discovery service
         /// </summary>
-        public CcHub Hub => (CcHub)_autoPeering;
-
+        public CcHub Hub => _autoPeering;
 
         /// <summary>
         /// Total number of connections
         /// </summary>
-        public int TotalConnections => IngressConnections + EgressConnections;
+        public int TotalConnections => IngressCount + EgressCount;
 
-        public List<CcDrone> Ingress => Drones.Where(kv=>(kv.Adjunct.IsIngress)).ToList();
+        public List<CcDrone> IngressDrones => Drones.Where(kv=> kv.Adjunct.IsIngress).ToList();
+
+        public List<CcDrone> EgressDrones => Drones.Where(kv => kv.Adjunct.IsEgress).ToList();
 
         public List<CcDrone> Drones => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsDroneConnected: true }).Cast<CcDrone>().ToList();
+
+        public List<CcAdjunct> Adjuncts => Hub.Neighbors.Values.Where(kv => ((CcAdjunct)kv).State > CcAdjunct.AdjunctState.Unverified).Cast<CcAdjunct>().ToList();
 
         public List<CcDrone> WhisperingDrones => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsGossiping: true }).Cast<CcDrone>().ToList();
 
         /// <summary>
         /// Number of inbound neighbors
         /// </summary>
-        public volatile int IngressConnections;
-
-        public List<CcDrone> Egress => Drones.Where(kv => (((CcDrone)kv).Adjunct.IsEgress)).ToList();
+        public volatile int IngressCount;
 
         /// <summary>
         /// Number of outbound neighbors
         /// </summary>
-        public volatile int EgressConnections;
-
-        /// <summary>
-        /// Connected nodes
-        /// </summary>
-        private List<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>> Adjuncts => Neighbors.Values.Where(kv=> ((CcDrone)kv).Adjunct != null && ((CcDrone)kv).Adjunct.IsDroneConnected && ((CcDrone)kv).Adjunct.IsIngress && ((CcDrone)kv).Adjunct.State == CcAdjunct.AdjunctState.Connected).ToList();
+        public volatile int EgressCount;
 
         /// <summary>
         /// The services this node supports
@@ -408,7 +404,7 @@ namespace zero.cocoon
             await base.SpawnListenerAsync(static async (drone,@this) =>
             {
                 //limit connects
-                if (@this.Zeroed() || @this.IngressConnections >= @this.parm_max_inbound)
+                if (@this.Zeroed() || @this.IngressCount >= @this.parm_max_inbound)
                     return false;
 
                 //Handshake
@@ -599,7 +595,7 @@ namespace zero.cocoon
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                         //    .FastPath().ConfigureAwait(false);
-                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressConnections < parm_max_inbound;
+                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressCount < parm_max_inbound;
                         return handshakeSuccess;
                     }
                 }
@@ -708,7 +704,7 @@ namespace zero.cocoon
                             }
                         }
                     
-                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational && EgressConnections < parm_max_outbound;
+                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational && EgressCount < parm_max_outbound;
                         return handshakeSuccess;
                     }
                 }
@@ -738,20 +734,20 @@ namespace zero.cocoon
                     {
                         await drone.ZeroSubAsync(static (_,@this) =>
                         {
-                            Interlocked.Decrement(ref @this.EgressConnections);
+                            Interlocked.Decrement(ref @this.EgressCount);
                             return ValueTask.FromResult(true);
                         }, this).FastPath().ConfigureAwait(false);
 
-                        Interlocked.Increment(ref EgressConnections);
+                        Interlocked.Increment(ref EgressCount);
                     }
                     else if (drone.IoSource.IoNetSocket.Ingress)
                     {
-                        await drone.ZeroSubAsync( static (from, @this) =>
+                        await drone.ZeroSubAsync(static (from, @this) =>
                         {
-                            Interlocked.Decrement(ref @this.IngressConnections);
+                            Interlocked.Decrement(ref @this.IngressCount);
                             return ValueTask.FromResult(true);
-                        },this).FastPath().ConfigureAwait(false);
-                        Interlocked.Increment(ref IngressConnections);
+                        }, this).FastPath().ConfigureAwait(false);
+                        Interlocked.Increment(ref IngressCount);
                     }
                 }
             }
@@ -806,7 +802,7 @@ namespace zero.cocoon
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
                     //adjunct.State <= CcAdjunct.AdjunctState.Standby &&
-                    EgressConnections < parm_max_outbound &&
+                    EgressCount < parm_max_outbound &&
                     //TODO add distance calc
                     adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)&&
                     _currentOutboundConnectionAttempts < _maxAsyncConnectionAttempts

@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Buffers;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -39,15 +37,15 @@ namespace zero.cocoon.models
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitName).FastPath().ConfigureAwait(false);
 
             var batchSize = 256;
-            var cc = 64;
+            var cc = 4;
             if (ProtocolConduit == null)
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
                 //TODO tuning
-                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, 1,1);
+                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, (uint)cc, (uint)cc);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitName,
-                    Source.ZeroConcurrencyLevel(),
+                    cc,
                     true,
                     channelSource,
                     (o,s) => new CcProtocBatchJob<Packet, CcDiscoveryBatch>(channelSource, channelSource.ZeroConcurrencyLevel())
@@ -472,16 +470,10 @@ namespace zero.cocoon.models
                         _logger.Debug($"{nameof(ForwardToNeighborAsync)} - {Description}: Failed to produce jobs from {ProtocolConduit.Description}");
                 }
             }
-            catch when(Zeroed() || ProtocolConduit == null || ProtocolConduit.Source == null) {}
-            catch (Exception e) when (
-                !Zeroed() && ProtocolConduit is { Source: { } } && !ProtocolConduit.Source.Zeroed())
+            catch when(Zeroed() || ProtocolConduit?.Source == null) {}
+            catch (Exception e) when (!Zeroed() && ProtocolConduit is { Source: { } } && !ProtocolConduit.Source.Zeroed())
             {
-                var c = 0;
-                while (e != null)
-                {
-                    _logger.Fatal(e, $"[PART({c++})] ~> Forwarding from {Description} to {ProtocolConduit.Description} failed");
-                    e = e.InnerException;
-                }
+                _logger.Fatal(e, $"Forwarding from {Description} to {ProtocolConduit.Description} failed");
             }
         }
     }

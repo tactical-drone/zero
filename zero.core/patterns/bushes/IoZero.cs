@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -668,7 +667,7 @@ namespace zero.core.patterns.bushes
                         {
                             try
                             {
-                                if (!await produceTask[i].FastPath().ConfigureAwait(false))
+                                if (!await produceTask[i].FastPath())
                                     return;
                             }
                             catch (Exception e)
@@ -683,7 +682,7 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.LongRunning/*CONFIRMED TUNE*/ | TaskCreationOptions.PreferFairness ); //TODO tuning
+            },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroAsync(static async @this =>
@@ -710,7 +709,7 @@ namespace zero.core.patterns.bushes
                     {
                         try
                         {
-                            if (!await consumeTaskPool[i].FastPath().ConfigureAwait(false))
+                            if (!await consumeTaskPool[i].FastPath())
                                 return;
                         }
                         catch (Exception e)
@@ -721,10 +720,10 @@ namespace zero.core.patterns.bushes
                     }
 
                 }
-            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness/*CONFIRMED TUNE*/); //TODO tuning
+            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
-            await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(false);
+            await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask());
 
             _logger.Trace($"{GetType().Name}: Processing for {Description} stopped");
         }

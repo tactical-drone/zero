@@ -12,11 +12,11 @@ namespace zero.core.patterns.heap
     /// <summary>
     /// Basic heap construct
     /// </summary>
-    /// <typeparam name="T">The type of item managed</typeparam>
-    /// <typeparam name="TC">The context of this heap</typeparam>
-    public class IoHeap<T,TC>
-        where T : class
-        where TC : class
+    /// <typeparam name="TItem">The type of item managed</typeparam>
+    /// <typeparam name="TContext">The context of this heap</typeparam>
+    public class IoHeap<TItem,TContext>
+        where TItem : class
+        where TContext : class
     {
         /// <summary>
         /// ctor
@@ -31,10 +31,10 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <param name="maxSize">The maximum capacity of this heap</param>
         /// 
-        public IoHeap(uint maxSize, TC context = null)
+        public IoHeap(uint maxSize, TContext context = null)
         {
             _maxSize = maxSize;
-            _ioHeapBuf = new IoBag<T>($"{nameof(_ioHeapBuf)}", _maxSize);
+            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}", _maxSize);
             Context = context;
             _count = 0;
             _refCount = 0;
@@ -56,7 +56,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The heap buffer space
         /// </summary>
-        private IoBag<T> _ioHeapBuf;
+        private IoBag<TItem> _ioHeapBuf;
 
         /// <summary>
         /// The current WorkHeap size
@@ -116,7 +116,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// zero managed
         /// </summary>
-        public async ValueTask ZeroManagedAsync<TC>(Func<T,TC,ValueTask> zeroAction = null, TC nanite = default)
+        public async ValueTask ZeroManagedAsync<TC>(Func<TItem,TC,ValueTask> zeroAction = null, TC nanite = default)
         {
             if (Interlocked.CompareExchange(ref _zeroed, 1, 0)!= 0)
                 return;
@@ -133,9 +133,9 @@ namespace zero.core.patterns.heap
         /// Checks the heap for a free item and returns it. If no free items exists make a new one if we have capacity for it.
         /// </summary>
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
-        /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="T"/></returns>
+        /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<T> TakeAsync(object userData = null)
+        public ValueTask<TItem> TakeAsync(object userData = null)
         {
             try
             {
@@ -168,13 +168,13 @@ namespace zero.core.patterns.heap
             }
             catch (Exception e)
             {
-                _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(T)}");
+                _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(TItem)}");
             }
             
             return default;
         }
 
-        private static readonly ValueTask<T> FromNullTask = new ValueTask<T>((T) default);
+        private static readonly ValueTask<TItem> FromNullTask = new ValueTask<TItem>((TItem) default);
 
         /// <summary>
         /// Returns an item to the heap
@@ -182,7 +182,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="zero">Whether to destroy this object</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual ValueTask ReturnAsync(T item, bool zero = false)
+        public virtual ValueTask ReturnAsync(TItem item, bool zero = false)
         {
 #if DEBUG
              if (item == null)
@@ -212,14 +212,14 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Makes a new item
         /// </summary>
-        public Func<object,TC,T> Make;
+        public Func<object,TContext,TItem> Make;
 
-        public TC Context;
+        public TContext Context;
 
         /// <summary>
         /// Prepares an item from the stack
         /// </summary>
-        public Action<T, object> Prep;
+        public Action<TItem, object> Prep;
 
         /// <summary>
         /// Returns the amount of space left in the buffer

@@ -625,8 +625,7 @@ namespace zero.core.patterns.semaphore.core
                                 }
                                 catch (Exception e)
                                 {
-                                    LogManager.GetCurrentClassLogger().Error(e,
-                                        $@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
+                                    LogManager.GetCurrentClassLogger().Error(e,$@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
                                     return ValueTask.FromException(e);
                                 }
                                 finally
@@ -635,8 +634,7 @@ namespace zero.core.patterns.semaphore.core
                                 }
 
                                 return ValueTask.CompletedTask;
-                            }, ValueTuple.Create(this, worker),_asyncToken,
-                            TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness,TaskScheduler.Default);
+                            }, ValueTuple.Create(this, worker),_asyncToken, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
 
                         _zeroRef.ZeroIncAsyncWait();
                         parallelized = true;

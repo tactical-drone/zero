@@ -29,7 +29,7 @@ namespace zero.cocoon.models
 
             _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2)
             {
-                Make = (o,s) => new ConcurrentBag<string>(),
+                Make = static (o,s) => new ConcurrentBag<string>(),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add((string) endpoint);

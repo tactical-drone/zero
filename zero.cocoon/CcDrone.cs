@@ -30,7 +30,7 @@ namespace zero.cocoon
         /// <param name="concurrencyLevel"></param>
         public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
             IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient, int concurrencyLevel = 1)
-            : base(node, ioNetClient, (o,s) => new CcWhispers("gossip rx", $"{ioNetClient.IoNetSocket.RemoteNodeAddress}", ioNetClient), false)
+            : base(node, ioNetClient, static (o,s) => new CcWhispers("gossip rx", $"{((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)s).IoNetSocket.RemoteNodeAddress}", ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)s)), false)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IoNetClient = ioNetClient;
