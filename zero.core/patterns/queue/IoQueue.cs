@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -52,7 +53,7 @@ namespace zero.core.patterns.queue
             if (_enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, maxAsyncWork: 0, initialCount: concurrencyLevel * 2);
+                    maxBlockers: concurrencyLevel, maxAsyncWork: 0, initialCount: concurrencyLevel);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks.Token);
             }
         }
@@ -85,8 +86,9 @@ namespace zero.core.patterns.queue
 
         public bool Modified => _modified;
 
+        public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _enableBackPressure && _backPressure.Zeroed();
 
-        public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
+        public async ValueTask<bool> ZeroManagedAsync<Tc>(Func<T,Tc, ValueTask> op = null, Tc nanite = default, bool zero = false)
         {
             try
             {
@@ -175,14 +177,19 @@ namespace zero.core.patterns.queue
                     return null;
 
                 //wait on back pressure
-                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
+                    _zeroed > 0)
+                {
+                    if(_zeroed == 0 && !_backPressure.Zeroed())
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
                     return null;
+                }
+                    
 
                 var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
-                //set value
                 node.Value = item;
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
@@ -226,38 +233,43 @@ namespace zero.core.patterns.queue
         public async ValueTask<IoZNode> EnqueueAsync(T item)
         {
             if (_zeroed > 0 || item == null)
+            {
+                Debug.Assert(item != null);
                 return null;
+            }
+                
             
             var blocked = false;
             try
             {
                 //wait on back pressure
-                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc))
-                        return null;
+                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                {
+                    if (_zeroed == 0 && !_backPressure.Zeroed())
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
+                    return null;
+                }
 
                 var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
                 
-                //set value
                 node.Value = item;
                 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
-                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc); ;
+                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc);
+                    LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncRoot}");
                     return null;
                 }
                 blocked = true;
 
-                //set hooks
                 node.Next = _tail;
-
-                //plumbing
                 if (_tail == null)
                 {
                     _tail = _head = node;
                 }
-                else //hook
+                else
                 {
                     _tail.Prev = node;
                     _tail = node;
@@ -270,9 +282,7 @@ namespace zero.core.patterns.queue
             {
                 _modified = false;
                 if (blocked)
-                {
                     await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);    
-                }
                 
                 if(_pressure != null)
                     await _pressure.ReleaseAsync().FastPath().ConfigureAwait(Zc);
@@ -287,32 +297,23 @@ namespace zero.core.patterns.queue
         {
             IoZNode dq = null;
 
-            if (_zeroed > 0 || _count == 0)
+            if (_zeroed > 0 || _count == 0 || _head == null)
             {
                 return default;
             }
-            
+
             var blocked = false;
             try
             {
                 if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return default;
-                
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return default;
 
-                _modified = true;
-                
                 blocked = true;
+                _modified = true;
 
-                //fail fast
-                if (_head == null)
-                {
-                    return default;
-                }
-                
-                //un-hook
                 dq = _head;
                 _head = _head.Prev;
                 if (_head != null)
@@ -322,38 +323,40 @@ namespace zero.core.patterns.queue
 
                 Interlocked.Decrement(ref _count);
             }
+            catch when (_zeroed > 0) { }
+            catch (Exception e) when (_zeroed == 0)
+            {
+                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
+            }
             finally
             {
-                if(dq == null)
-                    _modified = false;
+                _modified = false;
+
+                if (_enableBackPressure && await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(false) == -1)
+                {
+                    if(_zeroed == 0 && !_backPressure.Zeroed())
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}.{nameof(_backPressure.ReleaseAsync)}: back pressure release failure ~> {_backPressure}");
+                }
 
                 if (blocked)
-                {
                     await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);
-                }
             }
             //return dequeued item
-            if (dq != null)
+            
+            try
             {
-                try
+                if (dq != null)
                 {
                     dq.Prev = null;
                     var retVal = dq.Value;
                     await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(Zc);
                     return retVal;
                 }
-                catch (Exception e)
-                {
-                    LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
-                }
-                finally
-                {
-                    _modified = false;
-                    if (_enableBackPressure)
-                        await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(Zc);
-                }
-                
-                return default;
+            }
+            catch when(_zeroed > 0){}
+            catch (Exception e)when(_zeroed == 0)
+            {
+                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
             }
 
             return default;

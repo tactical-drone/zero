@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using zero.core.patterns.heap;
 
 namespace zero.cocoon.models.batches
@@ -38,6 +39,8 @@ namespace zero.cocoon.models.batches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask ReturnToHeapAsync()
         {
+            if(_heapRef.Count / (double)_heapRef.MaxSize > 0.8)
+                LogManager.GetCurrentClassLogger().Warn($"{nameof(CcDiscoveryBatch)}: Heap is running lean, {_heapRef} ");
             return _heapRef.ReturnAsync(this);
         }
 

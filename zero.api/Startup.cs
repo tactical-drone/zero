@@ -47,9 +47,7 @@ namespace zero.api
                         .AllowAnyHeader());
             });
 
-            services.AddMvc()
-                .SetCompatibilityVersion(CompatibilityVersion.Version_3_0)
-                .AddMvcOptions(options=>options.EnableEndpointRouting = false);
+            services.AddMvc().AddMvcOptions(options=>options.EnableEndpointRouting = false);
             //.AddApplicationPart(typeof(IIoNodeController).GetTypeInfo().Assembly);
 
             //.AddJsonOptions(opts =>

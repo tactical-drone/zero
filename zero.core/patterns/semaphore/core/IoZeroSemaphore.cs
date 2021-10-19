@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using Org.BouncyCastle.Utilities.Collections;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore.core
@@ -342,7 +343,7 @@ namespace zero.core.patterns.semaphore.core
 
             _zeroRef.ZeroTokenBump();
 #endif
-            return  !_asyncToken.IsCancellationRequested && _zeroed == 0;
+            return !(_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed());
         }
 
         /// <summary>
@@ -358,7 +359,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_token}");
 #endif
 
-            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
+            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
                 return ValueTaskSourceStatus.Canceled;
 
             return ValueTaskSourceStatus.Pending;
@@ -372,7 +373,7 @@ namespace zero.core.patterns.semaphore.core
         private bool Signalled()
         {
             //signal true on cancel so that threads can unwind
-            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
+            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
             {
                 return true;
             }
@@ -421,7 +422,7 @@ namespace zero.core.patterns.semaphore.core
             //fast path
             if (Signalled())
             {
-                ZeroComply(continuation, state, executionContext, capturedContext);
+                ZeroComply(continuation, state, executionContext, capturedContext, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
                 return;
             }
             
@@ -494,21 +495,24 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else
                         {
-                            if (_zeroRef.ZeroAsyncCount() < _maxAsyncWorkers)
+                            if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
                             {
-                                _zeroRef.ZeroIncAsyncCount();
-
-                                void cb(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                void Cb(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
                                 {
-                                    var (@this, callback, state) = obj;
-                                    callback(state);
+                                    var (@this, continuation, continuationState) = obj;
+                                    continuation(continuationState);
                                     @this.ZeroDecAsyncCount();
                                 }
 
-                                ThreadPool.UnsafeQueueUserWorkItem(cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
+                                ThreadPool.UnsafeQueueUserWorkItem(Cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
                             }
                             else
+                            {
+                                _zeroRef.ZeroIncAsyncCount();
                                 callback(state); //TODO why do they not inline?
+                            }
+                                
                         }
                         break;
 
@@ -633,9 +637,11 @@ namespace zero.core.patterns.semaphore.core
                 throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
 
             //fail fast on cancellation token
-            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
+            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed() )
+            {
                 return ValueTask.FromResult(-1);
-            
+            }
+
             //lock in return value
             var released = 0;
 
@@ -678,63 +684,22 @@ namespace zero.core.patterns.semaphore.core
 
                 //unlock
                 ZeroUnlock();
-                
+
 #if DEBUG
                 //validate
                 if (worker.State == null)
                     throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
 
-                
-                //async workers
-                //var parallelized = false;
-                //switch (async && _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers)
-                //{
-                //    case true when _zeroRef.ZeroAsyncCount() < _maxAsyncWorkers:
-                //        await Task.Factory.StartNew(static state =>
-                //            {
-                //                var (@this, worker) = (ValueTuple<IoZeroSemaphore, IoZeroWorker>)state;
-
-                //                try
-                //                {
-                //                    @this.ZeroComply(worker.Continuation, worker.State,
-                //                        worker.Semaphore.Zeroed() ||
-                //                        worker.State is IIoNanite nanite && nanite.Zeroed());
-                //                }
-                //                catch (Exception e)
-                //                {
-                //                    LogManager.GetCurrentClassLogger().Error(e,$@"{@this._description}: async callback failed!!! worker = {worker}, state = {worker.State}");
-                //                    return ValueTask.FromException(e);
-                //                }
-                //                finally
-                //                {
-                //                    worker.Semaphore.ZeroDecAsyncCount();
-                //                }
-
-                //                return ValueTask.CompletedTask;
-                //            }, ValueTuple.Create(this, worker),_asyncToken, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
-
-                //        _zeroRef.ZeroIncAsyncCount();
-                //        parallelized = true;
-                //        break;
-                //    case true when (_maxAsyncWorkers > 0):
-                //        _zeroRef.ZeroDecAsyncCount();
-                //        break;
-                //}
-
-                //synced workers
-                //if (!parallelized)
-                {
-                    if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
-                    {
-                        _zeroRef.ZeroAddCount(releaseCount - released);
-                        //update current count
-                        return ValueTask.FromResult(-1);
-                    }
-                }
-
                 //count the number of waiters released
                 released++;
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                {
+                    _zeroRef.ZeroAddCount(releaseCount - released);
+                    //update current count
+                    Console.WriteLine("B");
+                    return ValueTask.FromResult(-1);
+                }
             }
 
             //update current count
@@ -754,12 +719,12 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         { 
             //fail fast 
-            if (_asyncToken.IsCancellationRequested || _zeroed > 0)
+            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
                 return ValueTask.FromResult(false);
 
             //fast path
             if (Signalled())
-                return new ValueTask<bool>(!_asyncToken.IsCancellationRequested && _zeroed == 0);
+                return new ValueTask<bool>(!(_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed()));
             
             //insane checks
             if (_zeroRef.ZeroWaitCount() >= _maxBlockers)
@@ -893,7 +858,6 @@ namespace zero.core.patterns.semaphore.core
 #endif
         }
         
-
         /// <summary>
         /// Are we zeroed out?
         /// </summary>
@@ -902,6 +866,18 @@ namespace zero.core.patterns.semaphore.core
         public bool Zeroed()
         {
             return _zeroed > 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsCancellationRequested()
+        {
+            return _asyncToken.IsCancellationRequested;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override string ToString()
+        {
+            return $"{_description}: sync = {_curWaitCount}/{_maxBlockers}, async = {_curAsyncWorkerCount}/{_maxAsyncWorkers}, ready = {_curSignalCount}";
         }
 
         /// <summary>

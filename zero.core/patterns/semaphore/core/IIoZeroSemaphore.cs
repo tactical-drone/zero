@@ -57,5 +57,8 @@ namespace zero.core.patterns.semaphore.core
         internal short ZeroTokenBump();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Zeroed();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool IsCancellationRequested();
     }
 }

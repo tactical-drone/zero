@@ -171,5 +171,10 @@ namespace zero.core.patterns.semaphore
         {
             throw new NotImplementedException();
         }
+
+        public bool IsCancellationRequested()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -35,8 +35,8 @@ namespace zero.core.network.ip
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint) : base(nativeSocket, remoteEndPoint)
         {
             Proxy = true;
-            //TODO tuning
-            Init(2,32);
+            //TODO tuning (send)
+            Init(2,32, true); //16 MaxAdjuncts that can send + 16 nodes
         }
 
 
@@ -45,7 +45,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="prefetchCount"></param>
         /// <param name="concurrencyLevel"></param>
-        public void Init(int prefetchCount, int concurrencyLevel)
+        public void Init(int prefetchCount, int concurrencyLevel, bool recv = true)
         {
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
@@ -55,25 +55,28 @@ namespace zero.core.network.ip
             _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, prefetchCount, 0);
             _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks.Token);
 
-            InitHeap(concurrencyLevel);
+            InitHeap(concurrencyLevel, recv);
         }
 
         /// <summary>
         /// Initializes the heap
         /// </summary>
-        private void InitHeap(int concurrencyLevel)
+        private void InitHeap(int concurrencyLevel, bool recv = true)
         {
-            _recvArgs = new IoHeap<SocketAsyncEventArgs,IoUdpSocket>((uint)concurrencyLevel)
+            if (recv)
             {
-                Make = static (o,s) =>
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>((uint)concurrencyLevel)
                 {
-                    var args = new SocketAsyncEventArgs{ RemoteEndPoint = new IPEndPoint(0, 0)};
-                    args.Completed += s.SignalAsync;
-                    return args;
-                },
-                Context = this
-            };
-
+                    Make = static (o, s) =>
+                    {
+                        var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
+                        args.Completed += s.SignalAsync;
+                        return args;
+                    },
+                    Context = this
+                };
+            }
+            
             _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>((uint)concurrencyLevel)
             {
                 Make = static (o, s) =>
@@ -120,29 +123,33 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _recvArgs.ZeroManagedAsync<object>((o, _) =>
+            if (_recvArgs != null)
             {
-                o.Completed -= SignalAsync;
-                o.UserToken = null;
-                //o.RemoteEndPoint = null;
-                try
+                await _recvArgs.ZeroManagedAsync(static (o, @this) =>
                 {
-                    o.SetBuffer(null,0,0);
-                }
-                catch
-                {
-                    // ignored
-                }
-                ((IDisposable) o).Dispose();
+                    o.Completed -= @this.SignalAsync;
+                    o.UserToken = null;
+                    o.RemoteEndPoint = null;
+                    try
+                    {
+                        o.SetBuffer(null, 0, 0);
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                    ((IDisposable)o).Dispose();
 
-                return ValueTask.CompletedTask;
-            }).FastPath().ConfigureAwait(Zc);
+                    return ValueTask.CompletedTask;
+                }, this).FastPath().ConfigureAwait(Zc);
+            }
+            
 
-            await _sendArgs.ZeroManagedAsync<object>((o,_) =>
+            await _sendArgs.ZeroManagedAsync(static (o,@this) =>
             {
-                o.Completed -= SignalAsync;
+                o.Completed -= @this.SignalAsync;
                 o.UserToken = null;
-                //o.RemoteEndPoint = null;
+                o.RemoteEndPoint = null;
                 ((IDisposable) o).Dispose();
                 try
                 {
@@ -154,7 +161,7 @@ namespace zero.core.network.ip
                 }
                 ((IDisposable)o).Dispose();
                 return ValueTask.CompletedTask;
-            }).FastPath().ConfigureAwait(Zc);
+            },this).FastPath().ConfigureAwait(Zc);
 
             await _tcsHeap.ZeroManagedAsync<object>((o,_) =>
             {
@@ -448,12 +455,12 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    //var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(ZC);
+                    var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(Zc);
                     var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
                     try
                     {
-                        var args = new SocketAsyncEventArgs();
-                        args.Completed += SignalAsync;
+                        //var args = new SocketAsyncEventArgs();
+                        //args.Completed += SignalAsync;
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
@@ -485,19 +492,19 @@ namespace zero.core.network.ip
                     }
                     finally
                     {
-                        //if (args != null)
-                        //{
-                        //    var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
-                        //    if (dispose)
-                        //    {
-                        //        args.SetBuffer(null, 0, 0);
-                        //        args.Completed -= SignalAsync;
-                        //        args.Dispose();
-                        //    }
+                        if (args != null)
+                        {
+                            var dispose = /*args.Disposed ||*/ args.SocketError != SocketError.Success;
+                            if (dispose)
+                            {
+                                args.SetBuffer(null, 0, 0);
+                                args.Completed -= SignalAsync;
+                                args.Dispose();
+                            }
 
-                        //    await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(ZC);
-                        //}
-                        
+                            await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(Zc);
+                        }
+
                         if (tcs != null)
                             await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(Zc);
                     }

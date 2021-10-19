@@ -1537,7 +1537,7 @@ namespace zero.cocoon.autopeer
                             }
                         }
                     }
-
+                    
                     //Transfer?
                     if (!@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                     {

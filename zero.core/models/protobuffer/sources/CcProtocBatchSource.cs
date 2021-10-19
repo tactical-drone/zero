@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -122,6 +121,12 @@ namespace zero.core.models.protobuffer.sources
             },this).FastPath().ConfigureAwait(Zc);
             
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Zeroed()
+        {
+            return base.Zeroed() || MessageQueue.Zeroed;
         }
 
         /// <summary>

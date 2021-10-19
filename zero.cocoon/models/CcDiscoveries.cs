@@ -36,8 +36,8 @@ namespace zero.cocoon.models
             var conduitName = nameof(CcAdjunct);
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitName).FastPath().ConfigureAwait(Zc);
 
-            var batchSize = 256;
-            var cc = 16;
+            var batchSize = 64;
+            var cc = 4;
             if (ProtocolConduit == null)
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
@@ -441,8 +441,9 @@ namespace zero.cocoon.models
                         if (source == null || !await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(@this.Zc))
                         {
                             if (source != null && !((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
-                                _logger.Fatal(
-                                    $"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
+                            {
+                                _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
+                            }
                             return false;
                         }
 
