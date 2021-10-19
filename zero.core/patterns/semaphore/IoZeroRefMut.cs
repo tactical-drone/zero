@@ -18,7 +18,7 @@ namespace zero.core.patterns.semaphore
         
         private AsyncAutoResetEvent _semaphore;
         private readonly CancellationToken _cancellationToken;
-        private readonly bool CfgAwait = true;
+        private readonly bool Zc = true;
         
         public bool GetResult(short token)
         {
@@ -30,7 +30,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
             throw new NotImplementedException();
         }
@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore
 
         public async ValueTask<bool> WaitAsync()
         {
-            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(CfgAwait);
+            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(Zc);
             return true;
         }
 

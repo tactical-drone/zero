@@ -244,7 +244,7 @@ namespace zero.core.core
                 {
                     var (newNeighbor, cfgAwait) = state;
                     await newNeighbor.AssimilateAsync().ConfigureAwait(cfgAwait);
-                }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
+                }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

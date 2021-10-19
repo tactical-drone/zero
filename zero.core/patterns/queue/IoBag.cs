@@ -28,7 +28,7 @@ namespace zero.core.patterns.queue
         }
             
         private volatile int _zeroed;
-        private readonly bool CfgAwait = true;
+        private readonly bool Zc = true;
         private readonly string _description;
         private T[] _storage;
         private readonly uint _capacity;
@@ -154,13 +154,13 @@ namespace zero.core.patterns.queue
                             continue;
                         
                         if (!zero && op != null)
-                            await op(item, nanite).FastPath().ConfigureAwait(CfgAwait);
+                            await op(item, nanite).FastPath().ConfigureAwait(Zc);
                         else if(zero)
                         {
                             if (!((IIoNanite)item)!.Zeroed())
                                 await ((IIoNanite)item).ZeroAsync((IIoNanite)nanite ?? _zeroSentinel)
                                     .FastPath()
-                                    .ConfigureAwait(CfgAwait);
+                                    .ConfigureAwait(Zc);
                         }
                     }
                     catch (Exception) when(Zeroed){}

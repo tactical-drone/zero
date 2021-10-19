@@ -47,7 +47,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         private static Logger _logger;
 
-        protected bool CfgAwait = true;
+        protected bool Zc = true;
 
         /// <summary>
         /// Whether this object has been cleaned up
@@ -124,9 +124,9 @@ namespace zero.core.patterns.heap
                 return;
             
             if (zeroAction != null)
-                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(CfgAwait);
+                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(Zc);
             else
-                await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
+                await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
             
             _ioHeapBuf = null;
         }
@@ -240,7 +240,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public async ValueTask ClearAsync()
         {
-            await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
+            await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
         }
 
         public override string ToString()

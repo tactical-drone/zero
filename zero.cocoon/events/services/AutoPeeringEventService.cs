@@ -19,7 +19,7 @@ namespace zero.cocoon.events.services
 
         private const int EventBatchSize = 10000;
         private const int TotalBatches = 100;
-        private static bool CfgAwait = false;
+        private static bool Zc = false;
         private readonly ILogger<AutoPeeringEventService> _logger;
         private static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
@@ -43,7 +43,7 @@ namespace zero.cocoon.events.services
 
                 //block a bit on empty queues
                 if (_queuedEvents[_curIdx%2].Count == 0)
-                    await Task.Delay(200).ConfigureAwait(CfgAwait);
+                    await Task.Delay(200).ConfigureAwait(Zc);
 
                 var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx)-1) % 2];
                 var cur = curQ.Head;
@@ -60,7 +60,7 @@ namespace zero.cocoon.events.services
                     cur.Prev = null;
                     cur.Next = null;
                     cur.Value = default;
-                    await curQ.NodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(CfgAwait);
+                    await curQ.NodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(Zc);
                     cur = tmp;
                     c++;
                 }
@@ -84,7 +84,7 @@ namespace zero.cocoon.events.services
                 {
                     newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
-                    await _queuedEvents[_curIdx % 2].EnqueueAsync(newAutoPeerEvent).FastPath().ConfigureAwait(CfgAwait);
+                    await _queuedEvents[_curIdx % 2].EnqueueAsync(newAutoPeerEvent).FastPath().ConfigureAwait(Zc);
                 }
             }
             catch
@@ -104,8 +104,8 @@ namespace zero.cocoon.events.services
             _queuedEvents = null;
             if (_queuedEvents == null)
                 return;
-            await q[0].ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
-            await q[1].ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
+            await q[0].ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+            await q[1].ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
         }
     }
 }

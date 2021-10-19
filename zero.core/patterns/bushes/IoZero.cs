@@ -682,7 +682,7 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach); //TODO tuning
+            },this, TaskCreationOptions.None); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroAsync(static async @this =>
@@ -720,7 +720,7 @@ namespace zero.core.patterns.bushes
                     }
 
                 }
-            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask());

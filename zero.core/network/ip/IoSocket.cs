@@ -53,11 +53,6 @@ namespace zero.core.network.ip
         private Logger _logger;
 
 
-        /// <summary>
-        /// Config await
-        /// </summary>
-        public new bool CfgAwait = true;
-
         //Socket description 
         public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
 
@@ -227,7 +222,7 @@ namespace zero.core.network.ip
                 if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
                 {
                     NativeSocket.Shutdown(SocketShutdown.Both);
-                    await NativeSocket.DisconnectAsync(false).FastPath().ConfigureAwait(CfgAwait);
+                    await NativeSocket.DisconnectAsync(false).FastPath().ConfigureAwait(Zc);
                 }
             }
             catch (SocketException e) { _logger.Trace(e, Description); }
@@ -239,7 +234,7 @@ namespace zero.core.network.ip
             if (!Proxy)
                 NativeSocket.Close();
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
 #if DEBUG
             _logger.Trace($"Closed {Description}");

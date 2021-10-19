@@ -36,13 +36,13 @@ namespace zero.cocoon.models
             var conduitName = nameof(CcAdjunct);
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitName).FastPath().ConfigureAwait(Zc);
 
-            var batchSize = 256;
-            var cc = 8;
+            var batchSize = 32;
+            var cc = 16;
             if (ProtocolConduit == null)
             {
                 CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
                 //TODO tuning
-                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, (uint)0, (uint)0);
+                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, (uint)cc, (uint)cc);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitName,
                     cc,
@@ -399,7 +399,7 @@ namespace zero.cocoon.models
                 if (request != null)
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
-                    IIoZero zero = null;
+                    //IIoZero zero = null;
                     //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
                     //    zero = IoZero;
 

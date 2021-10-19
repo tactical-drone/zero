@@ -624,7 +624,7 @@ namespace zero.core.patterns.semaphore.core
         /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
+        public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
             Debug.Assert(_zeroRef != null);
 
@@ -634,7 +634,7 @@ namespace zero.core.patterns.semaphore.core
 
             //fail fast on cancellation token
             if (_asyncToken.IsCancellationRequested || _zeroed > 0)
-                return -1;
+                return ValueTask.FromResult(-1);
             
             //lock in return value
             var released = 0;
@@ -729,7 +729,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         _zeroRef.ZeroAddCount(releaseCount - released);
                         //update current count
-                        return -1;
+                        return ValueTask.FromResult(-1);
                     }
                 }
 
@@ -743,7 +743,7 @@ namespace zero.core.patterns.semaphore.core
                 _zeroRef.ZeroAddCount(delta);
             
             //return previous number of waiters
-            return released;
+            return ValueTask.FromResult(released);
         }
         
         /// <summary>

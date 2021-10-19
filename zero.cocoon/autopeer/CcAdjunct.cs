@@ -50,9 +50,9 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 5, CcCollective.MaxAdjuncts * 10);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 5, CcCollective.MaxAdjuncts * 10);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.parm_max_adjunct);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 2);
 
             if (extraData != null)
             {
@@ -79,8 +79,6 @@ namespace zero.cocoon.autopeer
                 CompareAndEnterState(AdjunctState.Local, AdjunctState.Undefined);
                 _routingTable = new ConcurrentDictionary<string, CcAdjunct>();
             }
-
-            //_viral = (long)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - TimeSpan.FromSeconds(parm_virality * 2).TotalMilliseconds);
             _viral = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
@@ -189,7 +187,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Random number generator
         /// </summary>
-        private readonly Random _random = new Random((int) DateTimeOffset.Now.Ticks);
+        private readonly Random _random = new((int)DateTimeOffset.Now.Ticks);
 
         /// <summary>
         /// Discovery services
@@ -766,7 +764,7 @@ namespace zero.cocoon.autopeer
                 if (!await @this.CcCollective.ConnectToDroneAsync(@this).FastPath().ConfigureAwait(@this.Zc))
                     @this._logger.Trace($"{@this.Description}: Leashing adjunct failed!");
 
-            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
+            }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
             
             return true;
         }
@@ -899,7 +897,7 @@ namespace zero.cocoon.autopeer
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
                     
-                },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach);
+                },this, TaskCreationOptions.DenyChildAttach);
 
                 var consumer = ZeroOptionAsync(static async @this  =>
                 {
@@ -1048,7 +1046,7 @@ namespace zero.cocoon.autopeer
                     {
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
-                }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness );
+                }, this, TaskCreationOptions.DenyChildAttach );
 
                 await Task.WhenAll(producer.AsTask(), consumer.AsTask());
             }
@@ -1224,23 +1222,18 @@ namespace zero.cocoon.autopeer
                 //Race for 
                 case true when _direction == 0:
                 {
-                    await ZeroOptionAsync(static async @this =>
+                    
+                    //await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency/2, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                    var connectionTime = Stopwatch.StartNew();
+                    if (!await ConnectAsync().FastPath().ConfigureAwait(Zc))
                     {
-                        await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency/2, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-                        var connectionTime = Stopwatch.StartNew();
-                        if (!await @this.ConnectAsync().FastPath().ConfigureAwait(@this.Zc))
-                        {
-                            AdjunctState oldState;
-                            if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
-                                @this._logger.Warn($"{nameof(PeeringResponse)} - {@this.Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
-                            
-                            @this._logger.Trace($"{nameof(PeeringResponse)}: FAILED to connect to {@this.Description}");
-                            return;
-                        }
-
-                        Interlocked.Add(ref ConnectionTime, connectionTime.ElapsedMilliseconds);
-                        Interlocked.Increment(ref ConnectionCount);
-                    },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                        AdjunctState oldState;
+                        if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+                            _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
+                        
+                        _logger.Trace($"{nameof(PeeringResponse)}: FAILED to connect to {Description}");
+                        return;
+                    }
                     break;
                 }
                 //at least probe

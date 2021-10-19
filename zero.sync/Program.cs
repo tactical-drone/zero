@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using NLog.Web;
 using zero.cocoon;
@@ -32,7 +33,7 @@ namespace zero.sync
 
         private static ConcurrentBag<CcCollective> _nodes = new ConcurrentBag<CcCollective>();
         private static volatile bool _running;
-        private static bool CfgAwait = true;
+        private static bool Zc = true;
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
@@ -61,7 +62,7 @@ namespace zero.sync
         static void Main(string[] args)
         {
             //SemTest();
-            //QueueTest();
+            //QueueTestAsync();
             
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = -2000;
@@ -79,7 +80,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2;
+            var total = 4;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -124,7 +125,7 @@ namespace zero.sync
                     var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
                     if (c % injectionCount == 0)
                     {
-                        await Task.Delay(rateLimit += 10).ConfigureAwait(CfgAwait);
+                        await Task.Delay(rateLimit += 10).ConfigureAwait(Zc);
 
                         Console.WriteLine($"Provisioned {c}/{total}...");
                         Console.WriteLine($"Provisioned {c}/{total}...");
@@ -153,14 +154,14 @@ namespace zero.sync
                     foreach (var task in tasks)
                     {
                         //continue;
-                        if (await task.Result.BootAsync(v, tasks.Count).FastPath().ConfigureAwait(CfgAwait))
+                        if (await task.Result.BootAsync(v, tasks.Count).FastPath().ConfigureAwait(Zc))
                         {
                             v++;
                             break;
                         }
                     }
 
-                    await Task.Delay(500).ConfigureAwait(CfgAwait);
+                    await Task.Delay(500).ConfigureAwait(Zc);
                 }
                 
             });
@@ -172,8 +173,8 @@ namespace zero.sync
 
             Console.CancelKeyPress += (sender, args) =>
             {
-                ZeroAsync(total);
                 args.Cancel = true;
+                ZeroAsync(total).AsTask().GetAwaiter();
             };
 
 
@@ -304,7 +305,10 @@ namespace zero.sync
             _running = false;
             
             
-            _nodes.ToList().ForEachAsync<CcCollective,object>(static async (n,_) =>  await n.ZeroAsync(null).FastPath().ConfigureAwait(CfgAwait)).GetAwaiter().GetResult();
+            foreach (var ccCollective in _nodes)
+            {
+                var t = ccCollective.ZeroAsync(null);
+            }
             _nodes.Clear();
 
 
@@ -367,19 +371,19 @@ namespace zero.sync
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        private static async Task QueueTest() //TODO make unit tests
+        private static Task QueueTestAsync() //TODO make unit tests
         {
 
             IoQueue<int> q = new IoQueue<int>("test", 2000000000, 10);
-            var head = q.EnqueueAsync(1).FastPath().ConfigureAwait(CfgAwait).GetAwaiter().GetResult();
-            q.EnqueueAsync(2).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.EnqueueAsync(3).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.EnqueueAsync(4).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            var five = q.EnqueueAsync(5).FastPath().ConfigureAwait(CfgAwait).GetAwaiter().GetResult();
-            q.EnqueueAsync(6).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.EnqueueAsync(7).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.EnqueueAsync(8).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            var tail = q.EnqueueAsync(9).FastPath().ConfigureAwait(CfgAwait).GetAwaiter().GetResult();
+            var head = q.EnqueueAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            var five = q.EnqueueAsync(5).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            q.EnqueueAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            var tail = q.EnqueueAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
 
             Console.WriteLine("Init");
             foreach (var ioZNode in q)
@@ -387,7 +391,7 @@ namespace zero.sync
                 Console.Write(ioZNode.Value);
             }
             Console.WriteLine("\nDQ mid");
-            q.RemoveAsync(five).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
+            q.RemoveAsync(five).FastPath().ConfigureAwait(Zc).GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -402,7 +406,7 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ head");
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -417,7 +421,7 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ tail");
-            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
+            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
             foreach (var ioZNode in q)
             {
                 Console.Write(ioZNode.Value);
@@ -433,10 +437,10 @@ namespace zero.sync
             
 
             Console.WriteLine("\nDQ second last prime");
-            q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-            q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
+            q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
 
             foreach (var ioZNode in q)
             {
@@ -455,13 +459,13 @@ namespace zero.sync
 
             if (true)
             {
-                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(CfgAwait).GetAwaiter();    
+                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
+                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();    
             }
             else
             {
-                q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait).GetAwaiter();
-                q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait).GetAwaiter();   
+                q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
+                q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();   
             }
 
             foreach (var ioZNode in q)
@@ -491,17 +495,17 @@ namespace zero.sync
                     {
                         try
                         {
-                            await q.EnqueueAsync(i3).FastPath().ConfigureAwait(CfgAwait);
-                            await q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(CfgAwait);
+                            await q.EnqueueAsync(i3).FastPath().ConfigureAwait(Zc);
+                            await q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(Zc);
                             //var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(ZC).GetAwaiter().GetResult();
                             //var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(ZC).GetAwaiter().GetResult();
-                            await q.EnqueueAsync(i3 + 4).FastPath().ConfigureAwait(CfgAwait);
+                            await q.EnqueueAsync(i3 + 4).FastPath().ConfigureAwait(Zc);
 
                             //q.RemoveAsync(i2).FastPath().ConfigureAwait(ZC).GetAwaiter();
-                            await q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait);
+                            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
                             //q.RemoveAsync(i1).FastPath().ConfigureAwait(ZC).GetAwaiter();
-                            await q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait);
-                            await q.DequeueAsync().FastPath().ConfigureAwait(CfgAwait);
+                            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
                         }
                         catch (Exception e)
                         {
@@ -578,7 +582,7 @@ namespace zero.sync
                      while (waiters>0)
                      {
                          sw.Restart();
-                         if (await mutex.WaitAsync().ConfigureAwait(CfgAwait))
+                         if (await mutex.WaitAsync().ConfigureAwait(Zc))
                          {
                              var tt = sw.ElapsedMilliseconds;
                              Interlocked.Increment(ref eq1);
@@ -644,7 +648,7 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().ConfigureAwait(CfgAwait))
+                       if (await mutex.WaitAsync().ConfigureAwait(Zc))
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq2);
@@ -709,7 +713,7 @@ namespace zero.sync
                         //     break;
            
                         sw2.Restart();
-                       if (await mutex.WaitAsync().ConfigureAwait(CfgAwait))
+                       if (await mutex.WaitAsync().ConfigureAwait(Zc))
                        {
                            var tt = sw2.ElapsedMilliseconds;
                            Interlocked.Increment(ref eq3);
@@ -759,7 +763,7 @@ namespace zero.sync
                        while (releasers > 0)
                        {
                            if (targetSleep > 0)
-                               await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(CfgAwait);
+                               await Task.Delay((int)targetSleep, asyncTasks.Token).ConfigureAwait(Zc);
 
                            if (mutex.CurNrOfBlockers >= mutex.Capacity*4/5)
                            {
@@ -768,7 +772,7 @@ namespace zero.sync
                            
                            try
                            {
-                               Interlocked.Add(ref semCount, curCount = await mutex.ReleaseAsync(releaseCount, true).FastPath().ConfigureAwait(CfgAwait));
+                               Interlocked.Add(ref semCount, curCount = await mutex.ReleaseAsync(releaseCount, true).FastPath().ConfigureAwait(Zc));
 
                                Interlocked.Increment(ref semPollCount);
                                Interlocked.Increment(ref dq[i1]);
@@ -783,7 +787,7 @@ namespace zero.sync
 
                                //Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
                                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                               await Task.Delay(0, asyncTasks.Token).ConfigureAwait(CfgAwait);
+                               await Task.Delay(0, asyncTasks.Token).ConfigureAwait(Zc);
                                if (ts.ElapsedMs() > 1200)
                                {
                                    Console.WriteLine($"{ts.ElapsedMs()} ms late");
@@ -819,7 +823,7 @@ namespace zero.sync
         private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
-            await AutoPeeringEventService.ClearAsync().FastPath().ConfigureAwait(CfgAwait);
+            await AutoPeeringEventService.ClearAsync().FastPath().ConfigureAwait(Zc);
             Console.WriteLine("#");
             SemaphoreSlim s = new SemaphoreSlim(10);
             int zeroed = 0;
@@ -865,8 +869,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(CfgAwait);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(CfgAwait);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(Zc);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(Zc);
                 tangleNodeTask.Wait();
             }
             else
@@ -880,8 +884,8 @@ namespace zero.sync
 
 
 #pragma warning disable 4014
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(CfgAwait);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(CfgAwait);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(Zc);
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(Zc);
 #pragma warning restore 4014
                 tangleNodeTask.Wait();
             }
@@ -905,10 +909,10 @@ namespace zero.sync
 
             var t = new Task<CcCollective>(() =>
             {
-                cocoon.EmitAsync().FastPath().ConfigureAwait(CfgAwait);
-                cocoon.StartAsync().ConfigureAwait(CfgAwait);
+                cocoon.EmitAsync().AsTask().GetAwaiter();
+                cocoon.StartAsync();
                 return cocoon;
-            }, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            }, TaskCreationOptions.LongRunning);
             return t;
         }
     }

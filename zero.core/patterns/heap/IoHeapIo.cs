@@ -37,7 +37,7 @@ namespace zero.core.patterns.heap
             {
                 //Take from heap
                 
-                if ((next = await TakeAsync(context).FastPath().ConfigureAwait(CfgAwait)) != null && !await next.ConstructAsync())
+                if ((next = await TakeAsync(context).FastPath().ConfigureAwait(Zc)) != null && !await next.ConstructAsync())
                     return null;
                 
                 //fail
@@ -45,7 +45,7 @@ namespace zero.core.patterns.heap
                     return null;
 
                 //ConstructAsync
-                next = (TItem) await next.ConstructorAsync().FastPath().ConfigureAwait(CfgAwait);
+                next = (TItem) await next.ConstructorAsync().FastPath().ConfigureAwait(Zc);
 
                 //Custom constructor
                 constructor?.Invoke(next, context);
@@ -56,7 +56,7 @@ namespace zero.core.patterns.heap
                     Interlocked.Increment(ref _count);
                     _logger.Trace($"Flushing `{GetType()}'");
 
-                    next = await TakeAsync(context).FastPath().ConfigureAwait(CfgAwait);
+                    next = await TakeAsync(context).FastPath().ConfigureAwait(Zc);
                     //Return another item from the heap
                     if (next == null)
                     {
@@ -65,7 +65,7 @@ namespace zero.core.patterns.heap
                     }
 
                     //Try the next one
-                    next = (TItem) await next.ConstructorAsync().FastPath().ConfigureAwait(CfgAwait);
+                    next = (TItem) await next.ConstructorAsync().FastPath().ConfigureAwait(Zc);
                 }
 
                 return next;
@@ -76,7 +76,7 @@ namespace zero.core.patterns.heap
                 if (next != null)
                 {
                     _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                        await ReturnAsync(next).FastPath().ConfigureAwait(CfgAwait);
+                        await ReturnAsync(next).FastPath().ConfigureAwait(Zc);
                 }                    
                 else
                 {
@@ -98,10 +98,10 @@ namespace zero.core.patterns.heap
             if (item == null)
                 return;
 
-            await base.ReturnAsync(item, zero).FastPath().ConfigureAwait(CfgAwait);
+            await base.ReturnAsync(item, zero).FastPath().ConfigureAwait(Zc);
 
             if (zero)
-                await item.ZeroAsync(new IoNanoprobe($"{GetType()}")).FastPath().ConfigureAwait(CfgAwait);
+                await item.ZeroAsync(new IoNanoprobe($"{GetType()}")).FastPath().ConfigureAwait(Zc);
         }
     }
 

@@ -41,9 +41,9 @@ namespace zero.core.network.ip
             T nanite = default,
             Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync<T>(connectionReceivedAction, nanite, bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
+            await base.ListenAsync<T>(connectionReceivedAction, nanite, bootstrapAsync).FastPath().ConfigureAwait(Zc);
 
-            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(CfgAwait)).target;
+            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(Zc)).target;
 
             await IoListenSocket.ListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
@@ -58,16 +58,16 @@ namespace zero.core.network.ip
                                     $"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", 
                                     (IoNetSocket) newConnectionSocket, 
                                     @this.ReadAheadBufferSize,
-                                    @this.ConcurrencyLevel)).FastPath().ConfigureAwait(@this.CfgAwait)
+                                    @this.ConcurrencyLevel)).FastPath().ConfigureAwait(@this.Zc)
                             ).target
-                        ).FastPath().ConfigureAwait(@this.CfgAwait);
+                        ).FastPath().ConfigureAwait(@this.Zc);
                 }
                 catch (Exception e)
                 {
                     @this._logger.Error(e, $"{@this.Description} Connection received handler returned with errors:");
-                    await newConnectionSocket.ZeroAsync(@this).FastPath().ConfigureAwait(@this.CfgAwait);
+                    await newConnectionSocket.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
                 }
-            }, ValueTuple.Create(this, nanite, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
+            }, ValueTuple.Create(this, nanite, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

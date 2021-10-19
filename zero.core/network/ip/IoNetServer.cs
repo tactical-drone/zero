@@ -47,7 +47,7 @@ namespace zero.core.network.ip
         /// </summary>
         public IoNodeAddress ListeningAddress { get; protected set; }
 
-        public new bool CfgAwait => true;
+        public new bool Zc => true;
 
         private string _description;
         /// <summary>
@@ -134,7 +134,7 @@ namespace zero.core.network.ip
             var connected = false;
             try
             {
-                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(CfgAwait);
+                connected = await ioNetClient!.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc);
                 if (connected && ioNetClient.IsOperational)
                 {
                     //Check things
@@ -147,7 +147,7 @@ namespace zero.core.network.ip
                     //    connected = false;
                     //}
 
-                    if (!(await ZeroHiveAsync(ioNetClient).FastPath().ConfigureAwait(CfgAwait)).success)
+                    if (!(await ZeroHiveAsync(ioNetClient).FastPath().ConfigureAwait(Zc)).success)
                     {
                         _logger.Trace($"{Description}: {nameof(ConnectAsync)} [FAILED], unable to ensure ownership!");
                         //REJECT
@@ -174,7 +174,7 @@ namespace zero.core.network.ip
             {
                 if (!connected)
                 {
-                    await ioNetClient!.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
+                    await ioNetClient!.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
 
                     if (!Zeroed())
                         _logger.Error($"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]");
@@ -210,7 +210,7 @@ namespace zero.core.network.ip
         public override async ValueTask ZeroManagedAsync()
         {
             _connectionAttempts.Clear();
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
