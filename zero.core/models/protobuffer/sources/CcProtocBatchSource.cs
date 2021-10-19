@@ -119,9 +119,9 @@ namespace zero.core.models.protobuffer.sources
             {
                 msgBatch.Dispose();
                 return ValueTask.CompletedTask;
-            },this).FastPath().ConfigureAwait(CfgAwait);
+            },this).FastPath().ConfigureAwait(Zc);
             
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -134,12 +134,12 @@ namespace zero.core.models.protobuffer.sources
             try
             {
                 // backPressure = _queueBackPressure.WaitAsync();
-                // if (!await backPressure.FastPath().ConfigureAwait(CfgAwait))
+                // if (!await backPressure.FastPath().ConfigureAwait(ZC))
                 //     return false;
 
-                var plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(CfgAwait) != null;
+                var plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
 
-                await _queuePressure.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
+                await _queuePressure.ReleaseAsync().FastPath().ConfigureAwait(Zc);
                 
                 return plugged;
             }
@@ -160,10 +160,10 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                if (!await _queuePressure.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
+                if (!await _queuePressure.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return default;
                 
-                return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(CfgAwait);
+                return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())
@@ -211,7 +211,7 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                return await callback(this, barrier, nanite, jobClosure).FastPath().ConfigureAwait(CfgAwait);
+                return await callback(this, barrier, nanite, jobClosure).FastPath().ConfigureAwait(Zc);
             }
             catch (Exception) when(Zeroed() || UpstreamSource.Zeroed()){}
             catch (Exception e) when (!Zeroed() && !UpstreamSource.Zeroed())

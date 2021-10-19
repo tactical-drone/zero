@@ -130,7 +130,7 @@ namespace zero.core.patterns.bushes
 #pragma warning disable CS4014
                     r.ConstructorAsync();
 #pragma warning restore CS4014
-                    await _stateHeap.ReturnAsync(r).FastPath().ConfigureAwait(CfgAwait);
+                    await _stateHeap.ReturnAsync(r).FastPath().ConfigureAwait(Zc);
                 }
 
                 StateTransitionHistory[i] = null;
@@ -138,7 +138,7 @@ namespace zero.core.patterns.bushes
 
             if (_stateMeta != null)
             {
-                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(CfgAwait);
+                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(Zc);
                 _stateMeta = null;
             }
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
@@ -188,18 +188,18 @@ namespace zero.core.patterns.bushes
         {
 #if DEBUG
             if(_stateMeta != null)
-                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(CfgAwait);
+                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(Zc);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
             await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
             {
                 ioHeapItem.ZeroManaged();
                 return ValueTask.CompletedTask;
-            }, this).FastPath().ConfigureAwait(CfgAwait);
+            }, this).FastPath().ConfigureAwait(Zc);
 #endif
             if (PreviousJob != null)
-                await PreviousJob.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
+                await PreviousJob.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -368,7 +368,7 @@ namespace zero.core.patterns.bushes
 
                     return;
                 }
-                newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(CfgAwait);
+                newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
 
                 _stateMeta = newState;
                 

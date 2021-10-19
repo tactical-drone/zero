@@ -120,14 +120,14 @@ namespace zero.core.network.ip
             {
                 return null;
 
-                //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(CfgAwait);
+                //await Task.Delay(parm_connection_timeout, AsyncTasks.Token).ConfigureAwait(ZC);
                 //if (!_connectionAttempts.TryAdd(address.Key, ioNetClient))
                 // {
                 //     _logger.Warn($"Cancelling existing connection attempt to `{remoteAddress}'");
                 //
-                //     await _connectionAttempts[remoteAddress.Key].ZeroAsync(this).ConfigureAwait(CfgAwait);
+                //     await _connectionAttempts[remoteAddress.Key].ZeroAsync(this).ConfigureAwait(ZC);
                 //     _connectionAttempts.TryRemove(remoteAddress.Key, out _);
-                //     return await ConnectAsync(remoteAddress, ioNetClient).ConfigureAwait(CfgAwait);
+                //     return await ConnectAsync(remoteAddress, ioNetClient).ConfigureAwait(ZC);
                 // }
             }
 
@@ -140,7 +140,7 @@ namespace zero.core.network.ip
                     //Check things
 
                     //Ensure ownership
-                    //if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(CfgAwait)).success,ioNetClient).FastPath().ConfigureAwait(CfgAwait))
+                    //if (!await ZeroAtomicAsync(static async (s,client,_) => (await s.ZeroHiveAsync(client).FastPath().ConfigureAwait(ZC)).success,ioNetClient).FastPath().ConfigureAwait(ZC))
                     //{
                     //    _logger.Trace($"{nameof(ConnectAsync)}: [FAILED], unable to ensure ownership!");
                     //    //REJECT

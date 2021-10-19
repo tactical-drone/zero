@@ -126,7 +126,7 @@ namespace zero.core.models.protobuffer
         public override async ValueTask ZeroManagedAsync()
         {
             ArrayPool<byte>.Shared.Return(Buffer);
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -149,7 +149,7 @@ namespace zero.core.models.protobuffer
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await producerPressure(ioJob, ioZero).FastPath().ConfigureAwait(job.CfgAwait))
+                        if (!await producerPressure(ioJob, ioZero).FastPath().ConfigureAwait(job.Zc))
                             return false;
 
                         //Async read the message from the message stream
@@ -157,7 +157,7 @@ namespace zero.core.models.protobuffer
                         {
                             var bytesRead = await ((IoSocket)ioSocket)
                                 .ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, (int)job.BufferSize,
-                                    job.RemoteEndPoint).FastPath().ConfigureAwait(job.CfgAwait);
+                                    job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
                             //{
@@ -175,7 +175,7 @@ namespace zero.core.models.protobuffer
 
 
                             //var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
-                            //await readTask.OverBoostAsync().ConfigureAwait(CfgAwait);
+                            //await readTask.OverBoostAsync().ConfigureAwait(ZC);
 
                             //rx = readTask.Result;
 
@@ -237,11 +237,11 @@ namespace zero.core.models.protobuffer
                     {
                         job.State = IoJobMeta.JobState.ProduceErr;
                         _logger.Error(e, $"ReadAsync {job.Description}:");
-                        //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(CfgAwait);
+                        //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(ZC);
                     }
 
                     return false;
-                }, this, barrier, nanite).FastPath().ConfigureAwait(CfgAwait);
+                }, this, barrier, nanite).FastPath().ConfigureAwait(Zc);
             }
             catch when (Zeroed()) { }
             catch (Exception e)when (!Zeroed())

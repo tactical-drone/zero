@@ -115,7 +115,7 @@ namespace zero.core.data.providers.cassandra
             try
             {
                 _connectionAttempts++;
-                _session = await _cluster.ConnectAsync().ConfigureAwait(CfgAwait);                
+                _session = await _cluster.ConnectAsync().ConfigureAwait(Zc);                
                 _mapper = new Mapper(_session);                
             }
             catch (Exception e)
@@ -130,7 +130,7 @@ namespace zero.core.data.providers.cassandra
 
             _logger.Info($"Connected to Cassandra cluster `{_cluster.Metadata.ClusterName}'");
 
-            if (!await EnsureSchemaAsync().ConfigureAwait(CfgAwait))
+            if (!await EnsureSchemaAsync().ConfigureAwait(Zc))
                 _logger.Info($"Configured keyspace `{_keySpaceConfiguration.Name}'");
             
             _isConnecting = false;
@@ -143,7 +143,7 @@ namespace zero.core.data.providers.cassandra
             if (IsConnected && IsConfigured)
                 return true;
 
-            return await ConnectAndConfigureAsync(_clusterAddress).ConfigureAwait(CfgAwait);
+            return await ConnectAndConfigureAsync(_clusterAddress).ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -159,7 +159,7 @@ namespace zero.core.data.providers.cassandra
         /// <returns>The <see cref="RowSet"/> containing transaction results</returns>
         public async Task<RowSet> ExecuteAsync(IStatement batch)
         {
-            if (!await EnsureDatabaseAsync().ConfigureAwait(CfgAwait))
+            if (!await EnsureDatabaseAsync().ConfigureAwait(Zc))
                 return null;
 
             try
@@ -177,9 +177,9 @@ namespace zero.core.data.providers.cassandra
                             IsConnected = false;
                             break;
                     }
-                }).ConfigureAwait(CfgAwait);
+                }).ConfigureAwait(Zc);
 
-                return await executeAsyncTask.ConfigureAwait(CfgAwait);
+                return await executeAsyncTask.ConfigureAwait(Zc);
             }
             catch (Exception e)
             {
@@ -192,12 +192,12 @@ namespace zero.core.data.providers.cassandra
         protected async Task<T> MapperAsync<T>(Func<IMapper, string, object[], Task<T>> func, string query, params object[] args)
         where T:class
         {
-            if (!await EnsureDatabaseAsync().ConfigureAwait(CfgAwait))
+            if (!await EnsureDatabaseAsync().ConfigureAwait(Zc))
                 return null;
            
             try
             {
-                return await func(_mapper, query, args).ConfigureAwait(CfgAwait);
+                return await func(_mapper, query, args).ConfigureAwait(Zc);
             }
             catch (Exception e)
             {

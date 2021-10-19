@@ -98,7 +98,7 @@ namespace zero.cocoon.autopeer
             {
                 var (@this,nanite, acceptConnection) = state;
                 @this.Router ??= (CcAdjunct)router;
-                return acceptConnection == null || await acceptConnection(router,nanite).FastPath().ConfigureAwait(@this.CfgAwait);
+                return acceptConnection == null || await acceptConnection(router,nanite).FastPath().ConfigureAwait(@this.Zc);
             }, ValueTuple.Create(this, nanite, acceptConnection), bootstrapAsync);
         }
     }

@@ -78,11 +78,11 @@ namespace zero.core.misc
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
+            await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
-            await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
+            await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -99,11 +99,11 @@ namespace zero.core.misc
             IoQueue<IoChallenge>.IoZNode node = null;
             try
             {
-                if ((challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(CfgAwait)) == null)
+                if ((challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(Zc)) == null)
                 {
-                    await ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(CfgAwait);
+                    await ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(Zc);
 
-                    challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
+                    challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
                     if (challenge == null)
                         throw new OutOfMemoryException(
                         $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.Count}, ref = {_valHeap.ReferenceCount}");
@@ -114,7 +114,7 @@ namespace zero.core.misc
                 challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 challenge.Hash = 0;
 
-                node = await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(CfgAwait);
+                node = await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(Zc);
                 return node;
             }
             catch when(Zeroed()){}
@@ -127,7 +127,7 @@ namespace zero.core.misc
             {
                 if (challenge!= null && node == null && _valHeap != null)
                     await _valHeap.ReturnAsync(challenge)
-                        .FastPath().ConfigureAwait(CfgAwait);
+                        .FastPath().ConfigureAwait(Zc);
             }
 
             return null;
@@ -184,8 +184,8 @@ namespace zero.core.misc
 
                         if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
                         {
-                            await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(CfgAwait);
-                            await _valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(CfgAwait);
+                            await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(Zc);
+                            await _valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(Zc);
                             return  potential.TimestampMs.ElapsedMs() < _ttlMs;
                         }
                     }
@@ -193,8 +193,8 @@ namespace zero.core.misc
                     //drop old ones while we are at it
                     if (cur.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
-                        await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(CfgAwait);
-                        await _valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(CfgAwait);
+                        await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(Zc);
+                        await _valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(Zc);
                     }
 
                     cur = cur.Prev;
@@ -210,14 +210,14 @@ namespace zero.core.misc
                         {
                             if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                             {
-                                await _lut.RemoveAsync(n).ConfigureAwait(CfgAwait);
-                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(CfgAwait); ;
+                                await _lut.RemoveAsync(n).ConfigureAwait(Zc);
+                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc); ;
                             }
                             else if (potential?.Key != null && potential.Key == n.Value.Key &&
                                      n.Value.TimestampMs < potential.TimestampMs)
                             {
-                                await _lut.RemoveAsync(n).ConfigureAwait(CfgAwait);
-                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(CfgAwait); ;
+                                await _lut.RemoveAsync(n).ConfigureAwait(Zc);
+                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc); ;
                             }
                         }
                     }
@@ -245,7 +245,7 @@ namespace zero.core.misc
                 var cur = _lut.Head;
                 while (cur != null)
                 {
-                    await target._lut.EnqueueAsync(cur.Value).FastPath().ConfigureAwait(CfgAwait);
+                    await target._lut.EnqueueAsync(cur.Value).FastPath().ConfigureAwait(Zc);
                     cur = cur.Next;
                 }
             }
@@ -263,8 +263,8 @@ namespace zero.core.misc
         /// <returns>true on success, false otherwise</returns>
         public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
-            await _lut.RemoveAsync(node).FastPath().ConfigureAwait(CfgAwait);
-            await _valHeap.ReturnAsync(node.Value).FastPath().ConfigureAwait(CfgAwait); ;
+            await _lut.RemoveAsync(node).FastPath().ConfigureAwait(Zc);
+            await _valHeap.ReturnAsync(node.Value).FastPath().ConfigureAwait(Zc); ;
 
             return true;
         }

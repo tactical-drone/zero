@@ -120,7 +120,7 @@ namespace zero.core.core
                 throw new ConstraintException("The network has already been started");
 
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
-            await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(CfgAwait);
+            await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             await _netServer.ListenAsync(static async (state, ioNetClient) =>
             {
@@ -133,16 +133,16 @@ namespace zero.core.core
                 //superclass specific mutations
                 try
                 {
-                    if (acceptConnection != null && !await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.CfgAwait)) //TODO ?
+                    if (acceptConnection != null && !await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc)) //TODO ?
                     {
                         @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                        await newNeighbor.ZeroAsync(@this).FastPath().ConfigureAwait(@this.CfgAwait);
+                        await newNeighbor.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
                         return;
                     }
                 }
                 catch (Exception e)
                 {
-                    await newNeighbor.ZeroAsync(@this).ConfigureAwait(@this.CfgAwait);
+                    await newNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
                     @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
                     return;
                 }
@@ -167,7 +167,7 @@ namespace zero.core.core
                                 else//else drop existing
                                 {
                                     @this._logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).FastPath().ConfigureAwait(@this.CfgAwait);
+                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).FastPath().ConfigureAwait(@this.Zc);
                                 }
                             }
                         }
@@ -189,7 +189,7 @@ namespace zero.core.core
                                 {
                                     if (@this.Neighbors.TryRemove(id, out var zeroNeighbor))
                                     {
-                                        await zeroNeighbor.ZeroAsync(@this).ConfigureAwait(@this.CfgAwait);
+                                        await zeroNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
                                         @this._logger.Trace($"Removed {zeroNeighbor?.Description}");
                                     }
                                     else
@@ -209,27 +209,27 @@ namespace zero.core.core
                                 }
 
                                 return false;
-                            }, ValueTuple.Create(@this,id, newNeighbor)).FastPath().ConfigureAwait(@this.CfgAwait);
+                            }, ValueTuple.Create(@this,id, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
                             return true;
-                        }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.CfgAwait);
+                        }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
                     }
                     catch (NullReferenceException) { return false; }
                     catch (TaskCanceledException) { return false; }
                     catch (OperationCanceledException) { return false; }
                     catch (ObjectDisposedException) { return false; }
-                },ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(@this.CfgAwait))
+                },ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(@this.Zc))
                 {
                     //New peer connection event
                     //ConnectedEvent?.Invoke(this, newNeighbor);
 
                     //Start the source consumer on the neighbor scheduler
-                    await @this.AssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.CfgAwait);
+                    await @this.AssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
                 }
                 else
                 {
-                    await newNeighbor.ZeroAsync(@this).ConfigureAwait(@this.CfgAwait);
+                    await newNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
                 }
-            }, ValueTuple.Create(this,nanite,acceptConnection),bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
+            }, ValueTuple.Create(this,nanite,acceptConnection),bootstrapAsync).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>
@@ -244,7 +244,7 @@ namespace zero.core.core
                 {
                     var (newNeighbor, cfgAwait) = state;
                     await newNeighbor.AssimilateAsync().ConfigureAwait(cfgAwait);
-                }, ValueTuple.Create(newNeighbor, CfgAwait), TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(CfgAwait);
+                }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
@@ -264,7 +264,7 @@ namespace zero.core.core
         public async ValueTask<IoNeighbor<TJob>> ConnectAsync(IoNodeAddress remoteAddress, object extraData = null,
             bool retry = false, int timeout = 0)
         {
-            var newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath().ConfigureAwait(CfgAwait);
+            var newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath().ConfigureAwait(Zc);
 
             if (newClient != null)
             {
@@ -290,9 +290,9 @@ namespace zero.core.core
                     }
                     
                     //Existing broken neighbor...
-                    if (existingNeighbor != null) await existingNeighbor.ZeroAsync(@this).ConfigureAwait(@this.CfgAwait);
+                    if (existingNeighbor != null) await existingNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
                     return true;
-                }, ValueTuple.Create(this,newNeighbor)).ConfigureAwait(CfgAwait))
+                }, ValueTuple.Create(this,newNeighbor)).ConfigureAwait(Zc))
                 {
                     await newNeighbor.ZeroSubAsync(static async (from, state ) =>
                     {
@@ -305,7 +305,7 @@ namespace zero.core.core
                                 : $"Dropped {closedNeighbor?.Description} from {@this.Description}");
 
                             if (closedNeighbor != null)
-                                await closedNeighbor.ZeroAsync(@this).ConfigureAwait(@this.CfgAwait);
+                                await closedNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
 
                             return true;
                         }
@@ -319,7 +319,7 @@ namespace zero.core.core
                         }
 
                         return false;
-                    }, ValueTuple.Create(this, id, newNeighbor)).FastPath().ConfigureAwait(CfgAwait);
+                    }, ValueTuple.Create(this, id, newNeighbor)).FastPath().ConfigureAwait(Zc);
 
                     //TODO
                     newNeighbor.parm_producer_start_retry_time = 60000;
@@ -332,7 +332,7 @@ namespace zero.core.core
                 else
                 {
                     _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
-                    await newNeighbor.ZeroAsync(this).ConfigureAwait(CfgAwait);
+                    await newNeighbor.ZeroAsync(this).ConfigureAwait(Zc);
                 }
             }
 
@@ -348,7 +348,7 @@ namespace zero.core.core
             try
             {
                 _listenerTask = SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc);
-                await _listenerTask.FastPath().ConfigureAwait(CfgAwait);
+                await _listenerTask.FastPath().ConfigureAwait(Zc);
 
                 _logger.Trace(
                     $"You will be assimilated! Resistance is futile, {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}): {Description}");
@@ -386,16 +386,16 @@ namespace zero.core.core
         public override async ValueTask ZeroManagedAsync()
         {
             if(_netServer != null)
-                await _netServer.ZeroAsync(this).ConfigureAwait(CfgAwait);
+                await _netServer.ZeroAsync(this).ConfigureAwait(Zc);
 
             foreach (var ioNeighbor in Neighbors.Values)
-                await ioNeighbor.ZeroAsync(this).ConfigureAwait(CfgAwait);
+                await ioNeighbor.ZeroAsync(this).ConfigureAwait(Zc);
 
             Neighbors.Clear();
 
             try
             {
-                await Task.WhenAll(NeighborTasks).ConfigureAwait(CfgAwait); //TODO teardown
+                await Task.WhenAll(NeighborTasks).ConfigureAwait(Zc); //TODO teardown
             }
             catch
             {
@@ -403,7 +403,7 @@ namespace zero.core.core
             }
             NeighborTasks.Clear();
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
             _logger.Info($"- {Description}");
             
         }
@@ -435,7 +435,7 @@ namespace zero.core.core
                   });
 
 
-                await Neighbors[address.ToString()].ZeroAsync(this).ConfigureAwait(CfgAwait);
+                await Neighbors[address.ToString()].ZeroAsync(this).ConfigureAwait(Zc);
 
                 Neighbors.TryRemove(address.ToString(), out var ioNeighbor);
                 return ioNeighbor;

@@ -27,7 +27,7 @@ namespace zero.core.patterns.misc
         //                tcs.TrySetCanceled(), false);
         //            var cancellationTask = tcs.Task;
 
-        //            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(CfgAwait);
+        //            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(ZC);
         //            if (readyTask == cancellationTask)
 
 
@@ -36,12 +36,12 @@ namespace zero.core.patterns.misc
         //                asyncTask.ContinueWith(_ => asyncTask.Exception,
 
         //                    TaskContinuationOptions.OnlyOnFaulted |
-        //                    TaskContinuationOptions.ExecuteSynchronously).ConfigureAwait(CfgAwait);
+        //                    TaskContinuationOptions.ExecuteSynchronously).ConfigureAwait(ZC);
         //#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
         //            await registration.DisposeAsync();
 
-        //            return await readyTask.ConfigureAwait(CfgAwait);
+        //            return await readyTask.ConfigureAwait(ZC);
         //        }
 
         /// <summary>

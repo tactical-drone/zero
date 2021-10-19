@@ -133,7 +133,7 @@ namespace zero.core.models
         /// <returns></returns>
         public async ValueTask<bool> WasProcessedRecentlyAsync(string key)
         {            
-            return await Source.RecentlyProcessed.KeyExistsAsync(key).FastPath().ConfigureAwait(CfgAwait);
+            return await Source.RecentlyProcessed.KeyExistsAsync(key).FastPath().ConfigureAwait(Zc);
         }
 
         public override void ZeroUnmanaged()

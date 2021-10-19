@@ -76,7 +76,7 @@ namespace zero.core.patterns.bushes
             JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage, Context = source};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
-            Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(CfgAwait);
+            Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
             _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)(ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
@@ -249,19 +249,19 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await _queue.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(CfgAwait);
+            await _queue.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
             if(_previousJobFragment != null)
-                await _previousJobFragment.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(CfgAwait);
+                await _previousJobFragment.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
             await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
             {
-                await sink.ZeroAsync(@this).FastPath().ConfigureAwait(@this.CfgAwait);
-            },this).FastPath().ConfigureAwait(CfgAwait);
+                await sink.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
+            },this).FastPath().ConfigureAwait(Zc);
 
-            await Source.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
+            await Source.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
             
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
 #if DEBUG
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
@@ -287,7 +287,7 @@ namespace zero.core.patterns.bushes
                     {
                         load.IoZero = ioZero;
                         return new ValueTask<IoSink<TJob>>(load);
-                    }, this).FastPath().ConfigureAwait(CfgAwait);
+                    }, this).FastPath().ConfigureAwait(Zc);
 
                     //Allocate a job from the heap
                     if (nextJob != null)
@@ -297,7 +297,7 @@ namespace zero.core.patterns.bushes
                         //wait for prefetch pressure
                         if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
                         {
-                            if (!await nextJob.Source.WaitForPrefetchPressureAsync().FastPath().ConfigureAwait(CfgAwait))
+                            if (!await nextJob.Source.WaitForPrefetchPressureAsync().FastPath().ConfigureAwait(Zc))
                                 return false;
                         }
 
@@ -321,7 +321,7 @@ namespace zero.core.patterns.bushes
                             }
 
                             IoSink<TJob> prevJobFragment;
-                            if (SyncRecoveryModeEnabled && (prevJobFragment = await _previousJobFragment.DequeueAsync().FastPath().ConfigureAwait(CfgAwait)) != null)
+                            if (SyncRecoveryModeEnabled && (prevJobFragment = await _previousJobFragment.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                             {
                                 //if( prevJobFragment.Id == nextJob.Id + 1)
                                 nextJob.PreviousJob = prevJobFragment;
@@ -340,7 +340,7 @@ namespace zero.core.patterns.bushes
                                 //Block on producer back pressure
                                 try
                                 {
-                                    if (!await job.Source.WaitForBackPressureAsync().FastPath().ConfigureAwait(@this.CfgAwait))
+                                    if (!await job.Source.WaitForBackPressureAsync().FastPath().ConfigureAwait(@this.Zc))
                                     {
                                         job.State = IoJobMeta.JobState.ProduceErr;
                                         return false;
@@ -355,29 +355,29 @@ namespace zero.core.patterns.bushes
                                 }
 
                                 return true;
-                            }, this).FastPath().ConfigureAwait(CfgAwait) == IoJobMeta.JobState.Produced && !Zeroed())
+                            }, this).FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Produced && !Zeroed())
                             {
                                 _producerStopwatch.Stop();
 
                                 if (SyncRecoveryModeEnabled)
                                     await _previousJobFragment.EnqueueAsync(nextJob).FastPath()
-                                        .ConfigureAwait(CfgAwait);
+                                        .ConfigureAwait(Zc);
 
                                 //signal back pressure
                                 if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
-                                    await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(CfgAwait);
+                                    await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(Zc);
 
                                 //Enqueue the job for the consumer
                                 nextJob.State = IoJobMeta.JobState.Queued;
 
-                                if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(CfgAwait) == null)
+                                if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null)
                                     return false;
 
                                 //Pass control over to the consumer
                                 nextJob = null;
 
                                 //Signal to the consumer that there is work to do
-                                return await Source.PressureAsync().FastPath().ConfigureAwait(CfgAwait) > 0;
+                                return await Source.PressureAsync().FastPath().ConfigureAwait(Zc) > 0;
                             }
                             else //produce job returned with errors or nothing...
                             {
@@ -387,12 +387,12 @@ namespace zero.core.patterns.bushes
 
                                 // Signal prefetch back pressure
                                 if (enablePrefetchOption && nextJob.Source is { PrefetchEnabled: true })
-                                    await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(CfgAwait);
+                                    await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(Zc);
 
                                 //ReturnJobToHeapAsync job
                                 nextJob.State = IoJobMeta.JobState.Reject;
                                 await ReturnJobToHeapAsync(nextJob, true).FastPath()
-                                    .ConfigureAwait(CfgAwait);
+                                    .ConfigureAwait(Zc);
 
                                 //Are we in teardown?
                                 if (Zeroed() || nextJob.Zeroed() || Source.Zeroed())
@@ -407,10 +407,10 @@ namespace zero.core.patterns.bushes
 
                                 //Is the producer spinning? Slow it down
                                 if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
-                                    await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(CfgAwait);
+                                    await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
 
                                 //signal back pressure
-                                await Source.BackPressureAsync().FastPath().ConfigureAwait(CfgAwait);
+                                await Source.BackPressureAsync().FastPath().ConfigureAwait(Zc);
                             }
                         }
                     }
@@ -421,7 +421,7 @@ namespace zero.core.patterns.bushes
                             return false;
 
                         _logger.Warn($"{GetType().Name}: Production for: `{Description}` failed. Cannot allocate job resources!, heap =>  {JobHeap.Count}/{JobHeap.MaxSize}");
-                        await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(CfgAwait);
+                        await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
                         return false;
                     }
                 }
@@ -448,7 +448,7 @@ namespace zero.core.patterns.bushes
                             nextJob.State = IoJobMeta.JobState.Reject;
                         }
 
-                        await ReturnJobToHeapAsync(nextJob, true).FastPath().ConfigureAwait(CfgAwait);
+                        await ReturnJobToHeapAsync(nextJob, true).FastPath().ConfigureAwait(Zc);
                     }
                 }
             }
@@ -492,9 +492,9 @@ namespace zero.core.patterns.bushes
 
                     //TODO I don't think this is going to work
                     if(!job.PreviousJob.Syncing)
-                        await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(CfgAwait);
+                        await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(Zc);
                     else
-                        await _previousJobFragment.PushAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(CfgAwait);
+                        await _previousJobFragment.PushAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(Zc);
 
                     job.PreviousJob = null;
                     return;
@@ -505,7 +505,7 @@ namespace zero.core.patterns.bushes
                 //}
 
                 if (freeCurrent || !SyncRecoveryModeEnabled)
-                    await JobHeap.ReturnAsync(job, job.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(CfgAwait); ;
+                    await JobHeap.ReturnAsync(job, job.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(Zc); ;
                 
             }
             catch when(Zeroed()){}
@@ -534,7 +534,7 @@ namespace zero.core.patterns.bushes
             try
             {
                 //Wait for producer pressure
-                if (!await Source.WaitForPressureAsync().FastPath().ConfigureAwait(CfgAwait))
+                if (!await Source.WaitForPressureAsync().FastPath().ConfigureAwait(Zc))
                 {
                     //Was shutdown requested?
                     if (Zeroed() || Source.Zeroed()) 
@@ -542,14 +542,14 @@ namespace zero.core.patterns.bushes
                     
                     //wait...
                     _logger.Trace($"{Description}: {nameof(Source.WaitForPressureAsync)} timed out waiting, willing to wait {parm_consumer_wait_for_producer_timeout}ms");
-                    await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(CfgAwait);
+                    await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(Zc);
 
                     //Try again
                     return false;
                 }
                 
                 //A job was produced. Dequeue it and process
-                var curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(CfgAwait);
+                var curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
                 if (curJob != null)
                 {
                     curJob.State = IoJobMeta.JobState.Consuming;
@@ -561,7 +561,7 @@ namespace zero.core.patterns.bushes
                             curJob.SyncPrevJob();
 
                         //Consume the job
-                        if (await curJob.ConsumeAsync().FastPath().ConfigureAwait(CfgAwait) == IoJobMeta.JobState.Consumed ||
+                        if (await curJob.ConsumeAsync().FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Consumed ||
                             curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
                         {
 
@@ -569,12 +569,12 @@ namespace zero.core.patterns.bushes
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
                                 //forward any jobs                                                                             
-                                await inlineCallback(curJob, nanite).FastPath().ConfigureAwait(CfgAwait);
+                                await inlineCallback(curJob, nanite).FastPath().ConfigureAwait(Zc);
                             }
 
                             curJob.State = IoJobMeta.JobState.Consumed;
 
-                            await Source.BackPressureAsync().FastPath().ConfigureAwait(CfgAwait);
+                            await Source.BackPressureAsync().FastPath().ConfigureAwait(Zc);
 
                             //sync previous failed job buffers
                             if (SyncRecoveryModeEnabled)
@@ -611,7 +611,7 @@ namespace zero.core.patterns.bushes
                                 }
                             }
 
-                            await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(CfgAwait);
+                            await ReturnJobToHeapAsync(curJob).FastPath().ConfigureAwait(Zc);
                         }
                         catch
                         {

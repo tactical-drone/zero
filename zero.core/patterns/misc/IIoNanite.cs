@@ -109,8 +109,8 @@ namespace zero.core.patterns.misc
         LinkedList<IIoNanite> ZeroHiveMind();
 
         /// <summary>
-        /// How to apply cfg await
+        /// Maintain zero context
         /// </summary>
-        bool CfgAwait { get; }
+        bool Zc { get; }
     }
 }
