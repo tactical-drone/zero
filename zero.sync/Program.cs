@@ -533,15 +533,15 @@ namespace zero.sync
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:2, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:0, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
-            var releaseCount = 1;
+            var releaseCount = 3;
             var enableThrottle = true;
-            var waiters = 1;
+            var waiters = 3;
             var releasers = 1;
             var targetSleep = (long)0;
-            var logSpam = 20000;//at least 1
+            var logSpam = 40000;//at least 1
 
             var targetSleepMult = waiters>1 ? 2 : 1;
             var sw = new Stopwatch();
@@ -763,7 +763,7 @@ namespace zero.sync
 
                            if (mutex.CurNrOfBlockers >= mutex.Capacity*4/5)
                            {
-                               await Task.Delay(200).ConfigureAwait(false);
+                               //await Task.Delay(200).ConfigureAwait(false);
                            }
                            
                            try
@@ -782,7 +782,12 @@ namespace zero.sync
                                // val = Math.Min(1, val);
 
                                //Console.WriteLine($"Throttling: {val} ms, curCount = {mutex.ReadyCount}");
-                               await Task.Delay(10, asyncTasks.Token).ConfigureAwait(false);
+                               var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                               await Task.Delay(0, asyncTasks.Token).ConfigureAwait(false);
+                               if (ts.ElapsedMs() > 1200)
+                               {
+                                   Console.WriteLine($"{ts.ElapsedMs()} ms late");
+                               }
                            }
                            catch (TaskCanceledException)
                            {

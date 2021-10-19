@@ -485,7 +485,11 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
+#if DEBUG
+        public int parm_max_network_latency = 60000;
+#else
         public int parm_max_network_latency = 2000;
+#endif
 
         /// <summary>
         /// Maximum number of peers in discovery response

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.patterns.misc;
 
@@ -495,7 +496,8 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else
                         {
-                            ThreadPool.UnsafeQueueUserWorkItem(callback, state, preferLocal: true);
+                            callback(state); //TODO why do they not inline?
+                            //ThreadPool.UnsafeQueueUserWorkItem(callback, state, preferLocal: true);
                         }
                         break;
 
@@ -714,8 +716,8 @@ namespace zero.core.patterns.semaphore.core
                 {
                     if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                     {
-                        //update current count
                         _zeroRef.ZeroAddCount(releaseCount - released);
+                        //update current count
                         return -1;
                     }
                 }

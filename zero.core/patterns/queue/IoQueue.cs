@@ -430,14 +430,15 @@ namespace zero.core.patterns.queue
 
         public void Dispose()
         {
-            _backPressure = null;
-            _asyncTasks = null;
-            _head = null;
-            _iteratorIoZNode = null;
-            _nodeHeap = null;
-            _pressure = null;
-            _syncRoot = null;
-            _tail = null;
+            //TODO why does this execute?
+            //_backPressure = null;
+            //_asyncTasks = null;
+            //_head = null;
+            //_iteratorIoZNode = null;
+            //_nodeHeap = null;
+            //_pressure = null;
+            //_syncRoot = null;
+            //_tail = null;
         }
 
         public IEnumerator<IoZNode> GetEnumerator()
