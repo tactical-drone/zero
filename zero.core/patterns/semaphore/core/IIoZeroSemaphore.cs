@@ -46,9 +46,9 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal uint ZeroWaitCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroIncAsyncWait();
+        internal uint ZeroIncAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroDecAsyncWait();
+        internal uint ZeroDecAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal uint ZeroAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

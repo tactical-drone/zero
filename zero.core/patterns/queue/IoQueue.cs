@@ -59,6 +59,7 @@ namespace zero.core.patterns.queue
 
         private readonly string _description; 
         private volatile int _zeroed;
+        private readonly bool CfgAwait = true;
         private IIoZeroSemaphore _syncRoot;
         private IIoZeroSemaphore _pressure;
         private IIoZeroSemaphore _backPressure;
@@ -94,7 +95,7 @@ namespace zero.core.patterns.queue
                     throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
                 #endif
                 
-                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                     return true;
 
                 if (!_asyncTasks.IsCancellationRequested)
@@ -109,11 +110,11 @@ namespace zero.core.patterns.queue
                         try
                         {
                             if (!zero)
-                                await op(cur.Value, nanite).FastPath().ConfigureAwait(false);
+                                await op(cur.Value, nanite).FastPath().ConfigureAwait(CfgAwait);
                             else
                             {
                                 if(!((IIoNanite)cur.Value).Zeroed())
-                                    await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite?? new IoNanoprobe($"{nameof(IoQueue<T>)}: {_description}")).FastPath().ConfigureAwait(false);
+                                    await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite?? new IoNanoprobe($"{nameof(IoQueue<T>)}: {_description}")).FastPath().ConfigureAwait(CfgAwait);
                             }
                         }
                         catch(Exception e)
@@ -129,7 +130,7 @@ namespace zero.core.patterns.queue
                 _head = null;
                 _iteratorIoZNode = null;
 
-                await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+                await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
                 _nodeHeap = null;
 
                 _asyncTasks.Dispose();
@@ -149,7 +150,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
 
             _syncRoot.Zero();
@@ -174,19 +175,19 @@ namespace zero.core.patterns.queue
                     return null;
 
                 //wait on back pressure
-                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
+                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                     return null;
 
-                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(false);
+                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
                 //set value
                 node.Value = item;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait) || _zeroed > 0)
                 {
-                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
+                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(CfgAwait); ;
                     return null;
                 }
                 blocked = true;
@@ -210,10 +211,10 @@ namespace zero.core.patterns.queue
             finally
             {
                 if(blocked)
-                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
 
                 if(_pressure != null)
-                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(false);
+                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
         }
 
@@ -231,19 +232,19 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(false))
+                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                         return null;
 
-                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(false);
+                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
                 
                 //set value
                 node.Value = item;
                 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait) || _zeroed > 0)
                 {
-                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false); ;
+                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(CfgAwait); ;
                     return null;
                 }
                 blocked = true;
@@ -270,11 +271,11 @@ namespace zero.core.patterns.queue
                 _modified = false;
                 if (blocked)
                 {
-                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);    
+                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);    
                 }
                 
                 if(_pressure != null)
-                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(false);
+                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
         }
 
@@ -294,11 +295,11 @@ namespace zero.core.patterns.queue
             var blocked = false;
             try
             {
-                if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                if (_pressure != null && !await _pressure.WaitAsync().FastPath().ConfigureAwait(CfgAwait) || _zeroed > 0)
                     return default;
                 
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait) || _zeroed > 0)
                     return default;
 
                 _modified = true;
@@ -328,7 +329,7 @@ namespace zero.core.patterns.queue
 
                 if (blocked)
                 {
-                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
                 }
             }
             //return dequeued item
@@ -338,7 +339,7 @@ namespace zero.core.patterns.queue
                 {
                     dq.Prev = null;
                     var retVal = dq.Value;
-                    await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(false);
+                    await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(CfgAwait);
                     return retVal;
                 }
                 catch (Exception e)
@@ -349,7 +350,7 @@ namespace zero.core.patterns.queue
                 {
                     _modified = false;
                     if (_enableBackPressure)
-                        await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(false);
+                        await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
                 }
                 
                 return default;
@@ -370,7 +371,7 @@ namespace zero.core.patterns.queue
 
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false) || _zeroed > 0)
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait) || _zeroed > 0)
                     return false;
                 _modified = true;
                 //unhook
@@ -398,12 +399,12 @@ namespace zero.core.patterns.queue
             finally
             {
                 _modified = false;
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
                 node!.Prev = null;
                 node!.Next = null;
             }
 
-            await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(false);
+            await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(CfgAwait);
 
             return true;
         }
@@ -455,7 +456,7 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                     return;
             
                 var cur = Head;
@@ -465,7 +466,7 @@ namespace zero.core.patterns.queue
                     cur.Prev = null;
                     cur.Value = default;
                     cur.Next = null;
-                    await _nodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(false);
+                    await _nodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(CfgAwait);
                     cur = tmp;
                 }
 
@@ -474,7 +475,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
 
         }

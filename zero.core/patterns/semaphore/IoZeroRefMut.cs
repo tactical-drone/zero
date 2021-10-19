@@ -9,7 +9,6 @@ namespace zero.core.patterns.semaphore
 {
     public class IoZeroRefMut : IIoZeroSemaphore
     {
-        
         public IoZeroRefMut(CancellationToken asyncTasks, bool allowInline = true)
         {
             _semaphore = new AsyncAutoResetEvent(allowInline);
@@ -18,7 +17,8 @@ namespace zero.core.patterns.semaphore
         }
         
         private AsyncAutoResetEvent _semaphore;
-        private CancellationToken _cancellationToken;
+        private readonly CancellationToken _cancellationToken;
+        private readonly bool CfgAwait = true;
         
         public bool GetResult(short token)
         {
@@ -48,7 +48,7 @@ namespace zero.core.patterns.semaphore
 
         public async ValueTask<bool> WaitAsync()
         {
-            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(false);
+            await _semaphore.WaitAsync(_cancellationToken).ConfigureAwait(CfgAwait);
             return true;
         }
 
@@ -127,12 +127,12 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        uint IIoZeroSemaphore.ZeroIncAsyncWait()
+        uint IIoZeroSemaphore.ZeroIncAsyncCount()
         {
             throw new NotImplementedException();
         }
 
-        uint IIoZeroSemaphore.ZeroDecAsyncWait()
+        uint IIoZeroSemaphore.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }

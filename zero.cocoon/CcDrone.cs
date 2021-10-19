@@ -44,12 +44,12 @@ namespace zero.cocoon
             {
                 while (!@this.Zeroed())
                 {
-                    await Task.Delay(@this.parm_insane_checks_delay * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay(@this.parm_insane_checks_delay * 1000, @this.AsyncTasks.Token).ConfigureAwait(@this.CfgAwait);
                     if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
                     {
                         if(!@this.Zeroed() && @this.Adjunct == null)
                             @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
-                        await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(false);
+                        await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(@this.CfgAwait);
                     }
                 }
             },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach| TaskCreationOptions.PreferFairness);
@@ -169,7 +169,7 @@ namespace zero.cocoon
         {
             try
             {
-                await DetachNeighborAsync().FastPath().ConfigureAwait(false);
+                await DetachNeighborAsync().FastPath().ConfigureAwait(CfgAwait);
             }
             catch (Exception e)
             {
@@ -187,7 +187,7 @@ namespace zero.cocoon
             }
 
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
 
@@ -208,7 +208,7 @@ namespace zero.cocoon
                 return false;
 
             //Attach the other way
-            var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(false);
+            var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(CfgAwait);
 
             if (attached)
             {
@@ -237,10 +237,10 @@ namespace zero.cocoon
                     state.Item2 = @this.Adjunct;
                 
                 return new ValueTask<bool>(true);
-            },state).FastPath().ConfigureAwait(false);
+            },state).FastPath().ConfigureAwait(CfgAwait);
 
             if(state.Item2 != null)
-                await state.Item2.DetachPeerAsync().FastPath().ConfigureAwait(false);
+                await state.Item2.DetachPeerAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -271,7 +271,7 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if(await ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.SendAsync(buf, 0, buf.Length).FastPath().ConfigureAwait(false) > 0)
+                        if(await ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.SendAsync(buf, 0, buf.Length).FastPath().ConfigureAwait(CfgAwait) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
@@ -283,7 +283,7 @@ namespace zero.cocoon
                                     Id = Adjunct.Designation.IdString(),
                                     Type = "gossip"
                                 }
-                            }).FastPath().ConfigureAwait(false);
+                            }).FastPath().ConfigureAwait(CfgAwait);
                         }
                     }
                 }

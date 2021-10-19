@@ -69,8 +69,8 @@ namespace zero.core.models.protobuffer
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await ClearAsync().FastPath().ConfigureAwait(false);
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await ClearAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace zero.core.models.protobuffer
         public async ValueTask SetAsync(TBatch batch)
         {
             if (_batch != null)
-                await ClearAsync().FastPath().ConfigureAwait(false);
+                await ClearAsync().FastPath().ConfigureAwait(CfgAwait);
                     
             _batch = batch;
         }
@@ -131,12 +131,12 @@ namespace zero.core.models.protobuffer
             {
                 var job = (CcProtocBatchJob<TModel, TBatch>)ioJob;
                 
-                if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(false))
+                if (!await backPressure(ioJob, state).FastPath().ConfigureAwait(job.CfgAwait))
                     return false;
 
                 try
                 {
-                    job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(false);
+                    job._batch = await ((CcProtocBatchSource<TModel, TBatch>) job.Source).DequeueAsync().FastPath().ConfigureAwait(job.CfgAwait);
                 }
                 catch (Exception e) when(!job.Zeroed())
                 {
@@ -144,7 +144,7 @@ namespace zero.core.models.protobuffer
                 }
                 
                 return job._batch != null;
-            }, this, barrier, nanite).FastPath().ConfigureAwait(false))
+            }, this, barrier, nanite).FastPath().ConfigureAwait(CfgAwait))
             {
                 return State = IoJobMeta.JobState.Error;
             }

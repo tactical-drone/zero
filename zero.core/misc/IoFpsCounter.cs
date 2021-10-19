@@ -64,14 +64,14 @@ namespace zero.core.misc
             if (Volatile.Read(ref _count[_index]) < Volatile.Read(ref _range[_index])) return;
 
             var m = _mutex.WaitAsync();
-            if(await m.FastPath().ConfigureAwait(false))
+            if(await m.FastPath().ConfigureAwait(true))
             {
                 _range[_index] = (int)(_time * _time * Fps() / 1000000);
                 Interlocked.Increment(ref _index);
                 _index %= 2;
                 Volatile.Write(ref _count[_index], 0);
                 _timeStamp[_index] = DateTime.Now;
-                await _mutex.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _mutex.ReleaseAsync().FastPath().ConfigureAwait(true);
             }            
         }
 

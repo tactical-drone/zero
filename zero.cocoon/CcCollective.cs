@@ -108,7 +108,7 @@ namespace zero.cocoon
             while (!@this.Zeroed())
             {
                 //periodically
-                await Task.Delay((_random.Next(@this.parm_mean_pat_delay / 4) + @this.parm_mean_pat_delay / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(false);
+                await Task.Delay((_random.Next(@this.parm_mean_pat_delay / 4) + @this.parm_mean_pat_delay / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(CfgAwait);
                 
                 if (@this.Zeroed())
                     break;
@@ -131,7 +131,7 @@ namespace zero.cocoon
                             .OrderBy(n => ((CcAdjunct)n).Priority)
                             .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                         {
-                            await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(false);
+                            await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(CfgAwait);
                             c++;
                         }
 
@@ -143,7 +143,7 @@ namespace zero.cocoon
                                 .OrderBy(n => ((CcAdjunct)n).Priority)
                                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                             {
-                                await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(false);
+                                await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(CfgAwait);
                                 c++;
                             }
                         }
@@ -151,7 +151,7 @@ namespace zero.cocoon
                         if (@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay)
                         {
                             //bootstrap if alone
-                            await @this.DeepScanAsync().ConfigureAwait(false);
+                            await @this.DeepScanAsync().ConfigureAwait(CfgAwait);
                         }
 
                         if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
@@ -187,7 +187,7 @@ namespace zero.cocoon
         public override async ValueTask ZeroManagedAsync()
         {
             var id = Hub?.Router?.Designation?.IdString();
-            await DupSyncRoot.ZeroAsync(this).FastPath().ConfigureAwait(false);
+            await DupSyncRoot.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
             //Services.CcRecord.Endpoints.Clear();
             try
             {
@@ -198,7 +198,7 @@ namespace zero.cocoon
                 // ignored
             }
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
 
             try
             {
@@ -211,7 +211,7 @@ namespace zero.cocoon
                         {
                             Id = id
                         }
-                    }).FastPath().ConfigureAwait(false);
+                    }).FastPath().ConfigureAwait(CfgAwait);
                 }
             }
             catch 
@@ -369,7 +369,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 60 * 5;
+        public int parm_mean_pat_delay = 60 * 1;
 
 
         /// <summary>
@@ -412,7 +412,7 @@ namespace zero.cocoon
                     return false;
 
                 //Handshake
-                if (await @this.HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(false))
+                if (await @this.HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.CfgAwait))
                 {
                     //ACCEPT
                     @this._logger.Info($"+ {drone.Description}");
@@ -425,7 +425,7 @@ namespace zero.cocoon
                 }
 
                 return false;
-            },this, bootstrapAsync).ConfigureAwait(false);
+            },this, bootstrapAsync).ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -449,7 +449,7 @@ namespace zero.cocoon
             var protocolRaw = responsePacket.ToByteArray();
 
             var sent = 0;
-            if ((sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(false)) == protocolRaw.Length)
+            if ((sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(CfgAwait)) == protocolRaw.Length)
             {
                 _logger.Trace($"~/> {type}({sent}): {drone.IoSource.IoNetSocket.LocalAddress} ~> {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
                 return msg.Length;
@@ -501,7 +501,7 @@ namespace zero.cocoon
                     do
                     {
                         bytesRead+= await ioNetSocket
-                            .ReadAsync(handshakeBuffer, bytesRead, _handshakeRequestSize - bytesRead).FastPath().ConfigureAwait(false);
+                            .ReadAsync(handshakeBuffer, bytesRead, _handshakeRequestSize - bytesRead).FastPath().ConfigureAwait(CfgAwait);
 
                     } while (
                         !Zeroed() &&
@@ -573,7 +573,7 @@ namespace zero.cocoon
                             //}
 
                             //race for connection
-                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath().ConfigureAwait(false);
+                            won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath().ConfigureAwait(CfgAwait);
 
                             _logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
 
@@ -588,7 +588,7 @@ namespace zero.cocoon
                             _sw.Restart();
                             
                             var sent = await SendMessageAsync(drone, handshake, nameof(HandshakeResponse),
-                                parm_handshake_timeout).FastPath().ConfigureAwait(false);
+                                parm_handshake_timeout).FastPath().ConfigureAwait(CfgAwait);
                             if (sent == 0)
                             {
                                 _logger.Trace($"{nameof(handshakeResponse)}: FAILED! {ioNetSocket.Description}");
@@ -598,7 +598,7 @@ namespace zero.cocoon
                         //Race
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                        //    .FastPath().ConfigureAwait(false);
+                        //    .FastPath().ConfigureAwait(CfgAwait);
                         handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressCount < parm_max_inbound;
                         return handshakeSuccess;
                     }
@@ -617,7 +617,7 @@ namespace zero.cocoon
                     
                     _sw.Restart();
                     var sent = await SendMessageAsync(drone, handshake, nameof(HandshakeResponse))
-                        .FastPath().ConfigureAwait(false);
+                        .FastPath().ConfigureAwait(CfgAwait);
                     if (sent > 0)
                     {
                         _logger.Trace(
@@ -634,7 +634,7 @@ namespace zero.cocoon
                     {
                         bytesRead = await ioNetSocket
                         .ReadAsync(handshakeBuffer, bytesRead, _handshakeResponseSize - bytesRead,
-                            timeout: parm_handshake_timeout).FastPath().ConfigureAwait(false);
+                            timeout: parm_handshake_timeout).FastPath().ConfigureAwait(CfgAwait);
                     } while (
                         !Zeroed() &&
                         bytesRead < _handshakeResponseSize &&
@@ -682,7 +682,7 @@ namespace zero.cocoon
                         //race for connection
                         var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
                                 (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
-                            .FastPath().ConfigureAwait(false);
+                            .FastPath().ConfigureAwait(CfgAwait);
 
                         if(!won)
                             return false;
@@ -740,7 +740,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.EgressCount);
                             return ValueTask.FromResult(true);
-                        }, this).FastPath().ConfigureAwait(false);
+                        }, this).FastPath().ConfigureAwait(CfgAwait);
 
                         Interlocked.Increment(ref EgressCount);
                     }
@@ -750,7 +750,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
                             return ValueTask.FromResult(true);
-                        }, this).FastPath().ConfigureAwait(false);
+                        }, this).FastPath().ConfigureAwait(CfgAwait);
                         Interlocked.Increment(ref IngressCount);
                     }
                 }
@@ -785,7 +785,7 @@ namespace zero.cocoon
             if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
             {
                 //did we win?
-                return TotalConnections < MaxDrones && await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(false);
+                return TotalConnections < MaxDrones && await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(CfgAwait);
             }
             else
             {
@@ -816,27 +816,27 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency * 2).FastPath().ConfigureAwait(false);
+                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency * 2).FastPath().ConfigureAwait(CfgAwait);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        if (drone != null) await drone.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
                 
                     //Race for a connection
-                    if (await HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(false))
+                    if (await HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(CfgAwait))
                     {
                         _logger.Info($"+ {drone.Description}");
 
-                        await AssimilateAsync(drone).FastPath().ConfigureAwait(false);
+                        await AssimilateAsync(drone).FastPath().ConfigureAwait(CfgAwait);
                         
                         return true;
                     }
                     else
                     {
                         _logger.Debug($"|>{drone.Description}");
-                        await drone.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        await drone.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
                     }
 
                     return false;
@@ -873,7 +873,7 @@ namespace zero.cocoon
                 }
                 try
                 {
-                    await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(false);
+                    await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(CfgAwait);
                     return true;
                 }
                 catch when(Zeroed()){}
@@ -904,7 +904,7 @@ namespace zero.cocoon
                     break;
             
                 //probe
-                if (!await adjunct.SendPingAsync().FastPath().ConfigureAwait(false))
+                if (!await adjunct.SendPingAsync().FastPath().ConfigureAwait(CfgAwait))
                 {
                     if(!Zeroed())
                         _logger.Trace( $"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
@@ -915,7 +915,7 @@ namespace zero.cocoon
                     foundVector = true;
                 }
                 
-                await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(false);
+                await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(CfgAwait);
             }
             
             if(foundVector)
@@ -932,9 +932,9 @@ namespace zero.cocoon
                         if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
                             continue;
 
-                        await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(CfgAwait);
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                        if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).FastPath().ConfigureAwait(false))
+                        if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).FastPath().ConfigureAwait(CfgAwait))
                         {
                             if(!Hub.Router.Zeroed())
                                 _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");

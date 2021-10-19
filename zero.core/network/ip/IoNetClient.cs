@@ -127,8 +127,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await IoNetSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await IoNetSocket.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -141,7 +141,7 @@ namespace zero.core.network.ip
             if (Zeroed())
                 return false;
 
-            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false);
+            var connected = await IoNetSocket.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(CfgAwait);
 
             if (connected)
                 _logger.Trace($"Connecting to `{remoteAddress}', {Description}");
@@ -167,7 +167,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                return await callback(IoNetSocket, barrier, nanite, jobClosure).FastPath().ConfigureAwait(false);
+                return await callback(IoNetSocket, barrier, nanite, jobClosure).FastPath().ConfigureAwait(CfgAwait);
             }
             catch (TimeoutException)
             {

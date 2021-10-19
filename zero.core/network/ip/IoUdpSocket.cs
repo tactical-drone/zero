@@ -136,7 +136,7 @@ namespace zero.core.network.ip
                 ((IDisposable) o).Dispose();
 
                 return ValueTask.CompletedTask;
-            }).FastPath().ConfigureAwait(false);
+            }).FastPath().ConfigureAwait(CfgAwait);
 
             await _sendArgs.ZeroManagedAsync<object>((o,_) =>
             {
@@ -154,18 +154,18 @@ namespace zero.core.network.ip
                 }
                 ((IDisposable)o).Dispose();
                 return ValueTask.CompletedTask;
-            }).FastPath().ConfigureAwait(false);
+            }).FastPath().ConfigureAwait(CfgAwait);
 
             await _tcsHeap.ZeroManagedAsync<object>((o,_) =>
             {
                 o.Zero();
                 return ValueTask.CompletedTask;
-            }).FastPath().ConfigureAwait(false);
+            }).FastPath().ConfigureAwait(CfgAwait);
 
             _sendSync.Zero();
             _rcvSync.Zero();
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -189,7 +189,7 @@ namespace zero.core.network.ip
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite,bootstrapAsync).FastPath().ConfigureAwait(false);
+            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite,bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
 
 
             //set some socket options
@@ -215,7 +215,7 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO
-                    await acceptConnectionHandler(this, nanite).FastPath().ConfigureAwait(false);
+                    await acceptConnectionHandler(this, nanite).FastPath().ConfigureAwait(CfgAwait);
                 }
                 catch (Exception e)
                 {
@@ -226,11 +226,11 @@ namespace zero.core.network.ip
                 
                 //Bootstrap on listener start
                 if (bootstrapAsync != null)
-                    await bootstrapAsync().FastPath().ConfigureAwait(false);
+                    await bootstrapAsync().FastPath().ConfigureAwait(CfgAwait);
 
                 while (!Zeroed())
                 {
-                    await Task.Delay(5000, AsyncTasks.Token).ConfigureAwait(false);
+                    await Task.Delay(5000, AsyncTasks.Token).ConfigureAwait(CfgAwait);
                 }
 
                 _logger.Trace($"Stopped listening at {LocalNodeAddress}");
@@ -244,14 +244,14 @@ namespace zero.core.network.ip
 
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(CfgAwait))
                 return false;
 
             Configure();
 
             try
             {
-                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token).FastPath().ConfigureAwait(false);
+                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token).FastPath().ConfigureAwait(CfgAwait);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.RemoteEndPoint);
             }
@@ -272,7 +272,7 @@ namespace zero.core.network.ip
 
         //private async ValueTask<bool> RouteAsync(byte[] listenerBuffer, IPEndPoint endPoint, Func<IoSocket, Task<IIoZero>> newConnectionHandler)
         //{
-        //    var read = await ReadAsync(listenerBuffer, 0, listenerBuffer.Length, endPoint).ZeroBoostAsync(oomCheck: false).ConfigureAwait(false);
+        //    var read = await ReadAsync(listenerBuffer, 0, listenerBuffer.Length, endPoint).ZeroBoostAsync(oomCheck: false).ConfigureAwait(CfgAwait);
 
         //    //fail fast
         //    if (read == 0)
@@ -283,7 +283,7 @@ namespace zero.core.network.ip
         //    {
         //        //Atomic add new route
         //        if (await ZeroAtomicAsync(async (z, b) => _connTrack.TryAdd(endPoint.ToString(),
-        //            connection = await newConnectionHandler(new IoUdpSocket()).ConfigureAwait(false))).ConfigureAwait(false))
+        //            connection = await newConnectionHandler(new IoUdpSocket()).ConfigureAwait(CfgAwait))).ConfigureAwait(CfgAwait))
         //        {
         //            //atomic ensure teardown
         //            return await connection.ZeroAtomicAsync((z, b) =>
@@ -304,11 +304,11 @@ namespace zero.core.network.ip
         //                });
 
         //                return Task.FromResult(sub != null);
-        //            }).ConfigureAwait(false);
+        //            }).ConfigureAwait(CfgAwait);
         //        }
         //        else if(connection != null)//race
         //        {
-        //            await connection.ZeroAsync(this).ConfigureAwait(false);
+        //            await connection.ZeroAsync(this).ConfigureAwait(CfgAwait);
         //        }
         //        //raced out
         //        return false;
@@ -319,7 +319,7 @@ namespace zero.core.network.ip
         //        var source = (IoNetSocket) b;
 
         //        return true;
-        //    }).ConfigureAwait(false);
+        //    }).ConfigureAwait(CfgAwait);
         //    //route
 
         //    return await connection!.ConsumeAsync();
@@ -353,14 +353,14 @@ namespace zero.core.network.ip
             IIoZeroSemaphore tcs = default;
             try
             {
-                if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(false))
+                if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                     return 0;
 
-                args = await _sendArgs.TakeAsync().FastPath().ConfigureAwait(false);
+                args = await _sendArgs.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
                 if (args == null)
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
-                tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
+                tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
                 if (tcs == null)
                     throw new OutOfMemoryException(nameof(_tcsHeap));
 
@@ -370,7 +370,7 @@ namespace zero.core.network.ip
                 args.UserToken = tcs;
 
                 //receive
-                if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
+                if (NativeSocket.SendToAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                     return 0;
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
@@ -380,17 +380,17 @@ namespace zero.core.network.ip
             {
                 _logger.Error(e,
                     $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
-                await ZeroAsync(this).ConfigureAwait(false);
+                await ZeroAsync(this).ConfigureAwait(CfgAwait);
             }
             finally
             {
                 if (args != default)
-                    await _sendArgs.ReturnAsync(args).FastPath().ConfigureAwait(false);
+                    await _sendArgs.ReturnAsync(args).FastPath().ConfigureAwait(CfgAwait);
                 
                 if (tcs != default)
-                    await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
+                    await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(CfgAwait);
 
-                await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
 
             return 0;
@@ -416,7 +416,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                await ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -443,13 +443,13 @@ namespace zero.core.network.ip
             {
                 Debug.Assert(remoteEp != null);
                 //concurrency
-                if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(false))
+                if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                     return 0;
 
                 if (timeout == 0)
                 {
-                    //var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(false);
-                    var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(false);
+                    //var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
+                    var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(CfgAwait);
                     try
                     {
                         var args = new SocketAsyncEventArgs();
@@ -465,7 +465,7 @@ namespace zero.core.network.ip
                         args.UserToken = tcs;
                         args.RemoteEndPoint = remoteEp;
 
-                        if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(false))
+                        if (NativeSocket.ReceiveFromAsync(args) && !await tcs.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                         {
                             return 0;
                         }
@@ -481,7 +481,7 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        await ZeroAsync(this).ConfigureAwait(false); //TODO ?
+                        await ZeroAsync(this).ConfigureAwait(CfgAwait); //TODO ?
                     }
                     finally
                     {
@@ -495,11 +495,11 @@ namespace zero.core.network.ip
                         //        args.Dispose();
                         //    }
 
-                        //    await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(false);
+                        //    await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(CfgAwait);
                         //}
                         
                         if (tcs != null)
-                            await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(false);
+                            await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(CfgAwait);
                     }
                 }
 
@@ -522,11 +522,11 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed())
             {
                 _logger?.Error(e, $"Unable to read from socket: {Description}");
-                await ZeroAsync(this).ConfigureAwait(false); //TODO ?
+                await ZeroAsync(this).ConfigureAwait(CfgAwait); //TODO ?
             }
             finally
             {
-                await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(false);
+                await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
             }
 
             return 0;

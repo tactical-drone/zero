@@ -5,8 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Microsoft.VisualStudio.Threading;
-using NLog;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore.core
@@ -496,17 +494,30 @@ namespace zero.core.patterns.semaphore.core
                         }
                         else
                         {
-                            callback(state); //TODO why do they not inline?
-                            //ThreadPool.UnsafeQueueUserWorkItem(callback, state, preferLocal: true);
+                            if (_zeroRef.ZeroAsyncCount() < _maxAsyncWorkers)
+                            {
+                                _zeroRef.ZeroIncAsyncCount();
+
+                                void cb(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
+                                {
+                                    var (@this, callback, state) = obj;
+                                    callback(state);
+                                    @this.ZeroDecAsyncCount();
+                                }
+
+                                ThreadPool.UnsafeQueueUserWorkItem(cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
+                            }
+                            else
+                                callback(state); //TODO why do they not inline?
                         }
                         break;
 
                     case SynchronizationContext sc:
                         sc.Post(static s =>
                         {
-                            var tuple = (ValueTuple<Action<object?>, object?>)s!;
+                            var tuple = (ValueTuple<Action<object>, object>)s!;
                             tuple.Item1(tuple.Item2);
-                        }, new ValueTuple<Action<object?>, object?>(callback, state));
+                        }, new ValueTuple<Action<object>, object>(callback, state));
                         break;
 
                     case TaskScheduler ts:
@@ -697,17 +708,17 @@ namespace zero.core.patterns.semaphore.core
                 //                }
                 //                finally
                 //                {
-                //                    worker.Semaphore.ZeroDecAsyncWait();
+                //                    worker.Semaphore.ZeroDecAsyncCount();
                 //                }
 
                 //                return ValueTask.CompletedTask;
                 //            }, ValueTuple.Create(this, worker),_asyncToken, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
 
-                //        _zeroRef.ZeroIncAsyncWait();
+                //        _zeroRef.ZeroIncAsyncCount();
                 //        parallelized = true;
                 //        break;
                 //    case true when (_maxAsyncWorkers > 0):
-                //        _zeroRef.ZeroDecAsyncWait();
+                //        _zeroRef.ZeroDecAsyncCount();
                 //        break;
                 //}
 
@@ -808,13 +819,13 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroIncAsyncWait()
+        uint IIoZeroSemaphore.ZeroIncAsyncCount()
         {
             return Interlocked.Increment(ref _curAsyncWorkerCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroDecAsyncWait()
+        uint IIoZeroSemaphore.ZeroDecAsyncCount()
         {
             return Interlocked.Decrement(ref _curAsyncWorkerCount);
         }

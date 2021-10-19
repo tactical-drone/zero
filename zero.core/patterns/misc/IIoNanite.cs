@@ -107,5 +107,10 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns>The hive</returns>
         LinkedList<IIoNanite> ZeroHiveMind();
+
+        /// <summary>
+        /// How to apply cfg await
+        /// </summary>
+        bool CfgAwait { get; }
     }
 }

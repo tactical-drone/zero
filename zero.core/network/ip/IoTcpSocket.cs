@@ -50,7 +50,7 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace zero.core.network.ip
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(false);
+            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
             
             //Configure the socket
             Configure();
@@ -89,7 +89,7 @@ namespace zero.core.network.ip
 
             //Execute bootstrap
             if(bootstrapAsync!=null)
-                await bootstrapAsync().ConfigureAwait(false);
+                await bootstrapAsync().ConfigureAwait(CfgAwait);
 
             var description = Description;
             // Accept incoming connections
@@ -100,7 +100,7 @@ namespace zero.core.network.ip
                 try
                 {
                     //ZERO control passed to connection handler
-                    var newSocket = new IoTcpSocket(await NativeSocket.AcceptAsync().ConfigureAwait(false));
+                    var newSocket = new IoTcpSocket(await NativeSocket.AcceptAsync().ConfigureAwait(CfgAwait));
                     
                     //newSocket.ClosedEvent((sender, args) => Close());
 
@@ -117,11 +117,11 @@ namespace zero.core.network.ip
                     try
                     {
                         //ZERO
-                        await acceptConnectionHandler(newSocket, nanite).FastPath().ConfigureAwait(false);
+                        await acceptConnectionHandler(newSocket, nanite).FastPath().ConfigureAwait(CfgAwait);
                     }
                     catch (Exception e)
                     {
-                        await newSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        await newSocket.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -153,7 +153,7 @@ namespace zero.core.network.ip
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
         {
-            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false))
+            if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(CfgAwait))
                 return false;
 
             NativeSocket.Blocking = false;
@@ -171,7 +171,7 @@ namespace zero.core.network.ip
                     await ZeroAsync(static async state =>
                     {
                         var (@this, timeout) = state;
-                        await Task.Delay(timeout, @this.AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(timeout, @this.AsyncTasks.Token).ConfigureAwait(@this.CfgAwait);
 
                         if (!@this.IsConnected())
                             @this.AsyncTasks.Cancel();
@@ -179,7 +179,7 @@ namespace zero.core.network.ip
                     }, ValueTuple.Create(this, timeout), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
                 }
 
-                await connectTask.FastPath().ConfigureAwait(false);
+                await connectTask.FastPath().ConfigureAwait(CfgAwait);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint( "tcp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint) NativeSocket.RemoteEndPoint);
 
@@ -239,7 +239,7 @@ namespace zero.core.network.ip
                 {
                     return await NativeSocket
                         .SendAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).FastPath()
-                        .ConfigureAwait(false);
+                        .ConfigureAwait(CfgAwait);
                 }
 
                 NativeSocket.SendTimeout = timeout;
@@ -251,13 +251,13 @@ namespace zero.core.network.ip
             {
                 //TODO why is this spamming An established connection was aborted?
                 //_logger.Trace( $"{nameof(SendAsync)}: {Description}, {e.Message}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
+                await ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
+                await ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
             }
 
             return 0;
@@ -285,7 +285,7 @@ namespace zero.core.network.ip
                 {
                     return await NativeSocket
                         .ReceiveAsync(buffer.Slice(offset, length), SocketFlags.None, AsyncTasks.Token).FastPath()
-                        .ConfigureAwait(false);
+                        .ConfigureAwait(CfgAwait);
                 }
 
                 //slow path: timeout
@@ -300,13 +300,13 @@ namespace zero.core.network.ip
             catch (SocketException e) when (!Zeroed())
             {
                 _logger.Trace($"{nameof(ReadAsync)}: {Description}, {e.Message}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
+                await ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed()) 
             {
                 _logger?.Error(e, $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(false);
+                await ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
             }
             return 0;
         }

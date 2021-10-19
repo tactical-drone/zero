@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Data;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
@@ -44,25 +41,33 @@ namespace zero.core.network.ip
             T nanite = default,
             Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync<T>(connectionReceivedAction, nanite, bootstrapAsync).FastPath().ConfigureAwait(false);
+            await base.ListenAsync<T>(connectionReceivedAction, nanite, bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
 
-            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(false)).target;
+            IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(CfgAwait)).target;
 
             await IoListenSocket.ListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
                 var (@this, nanite,connectionReceivedAction) = state;
                 try
                 {
-                    await connectionReceivedAction(nanite,(await @this.ZeroHiveAsync(new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", (IoNetSocket) newConnectionSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).FastPath().ConfigureAwait(false)).target).FastPath().ConfigureAwait(false);
+                    await connectionReceivedAction(
+                        nanite,
+                        (
+                            await @this.ZeroHiveAsync(
+                                new IoTcpClient<TJob>(
+                                    $"{nameof(IoTcpClient<TJob>)} ~> {@this.Description}", 
+                                    (IoNetSocket) newConnectionSocket, 
+                                    @this.ReadAheadBufferSize,
+                                    @this.ConcurrencyLevel)).FastPath().ConfigureAwait(@this.CfgAwait)
+                            ).target
+                        ).FastPath().ConfigureAwait(@this.CfgAwait);
                 }
                 catch (Exception e)
                 {
-                    @this._logger.Error(e, $"Connection received handler returned with errors:");
-
-                    await newConnectionSocket.ZeroAsync(@this).FastPath().ConfigureAwait(false);
-
+                    @this._logger.Error(e, $"{@this.Description} Connection received handler returned with errors:");
+                    await newConnectionSocket.ZeroAsync(@this).FastPath().ConfigureAwait(@this.CfgAwait);
                 }
-            }, ValueTuple.Create(this, nanite, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(false);
+            }, ValueTuple.Create(this, nanite, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>

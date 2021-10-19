@@ -53,8 +53,8 @@ namespace zero.cocoon.models
             //    batchMsg.RemoteEndPoint = null;
             //});
 
-            await _dupHeap.ClearAsync().FastPath().ConfigureAwait(false);
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(false);
+            await _dupHeap.ClearAsync().FastPath().ConfigureAwait(CfgAwait);
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -173,7 +173,7 @@ namespace zero.cocoon.models
 
                     try
                     {
-                        if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath().ConfigureAwait(false))
+                        if (!await CcCollective.DupSyncRoot.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                             continue;
@@ -187,7 +187,7 @@ namespace zero.cocoon.models
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
                                 {
                                     del.Clear();
-                                    await _dupHeap.ReturnAsync(del).FastPath().ConfigureAwait(false);
+                                    await _dupHeap.ReturnAsync(del).FastPath().ConfigureAwait(CfgAwait);
                                 }
                             }
                         }
@@ -196,7 +196,7 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            if (await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(false) == -1)
+                            if (await CcCollective.DupSyncRoot.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait) == -1)
                             {
                                 if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed() && !Source.Zeroed())
                                 {
@@ -230,7 +230,7 @@ namespace zero.cocoon.models
                     //set this message as seen if seen before
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
                         .RemoteAddress;
-                    var dupEndpoints = await _dupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(false);
+                    var dupEndpoints = await _dupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(CfgAwait);
 
                     if (dupEndpoints == null)
                         throw new OutOfMemoryException(
@@ -239,7 +239,7 @@ namespace zero.cocoon.models
                     if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                     {
                         dupEndpoints.Clear();
-                        await _dupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(false);
+                        await _dupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(CfgAwait);
 
                         //best effort
                         if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))
@@ -266,7 +266,7 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
                                 continue;
 
-                            if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(false) <= 0)
+                            if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(CfgAwait) <= 0)
                             {
                                 if(source.IsOperational)
                                     _logger.Trace($"Failed to forward new msg message to {drone.Description}");
@@ -282,7 +282,7 @@ namespace zero.cocoon.models
                                         Id = drone.Adjunct.Designation.IdString(),
                                         Type = $"gossip{Id % 6}"
                                     }
-                                }).FastPath().ConfigureAwait(false);
+                                }).FastPath().ConfigureAwait(CfgAwait);
                             }
                         }
                         catch when( Zeroed()){}
@@ -332,7 +332,7 @@ namespace zero.cocoon.models
             //        //    zero = IoZero;
 
             //        if (CurrBatchSlot >= parm_max_msg_batch_size)
-            //            await ForwardToNeighborAsync().ConfigureAwait(false);
+            //            await ForwardToNeighborAsync().ConfigureAwait(CfgAwait);
 
             //        var remoteEp = new IPEndPoint(((IPEndPoint)RemoteEndPoint).Address, ((IPEndPoint)RemoteEndPoint).Port);
             //        ProtocolMsgBatch[CurrBatchSlot] = ValueTuple.Create(zero, request, remoteEp, packet);
@@ -372,7 +372,7 @@ namespace zero.cocoon.models
         //        {
         //            var _this = (CcWhispers)ioJob;
 
-        //            if (!await ((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(false))
+        //            if (!await ((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).EnqueueAsync(_this._protocolMsgBatch).ConfigureAwait(CfgAwait))
         //            {
         //                if (!((CcProtocBatchSource<CcWhisperMsg, CcGossipBatch>)source).Zeroed())
         //                    _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {_this.Description}");
@@ -393,12 +393,12 @@ namespace zero.cocoon.models
         //            _this.CurrBatchSlot = 0;
 
         //            return true;
-        //        }, jobClosure: this).ConfigureAwait(false);
+        //        }, jobClosure: this).ConfigureAwait(CfgAwait);
 
         //        ////forward transactions
         //        // if (cogSuccess)
         //        // {
-        //        //     if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(false))
+        //        //     if (!await ProtocolConduit.ProduceAsync().ConfigureAwait(CfgAwait))
         //        //     {
         //        //         _logger.Warn($"{TraceDescription} Failed to forward to `{ProtocolConduit.Source.Description}'");
         //        //     }

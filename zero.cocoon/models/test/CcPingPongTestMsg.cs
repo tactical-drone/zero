@@ -89,7 +89,7 @@ namespace zero.cocoon.models.test
             var sentTask =  ((IoTcpClient<CcPingPongTestMsg>)Source).IoNetSocket.SendAsync(msgRaw, 0, msgRaw.Length);
 
             if (!sentTask.IsCompletedSuccessfully)
-                await sentTask.ConfigureAwait(false);
+                await sentTask.ConfigureAwait(CfgAwait);
 
             //AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
             //{
@@ -123,7 +123,7 @@ namespace zero.cocoon.models.test
 
                 var produced = await Source.ProduceAsync(static async (ioSocket, producerPressure, ioZero, ioJob) =>
                 {
-                    var _this = (CcPingPongTestMsg)ioJob;
+                    var @this = (CcPingPongTestMsg)ioJob;
                     
                     try
                     {
@@ -133,66 +133,66 @@ namespace zero.cocoon.models.test
                         // amount of steps. Instead of say just filling up memory buffers.
                         // This allows us some kind of (anti DOS?) congestion control
                         //----------------------------------------------------------------------------
-                        if (!await producerPressure(ioJob, ioZero).ConfigureAwait(false))
+                        if (!await producerPressure(ioJob, ioZero).ConfigureAwait(@this.CfgAwait))
                             return false;
 
                         //Async read the message from the message stream
-                        if (_this.Source.IsOperational)
+                        if (@this.Source.IsOperational)
                         {
-                            _this.BytesRead += (uint)await ((IoSocket)ioSocket)
-                                .ReadAsync(_this.ArraySegment, (int)_this.BufferOffset, (int)_this.BufferSize).FastPath()
-                                .ConfigureAwait(false);
+                            @this.BytesRead += (uint)await ((IoSocket)ioSocket)
+                                .ReadAsync(@this.ArraySegment, (int)@this.BufferOffset, (int)@this.BufferSize).FastPath()
+                                .ConfigureAwait(@this.CfgAwait);
 
                             //TODO WTF
-                            if (_this.BytesRead == 0)
+                            if (@this.BytesRead == 0)
                             {
-                                _this.State = IoJobMeta.JobState.ProduceTo;
+                                @this.State = IoJobMeta.JobState.ProduceTo;
                                 return false;
                             }
 
                             //Set how many datums we have available to process
-                            _this.DatumCount = _this.BytesLeftToProcess / _this.DatumSize;
-                            _this.DatumFragmentLength = _this.BytesLeftToProcess % _this.DatumSize;
+                            @this.DatumCount = @this.BytesLeftToProcess / @this.DatumSize;
+                            @this.DatumFragmentLength = @this.BytesLeftToProcess % @this.DatumSize;
 
                             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-                            _this.Syncing = _this.DatumFragmentLength > 0;
+                            @this.Syncing = @this.DatumFragmentLength > 0;
 
-                            _this.State = IoJobMeta.JobState.Produced;
+                            @this.State = IoJobMeta.JobState.Produced;
 
                             //_logger.Trace($"{TraceDescription} RX=> read=`{BytesRead}', ready=`{BytesLeftToProcess}', datumcount=`{DatumCount}', datumsize=`{DatumSize}', fragment=`{DatumFragmentLength}', buffer = `{BytesLeftToProcess}/{BufferSize + DatumProvisionLengthMax}', buf = `{(int)(BytesLeftToProcess / (double)(BufferSize + DatumProvisionLengthMax) * 100)}%'");
                             
                         }
                         else
                         {
-                            await _this.Source.ZeroAsync(_this).FastPath().ConfigureAwait(false);
+                            await @this.Source.ZeroAsync(@this).FastPath().ConfigureAwait(@this.CfgAwait);
                         }
 
-                        if (_this.Zeroed())
+                        if (@this.Zeroed())
                         {
-                            _this.State = IoJobMeta.JobState.Cancelled;
+                            @this.State = IoJobMeta.JobState.Cancelled;
                             return false;
                         }
                         return true;
                     }
-                    catch (NullReferenceException e){ _logger.Trace(e, _this.Description); return false;}
-                    catch (TaskCanceledException e){ _logger.Trace(e, _this.Description); return false; }
-                    catch (ObjectDisposedException e) { _logger.Trace(e, _this.Description); return false; }
-                    catch (OperationCanceledException e) { _logger.Trace(e, _this.Description); return false; }
+                    catch (NullReferenceException e){ _logger.Trace(e, @this.Description); return false;}
+                    catch (TaskCanceledException e){ _logger.Trace(e, @this.Description); return false; }
+                    catch (ObjectDisposedException e) { _logger.Trace(e, @this.Description); return false; }
+                    catch (OperationCanceledException e) { _logger.Trace(e, @this.Description); return false; }
                     catch (Exception e)
                     {
-                        if(!_this.Zeroed() && !(e is SocketException))
-                            _logger.Debug(e,$"Error producing {_this.Description}");
+                        if(!@this.Zeroed() && !(e is SocketException))
+                            _logger.Debug(e,$"Error producing {@this.Description}");
                         
-                        await Task.Delay(100).ConfigureAwait(false); //TODO
+                        await Task.Delay(100).ConfigureAwait(@this.CfgAwait); //TODO
 
-                        _this.State = IoJobMeta.JobState.ProduceErr;
+                        @this.State = IoJobMeta.JobState.ProduceErr;
 
-                        if(_this.Source != null)
-                            await _this.Source.ZeroAsync(_this).ConfigureAwait(false);
+                        if(@this.Source != null)
+                            await @this.Source.ZeroAsync(@this).ConfigureAwait(@this.CfgAwait);
 
                         return false;
                     }
-                }, this, barrier, nanite).ConfigureAwait(false);
+                }, this, barrier, nanite).ConfigureAwait(CfgAwait);
 
                 if (!produced)
                 {
@@ -273,12 +273,12 @@ namespace zero.cocoon.models.test
                         MemoryMarshal.Write(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize), ref req);
 
                         //if (Id % 10 == 0)
-                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(false);
+                        await Task.Delay(250, AsyncTasks.Token).ConfigureAwait(CfgAwait);
 
                         var sentTask = ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket.SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize);
 
                         if (!sentTask.IsCompletedSuccessfully)
-                            await sentTask.ConfigureAwait(false);
+                            await sentTask.ConfigureAwait(CfgAwait);
 
                         if (sentTask.Result > 0)
                         {
@@ -296,7 +296,7 @@ namespace zero.cocoon.models.test
 
                             MemoryMarshal.Write(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize), ref req);
                             if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
-                                .SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize).ConfigureAwait(false) > 0)
+                                .SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize).ConfigureAwait(CfgAwait) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 2);
                             }
@@ -308,7 +308,7 @@ namespace zero.cocoon.models.test
                             req = 0;
                             MemoryMarshal.Write(MemoryBuffer.Span.Slice((int)BufferOffset, (int)DatumSize), ref req);
                             if (await ((IoNetClient<CcPingPongTestMsg>) Source).IoNetSocket
-                                .SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize).ConfigureAwait(false) > 0)
+                                .SendAsync(ArraySegment, (int)BufferOffset, (int)DatumSize).ConfigureAwait(CfgAwait) > 0)
                             {
                                 Volatile.Write(ref ((CcDrone)IoZero).AccountingBit, 1);
                             }

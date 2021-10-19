@@ -185,6 +185,11 @@ namespace zero.core.patterns.misc
         /// Teardown termination sentinel
         /// </summary>
         private static readonly IoNanoprobe Sentinel = new  IoNanoprobe("self");
+
+        /// <summary>
+        /// config await
+        /// </summary>
+        public bool CfgAwait => true;
         
         /// <summary>
         /// ZeroAsync pattern
@@ -212,8 +217,8 @@ namespace zero.core.patterns.misc
 
             await ZeroOptionAsync(static async @this =>
             {
-                await @this.ZeroAsync(true).FastPath().ConfigureAwait(false);    
-            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                await @this.ZeroAsync(true).FastPath().ConfigureAwait(@this.CfgAwait);    
+            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(CfgAwait);
             GC.SuppressFinalize(this);
             return true;
         }
@@ -290,7 +295,7 @@ namespace zero.core.patterns.misc
             _zeroHiveMind.AddFirst(target);
 
             if (twoWay) //zero
-                await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(false);
+                await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(CfgAwait);
 
             return (target, true);
         }
@@ -324,14 +329,14 @@ namespace zero.core.patterns.misc
 
                 foreach (var zeroSub in _zeroHive)
                 {
-                    if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(false))
+                    if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(CfgAwait))
                         _logger.Error($"{zeroSub?.From} - zero sub {((IIoNanite)zeroSub?.Target)?.Description} on {Description} returned with errors!");
                 }
 
                 foreach (var zeroSub in _zeroHiveMind)
                 {
                     if(!zeroSub.Zeroed())
-                        await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                        await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
                 }
 
                 CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;
@@ -339,7 +344,7 @@ namespace zero.core.patterns.misc
 
                 try
                 {
-                    await ZeroManagedAsync().FastPath().ConfigureAwait(false);
+                    await ZeroManagedAsync().FastPath().ConfigureAwait(CfgAwait);
                 }
                 catch (Exception e)
                 {
@@ -462,10 +467,10 @@ namespace zero.core.patterns.misc
                         //lock (_nanoMutex)
                         try
                         {
-                            if (await _nanoMutex.WaitAsync().FastPath().ConfigureAwait(false))
+                            if (await _nanoMutex.WaitAsync().FastPath().ConfigureAwait(CfgAwait))
                             {
                                 return (_zeroed == 0) &&
-                                       await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(false);
+                                       await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(CfgAwait);
                             }
                         }
                         catch (Exception e)
@@ -476,12 +481,12 @@ namespace zero.core.patterns.misc
                         }
                         finally
                         {
-                            await _nanoMutex.ReleaseAsync().FastPath().ConfigureAwait(false);
+                            await _nanoMutex.ReleaseAsync().FastPath().ConfigureAwait(CfgAwait);
                         }
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(false);
+                        return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(CfgAwait);
                     }
                 }
                 catch (Exception e)
@@ -528,7 +533,7 @@ namespace zero.core.patterns.misc
                         var nanoprobe = state as IoNanoprobe;
                         try
                         {
-                            await action(state).FastPath().ConfigureAwait(false);
+                            await action(state).FastPath().ConfigureAwait(@this.CfgAwait);
                         }
                         catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                    nanoprobe == null && @this._zeroed == 0)

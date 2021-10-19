@@ -44,7 +44,7 @@ namespace zero.core.network.ip
             T nanite = default,
             Func<ValueTask> bootstrapAsync = null)
         {
-            await base.ListenAsync(connectionReceivedAction, nanite,bootstrapAsync).FastPath().ConfigureAwait(false);
+            await base.ListenAsync(connectionReceivedAction, nanite,bootstrapAsync).FastPath().ConfigureAwait(CfgAwait);
 
             while (!Zeroed())
             {
@@ -55,21 +55,27 @@ namespace zero.core.network.ip
                 {
                     var (@this, nanite, connectionReceivedAction) = state;
                     try
-                    { //creates a new udp client
-                        await connectionReceivedAction(nanite, (await @this.ZeroHiveAsync(new IoUdpClient<TJob>($"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket, @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).FastPath().ConfigureAwait(false)).target).FastPath().ConfigureAwait(false);
+                    {
+                        //creates a new udp client
+                        await connectionReceivedAction(nanite,
+                            (await @this
+                                .ZeroHiveAsync(new IoUdpClient<TJob>(
+                                    $"{nameof(IoUdpClient<TJob>)} ~> {@this.Description}", ioSocket,
+                                    @this.ReadAheadBufferSize, @this.ConcurrencyLevel)).FastPath()
+                                .ConfigureAwait(@this.CfgAwait)).target).FastPath().ConfigureAwait(@this.CfgAwait);
                     }
                     catch (Exception e)
                     {
                         @this._logger.Error(e, $"Accept udp connection failed: {@this.Description}");
 
-                        await ioSocket.ZeroAsync(@this).FastPath().ConfigureAwait(false);
+                        await ioSocket.ZeroAsync(@this).FastPath().ConfigureAwait(@this.CfgAwait);
                     }
-                },ValueTuple.Create(this,nanite, connectionReceivedAction), bootstrapAsync).ConfigureAwait(false);
+                },ValueTuple.Create(this,nanite, connectionReceivedAction), bootstrapAsync).ConfigureAwait(CfgAwait);
 
                 if(!Zeroed())
                     _logger.Warn($"Listener stopped, restarting: {Description}");
 
-                await IoListenSocket.ZeroAsync(this).FastPath().ConfigureAwait(false);
+                await IoListenSocket.ZeroAsync(this).FastPath().ConfigureAwait(CfgAwait);
             }
         }
 

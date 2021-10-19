@@ -147,12 +147,12 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        uint IIoZeroSemaphore.ZeroIncAsyncWait()
+        uint IIoZeroSemaphore.ZeroIncAsyncCount()
         {
             throw new NotImplementedException();
         }
 
-        uint IIoZeroSemaphore.ZeroDecAsyncWait()
+        uint IIoZeroSemaphore.ZeroDecAsyncCount()
         {
             throw new NotImplementedException();
         }

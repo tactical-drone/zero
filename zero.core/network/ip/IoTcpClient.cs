@@ -1,6 +1,5 @@
 ﻿using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes;
 using zero.core.patterns.bushes.contracts;
 using zero.core.patterns.misc;
 
@@ -14,7 +13,6 @@ namespace zero.core.network.ip
         where TJob : IIoJob
 
     {
-
         /// <summary>
         /// The logger
         /// </summary>
@@ -23,6 +21,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class.
         /// </summary>
+        /// <param name="description">Description</param>
         /// <param name="remote">The tcp client to be wrapped</param>
         /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
@@ -34,6 +33,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Initializes a new instance of the <see cref="IoTcpClient{TJob}"/> class. Used in combination with <see cref="ConnectAsync"/>
         /// </summary>
+        /// <param name="description">Description</param>
         /// <param name="prefetchSize">The amount of socket reads the source is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
         public IoTcpClient(string description, int prefetchSize,  int concurrencyLevel) : base(description, prefetchSize,  concurrencyLevel)
@@ -49,8 +49,8 @@ namespace zero.core.network.ip
         /// </returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            IoNetSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(false)).target;
-            return await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(false);
+            IoNetSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(CfgAwait)).target;
+            return await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(CfgAwait);
         }
 
         /// <summary>
@@ -65,7 +65,6 @@ namespace zero.core.network.ip
             IoNetSocket = null;
             IoConduits = null;
 #endif
-
         }
 
         /// <summary>

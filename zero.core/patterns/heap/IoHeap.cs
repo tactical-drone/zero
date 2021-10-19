@@ -47,6 +47,8 @@ namespace zero.core.patterns.heap
         /// </summary>
         private static Logger _logger;
 
+        protected bool CfgAwait = true;
+
         /// <summary>
         /// Whether this object has been cleaned up
         /// </summary>
@@ -122,9 +124,9 @@ namespace zero.core.patterns.heap
                 return;
             
             if (zeroAction != null)
-                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(false);
+                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(CfgAwait);
             else
-                await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+                await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
             
             _ioHeapBuf = null;
         }
@@ -190,7 +192,7 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                //IoFpsCounter.TickAsync().ConfigureAwait(false).GetAwaiter();
+                //IoFpsCounter.TickAsync().ConfigureAwait(_cfgAwait).GetAwaiter();
                 if (!zero)
                     _ioHeapBuf.Add(item);
                 else
@@ -238,7 +240,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public async ValueTask ClearAsync()
         {
-            await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+            await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(CfgAwait);
         }
 
         public override string ToString()

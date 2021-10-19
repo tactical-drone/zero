@@ -22,7 +22,7 @@ namespace zero.core.data.market
 
             //Observable.Timer(TimeSpan.ZeroAsync, TimeSpan.FromSeconds(55)).Subscribe(async _ =>
             //    {
-            //        var newData = await FetchDataAsync().ConfigureAwait(false);
+            //        var newData = await FetchDataAsync().ConfigureAwait(CfgAwait);
             //        if (newData != null)
             //            CurrentData = newData;
             //    });

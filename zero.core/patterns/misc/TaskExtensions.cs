@@ -27,7 +27,7 @@ namespace zero.core.patterns.misc
         //                tcs.TrySetCanceled(), false);
         //            var cancellationTask = tcs.Task;
 
-        //            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(false);
+        //            var readyTask = await Task.WhenAny(asyncTask, cancellationTask).ConfigureAwait(CfgAwait);
         //            if (readyTask == cancellationTask)
 
 
@@ -36,12 +36,12 @@ namespace zero.core.patterns.misc
         //                asyncTask.ContinueWith(_ => asyncTask.Exception,
 
         //                    TaskContinuationOptions.OnlyOnFaulted |
-        //                    TaskContinuationOptions.ExecuteSynchronously).ConfigureAwait(false);
+        //                    TaskContinuationOptions.ExecuteSynchronously).ConfigureAwait(CfgAwait);
         //#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
         //            await registration.DisposeAsync();
 
-        //            return await readyTask.ConfigureAwait(false);
+        //            return await readyTask.ConfigureAwait(CfgAwait);
         //        }
 
         /// <summary>
@@ -59,8 +59,8 @@ namespace zero.core.patterns.misc
                 await Task.Factory.StartNew(static async state =>
                 {
                     var (action, item, nanite) = (ValueTuple<Func<T,TN, ValueTask>, T, TN>)state;
-                    await action(item,nanite).FastPath().ConfigureAwait(false);
-                }, ValueTuple.Create(action, item,nanite)).ConfigureAwait(false);
+                    await action(item,nanite).FastPath().ConfigureAwait(true);
+                }, ValueTuple.Create(action, item,nanite)).ConfigureAwait(true);
         }
 
         /// <summary>
