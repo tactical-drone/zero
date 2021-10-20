@@ -28,10 +28,11 @@ namespace zero.core.patterns.bushes
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// <param name="enableSync"></param>
         /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
+        /// <param name="concurrencyLevel"></param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableSync, bool sourceZeroCascade = false, int concurrencyLevel = -1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
+            bool enableSync, bool sourceZeroCascade = false, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
         {
-            ConfigureProducer(description, source, mallocJob, sourceZeroCascade);
+            ConfigureAsync(description, source, mallocJob, sourceZeroCascade).AsTask().GetAwaiter();
 
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -58,7 +59,7 @@ namespace zero.core.patterns.bushes
 
             //TODO tuning
             if (SyncRecoveryModeEnabled)
-                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{Description}", 5, ZeroConcurrencyLevel());
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", 5, ZeroConcurrencyLevel());
         }
 
         /// <summary>
@@ -68,7 +69,7 @@ namespace zero.core.patterns.bushes
         /// <param name="source">An instance of the source</param>
         /// <param name="mallocMessage"></param>
         /// <param name="sourceZeroCascade"></param>
-        private void ConfigureProducer(string description, IoSource<TJob> source,
+        private async ValueTask ConfigureAsync(string description, IoSource<TJob> source,
             Func<object, IIoNanite, IoSink<TJob>> mallocMessage, bool sourceZeroCascade = false)
         {
             _description = description;
@@ -76,7 +77,7 @@ namespace zero.core.patterns.bushes
             JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size) { Make = mallocMessage, Context = source};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
-            Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
+            await Source.ZeroHiveAsync(this, sourceZeroCascade).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
             _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)(ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
@@ -259,8 +260,6 @@ namespace zero.core.patterns.bushes
                 await sink.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
             },this).FastPath().ConfigureAwait(Zc);
 
-            await Source.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
-            
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
 #if DEBUG
@@ -638,8 +637,10 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public virtual async Task BlockOnReplicateAsync()
         {
+#if DEBUG
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
-            
+#endif
+
             //Producer
             _producerTask = ZeroOptionAsync(static async @this =>
             {
@@ -671,7 +672,7 @@ namespace zero.core.patterns.bushes
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.AttachedToParent); //TODO tuning
+            },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
@@ -698,12 +699,14 @@ namespace zero.core.patterns.bushes
                     if (!await consumeTaskPool[^1].FastPath())
                         break;
                 }
-            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);
 
+#if DEBUG
             _logger.Trace($"{GetType().Name}: Processing for {Description} stopped");
+#endif
         }
 
         /// <summary>

@@ -92,7 +92,7 @@ namespace zero.cocoon
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
             //ensure robotics
-            ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness).AsTask().GetAwaiter();
+            ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter();
         }
 
         /// <summary>

@@ -33,20 +33,18 @@ namespace zero.cocoon.models
 
         public override async ValueTask<bool> ConstructAsync()
         {
-            var conduitName = nameof(CcAdjunct);
-            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitName).FastPath().ConfigureAwait(Zc);
+            var conduitId = nameof(CcAdjunct);
+            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
-            var batchSize = 512;
+            var batchSize = 16;
             var cc = 64;
             if (ProtocolConduit == null)
             {
-                CcProtocBatchSource<Packet, CcDiscoveryBatch> channelSource = null;
                 //TODO tuning
-                channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, (uint)cc, (uint)cc);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, (uint)cc, (uint)cc);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
-                    conduitName,
+                    conduitId,
                     cc,
-                    true,
                     channelSource,
                     static (o,s) => new CcProtocBatchJob<Packet, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<Packet, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
                 ).FastPath().ConfigureAwait(Zc);

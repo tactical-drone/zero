@@ -201,7 +201,7 @@ namespace zero.core.network.ip
         public override void ZeroUnmanaged()
         {
             if(!Proxy)
-                NativeSocket.Dispose();
+                NativeSocket?.Dispose();
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE

@@ -190,7 +190,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// config await
         /// </summary>
-        public bool Zc => true;
+        public bool Zc => false;
         
         /// <summary>
         /// ZeroAsync pattern

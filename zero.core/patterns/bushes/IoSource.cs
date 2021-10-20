@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -203,12 +204,6 @@ namespace zero.core.patterns.bushes
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            //Unblock any blockers
-            //ProduceBackPressure.Dispose();
-            //ProducerPressure.Dispose();
-            //ConsumeAheadBarrier.Dispose();
-            //ProduceAheadBarrier.Dispose();
-
             base.ZeroUnmanaged();
 
 #if SAFE_RELEASE
@@ -271,61 +266,48 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoConduit{TJob}"/> to other producers.
+        /// Producers can forward new productions types <see cref="TfJob"/> via a channels of type <see cref="IoConduit{TJob}"/> to other producers.
         /// This function helps set up a conduit using the supplied source. Channels are cached when created. Channels are associated with producers.
         /// </summary>
-        /// <typeparam name="TFJob">The type of job serviced</typeparam>
+        /// <typeparam name="TfJob">The type of job serviced</typeparam>
         /// <param name="id">The conduit id</param>
         /// <param name="concurrencyLevel"></param>
-        /// <param name="cascade">ZeroOnCascade close events</param>
         /// <param name="channelSource">The source of this conduit, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
-        /// ///
         /// <returns></returns>
-        public async ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
-            int concurrencyLevel = -1, bool cascade = false,
-            IoSource<TFJob> channelSource = null,
-            Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
+        public async ValueTask<IoConduit<TfJob>> CreateConduitOnceAsync<TfJob>(string id,
+            int concurrencyLevel = 1, 
+            IoSource<TfJob> channelSource = null,
+            Func<object, IIoNanite, IoSink<TfJob>> jobMalloc = null) where TfJob : IIoJob
         {
+            if (channelSource == null || jobMalloc == null)
+            {
+                _logger.Trace($"Waiting for conduit {id} in {Description} to initialize...");
+                return null;
+            }
+
             if (!IoConduits.ContainsKey(id))
             {
-                if (channelSource == null || jobMalloc == null)
-                {
-                    _logger.Trace($"Waiting for conduit {id} in {Description} to initialize...");
-                    return null;
-                }
-
                 if (!await ZeroAtomicAsync(static async (nanite, parms, disposed) =>
                 {
                     var (@this, id, channelSource, jobMalloc, concurrencyLevel) = parms;
-                    var newChannel =
-                        new IoConduit<TFJob>($"`conduit({id}>{channelSource.GetType().Name}>{typeof(TFJob).Name})'",
-                            channelSource, jobMalloc, concurrencyLevel);
+                    var newConduit = new IoConduit<TfJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
 
-                    if (!@this.IoConduits.TryAdd(id, newChannel))
+                    if (!@this.IoConduits.TryAdd(id, newConduit))
                     {
-                        await newChannel.ZeroAsync(new IoNanoprobe("lost race")).FastPath().ConfigureAwait(@this.Zc);
+                        await newConduit.ZeroAsync(new IoNanoprobe("lost race")).FastPath().ConfigureAwait(@this.Zc);
                         @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
                         return false;
                     }
 
                     return true;
-                    // if (!ZeroOnCascade(newChannel, cascade).success)
-                    // {
-                    //     _logger.Trace($"Failed to set cascade on newly formed channel {id}");
-                    //     return false;
-                    // }
-                    // else
-                    // {
-                    //     return true;
-                    // }
                 }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).ConfigureAwait(Zc))
                 {
                     if (!Zeroed())
                     {
                         try
                         {
-                            return (IoConduit<TFJob>)IoConduits[id];
+                            return (IoConduit<TfJob>)IoConduits[id];
                         }
                         catch (Exception e)
                         {
@@ -342,7 +324,7 @@ namespace zero.core.patterns.bushes
 
             try
             {
-                return (IoConduit<TFJob>)IoConduits[id];
+                return (IoConduit<TfJob>)IoConduits[id];
             }
             catch (Exception e)
             {
@@ -373,12 +355,12 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Sets a conduit
         /// </summary>
-        /// <typeparam name="TFJob"></typeparam>
+        /// <typeparam name="TfJob"></typeparam>
         /// <param name="id">The conduit Id</param>
         /// <param name="conduit">The conduit</param>
         /// <returns>True if successful</returns>
-        public bool SetConduit<TFJob>(string id, IoConduit<TFJob> conduit)
-            where TFJob : IoSink<TFJob>, IIoJob
+        public bool SetConduit<TfJob>(string id, IoConduit<TfJob> conduit)
+            where TfJob : IoSink<TfJob>, IIoJob
         {
             return IoConduits.TryAdd(id, conduit);
         }

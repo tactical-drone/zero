@@ -20,7 +20,7 @@ namespace zero.core.patterns.bushes
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// <param name="concurrencyLevel">Concurrency Level</param>
-        public IoConduit(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob, int concurrencyLevel = 1) : base(description, source, mallocJob, false, true, concurrencyLevel)
+        public IoConduit(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob, int concurrencyLevel = 1) : base(description, source, mallocJob, false, false, concurrencyLevel)
         {
             
         }

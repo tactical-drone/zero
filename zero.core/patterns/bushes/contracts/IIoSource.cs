@@ -141,19 +141,17 @@ namespace zero.core.patterns.bushes.contracts
             T nanite = default);
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.
+        /// Producers can forward new productions types <see cref="TfJob"/> via a channels of type <see cref="IIoConduit"/> to other producers.
         /// This function helps set up a channel using the supplied source. Channels are cached when created. Channels are associated with producers. 
         /// </summary>
-        /// <typeparam name="TFJob">The type of job serviced</typeparam>
+        /// <typeparam name="TfJob">The type of job serviced</typeparam>
         /// <param name="id">The channel id</param>
         /// <param name="concurrencyLevel"></param>
-        /// <param name="cascade"></param>
         /// <param name="channelSource">The source of this channel, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
-            int concurrencyLevel = 1, bool cascade = false,
-            IoSource<TFJob> channelSource = null, Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob;
+        ValueTask<IoConduit<TfJob>> CreateConduitOnceAsync<TfJob>(string id,
+            int concurrencyLevel = 1, IoSource<TfJob> channelSource = null, Func<object, IIoNanite, IoSink<TfJob>> jobMalloc = null) where TfJob : IIoJob;
         
     }
 }

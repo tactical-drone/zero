@@ -23,9 +23,10 @@ namespace zero.core.core
         /// <param name="ioNetClient">The neighbor rawSocket wrapper</param>
         /// <param name="mallocJob">The callback that allocates new message buffer space</param>
         /// <param name="enableSync"></param>
+        /// <param name="cascade"></param>
         public IoNeighbor(IoNode<TJob> node, IoNetClient<TJob> ioNetClient, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableSync)
-            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableSync, true)
+            bool enableSync, bool cascade = true)
+            : base($"neighbor({ioNetClient?.Description})", ioNetClient, mallocJob, enableSync, cascade)
         {
             _logger = LogManager.GetCurrentClassLogger();
             Node = node;

@@ -549,7 +549,8 @@ namespace zero.core.network.ip
         {
             try
             {
-                return NativeSocket is {IsBound: true, LocalEndPoint: { }};
+                //return NativeSocket is {IsBound: true, LocalEndPoint: { }};
+                return NativeSocket is {};
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
