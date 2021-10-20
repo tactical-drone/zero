@@ -11,6 +11,6 @@ namespace zero.core.patterns.bushes.contracts
 
         bool SyncRecoveryModeEnabled { get; }
 
-        Task AssimilateAsync();
+        Task BlockOnReplicateAsync();
     }
 }

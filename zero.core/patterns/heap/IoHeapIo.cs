@@ -19,8 +19,9 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// ConstructAsync
         /// </summary>
+        /// <param name="description"></param>
         /// <param name="maxSize"></param>
-        public IoHeapIo(uint maxSize) : base(maxSize)
+        public IoHeapIo(string description, uint maxSize) : base(description, maxSize)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -107,7 +108,7 @@ namespace zero.core.patterns.heap
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite
     {
-        public IoHeapIo(uint maxSize) : base(maxSize)
+        public IoHeapIo(string description, uint maxSize) : base(description, maxSize)
         {
         }
     }

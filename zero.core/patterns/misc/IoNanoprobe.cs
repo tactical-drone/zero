@@ -307,6 +307,8 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
 
+            var desc = Description;
+
             CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             try
             {
@@ -397,7 +399,7 @@ namespace zero.core.patterns.misc
             }
 
 #if DEBUG
-            _logger.Trace($"serial ~> {SerialNr} - Resistence is futile...");
+            _logger.Trace($"Z<~ {desc}: serial: {SerialNr} - Resistence is futile...");
 #endif
         }
 

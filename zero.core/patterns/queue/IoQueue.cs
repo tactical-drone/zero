@@ -34,7 +34,7 @@ namespace zero.core.patterns.queue
         {
             _description = description;
 
-            _nodeHeap = new IoHeap<IoZNode>(capacity){Make = static (o,s) => new IoZNode()};
+            _nodeHeap = new IoHeap<IoZNode>($"{nameof(_nodeHeap)}: {_description}", capacity){Make = static (o,s) => new IoZNode()};
             
             _syncRoot = new IoZeroSemaphore($"{nameof(_syncRoot)} {description}",
                 maxBlockers: concurrencyLevel, initialCount: 1);

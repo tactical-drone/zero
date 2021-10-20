@@ -161,13 +161,16 @@ namespace zero.core.core
                                 //Only drop incoming if the existing one is working
                                 if (existingNeighbor.Source.IsOperational)
                                 {
-                                    @this._logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                    @this._logger.Trace(
+                                        $"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                     return false;
                                 }
-                                else//else drop existing
+                                else //else drop existing
                                 {
-                                    @this._logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).FastPath().ConfigureAwait(@this.Zc);
+                                    @this._logger.Debug(
+                                        $"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
+                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!"))
+                                        .FastPath().ConfigureAwait(@this.Zc);
                                 }
                             }
                         }
@@ -181,7 +184,7 @@ namespace zero.core.core
                             //We use this locally captured variable as newNeighbor.Id disappears on zero
                             var id = newNeighbor.Key;
                             // Remove from lists if closed
-                            await newNeighbor.ZeroSubAsync(static async (from,state) =>
+                            await newNeighbor.ZeroSubAsync(static async (from, state) =>
                             {
                                 var (@this, id, newNeighbor) = state;
                                 //DisconnectedEvent?.Invoke(this, newNeighbor);
@@ -205,25 +208,31 @@ namespace zero.core.core
                                 }
                                 catch (Exception e)
                                 {
-                                    @this._logger?.Trace(e, $"Removing {newNeighbor.Description} from {@this.Description}");
+                                    @this._logger?.Trace(e,
+                                        $"Removing {newNeighbor.Description} from {@this.Description}");
                                 }
 
                                 return false;
-                            }, ValueTuple.Create(@this,id, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
+                            }, ValueTuple.Create(@this, id, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
                             return true;
                         }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
                     }
-                    catch (NullReferenceException) { return false; }
-                    catch (TaskCanceledException) { return false; }
-                    catch (OperationCanceledException) { return false; }
-                    catch (ObjectDisposedException) { return false; }
+                    catch when (@this.Zeroed())
+                    {
+                    }
+                    catch (Exception e)when (!@this.Zeroed())
+                    {
+                        @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
+                    }
+                    return false;
                 },ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(@this.Zc))
                 {
-                    //New peer connection event
-                    //ConnectedEvent?.Invoke(this, newNeighbor);
-
-                    //Start the source consumer on the neighbor scheduler
-                    await @this.AssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
+                    //Start processing
+                    await @this.ZeroAsync(static async state =>
+                    {
+                        var (@this, newNeighbor) = state;
+                        await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
+                    }, ValueTuple.Create(@this, newNeighbor), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                 }
                 else
                 {
@@ -236,15 +245,16 @@ namespace zero.core.core
         /// Assimilate neighbor
         /// </summary>
         /// <param name="newNeighbor"></param>
-        public async ValueTask AssimilateAsync(IoNeighbor<TJob> newNeighbor)
+        public virtual async ValueTask BlockOnAssimilateAsync(IoNeighbor<TJob> newNeighbor)
         {
             try
             {
-                await ZeroAsync(static async state =>
+                //Start replication
+                await ZeroOptionAsync(static async state =>
                 {
                     var (newNeighbor, cfgAwait) = state;
-                    await newNeighbor.AssimilateAsync().ConfigureAwait(cfgAwait);
-                }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                    await newNeighbor.BlockOnReplicateAsync().ConfigureAwait(cfgAwait);
+                }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.None).FastPath().ConfigureAwait(Zc);
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

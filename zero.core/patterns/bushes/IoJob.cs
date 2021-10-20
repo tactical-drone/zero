@@ -27,7 +27,7 @@ namespace zero.core.patterns.bushes
 
         protected IoJob()
         {
-            
+
         }
         
         /// <summary>
@@ -37,6 +37,7 @@ namespace zero.core.patterns.bushes
         {
             Source = source;
             _jobDesc = desc;
+            _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2)) { Make = static (o, s) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = (int)IoJobMeta.JobState.Halted } };
         }
 
         /// <summary>
@@ -300,7 +301,7 @@ namespace zero.core.patterns.bushes
         /// </summary>
 #if DEBUG
         //TODO
-        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap = new((uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length  * 2)) { Make = static (o,s) => new IoStateTransition<IoJobMeta.JobState>(){FinalState = (int)IoJobMeta.JobState.Halted} };
+        private IoHeap<IoStateTransition<IoJobMeta.JobState>> _stateHeap;
 #endif
         /// <summary>
         /// Final state

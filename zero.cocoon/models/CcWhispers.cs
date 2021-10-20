@@ -27,7 +27,7 @@ namespace zero.cocoon.models
             //_protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
             //_batchMsgHeap = new IoHeap<CcGossipBatch>(concurrencyLevel) { Make = o => new CcGossipBatch() };
 
-            _dupHeap = new IoHeap<ConcurrentBag<string>>(_poolSize * 2)
+            _dupHeap = new IoHeap<ConcurrentBag<string>>($"{nameof(_dupHeap)}: {sinkDesc} ~> {jobDesc}", _poolSize * 2)
             {
                 Make = static (o,s) => new ConcurrentBag<string>(),
                 Prep = (popped, endpoint) =>

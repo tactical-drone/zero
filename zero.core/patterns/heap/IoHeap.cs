@@ -29,12 +29,14 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Constructor a heap that has a maximum capacity of <see cref="maxSize"/>
         /// </summary>
+        /// <param name="description"></param>
         /// <param name="maxSize">The maximum capacity of this heap</param>
         /// 
-        public IoHeap(uint maxSize, TContext context = null)
+        public IoHeap(string description, uint maxSize, TContext context = null)
         {
+            _description = description;
             _maxSize = maxSize;
-            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}", _maxSize);
+            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", _maxSize);
             Context = context;
             _count = 0;
             _refCount = 0;
@@ -47,6 +49,19 @@ namespace zero.core.patterns.heap
         /// </summary>
         private static Logger _logger;
 
+        /// <summary>
+        /// Description
+        /// </summary>
+        private readonly string _description;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Description => $"{nameof(IoHeap<TItem,TContext>)}: {nameof(Count)} = {_count}, capacity = {_maxSize}, refs = {_refCount}, desc = {_description}, bag ~> {_ioHeapBuf.Description}";
+
+        /// <summary>
+        /// Config await
+        /// </summary>
         protected bool Zc = true;
 
         /// <summary>
@@ -256,7 +271,7 @@ namespace zero.core.patterns.heap
     public class IoHeap<T2> : IoHeap<T2, object> 
         where T2 : class
     {
-        public IoHeap(uint maxSize, object context = null) : base(maxSize, context)
+        public IoHeap(string description, uint maxSize, object context = null) : base(description, maxSize, context)
         {
         }
     }

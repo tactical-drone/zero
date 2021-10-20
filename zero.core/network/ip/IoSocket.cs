@@ -54,7 +54,7 @@ namespace zero.core.network.ip
 
 
         //Socket description 
-        public override string Description => $"{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
+        public override string Description => $"{(Proxy?"[proxy]":"")}{Kind} socket({LocalNodeAddress}, {(Kind <= Connection.Listener ? "N/A" : RemoteNodeAddress?.ToString())}, bound = {NativeSocket?.IsBound}";
 
         /// <summary>
         /// The underlying .net socket that is abstracted

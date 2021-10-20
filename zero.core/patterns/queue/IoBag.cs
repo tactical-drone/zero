@@ -42,6 +42,12 @@ namespace zero.core.patterns.queue
         /// </summary>
         public bool Zeroed => _zeroed > 0;
 
+
+        /// <summary>
+        /// Description
+        /// </summary>
+        public string Description => $"{nameof(IoBag<T>)}: {nameof(Count)} = {_count}, desc = {_description}";
+
         /// <summary>
         /// Current number of items in the bag
         /// </summary>

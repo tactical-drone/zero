@@ -36,7 +36,7 @@ namespace zero.core.network.ip
         {
             Proxy = true;
             //TODO tuning (send)
-            Init(8,4 * 16, true); //16 MaxAdjuncts that can send + 16 nodes
+            Init(4 * 16 + 16, 4 * 16 + 16); //16 MaxAdjuncts that can send + 16 nodes
         }
 
 
@@ -65,7 +65,7 @@ namespace zero.core.network.ip
         {
             if (recv)
             {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>((uint)concurrencyLevel)
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", (uint)concurrencyLevel)
                 {
                     Make = static (o, s) =>
                     {
@@ -77,7 +77,7 @@ namespace zero.core.network.ip
                 };
             }
             
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>((uint)concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", (uint)concurrencyLevel)
             {
                 Make = static (o, s) =>
                 {
@@ -88,7 +88,7 @@ namespace zero.core.network.ip
                 Context = this
             };
 
-            _tcsHeap = new IoHeap<IIoZeroSemaphore, IoUdpSocket>((uint)concurrencyLevel)
+            _tcsHeap = new IoHeap<IIoZeroSemaphore, IoUdpSocket>($"{nameof(_tcsHeap)}: {Description}", (uint)concurrencyLevel)
             {
                 Make = static (o, s) =>
                 {

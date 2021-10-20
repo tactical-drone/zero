@@ -73,7 +73,7 @@ namespace zero.core.patterns.bushes
         {
             _description = description;
             
-            JobHeap = new IoHeapIo<IoSink<TJob>>(parm_max_q_size) { Make = mallocMessage, Context = source};
+            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size) { Make = mallocMessage, Context = source};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
             Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
@@ -634,20 +634,19 @@ namespace zero.core.patterns.bushes
         }
 
         /// <summary>
-        /// Starts the processors
+        /// Starts processing work queues
         /// </summary>
-        public virtual async Task AssimilateAsync()
+        public virtual async Task BlockOnReplicateAsync()
         {
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
             
             //Producer
-            _producerTask = ZeroAsync(static async @this =>
+            _producerTask = ZeroOptionAsync(static async @this =>
             {
-                //While supposed to be working
                 try
                 {
-                    //Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                     var produceTask = new ValueTask<bool>[@this.ZeroConcurrencyLevel()];
+                    //While supposed to be working
                     while (!@this.Zeroed())
                     {
                         for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
@@ -667,14 +666,15 @@ namespace zero.core.patterns.bushes
                             break;
                     }
                 }
-                catch (Exception e)
+                catch when(@this.Zeroed()){}
+                catch (Exception e) when(!@this.Zeroed())
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
+            },this, TaskCreationOptions.AttachedToParent); //TODO tuning
 
             //Consumer
-            _consumerTask = ZeroAsync(static async @this =>
+            _consumerTask = ZeroOptionAsync(static async @this =>
             {
                 //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working
@@ -687,7 +687,8 @@ namespace zero.core.patterns.bushes
                         {
                             consumeTaskPool[i] = @this.ConsumeAsync<object>();
                         }
-                        catch (Exception e)
+                        catch when (@this.Zeroed()) { }
+                        catch (Exception e) when (!@this.Zeroed())
                         {
                             @this._logger.Error(e, $"Consumption failed {@this.Description}");
                             break;
@@ -697,7 +698,7 @@ namespace zero.core.patterns.bushes
                     if (!await consumeTaskPool[^1].FastPath())
                         break;
                 }
-            }, this, TaskCreationOptions.DenyChildAttach|TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

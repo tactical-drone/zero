@@ -836,7 +836,13 @@ namespace zero.cocoon
                     {
                         _logger.Info($"+ {drone.Description}");
 
-                        await AssimilateAsync(drone).FastPath().ConfigureAwait(Zc);
+                        //Start processing
+                        await ZeroAsync(static async state =>
+                        {
+                            var (@this, drone) = state;
+                            await @this.BlockOnAssimilateAsync(drone).FastPath().ConfigureAwait(@this.Zc);
+                        }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
+                        
                         
                         return true;
                     }
@@ -870,7 +876,8 @@ namespace zero.cocoon
         /// Boots the node
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0, int total = 1)
-        {            
+        {
+            return false;
             Interlocked.Exchange(ref Testing, 1);
             foreach (var ioNeighbor in WhisperingDrones)
             {
