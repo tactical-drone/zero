@@ -864,177 +864,179 @@ namespace zero.cocoon.autopeer
                 //fail fast on these
                 if(_protocolConduit.Zeroed())
                     return;
-                
-                //The producer
-                ValueTask consumer = default;
-                var producer = ZeroOptionAsync(static async @this =>
-                {
-                    try
-                    {
-                        while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
-                        {
-                            for (var i = 0; i < @this._produceTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
-                            {
-                                try
-                                {
-                                    @this._produceTaskPool[i] = @this._protocolConduit.ProduceAsync();
-                                }
-                                catch (Exception e)
-                                {
-                                    @this._logger.Error(e, $"Production failed for {@this.Description}");
-                                    break;
-                                }
-                            }
 
-                            if (!await @this._produceTaskPool[^1])
-                                break;
-                        }
-                    }
-                    catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) { }
-                    catch (Exception e) when (!@this.Zeroed())
+                do{
+//The producer
+                    ValueTask consumer = default;
+                    var producer = ZeroOptionAsync(static async @this =>
                     {
-                        @this._logger?.Error(e, $"{@this.Description}");
-                    }
-                    
-                },this, TaskCreationOptions.DenyChildAttach);
-
-                consumer = ZeroOptionAsync(static async @this  =>
-                {
-                    //the consumer
-                    try
-                    {
-                        while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
+                        try
                         {
-                            //consume
-                            for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
+                            while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
                             {
-                                try
+                                for (var i = 0; i < @this._produceTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
                                 {
-                                    @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (batchJob, @this) =>
+                                    try
                                     {
-                                        try
+                                        @this._produceTaskPool[i] = @this._protocolConduit.ProduceAsync();
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        @this._logger.Error(e, $"Production failed for {@this.Description}");
+                                        break;
+                                    }
+                                }
+
+                                if (!await @this._produceTaskPool[^1])
+                                    break;
+                            }
+                        }
+                        catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) { }
+                        catch (Exception e) when (!@this.Zeroed())
+                        {
+                            @this._logger?.Error(e, $"{@this.Description}");
+                        }
+                    
+                    },this, TaskCreationOptions.DenyChildAttach);
+
+                    consumer = ZeroOptionAsync(static async @this  =>
+                    {
+                        //the consumer
+                        try
+                        {
+                            while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
+                            {
+                                //consume
+                                for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
+                                {
+                                    try
+                                    {
+                                        @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (batchJob, @this) =>
                                         {
-                                            await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit,static async (msgBatch, discoveryBatch, ioConduit, @this) =>
+                                            try
                                             {
-                                                IMessage message = default;
-                                                Packet packet = default;
-                                                try
+                                                await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit,static async (msgBatch, discoveryBatch, ioConduit, @this) =>
                                                 {
-                                                    message = msgBatch.EmbeddedMsg;
-                                                    packet = msgBatch.Message;
-                                                    
-                                                    var routed = @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out var currentRoute);
-                                                    //Router
+                                                    IMessage message = default;
+                                                    Packet packet = default;
                                                     try
                                                     {
-                                                        if (!routed)
+                                                        message = msgBatch.EmbeddedMsg;
+                                                        packet = msgBatch.Message;
+                                                    
+                                                        var routed = @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out var currentRoute);
+                                                        //Router
+                                                        try
                                                         {
-                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.Key == discoveryBatch.RemoteEndPoint);
-                                                            if (currentRoute != null)
+                                                            if (!routed)
                                                             {
-                                                                //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
-                                                                if (!@this.Router._routingTable.TryAdd(discoveryBatch.RemoteEndPoint, currentRoute))
+                                                                currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.Key == discoveryBatch.RemoteEndPoint);
+                                                                if (currentRoute != null)
                                                                 {
-                                                                    @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out currentRoute);
-                                                                }
-                                                                else
-                                                                {
+                                                                    //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
+                                                                    if (!@this.Router._routingTable.TryAdd(discoveryBatch.RemoteEndPoint, currentRoute))
+                                                                    {
+                                                                        @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out currentRoute);
+                                                                    }
+                                                                    else
+                                                                    {
 #if DEBUG
-                                                                    @this._logger.Trace($"Added new route: {@this.Description}");
+                                                                        @this._logger.Trace($"Added new route: {@this.Description}");
 #endif
+                                                                    }
                                                                 }
                                                             }
-                                                        }
-                                                        else
-                                                        {
-                                                            //validate
-                                                            for (var j = 2; j < 4; j++)
+                                                            else
                                                             {
-                                                                for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
+                                                                //validate
+                                                                for (var j = 2; j < 4; j++)
                                                                 {
-                                                                    if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                                    for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
                                                                     {
-                                                                        @this._logger.Warn($"{nameof(@this.Router)}: Dropping stale pub key {currentRoute.Designation.PkString()} en route {discoveryBatch.RemoteEndPoint}, new owner ~> {Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
-                                                                        currentRoute = null;
+                                                                        if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                                        {
+                                                                            @this._logger.Warn($"{nameof(@this.Router)}: Dropping stale pub key {currentRoute.Designation.PkString()} en route {discoveryBatch.RemoteEndPoint}, new owner ~> {Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
+                                                                            currentRoute = null;
+                                                                        }
                                                                     }
                                                                 }
                                                             }
                                                         }
+                                                        catch when(@this.Zeroed()){return;}
+                                                        catch (Exception e) when(!@this.Zeroed())
+                                                        {
+                                                            @this._logger.Error(e, @this.Description);
+                                                            return;
+                                                        }
+
+                                                        currentRoute ??= @this.Hub.Router;
+
+                                                        var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
+
+                                                        switch ((CcDiscoveries.MessageTypes) packet.Type)
+                                                        {
+                                                            case CcDiscoveries.MessageTypes.Ping:
+                                                                await currentRoute.ProcessAsync((Ping)message, extraData, packet);
+                                                                break;
+                                                            case CcDiscoveries.MessageTypes.Pong:
+                                                                await currentRoute.ProcessAsync((Pong)message, extraData, packet);
+                                                                break;
+                                                            case CcDiscoveries.MessageTypes.DiscoveryRequest:
+                                                                await currentRoute.ProcessAsync((DiscoveryRequest)message, extraData, packet);
+                                                                break;
+                                                            case CcDiscoveries.MessageTypes.DiscoveryResponse:
+                                                                await currentRoute.ProcessAsync((DiscoveryResponse) message, extraData, packet);
+                                                                break;
+                                                            case CcDiscoveries.MessageTypes.PeeringRequest:
+                                                                await currentRoute
+                                                                    .ProcessAsync((PeeringRequest) message, extraData,
+                                                                        packet);
+                                                                break;
+                                                            case CcDiscoveries.MessageTypes.PeeringResponse:
+                                                                await currentRoute
+                                                                    .ProcessAsync((PeeringResponse) message, extraData, packet);
+                                                                break;
+                                                            case CcDiscoveries.MessageTypes.PeeringDrop:
+                                                                await currentRoute
+                                                                    .ProcessAsync((PeeringDrop) message, extraData, packet);
+                                                                break;
+                                                        }
                                                     }
-                                                    catch when(@this.Zeroed()){return;}
-                                                    catch (Exception e) when(!@this.Zeroed())
+                                                    catch when(@this.Zeroed()){}
+                                                    catch (Exception e) when (!@this.Zeroed())
                                                     {
-                                                        @this._logger.Error(e, @this.Description);
-                                                        return;
+                                                        @this._logger?.Error(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
                                                     }
-
-                                                    currentRoute ??= @this.Hub.Router;
-
-                                                    var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
-
-                                                    switch ((CcDiscoveries.MessageTypes) packet.Type)
-                                                    {
-                                                        case CcDiscoveries.MessageTypes.Ping:
-                                                            await currentRoute.ProcessAsync((Ping)message, extraData, packet);
-                                                            break;
-                                                        case CcDiscoveries.MessageTypes.Pong:
-                                                            await currentRoute.ProcessAsync((Pong)message, extraData, packet);
-                                                            break;
-                                                        case CcDiscoveries.MessageTypes.DiscoveryRequest:
-                                                            await currentRoute.ProcessAsync((DiscoveryRequest)message, extraData, packet);
-                                                            break;
-                                                        case CcDiscoveries.MessageTypes.DiscoveryResponse:
-                                                            await currentRoute.ProcessAsync((DiscoveryResponse) message, extraData, packet);
-                                                            break;
-                                                        case CcDiscoveries.MessageTypes.PeeringRequest:
-                                                            await currentRoute
-                                                                .ProcessAsync((PeeringRequest) message, extraData,
-                                                                    packet);
-                                                            break;
-                                                        case CcDiscoveries.MessageTypes.PeeringResponse:
-                                                            await currentRoute
-                                                                .ProcessAsync((PeeringResponse) message, extraData, packet);
-                                                            break;
-                                                        case CcDiscoveries.MessageTypes.PeeringDrop:
-                                                            await currentRoute
-                                                                .ProcessAsync((PeeringDrop) message, extraData, packet);
-                                                            break;
-                                                    }
-                                                }
-                                                catch when(@this.Zeroed()){}
-                                                catch (Exception e) when (!@this.Zeroed())
-                                                {
-                                                    @this._logger?.Error(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
-                                                }
-                                            }, @this);
-                                        }
-                                        finally
-                                        {
-                                            if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
-                                                batchJob.State = IoJobMeta.JobState.ConsumeErr;
-                                        }
-                                    }, @this);
+                                                }, @this);
+                                            }
+                                            finally
+                                            {
+                                                if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
+                                                    batchJob.State = IoJobMeta.JobState.ConsumeErr;
+                                            }
+                                        }, @this);
+                                    }
+                                    catch when(!@this.Zeroed()){}
+                                    catch (Exception e)when(!@this.Zeroed())
+                                    {
+                                        @this._logger?.Error(e, $"Consumption failed for {@this.Description}");
+                                        break;
+                                    }
                                 }
-                                catch when(!@this.Zeroed()){}
-                                catch (Exception e)when(!@this.Zeroed())
-                                {
-                                    @this._logger?.Error(e, $"Consumption failed for {@this.Description}");
+
+                                if (!await @this._consumeTaskPool[^1].FastPath())
                                     break;
-                                }
                             }
-
-                            if (!await @this._consumeTaskPool[^1].FastPath())
-                                break;
                         }
-                    }
-                    catch when(@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) {}
-                    catch (Exception e) when (!@this.Zeroed() && !@this.Source.Zeroed() && @this._protocolConduit?.Source != null)
-                    {
-                        @this._logger?.Error(e, $"{@this.Description}");
-                    }
-                }, this, TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach );
-
-                await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
+                        catch when(@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) {}
+                        catch (Exception e) when (!@this.Zeroed() && !@this.Source.Zeroed() && @this._protocolConduit?.Source != null)
+                        {
+                            @this._logger?.Error(e, $"{@this.Description}");
+                        }
+                    }, this, TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach );
+                    await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
+                }
+                while (!Zeroed());
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
