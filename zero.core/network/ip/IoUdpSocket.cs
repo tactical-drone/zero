@@ -36,7 +36,7 @@ namespace zero.core.network.ip
         {
             Proxy = true;
             //TODO tuning (send)
-            Init(2,32, true); //16 MaxAdjuncts that can send + 16 nodes
+            Init(8,4 * 16, true); //16 MaxAdjuncts that can send + 16 nodes
         }
 
 
@@ -129,7 +129,7 @@ namespace zero.core.network.ip
                 {
                     o.Completed -= @this.SignalAsync;
                     o.UserToken = null;
-                    o.RemoteEndPoint = null;
+                    //o.RemoteEndPoint = null; Leave not null
                     try
                     {
                         o.SetBuffer(null, 0, 0);
@@ -149,7 +149,7 @@ namespace zero.core.network.ip
             {
                 o.Completed -= @this.SignalAsync;
                 o.UserToken = null;
-                o.RemoteEndPoint = null;
+                //o.RemoteEndPoint = null; Leave not null
                 ((IDisposable) o).Dispose();
                 try
                 {

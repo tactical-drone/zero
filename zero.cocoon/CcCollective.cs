@@ -175,7 +175,7 @@ namespace zero.cocoon
 #if SAFE_RELEASE
             _logger = null;
             _autoPeering = null;
-            _autoPeeringTask = null;
+            _autoPeeringTask = default;
             CcId = null;
             Services = null;
 #endif
@@ -315,7 +315,7 @@ namespace zero.cocoon
         /// <summary>
         /// The autopeering task handler
         /// </summary>
-        private Task _autoPeeringTask;
+        private ValueTask _autoPeeringTask;
 
         /// <summary>
         /// Max inbound neighbors
@@ -401,8 +401,15 @@ namespace zero.cocoon
         /// <returns></returns>
         protected override async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
-            _autoPeeringTask?.Dispose();
-            _autoPeeringTask = _autoPeering.StartAsync(DeepScanAsync);
+            //Start the hub
+            await ZeroAsync(static async @this =>
+            {
+                while (!@this.Zeroed())
+                {
+                    @this._autoPeeringTask = @this._autoPeering.StartAsync(@this.DeepScanAsync);
+                    await @this._autoPeeringTask;
+                }
+            }, this,  TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 
             //start node listener
             await base.SpawnListenerAsync(static async (drone,@this) =>

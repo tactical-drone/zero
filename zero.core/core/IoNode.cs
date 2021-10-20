@@ -342,13 +342,16 @@ namespace zero.core.core
         /// <summary>
         /// Start the node
         /// </summary>
-        public async Task StartAsync(Func<ValueTask> bootstrapFunc = null)
+        public async ValueTask StartAsync(Func<ValueTask> bootstrapFunc = null)
         {
             _logger.Trace($"Unimatrix Zero: {Description}");
             try
             {
-                _listenerTask = SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc);
-                await _listenerTask.FastPath().ConfigureAwait(Zc);
+                while (!Zeroed())
+                {
+                    await SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath().ConfigureAwait(Zc);
+                    _logger.Warn($"Listener restarte.... {Description}");
+                }
 
                 _logger.Trace(
                     $"You will be assimilated! Resistance is futile, {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}): {Description}");

@@ -39,7 +39,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// A null state
         /// </summary>
-        public static IoStateTransition<TState> NullState = new IoStateTransition<TState>();
+        public static IoStateTransition<TState> NullState = new();
 
         volatile IoStateTransition<TState> _previous;
         /// <summary>
@@ -186,15 +186,18 @@ namespace zero.core.patterns.bushes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int CompareAndEnterState(int state, int cmp, IoStateTransition<TState> prevState)
         {
+            if (Interlocked.CompareExchange(ref prevState._value, state, cmp) != cmp)
+                return -1;
+
             EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _previous = prevState;
             if (_previous != null)
             {
                 _previous._next = this;
-                return prevState._value;
+                return cmp;
             }
-            else
-                return Interlocked.CompareExchange(ref _value, state, cmp);
+
+            return cmp;
         }
 
         /// <summary>

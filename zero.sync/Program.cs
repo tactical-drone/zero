@@ -80,7 +80,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 10;
+            var total = 20;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -99,7 +99,6 @@ namespace zero.sync
             };
 
             //tasks.Add(CoCoonAsync(CcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}", $"udp://127.0.0.1:{14626}" }.ToList(), 0));
-
 
             for (var i = 2; i < total; i++)
             {
@@ -872,7 +871,7 @@ namespace zero.sync
 
                 AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(Zc);
                 Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(Zc);
-                tangleNodeTask.Wait();
+                tangleNodeTask.AsTask().Wait();
             }
             else
             {
@@ -888,7 +887,7 @@ namespace zero.sync
                 AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(Zc);
                 Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(Zc);
 #pragma warning restore 4014
-                tangleNodeTask.Wait();
+                tangleNodeTask.AsTask().Wait();
             }
         }
 

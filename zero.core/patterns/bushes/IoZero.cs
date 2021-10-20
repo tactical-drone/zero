@@ -452,8 +452,8 @@ namespace zero.core.patterns.bushes
                     }
                 }
             }
-            catch (Exception) when (Zeroed()){}
-            catch (Exception e) when (!Zeroed())
+            catch (Exception) when (Zeroed() || Source.Zeroed()) {}
+            catch (Exception e) when (!Zeroed() && !Source.Zeroed())
             {
                 _logger?.Fatal(e, $"{GetType().Name}: {Description ?? "N/A"}: ");
             }
@@ -659,30 +659,19 @@ namespace zero.core.patterns.bushes
                             catch (Exception e)
                             {
                                 @this._logger.Error(e, $"Production failed [{i}]: {@this.Description}");
-                                return;
+                                break;
                             }
                         }
 
-                        for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
-                        {
-                            try
-                            {
-                                if (!await produceTask[i].FastPath())
-                                    return;
-                            }
-                            catch (Exception e)
-                            {
-                                @this._logger.Error(e, $"Production failed! {@this.Description}");
-                                return;
-                            }
-                        }
+                        if (!await produceTask[^1].FastPath())
+                            break;
                     }
                 }
                 catch (Exception e)
                 {
                     @this._logger.Error(e, $"Production failed! {@this.Description}");
                 }
-            },this, TaskCreationOptions.None); //TODO tuning
+            },this, TaskCreationOptions.DenyChildAttach); //TODO tuning
 
             //Consumer
             _consumerTask = ZeroAsync(static async @this =>
@@ -701,29 +690,17 @@ namespace zero.core.patterns.bushes
                         catch (Exception e)
                         {
                             @this._logger.Error(e, $"Consumption failed {@this.Description}");
-                            return;
+                            break;
                         }
                     }
 
-                    for (var i = 0; i < @this.ZeroConcurrencyLevel(); i++)
-                    {
-                        try
-                        {
-                            if (!await consumeTaskPool[i].FastPath())
-                                return;
-                        }
-                        catch (Exception e)
-                        {
-                            @this._logger.Error(e, $"Consumption failed {@this.Description}");
-                            return;
-                        }
-                    }
-
+                    if (!await consumeTaskPool[^1].FastPath())
+                        break;
                 }
-            }, this, TaskCreationOptions.PreferFairness); //TODO tuning
+            }, this, TaskCreationOptions.DenyChildAttach|TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
-            await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask());
+            await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);
 
             _logger.Trace($"{GetType().Name}: Processing for {Description} stopped");
         }

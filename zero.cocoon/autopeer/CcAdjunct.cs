@@ -56,11 +56,13 @@ namespace zero.cocoon.autopeer
 
             if (extraData != null)
             {
+                
                 var (item1, item2, item3) = (Tuple<CcDesignation, CcService, IPEndPoint>) extraData;
                 Designation = item1;
                 Services = services ?? item2;
                 RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", item3);
                 Key = MakeId(Designation, RemoteAddress);
+                Source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint);
             }
             else
             {
@@ -138,6 +140,7 @@ namespace zero.cocoon.autopeer
             Verified = 5,
             Peering = 6,
             Connected = 7,
+            Sentinel = 8,
         }
 
         /// <summary>
@@ -723,8 +726,6 @@ namespace zero.cocoon.autopeer
                 {
                     await ZeroAsync(static @this => @this.ProcessDiscoveriesAsync()
                     , this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
-                    //await ProcessDiscoveriesAsync();
-                    //ProcessDiscoveriesAsync();
                     await base.AssimilateAsync();
                 }
             }
@@ -865,6 +866,7 @@ namespace zero.cocoon.autopeer
                     return;
                 
                 //The producer
+                ValueTask consumer = default;
                 var producer = ZeroOptionAsync(static async @this =>
                 {
                     try
@@ -880,15 +882,12 @@ namespace zero.cocoon.autopeer
                                 catch (Exception e)
                                 {
                                     @this._logger.Error(e, $"Production failed for {@this.Description}");
-                                    return;
+                                    break;
                                 }
                             }
 
-                            for (var i = 0; i < @this._produceTaskPool.Length; i++)
-                            {
-                                if (!await @this._produceTaskPool[i].FastPath())
-                                    return;
-                            }
+                            if (!await @this._produceTaskPool[^1])
+                                break;
                         }
                     }
                     catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) { }
@@ -899,7 +898,7 @@ namespace zero.cocoon.autopeer
                     
                 },this, TaskCreationOptions.DenyChildAttach);
 
-                var consumer = ZeroOptionAsync(static async @this  =>
+                consumer = ZeroOptionAsync(static async @this  =>
                 {
                     //the consumer
                     try
@@ -924,37 +923,39 @@ namespace zero.cocoon.autopeer
                                                     message = msgBatch.EmbeddedMsg;
                                                     packet = msgBatch.Message;
                                                     
-                                                    var routed = @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out var ccNeighbor);
-                                                    //Route
+                                                    var routed = @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out var currentRoute);
+                                                    //Router
                                                     try
                                                     {
-                                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                                        static void Route(CcAdjunct @this, out CcAdjunct ccNeighbor, string remoteEp, CcDiscoveryMessage msgBatch)
+                                                        if (!routed)
                                                         {
-
-                                                            ccNeighbor = null;//TODO optimization issues?
-                                                            ccNeighbor = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).State > AdjunctState.Local && ((CcAdjunct)n).RemoteAddress.Key == remoteEp);
-                                                            if (ccNeighbor != null)
+                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.Key == discoveryBatch.RemoteEndPoint);
+                                                            if (currentRoute != null)
                                                             {
-                                                                var adjunct = ccNeighbor;
-                                                                @this.Router._routingTable.AddOrUpdate(remoteEp, ccNeighbor, (k,v)=> adjunct);
+                                                                //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
+                                                                if (!@this.Router._routingTable.TryAdd(discoveryBatch.RemoteEndPoint, currentRoute))
+                                                                {
+                                                                    @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out currentRoute);
+                                                                }
+                                                                else
+                                                                {
+#if DEBUG
+                                                                    @this._logger.Trace($"Added new route: {@this.Description}");
+#endif
+                                                                }
                                                             }
                                                         }
-
-                                                        if (!routed)
-                                                            Route(@this, out ccNeighbor, discoveryBatch.RemoteEndPoint, msgBatch);
                                                         else
                                                         {
                                                             //validate
                                                             for (var j = 2; j < 4; j++)
                                                             {
-                                                                for (var i = j; i < ccNeighbor.Designation.PublicKey.Length; i += i)
+                                                                for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
                                                                 {
-                                                                    if (ccNeighbor.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                                    if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
                                                                     {
-                                                                        @this._logger.Warn($"{nameof(@this.Router)}: Dropping stale pub key {ccNeighbor.Designation.PkString()} en route {discoveryBatch.RemoteEndPoint}, new owner ~> {Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
-                                                                        Route(@this, out ccNeighbor, discoveryBatch.RemoteEndPoint, msgBatch);
-                                                                        break;
+                                                                        @this._logger.Warn($"{nameof(@this.Router)}: Dropping stale pub key {currentRoute.Designation.PkString()} en route {discoveryBatch.RemoteEndPoint}, new owner ~> {Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
+                                                                        currentRoute = null;
                                                                     }
                                                                 }
                                                             }
@@ -963,62 +964,49 @@ namespace zero.cocoon.autopeer
                                                     catch when(@this.Zeroed()){return;}
                                                     catch (Exception e) when(!@this.Zeroed())
                                                     {
-                                                        @this._logger.Trace(e, @this.Description);
+                                                        @this._logger.Error(e, @this.Description);
                                                         return;
                                                     }
 
-                                                    ccNeighbor ??= @this.Hub.Router;
+                                                    currentRoute ??= @this.Hub.Router;
 
                                                     var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
 
                                                     switch ((CcDiscoveries.MessageTypes) packet.Type)
                                                     {
                                                         case CcDiscoveries.MessageTypes.Ping:
-                                                            await ccNeighbor.ProcessAsync((Ping) message, extraData,
-                                                                    packet)
-                                                                .FastPath();
+                                                            await currentRoute.ProcessAsync((Ping)message, extraData, packet);
                                                             break;
                                                         case CcDiscoveries.MessageTypes.Pong:
-                                                            await ccNeighbor.ProcessAsync((Pong) message, extraData,
-                                                                    packet)
-                                                                .FastPath();
+                                                            await currentRoute.ProcessAsync((Pong)message, extraData, packet);
                                                             break;
                                                         case CcDiscoveries.MessageTypes.DiscoveryRequest:
-                                                            await ccNeighbor
-                                                                .ProcessAsync((DiscoveryRequest) message, extraData,
-                                                                    packet)
-                                                                .FastPath();
+                                                            await currentRoute.ProcessAsync((DiscoveryRequest)message, extraData, packet);
                                                             break;
                                                         case CcDiscoveries.MessageTypes.DiscoveryResponse:
-                                                            await ccNeighbor.ProcessAsync((DiscoveryResponse) message,
-                                                                    extraData, packet)
-                                                                .FastPath();
+                                                            await currentRoute.ProcessAsync((DiscoveryResponse) message, extraData, packet);
                                                             break;
                                                         case CcDiscoveries.MessageTypes.PeeringRequest:
-                                                            await ccNeighbor
+                                                            await currentRoute
                                                                 .ProcessAsync((PeeringRequest) message, extraData,
-                                                                    packet)
-                                                                .FastPath();
+                                                                    packet);
                                                             break;
                                                         case CcDiscoveries.MessageTypes.PeeringResponse:
-                                                            await ccNeighbor
-                                                                .ProcessAsync((PeeringResponse) message, extraData,
-                                                                    packet)
-                                                                .FastPath();
+                                                            await currentRoute
+                                                                .ProcessAsync((PeeringResponse) message, extraData, packet);
                                                             break;
                                                         case CcDiscoveries.MessageTypes.PeeringDrop:
-                                                            await ccNeighbor
-                                                                .ProcessAsync((PeeringDrop) message, extraData, packet)
-                                                                .FastPath();
+                                                            await currentRoute
+                                                                .ProcessAsync((PeeringDrop) message, extraData, packet);
                                                             break;
                                                     }
                                                 }
                                                 catch when(@this.Zeroed()){}
                                                 catch (Exception e) when (!@this.Zeroed())
                                                 {
-                                                    @this._logger?.Debug(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
+                                                    @this._logger?.Error(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
                                                 }
-                                            }, @this).FastPath();
+                                            }, @this);
                                         }
                                         finally
                                         {
@@ -1027,33 +1015,40 @@ namespace zero.cocoon.autopeer
                                         }
                                     }, @this);
                                 }
-                                catch (Exception e)
+                                catch when(!@this.Zeroed()){}
+                                catch (Exception e)when(!@this.Zeroed())
                                 {
                                     @this._logger?.Error(e, $"Consumption failed for {@this.Description}");
-                                    return;
+                                    break;
                                 }
                             }
 
-                            for (var i = 0; i < @this._consumeTaskPool.Length; i++)
-                            {
-                                if (!await @this._consumeTaskPool[i].FastPath())
-                                    return;
-                            }
+                            if (!await @this._consumeTaskPool[^1].FastPath())
+                                break;
                         }
                     }
                     catch when(@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) {}
-                    catch (Exception e) when (!@this.Zeroed())
+                    catch (Exception e) when (!@this.Zeroed() && !@this.Source.Zeroed() && @this._protocolConduit?.Source != null)
                     {
                         @this._logger?.Error(e, $"{@this.Description}");
                     }
-                }, this, TaskCreationOptions.DenyChildAttach );
+                }, this, TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach );
 
-                await Task.WhenAll(producer.AsTask(), consumer.AsTask());
+                await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
                 _logger?.Debug(e, $"Error processing {Description}");
+            }
+
+            if (!Proxy && !Zeroed())
+            {
+                _logger?.Fatal($"{Description} Stopped prosessing discoveries.");
+            }
+            else if (!Proxy)
+            {
+                _logger?.Debug($"{Description} Stopped prosessing discoveries!");
             }
         }
 
@@ -1490,8 +1485,8 @@ namespace zero.cocoon.autopeer
             
             CcAdjunct newAdjunct = null;
 
-            var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
-            newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, source, Tuple.Create(id, services, newRemoteEp));
+            //var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
+            newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(id, services, newRemoteEp));
 
             if (!Zeroed() && await Hub.ZeroAtomicAsync(static async (s, state, ___) =>
             {
@@ -2489,16 +2484,13 @@ namespace zero.cocoon.autopeer
             
 #if DEBUG
             var nextState = new IoStateTransition<AdjunctState>((int)state);
-            AdjunctState matched;
+            var matched = AdjunctState.Sentinel;
             if (compare)
             {
-                matched = (AdjunctState)nextState.CompareAndEnterState((int)state, (int)cmp, _currState);
+                if((matched = (AdjunctState)nextState.CompareAndEnterState((int)state, (int)cmp, _currState)) != cmp)
+                    return AdjunctState.Sentinel;
             }
-            else
-            {
-                matched = (AdjunctState)_currState.Value;
-            }
-            
+
             var prevState = _currState;
             _currState = _currState.Exit(nextState);
 
@@ -2521,12 +2513,12 @@ namespace zero.cocoon.autopeer
 #else
             if (compare)
             {
-                return (AdjunctState)_currState.CompareAndEnterState((int)state, (int)cmp, _currState.Previous);
+                return (AdjunctState)_currState.CompareAndEnterState((int)state, (int)cmp, _currState);
             }
             else
             {
                 _currState.Set((int)state);
-                return AdjunctState.Undefined;
+                return AdjunctState.Sentinel;
             }
 #endif
         }
