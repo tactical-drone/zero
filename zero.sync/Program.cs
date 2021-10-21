@@ -21,6 +21,7 @@ using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
+using zero.core.patterns.semaphore.core;
 using zero.tangle;
 using zero.tangle.entangled;
 using zero.tangle.models;
@@ -197,6 +198,8 @@ namespace zero.sync
                 int minInC = 0;
                 int empty = 0;
                 long lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                long perfTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), totalPerfTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                long opsCheckpoint = ThreadPool.CompletedWorkItemCount, totalOpsCheckpoint = ThreadPool.CompletedWorkItemCount;
                 while (_running)
                 {
                     try
@@ -265,10 +268,15 @@ namespace zero.sync
                             ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
+                            var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
+                            var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
+                            var fps = localOps * 1000.0 / perfTime.ElapsedMs();
+                            var tfps = totalOps * 1000.0 / totalPerfTime.ElapsedMs();
+                            opsCheckpoint = ThreadPool.CompletedWorkItemCount;
                             try
                             {
                                 Console.ForegroundColor = prevPeers <= peers ? ConsoleColor.Green : ConsoleColor.Red;
-                                Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / ((double)_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt}), con = {CcAdjunct.ConnectionTime/(CcAdjunct.ConnectionCount + 1):0.0}ms");
+                                Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / ((double)_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, ({minwt} < {wt} < {maxwt}), ({mincpt} < {cpt} < {maxcpt}), con = {CcAdjunct.ConnectionTime/(CcAdjunct.ConnectionCount + 1.0):0.0}ms,  [iKo/s = {fps / 1000.0:0.000}, i = {localOps / 1000000.0:0.000} Mil], [tKo/s = {tfps / 1000.0:0.000}, t = {totalOps / 1000000.0:0.000} Mil]");
                             }
                             catch{}
                             finally
@@ -277,16 +285,33 @@ namespace zero.sync
                             }
 
                         }
-
-                        if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastUpdate > 120)
+                        else if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastUpdate > 120)
                         {
                             ThreadPool.GetAvailableThreads(out var wt, out var cpt);
                             ThreadPool.GetMaxThreads(out var maxwt, out var maxcpt);
                             ThreadPool.GetMinThreads(out var minwt, out var mincpt);
 
+
+                            var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
+                            var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
+                            var fps = localOps * 1000.0 / perfTime.ElapsedMs();
+                            var tfps = totalOps * 1000.0 / totalPerfTime.ElapsedMs();
+
+                            opsCheckpoint = ThreadPool.CompletedWorkItemCount;
+
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / (double)(_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}, con = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1):0.0}ms");
-                            Console.ResetColor();
+                            try
+                            {
+                                Console.WriteLine($"out = {outBound}, int = {inBound}, ({minOut}/{minOutC},{minIn}/{minInC}::{empty}), {inBound + outBound}/{(double)_nodes.Count * maxDrones} , peers = {peers}/{available}({_nodes.Count * maxAdjuncts}), {(inBound + outBound) / (double)(_nodes.Count * maxDrones) * 100:0.00}%, uptime = {TimeSpan.FromSeconds(uptime / (double)uptimeCount).TotalHours:0.000}h, total = {TimeSpan.FromSeconds(uptime).TotalDays:0.00} days, workers = {-wt + maxwt}, ports = {-cpt + maxcpt}, con = {CcAdjunct.ConnectionTime / (CcAdjunct.ConnectionCount + 1.0):0.0}ms, [iKo/s = {fps / 1000.0:0.000}, i = {localOps / 1000000.0:0.000} Mil], [tKo/s = {tfps / 1000.0:0.000}, t = {totalOps / 1000000.0:0.000} Mil]");
+                            }
+                            catch
+                            {
+                                // ignored
+                            }
+                            finally
+                            {
+                                Console.ResetColor();
+                            }
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                         }
                     }

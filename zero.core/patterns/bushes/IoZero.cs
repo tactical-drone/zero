@@ -74,7 +74,7 @@ namespace zero.core.patterns.bushes
         {
             _description = description;
             
-            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size) { Make = mallocMessage, Context = source};
+            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size, true) { Make = mallocMessage, Context = source};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
             await Source.ZeroHiveAsync(this, sourceZeroCascade).FastPath().ConfigureAwait(Zc);
@@ -165,9 +165,9 @@ namespace zero.core.patterns.bushes
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_stats_mod_count = 5000;
+        public int parm_stats_mod_count = 20000;
 #else
-        public int parm_stats_mod_count = 50000;
+        public int parm_stats_mod_count = 100000;
 #endif
 
         /// <summary>
@@ -605,7 +605,7 @@ namespace zero.core.patterns.bushes
                                 lock (Environment.Version)
                                 {
                                     _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                    _logger?.Info($"{Description} {0 /*JobHeap.IoFpsCounter.Fps()*/:F} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                    _logger?.Info($"{Description} {JobHeap.OpsPerSecond:0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();
                                 }
                             }

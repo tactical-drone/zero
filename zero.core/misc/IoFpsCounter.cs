@@ -79,7 +79,7 @@ namespace zero.core.misc
         /// ReturnAsync current fps
         /// </summary>
         /// <returns></returns>
-        public double Fps()
+        public readonly double Fps()
         {
             if (_disabled)
                 return 99;

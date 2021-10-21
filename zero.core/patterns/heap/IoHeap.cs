@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
@@ -31,8 +32,10 @@ namespace zero.core.patterns.heap
         /// </summary>
         /// <param name="description"></param>
         /// <param name="maxSize">The maximum capacity of this heap</param>
+        /// <param name="context"></param>
+        /// <param name="enablePerf"></param>
         /// 
-        public IoHeap(string description, uint maxSize, TContext context = null)
+        public IoHeap(string description, uint maxSize, TContext context = null, bool enablePerf = false)
         {
             _description = description;
             _maxSize = maxSize;
@@ -40,7 +43,8 @@ namespace zero.core.patterns.heap
             Context = context;
             _count = 0;
             _refCount = 0;
-            //IoFpsCounter = new IoFpsCounter(500, 5000);
+            if(enablePerf)
+                _ioFpsCounter = new IoFpsCounter(5000, 10000);
             Make = default;
         }
 
@@ -117,6 +121,17 @@ namespace zero.core.patterns.heap
                 }
             }
         }
+
+        
+        /// <summary>
+        /// Provides perf stats
+        /// </summary>
+        public double OpsPerSecond => _ioFpsCounter.Fps();
+
+        /// <summary>
+        /// Total ops this heap has performed
+        /// </summary>
+        public double TotalOps => _ioFpsCounter.Total;
 
         /// <summary>
         /// zero unmanaged
@@ -207,7 +222,8 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                //IoFpsCounter.TickAsync().ConfigureAwait(_cfgAwait).GetAwaiter();
+                _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
+
                 if (!zero)
                     _ioHeapBuf.Add(item);
                 else
@@ -237,6 +253,11 @@ namespace zero.core.patterns.heap
         /// Prepares an item from the stack
         /// </summary>
         public Action<TItem, object> Prep;
+
+        /// <summary>
+        /// Tracks performances
+        /// </summary>
+        private readonly IoFpsCounter _ioFpsCounter;
 
         /// <summary>
         /// Returns the amount of space left in the buffer

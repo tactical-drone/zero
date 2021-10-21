@@ -687,7 +687,6 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"-/> {nameof(EnsureRoboticsAsync)}: PAT to = {Description}");
 #endif
                 }
-
                 else if (Collected)
                     _logger.Error($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
             }
@@ -769,10 +768,15 @@ namespace zero.cocoon.autopeer
             
             await ZeroAsync(static async @this =>
             {
+                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 //Attempt the connection, race to win
                 if (!await @this.CcCollective.ConnectToDroneAsync(@this).FastPath().ConfigureAwait(@this.Zc))
                     @this._logger.Trace($"{@this.Description}: Leashing adjunct failed!");
-
+                else //Track some connection perf stats
+                {
+                    Interlocked.Add(ref CcAdjunct.ConnectionTime, ts.ElapsedMs());
+                    Interlocked.Increment(ref CcAdjunct.ConnectionCount);
+                }
             }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
             
             return true;
@@ -1228,9 +1232,6 @@ namespace zero.cocoon.autopeer
                 //Race for 
                 case true when _direction == 0:
                 {
-                    
-                    //await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency/2, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-                    var connectionTime = Stopwatch.StartNew();
                     if (!await ConnectAsync().FastPath().ConfigureAwait(Zc))
                     {
                         AdjunctState oldState;
@@ -1238,7 +1239,6 @@ namespace zero.cocoon.autopeer
                             _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
                         
                         _logger.Trace($"{nameof(PeeringResponse)}: FAILED to connect to {Description}");
-                        return;
                     }
                     break;
                 }
@@ -1896,7 +1896,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                 if (Collected)
                 {
-                    _logger.Error($"<\\- {nameof(Pong)} {packet.Data.Memory.PayloadSig()}: SEC! {pong.ReqHash.Memory.HashSig()}, hash = {MemoryMarshal.Read<long>(packet.Data.ToByteArray())}, d = {_pingRequest.Count}, t = {TotalPats},  " +
+                    _logger.Error($"<\\- {nameof(Pong)} {packet.Data.Memory.PayloadSig()}: SEC! {pong.ReqHash.Memory.HashSig()}, hash = {MemoryMarshal.Read<long>(packet.Data.ToByteArray())}, d = {_pingRequest.Count}, pats = {TotalPats},  " +
                                   $"PK={Designation.PkString()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span)} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {extraData}, {Description}");
                 }
 #endif
