@@ -86,5 +86,17 @@ namespace zero.core.patterns.misc
         {
             return task.IsCompletedSuccessfully ? ValueTask.CompletedTask : task;
         }
+
+
+        /// <summary>
+        /// Block on a token until cancelled (wait one causes problems)
+        /// </summary>
+        /// <param name="token">The token to block on</param>
+        /// <returns>A ValueTask</returns>
+        public static async ValueTask BlockOnNotCanceledAsync(this CancellationToken token)
+        {
+            while (token.CanBeCanceled && !token.IsCancellationRequested)
+                await Task.Delay(-1, token);
+        }
     }    
 }

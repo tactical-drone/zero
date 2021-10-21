@@ -635,7 +635,7 @@ namespace zero.core.patterns.bushes
         /// <summary>
         /// Starts processing work queues
         /// </summary>
-        public virtual async Task BlockOnReplicateAsync()
+        public virtual async ValueTask BlockOnReplicateAsync()
         {
 #if DEBUG
             _logger.Trace($"{GetType().Name}: Assimulating {Description}");
@@ -699,7 +699,7 @@ namespace zero.core.patterns.bushes
                     if (!await consumeTaskPool[^1].FastPath())
                         break;
                 }
-            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach); //TODO tuning
+            }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

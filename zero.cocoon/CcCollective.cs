@@ -151,7 +151,7 @@ namespace zero.cocoon
                         if (@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay)
                         {
                             //bootstrap if alone
-                            await @this.DeepScanAsync().ConfigureAwait(Zc);
+                            await @this.DeepScanAsync().FastPath().ConfigureAwait(Zc);
                         }
 
                         if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
@@ -877,7 +877,7 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0, int total = 1)
         {
-            return false;
+            return true;
             Interlocked.Exchange(ref Testing, 1);
             foreach (var ioNeighbor in WhisperingDrones)
             {

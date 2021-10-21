@@ -188,15 +188,16 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="listeningAddress">The address to listen on</param>
         /// <param name="acceptConnectionHandler">The handler once a connection is made, mostly used in UDPs case to look function like <see cref="T:zero.core.network.ip.IoTcpSocket" /></param>
+        /// <param name="nanite">Context</param>
         /// <param name="bootstrapAsync">Bootstrap callback invoked when a listener has started</param>
         /// <returns>True if successful, false otherwise</returns>
-        public override async ValueTask ListenAsync<T>(IoNodeAddress listeningAddress,
+        public override async ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
             Func<IoSocket,T, ValueTask> acceptConnectionHandler,
             T nanite,
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite,bootstrapAsync).FastPath().ConfigureAwait(Zc);
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, nanite,bootstrapAsync).FastPath().ConfigureAwait(Zc);
 
 
             //set some socket options
@@ -213,8 +214,6 @@ namespace zero.core.network.ip
             Configure();
 
             //Init connection tracking
-            //_connTrack = new ConcurrentDictionary<string, IIoZero>();
-
             try
             {
                 _logger.Trace($"Waiting for a new connection to {LocalNodeAddress}...");
@@ -229,16 +228,12 @@ namespace zero.core.network.ip
                     _logger.Error(e, $"There was an error handling a new connection from {this.RemoteNodeAddress} to `{this.LocalNodeAddress}'");
                 }
                 
-                
-                
                 //Bootstrap on listener start
                 if (bootstrapAsync != null)
                     await bootstrapAsync().FastPath().ConfigureAwait(Zc);
 
-                while (!Zeroed())
-                {
-                    await Task.Delay(5000, AsyncTasks.Token).ConfigureAwait(Zc);
-                }
+                //block
+                await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
 
                 _logger.Trace($"Stopped listening at {LocalNodeAddress}");
             }
@@ -249,6 +244,12 @@ namespace zero.core.network.ip
             }
         }
 
+        /// <summary>
+        /// Connect to remote address
+        /// </summary>
+        /// <param name="remoteAddress">The remote to connect to</param>
+        /// <param name="timeout">A timeout</param>
+        /// <returns>True on success, false otherwise</returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
             if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc))
@@ -549,8 +550,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                //return NativeSocket is {IsBound: true, LocalEndPoint: { }};
-                return NativeSocket is {};
+                return NativeSocket is {IsBound: true, LocalEndPoint: { }};
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
@@ -581,14 +581,14 @@ namespace zero.core.network.ip
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
-            NativeSocket.ReceiveTimeout = 300;
+            NativeSocket.ReceiveTimeout = 1000;
 
             // Set the send buffer size to 32k.
             NativeSocket.SendBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous send methods
             // to 1 second (1000 milliseconds.)
-            NativeSocket.SendTimeout = 300;
+            NativeSocket.SendTimeout = 1000;
 
             // Set the Time To Live (TTL) to 42 router hops.
             NativeSocket.Ttl = 64;

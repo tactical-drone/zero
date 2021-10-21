@@ -65,13 +65,13 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">A handler that is called once a new connection was formed</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        public override async ValueTask ListenAsync<T>(IoNodeAddress listeningAddress,
+        public override async ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
             Func<IoSocket, T,ValueTask> acceptConnectionHandler,
             T nanite,
             Func<ValueTask> bootstrapAsync = null)
         {
             //base
-            await base.ListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(Zc);
+            await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(Zc);
             
             //Configure the socket
             Configure();

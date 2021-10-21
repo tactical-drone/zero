@@ -45,7 +45,7 @@ namespace zero.core.network.ip
 
             IoListenSocket = (await ZeroHiveAsync(new IoTcpSocket(ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(Zc)).target;
 
-            await IoListenSocket.ListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
+            await IoListenSocket.BlockOnListenAsync(ListeningAddress, static async (newConnectionSocket, state) =>
             {
                 var (@this, nanite,connectionReceivedAction) = state;
                 try

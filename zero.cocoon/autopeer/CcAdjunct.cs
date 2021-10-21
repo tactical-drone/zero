@@ -96,7 +96,7 @@ namespace zero.cocoon.autopeer
             {
                 while (!@this.Zeroed())
                 {
-                    var targetDelay = @this._random.Next(@this.CcCollective.parm_mean_pat_delay / 5 * 1000) + @this.CcCollective.parm_mean_pat_delay / 4 * 1000;
+                    var targetDelay = (@this._random.Next(@this.CcCollective.parm_mean_pat_delay / 5) + @this.CcCollective.parm_mean_pat_delay / 4) * 1000;
                     var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     await Task.Delay(targetDelay, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
                     if(@this.Zeroed())
@@ -104,7 +104,7 @@ namespace zero.cocoon.autopeer
 
                     if (ts.ElapsedMs() > targetDelay * 1.25 && ts.ElapsedMsToSec() > 0)
                     {
-                        @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {ts.ElapsedMs() / 1000.0:0.0}s");
+                        @this._logger.Warn($"{@this.Description}: Popdog is slow!!!, {(ts.ElapsedMs() - targetDelay) / 1000.0:0.0}s");
                     }
 
                     try
@@ -648,10 +648,10 @@ namespace zero.cocoon.autopeer
                 await DetachPeerAsync().FastPath().ConfigureAwait(Zc);
                 
                 //swarm 
-                await ZeroAsync(async @this =>
+                await ZeroAsync(static async @this =>
                 {
-                    await Task.Delay(parm_max_network_latency * 2, AsyncTasks.Token).ConfigureAwait(Zc);
-                    await @this.Router.SendPingAsync(RemoteAddress).FastPath().ConfigureAwait(Zc);
+                    await Task.Delay(@this.parm_max_network_latency * 2, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                    await @this.Router.SendPingAsync(@this.RemoteAddress).FastPath().ConfigureAwait(@this.Zc);
                 }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
             }
             else
@@ -699,7 +699,7 @@ namespace zero.cocoon.autopeer
             
             var threshold = IsDroneConnected ? CcCollective.parm_mean_pat_delay * 2 : CcCollective.parm_mean_pat_delay;
             //Watchdog failure
-            if (SecondsSincePat > threshold)
+            if (SecondsSincePat > threshold * 2)
             {
                 _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay}, {MetaDesc}");
                 await ZeroAsync(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs()).TotalHours:0.00}h")).FastPath().ConfigureAwait(Zc);
@@ -710,26 +710,31 @@ namespace zero.cocoon.autopeer
         /// Start processors for this neighbor
         /// </summary>
         /// <returns></returns>
-        public override async Task BlockOnReplicateAsync()
+        public override async ValueTask BlockOnReplicateAsync()
         {
             try
             {
                 if (!Proxy)
                 {
                     //Discoveries
-                    await ZeroOptionAsync(static async state =>
+                    await ZeroAsync(static async @this =>
                     {
-                        var (@this, assimilateAsync) = state;
-                        var processDiscoveriesAsync = @this.ProcessDiscoveriesAsync();
-                        
-                    }, ValueTuple.Create<CcAdjunct,Func<Task>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                        await @this.ProcessDiscoveriesAsync().FastPath().ConfigureAwait(@this.Zc);
+                    }, this, TaskCreationOptions.None ).FastPath().ConfigureAwait(Zc);
 
                     //UDP traffic
-                    await ZeroOptionAsync(static async state =>
+                    await ZeroAsync(static async state =>
                     {
                         var (@this, assimilateAsync) = state;
-                        await assimilateAsync();
-                    }, ValueTuple.Create<CcAdjunct, Func<Task>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                        await assimilateAsync().FastPath().ConfigureAwait(@this.Zc);
+                    }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.None).FastPath().ConfigureAwait(Zc);
+
+                    while(!Zeroed())
+                        await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
+                }
+                else
+                {
+                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
                 }
             }
             catch when(Zeroed()){}
@@ -1461,8 +1466,6 @@ namespace zero.cocoon.autopeer
                     if (!await @this.CollectAsync(newRemoteEp, id, services).FastPath().ConfigureAwait(@this.Zc))
                     {
 #if DEBUG
-                        @this._logger.Error($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
-#else
                         @this._logger.Debug($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
 #endif
                     }
@@ -1534,7 +1537,7 @@ namespace zero.cocoon.autopeer
                             if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Peering)
                             {
                                 await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(@this.Zc);
-                                @this._logger.Info($"@ {dropped.Description}");
+                                @this._logger.Debug($"@ {dropped.Description}");
                             }
                         }
                     }
@@ -1554,8 +1557,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 return false;
-            }
-                , ValueTuple.Create(this, newAdjunct)).FastPath().ConfigureAwait(Zc))
+            }, ValueTuple.Create(this, newAdjunct)).FastPath().ConfigureAwait(Zc))
             {
                 //setup conduits to messages
                 newAdjunct.ExtGossipAddress = ExtGossipAddress;
@@ -1636,7 +1638,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 if (newAdjunct != null)
-                    await newAdjunct.ZeroAsync(new IoNanoprobe("CollectAsync")).FastPath().ConfigureAwait(Zc);
+                    await newAdjunct.ZeroAsync(new IoNanoprobe("CollectAsync failed!")).FastPath().ConfigureAwait(Zc);
             }
 
             return false;

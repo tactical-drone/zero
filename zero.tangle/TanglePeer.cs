@@ -68,12 +68,12 @@ namespace zero.tangle
         /// </summary>
         /// <param name="spawnProducer">Spawns a source thread</param>
         /// <returns></returns>
-        public override async Task BlockOnReplicateAsync()
+        public override async ValueTask BlockOnReplicateAsync()
         {
             var processing = base.BlockOnReplicateAsync();            
             var persisting = ProcessTransactionsAsync(await IoTangleCassandraDb<TKey>.DefaultAsync());
 
-            await Task.WhenAll(processing, persisting);
+            await Task.WhenAll(processing.AsTask(), persisting);
         }
 
         /// <summary>

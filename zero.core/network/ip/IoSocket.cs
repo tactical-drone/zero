@@ -131,7 +131,7 @@ namespace zero.core.network.ip
         /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
-        public virtual ValueTask ListenAsync<T>(IoNodeAddress listeningAddress,
+        public virtual ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
             Func<IoSocket, T, ValueTask> acceptConnectionHandler,
             T nanite,
             Func<ValueTask> bootstrapAsync = null)

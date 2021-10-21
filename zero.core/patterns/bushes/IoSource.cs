@@ -2,7 +2,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -280,13 +279,7 @@ namespace zero.core.patterns.bushes
             IoSource<TfJob> channelSource = null,
             Func<object, IIoNanite, IoSink<TfJob>> jobMalloc = null) where TfJob : IIoJob
         {
-            if (channelSource == null || jobMalloc == null)
-            {
-                _logger.Trace($"Waiting for conduit {id} in {Description} to initialize...");
-                return null;
-            }
-
-            if (!IoConduits.ContainsKey(id))
+            if (channelSource != null && !IoConduits.ContainsKey(id))
             {
                 if (!await ZeroAtomicAsync(static async (nanite, parms, disposed) =>
                 {
@@ -309,16 +302,14 @@ namespace zero.core.patterns.bushes
                         {
                             return (IoConduit<TfJob>)IoConduits[id];
                         }
-                        catch (Exception e)
+                        catch when(Zeroed()){}
+                        catch (Exception e)when(!Zeroed())
                         {
                             _logger.Trace(e, $"Conduit {id} after race, not found");
-                            throw;
                         }
                     }
-                    else
-                    {
-                        return null;
-                    }
+
+                    return null;
                 }
             }
 
@@ -326,11 +317,12 @@ namespace zero.core.patterns.bushes
             {
                 return (IoConduit<TfJob>)IoConduits[id];
             }
-            catch (Exception e)
+            catch when(channelSource == null || Zeroed()){}
+            catch (Exception e)when (channelSource !=null && !Zeroed())
             {
                 _logger.Fatal(e, $"Conduit {id} after race, not found");
-                throw;
             }
+            return null;
         }
 
         

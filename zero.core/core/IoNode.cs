@@ -253,7 +253,7 @@ namespace zero.core.core
                 await ZeroOptionAsync(static async state =>
                 {
                     var (newNeighbor, cfgAwait) = state;
-                    await newNeighbor.BlockOnReplicateAsync().ConfigureAwait(cfgAwait);
+                    await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
                 }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.None).FastPath().ConfigureAwait(Zc);
             }
             catch when(Zeroed()){}
