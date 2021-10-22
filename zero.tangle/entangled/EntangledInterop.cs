@@ -1,5 +1,4 @@
 ﻿using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.common.trinary.abstraction;
 using zero.interop.entangled.common.trinary.interop;
 using zero.interop.entangled.interfaces;
 using zero.tangle.entangled.common.model;

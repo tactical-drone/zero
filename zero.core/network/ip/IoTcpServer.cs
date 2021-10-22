@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.network.ip

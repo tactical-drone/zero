@@ -6,7 +6,7 @@ using NLog;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.network.ip;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.tangle.data.redis.configurations.tangle;
 using zero.tangle.models;

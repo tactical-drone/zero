@@ -6,9 +6,10 @@ using zero.core.models;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
 using zero.interop.entangled.common.model.native;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.native;
 using zero.interop.utils;
 using zero.tangle.models;
+using zero.tangle.utils;
 
 namespace zero.tangle.entangled.common.model.native
 {

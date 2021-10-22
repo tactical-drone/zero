@@ -9,11 +9,12 @@ using zero.core.core;
 using zero.core.data.contracts;
 using zero.core.misc;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.models;
+using zero.tangle.utils;
 using Logger = NLog.Logger;
 
 namespace zero.tangle

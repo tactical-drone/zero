@@ -4,8 +4,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 

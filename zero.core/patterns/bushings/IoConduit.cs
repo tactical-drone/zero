@@ -1,8 +1,8 @@
 ﻿using System;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
-namespace zero.core.patterns.bushes
+namespace zero.core.patterns.bushings
 {
     /// <summary>
     /// Used as a simple job forwarding source consumer queue, by <see cref="IoZero{TJob}"/>

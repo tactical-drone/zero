@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.conf;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.models.protobuffer

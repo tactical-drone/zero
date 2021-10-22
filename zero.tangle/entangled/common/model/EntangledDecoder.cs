@@ -2,8 +2,10 @@
 using zero.core.misc;
 using zero.core.models;
 using zero.interop.entangled.common.model.interop;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.common.model.interop.transaction;
+using zero.interop.entangled.native;
 using zero.interop.utils;
+using zero.tangle.utils;
 
 namespace zero.tangle.entangled.common.model
 {

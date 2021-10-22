@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.heap;
 
-namespace zero.core.patterns.bushes
+namespace zero.core.patterns.bushings
 {
     /// <summary>
     /// Represents a state transition while processing work on a concurrent process

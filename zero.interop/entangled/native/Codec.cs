@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NLog;
 
-namespace zero.interop.entangled.mock
+namespace zero.interop.entangled.native
 {
     /// <summary>
     /// A helper class to encode and decode ternary encodings

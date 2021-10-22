@@ -5,12 +5,12 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.misc;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
-namespace zero.core.patterns.bushes
+namespace zero.core.patterns.bushings
 {
     /// <summary>
     /// Source Consumer pattern

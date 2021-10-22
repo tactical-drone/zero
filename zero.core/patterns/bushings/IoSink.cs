@@ -1,9 +1,8 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using zero.core.patterns.bushes.contracts;
-using zero.core.patterns.misc;
+using zero.core.patterns.bushings.contracts;
 
-namespace zero.core.patterns.bushes
+namespace zero.core.patterns.bushings
 {
     /// <summary>
     /// Sink where <see cref="IoJob{TJob}"/> is consumed.

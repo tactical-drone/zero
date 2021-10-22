@@ -6,6 +6,7 @@ using NLog;
 using zero.core.models;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.common.model.interop.transaction;
 using zero.interop.entangled.common.trinary;
 using zero.tangle.models;
 

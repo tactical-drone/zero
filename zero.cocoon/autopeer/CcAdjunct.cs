@@ -25,8 +25,8 @@ using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 

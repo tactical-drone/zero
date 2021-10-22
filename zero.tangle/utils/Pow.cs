@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Linq;
 using zero.interop.entangled.common.model;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.native;
 using zero.tangle.models;
 
-namespace zero.interop.utils
+namespace zero.tangle.utils
 {
     /// <summary>
     /// Does pow calculation of <see cref="IIoTransactionModel{TKey}"/>"/>

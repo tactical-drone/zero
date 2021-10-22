@@ -4,11 +4,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
-namespace zero.core.patterns.bushes
+namespace zero.core.patterns.bushings
 {
     /// <summary>
     /// Meta data about produced work that needs to be done

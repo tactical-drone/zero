@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.common.model.interop.transaction;
 
 // ReSharper disable InconsistentNaming
 

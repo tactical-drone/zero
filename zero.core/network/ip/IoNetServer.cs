@@ -7,7 +7,7 @@ using System.Transactions;
 using Cassandra;
 using NLog;
 using zero.core.conf;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using Logger = NLog.Logger;
 

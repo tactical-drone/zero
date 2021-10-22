@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 
-namespace Base58Check
+namespace zero.cocoon.identity
 {
   internal class ArrayHelpers
   {

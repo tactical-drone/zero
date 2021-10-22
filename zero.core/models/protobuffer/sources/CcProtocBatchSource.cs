@@ -3,8 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
@@ -51,7 +51,7 @@ namespace zero.core.models.protobuffer.sources
                 maxBlockers: concurrencyLevel, initialCount: 0, maxAsyncWork:0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             
             // _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"{GetType().Name}: {nameof(_queueBackPressure)}", 
-            //     maxBlockers: ioSource.ZeroConcurrencyLevel(), initialCount: 1, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+            //     maxBlockers: ioSource.ZeroConcurrencyLevel(), initialCount: 1, concurrencyLevel: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
         }
 
         /// <summary>

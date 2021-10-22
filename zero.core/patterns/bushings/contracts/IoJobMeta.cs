@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace zero.core.patterns.bushes.contracts
+﻿namespace zero.core.patterns.bushings.contracts
 {
     public class IoJobMeta
     {

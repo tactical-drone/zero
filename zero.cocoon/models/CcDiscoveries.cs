@@ -12,8 +12,8 @@ using zero.cocoon.models.batches;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.models.protobuffer.sources;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 

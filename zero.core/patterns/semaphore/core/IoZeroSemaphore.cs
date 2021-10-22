@@ -20,18 +20,18 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="description">A description of this mutex</param>
-        /// <param name="maxBlockers"> The maximum number of requests for the semaphore that can be granted concurrently.</param>
-        /// <param name="initialCount">The initial number non blocking requests</param>
-        /// <param name="maxAsyncWork"></param>
-        /// <param name="enableAutoScale">Experimental: Cope with real time concurrency demands at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage snowballs and set <see cref="maxBlockers"/> more accurately to compensate</param>
-        /// <param name="enableFairQ">Enable fair queueing at the cost of performance</param>
-        /// <param name="enableDeadlockDetection">Checks for deadlocks within a thread and throws when found</param>
+        /// <param name="description">A description of this semaphore</param>
+        /// <param name="maxBlockers">The maximum number of blockers this semaphore has capacity for</param>
+        /// <param name="initialCount">The initial number of requests that will be non blocking</param>
+        /// <param name="concurrencyLevel">The maximum "not-inline" or concurrent workers that this semaphore allows before blocking.</param>
+        /// <param name="enableAutoScale">Experimental/dev: Cope with real time concurrency demand changes at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage and memory snowballs and set <see cref="maxBlockers"/> more accurately instead. Scaling down is not supported</param>
+        /// <param name="enableFairQ">Enable fair queueing at the cost of performance, when <see cref="enableAutoScale"/> is enabled</param>
+        /// <param name="enableDeadlockDetection">When <see cref="enableAutoScale"/> is enabled checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(
             string description, 
             int maxBlockers = 1, 
             int initialCount = 0,
-            uint maxAsyncWork = 0,
+            uint concurrencyLevel = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
@@ -41,13 +41,12 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
             if(initialCount < 0)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
-
             if(initialCount > maxBlockers * 2)
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
 
             _maxBlockers = maxBlockers;
             _useMemoryBarrier = enableFairQ;
-            _maxAsyncWorkers = maxAsyncWork;
+            _maxAsyncWorkers = concurrencyLevel;
             _curSignalCount = initialCount;
             _zeroRef = null;
             _asyncToken = default;

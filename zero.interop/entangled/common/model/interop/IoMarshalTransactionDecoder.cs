@@ -1,5 +1,6 @@
 ﻿using System;
 using zero.core.models;
+using zero.interop.entangled.common.model.interop.transaction;
 
 namespace zero.interop.entangled.common.model.interop
 {

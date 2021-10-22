@@ -4,8 +4,9 @@ using System.Text;
 using NLog;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.common.model.interop;
+using zero.interop.entangled.common.model.interop.transaction;
 using zero.interop.entangled.common.trinary;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.native;
 using zero.interop.utils;
 using zero.tangle.models;
 

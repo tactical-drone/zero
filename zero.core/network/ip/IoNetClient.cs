@@ -5,8 +5,8 @@ using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
 using zero.core.models;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
 namespace zero.core.network.ip

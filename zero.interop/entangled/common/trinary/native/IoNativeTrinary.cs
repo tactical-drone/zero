@@ -3,7 +3,7 @@ using System.Text;
 using Tangle.Net.Cryptography;
 using Tangle.Net.Entity;
 using zero.interop.entangled.common.trinary.interop;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.native;
 
 namespace zero.interop.entangled.common.trinary.native
 {

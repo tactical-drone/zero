@@ -8,15 +8,15 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
 using zero.core.data.contracts;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
-namespace zero.core.patterns.bushes
+namespace zero.core.patterns.bushings
 {
     /// <summary>
-    /// Used by <see cref="IoZero{TJob}"/> as a source of work of type <see cref="TJob"/>
+    /// Used by <see cref="IoZero{TJob}"/> as a source of work of type <see cref="IoZero{TJob}"/>
     /// </summary>
     public abstract class IoSource<TJob> : IoNanoprobe, IIoSource where TJob : IIoJob
     {

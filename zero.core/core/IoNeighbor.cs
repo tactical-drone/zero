@@ -2,8 +2,8 @@
 using System.Threading.Tasks;
 using NLog;
 using zero.core.network.ip;
-using zero.core.patterns.bushes;
-using zero.core.patterns.bushes.contracts;
+using zero.core.patterns.bushings;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using Logger = NLog.Logger;
 

@@ -1,7 +1,7 @@
 ﻿using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
-namespace zero.core.patterns.bushes.contracts
+namespace zero.core.patterns.bushings.contracts
 {
     public interface IIoJob : IIoHeapItem, IIoNanite
     {

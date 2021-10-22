@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using zero.interop.entangled.common.model.interop.transaction;
 using zero.interop.entangled.common.trinary;
-using zero.interop.entangled.mock;
+using zero.interop.entangled.native;
 
-namespace zero.interop.entangled.common.model.interop
+namespace zero.interop.entangled.common.model.interop.transaction
 {
 
     /// <summary>
