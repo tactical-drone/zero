@@ -36,7 +36,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Configures the socket
         /// </summary>
-        protected virtual void Configure()
+        protected virtual void ConfigureSocket()
         {
             if (NativeSocket.IsBound || NativeSocket.Connected)
             {

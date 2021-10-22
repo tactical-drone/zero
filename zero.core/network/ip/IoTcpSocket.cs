@@ -74,7 +74,7 @@ namespace zero.core.network.ip
             await base.BlockOnListenAsync(listeningAddress, acceptConnectionHandler, nanite, bootstrapAsync).FastPath().ConfigureAwait(Zc);
             
             //Configure the socket
-            Configure();
+            ConfigureSocket();
 
             //Put the socket in listen mode
             try
@@ -149,7 +149,7 @@ namespace zero.core.network.ip
         /// Connect to a remote endpoint
         /// </summary>
         /// <param name="remoteAddress">The address to connect to</param>
-        /// <param name="timeout"></param>
+        /// <param name="timeout">Connection timeout in ms</param>
         /// <returns>True on success, false otherwise</returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout = 0)
         {
@@ -158,8 +158,7 @@ namespace zero.core.network.ip
 
             NativeSocket.Blocking = false;
 
-            //Configure the socket
-            Configure();
+            ConfigureSocket();
 
             _sw.Restart();
             try
@@ -180,10 +179,10 @@ namespace zero.core.network.ip
                 }
 
                 await connectTask.FastPath().ConfigureAwait(Zc);
-                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint( "tcp", (IPEndPoint) NativeSocket.LocalEndPoint);
-                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint) NativeSocket.RemoteEndPoint);
 
                 NativeSocket.Blocking = true;
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint( "tcp", (IPEndPoint) NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint) NativeSocket.RemoteEndPoint);
 
                 _logger.Trace($"Connected to `{RemoteNodeAddress}': ({Description})");
                 return true;
@@ -198,7 +197,7 @@ namespace zero.core.network.ip
                                !NativeSocket.Poll(100000, SelectMode.SelectWrite))
                         { }
 
-                        if (Zeroed() || _sw.ElapsedMilliseconds > 10000)
+                        if (Zeroed() || _sw.ElapsedMilliseconds >= 10000)
                         {
                             NativeSocket.Close();
                             return false;

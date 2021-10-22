@@ -211,7 +211,7 @@ namespace zero.core.network.ip
             );
 
             //configure the socket
-            Configure();
+            ConfigureSocket();
 
             //Init connection tracking
             try
@@ -255,7 +255,7 @@ namespace zero.core.network.ip
             if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc))
                 return false;
 
-            Configure();
+            ConfigureSocket();
 
             try
             {
@@ -564,7 +564,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Configures the socket
         /// </summary>
-        protected override void Configure()
+        protected override void ConfigureSocket()
         {
             if (NativeSocket.IsBound || NativeSocket.Connected)
             {

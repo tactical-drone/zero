@@ -126,8 +126,17 @@ namespace zero.core.misc
             finally
             {
                 if (challenge!= null && node == null && _valHeap != null)
-                    await _valHeap.ReturnAsync(challenge)
-                        .FastPath().ConfigureAwait(Zc);
+                    await _valHeap.ReturnAsync(challenge).FastPath().ConfigureAwait(Zc);
+
+                try
+                {
+                    await PurgeAsync().FastPath().ConfigureAwait(Zc);
+                }
+                catch (Exception e)
+                {
+                    LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {Description}");
+                    // ignored
+                }
             }
 
             return null;
@@ -196,7 +205,6 @@ namespace zero.core.misc
                         await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(Zc);
                         await _valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(Zc);
                     }
-
                     cur = cur.Prev;
                 }
             }
@@ -204,31 +212,35 @@ namespace zero.core.misc
             {
                 try
                 {
-                    if (_lut.Count > _capacity *4/5)
-                    {
-                        for (var n = _lut.Tail; n != null; n = n.Prev)
-                        {
-                            if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
-                            {
-                                await _lut.RemoveAsync(n).ConfigureAwait(Zc);
-                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc); ;
-                            }
-                            else if (potential?.Key != null && potential.Key == n.Value.Key &&
-                                     n.Value.TimestampMs < potential.TimestampMs)
-                            {
-                                await _lut.RemoveAsync(n).ConfigureAwait(Zc);
-                                await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc); ;
-                            }
-                        }
-                    }
+                    await PurgeAsync().FastPath().ConfigureAwait(Zc);
                 }
                 catch(Exception e)
                 {
-                    LogManager.GetCurrentClassLogger().Error(e, $"{Description}");
+                    LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {Description}");
                     // ignored
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Purge the lut from old challenges
+        /// </summary>
+        /// <returns>A value task</returns>
+        private async ValueTask PurgeAsync()
+        {
+            if (_lut.Count > _capacity * 4 / 5)
+            {
+                for (var n = _lut.Tail; n != null; n = n.Prev)
+                {
+                    if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
+                    {
+                        await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
+                        await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc);
+                        Console.WriteLine(".");
+                    }
+                }
+            }
         }
 
         /// <summary>

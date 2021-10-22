@@ -51,9 +51,9 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 100);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 100);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 100);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 5);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 5);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 5);
 
             if (extraData != null)
             {

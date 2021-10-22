@@ -219,23 +219,22 @@ namespace zero.core.network.ip
         {
             try
             {
+                await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
                 if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
                 {
                     NativeSocket.Shutdown(SocketShutdown.Both);
                     await NativeSocket.DisconnectAsync(false).FastPath().ConfigureAwait(Zc);
                 }
             }
-            catch (SocketException e) { _logger.Trace(e, Description); }
-            catch (Exception e)
+            catch when (Zeroed()){}
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"Socket shutdown returned with errors: {Description}");
             }
 
             if (!Proxy)
                 NativeSocket.Close();
-
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
-
 #if DEBUG
             _logger.Trace($"Closed {Description}");
 #endif
