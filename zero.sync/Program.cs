@@ -81,7 +81,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2;
+            var total = 300;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -519,13 +519,13 @@ namespace zero.sync
                         {
                             await q.EnqueueAsync(i3).FastPath().ConfigureAwait(Zc);
                             await q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(Zc);
-                            //var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(ZC).GetAwaiter().GetResult();
-                            //var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(ZC).GetAwaiter().GetResult();
+                            var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+                            var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
                             await q.EnqueueAsync(i3 + 4).FastPath().ConfigureAwait(Zc);
 
-                            //q.RemoveAsync(i2).FastPath().ConfigureAwait(ZC).GetAwaiter();
+                            q.RemoveAsync(i2).FastPath().ConfigureAwait(Zc).GetAwaiter();
                             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
-                            //q.RemoveAsync(i1).FastPath().ConfigureAwait(ZC).GetAwaiter();
+                            q.RemoveAsync(i1).FastPath().ConfigureAwait(Zc).GetAwaiter();
                             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
                             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
                         }
