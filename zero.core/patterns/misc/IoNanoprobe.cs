@@ -71,7 +71,7 @@ namespace zero.core.patterns.misc
 #endif
 
             _nanoMutex = new IoZeroSemaphore(description, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel:0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks.Token);
+            _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
         }
 
         /// <summary>

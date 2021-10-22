@@ -51,16 +51,16 @@ namespace zero.core.patterns.bushings
             //todo GENERALIZE
             try
             {
-                _pressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_pressure)}, {description}",
+                _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}, {description}",
                     maxBlockers: concurrencyLevel, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_backPressure)}, {description}",
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}, {description}",
                     maxBlockers: concurrencyLevel,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
                     enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
-                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token, $"{nameof(_prefetchPressure)}, {description}"
+                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}, {description}"
                     , maxBlockers: concurrencyLevel,
                     maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,

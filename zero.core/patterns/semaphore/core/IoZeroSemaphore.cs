@@ -149,7 +149,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The cancellation token
         /// </summary>
-        private CancellationToken _asyncToken;
+        private CancellationTokenSource _asyncToken;
         
         /// <summary>
         /// The cancellation token registration
@@ -226,14 +226,14 @@ namespace zero.core.patterns.semaphore.core
         /// This means that the user needs to call this function manually or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
-        /// <param name="asyncToken">The cancellation token</param>
-        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken)
+        /// <param name="asyncTokenSource">The cancellation token</param>
+        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncTokenSource)
         {
             _zeroRef = @ref;
             _zeroWait = new ValueTask<bool>(_zeroRef, 23);
-            _asyncToken = asyncToken;
+            _asyncToken = asyncTokenSource;
 
-            _asyncTokenReg = asyncToken.Register(s =>
+            _asyncTokenReg = asyncTokenSource.Token.Register(s =>
             {
                 var (z, t, r) = (Tuple<IIoZeroSemaphore,CancellationToken,CancellationTokenRegistration>)s;
                 z.Zero();
@@ -252,7 +252,10 @@ namespace zero.core.patterns.semaphore.core
             
             try
             {
+                if(_asyncToken.Token.CanBeCanceled)
+                    _asyncToken.Cancel();
                 _asyncTokenReg.Unregister();
+                _asyncTokenReg.Dispose();
             }
             catch
             {

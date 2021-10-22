@@ -81,7 +81,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 300;
+            var total = 2;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -270,8 +270,8 @@ namespace zero.sync
 
                             var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
                             var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
-                            var fps = localOps * 1000.0 / perfTime.ElapsedMs();
-                            var tfps = totalOps * 1000.0 / totalPerfTime.ElapsedMs();
+                            var fps = localOps / (double)perfTime.ElapsedMsToSec();
+                            var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
                             opsCheckpoint = ThreadPool.CompletedWorkItemCount;
                             try
                             {
@@ -294,8 +294,8 @@ namespace zero.sync
 
                             var localOps = (ThreadPool.CompletedWorkItemCount - opsCheckpoint);
                             var totalOps = (ThreadPool.CompletedWorkItemCount - totalOpsCheckpoint);
-                            var fps = localOps * 1000.0 / perfTime.ElapsedMs();
-                            var tfps = totalOps * 1000.0 / totalPerfTime.ElapsedMs();
+                            var fps = localOps / (double)perfTime.ElapsedMsToSec();
+                            var tfps = totalOps / (double)totalPerfTime.ElapsedMsToSec();
 
                             opsCheckpoint = ThreadPool.CompletedWorkItemCount;
 
@@ -559,7 +559,7 @@ namespace zero.sync
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks.Token, "zero slim", maxBlockers: capacity, maxAsyncWork:0, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, maxAsyncWork:0, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
             var releaseCount = 3;

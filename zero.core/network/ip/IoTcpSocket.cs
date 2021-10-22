@@ -48,9 +48,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// zero managed
         /// </summary>
-        public override async ValueTask ZeroManagedAsync()
+        public override ValueTask ZeroManagedAsync()
         {
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            return base.ZeroManagedAsync();
         }
 
         /// <summary>
@@ -310,6 +310,8 @@ namespace zero.core.network.ip
             return 0;
         }
 
+        private byte[] _sentinelBuf = Array.Empty<byte>();
+        private uint _expensiveCheck = 0;
         /// <inheritdoc />
         /// <summary>
         /// Connection status
@@ -318,9 +320,11 @@ namespace zero.core.network.ip
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool IsConnected()
         {
+            
             try
             {
-                return NativeSocket is {IsBound: true};//&& NativeSocket.Connected;//&& NativeSocket.Send(_sentinelBuffer, SocketFlags.None) == 0;
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0 || true);
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())

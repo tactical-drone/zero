@@ -13,7 +13,7 @@ namespace zero.core.patterns.semaphore
     /// </summary>
     public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
     {
-        public IoZeroSemaphoreSlim(CancellationToken asyncTasks, 
+        public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks, 
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, uint maxAsyncWork = 0, int initialCount = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}", maxBlockers)
         {
@@ -53,7 +53,7 @@ namespace zero.core.patterns.semaphore
             _semaphore.OnCompleted(continuation, state, token, flags);
         }
         
-        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationToken asyncToken)
+        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncToken)
         {
             _semaphore.ZeroRef(ref @ref, asyncToken);
         }

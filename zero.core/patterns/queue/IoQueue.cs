@@ -38,7 +38,7 @@ namespace zero.core.patterns.queue
             
             _syncRoot = new IoZeroSemaphore($"{nameof(_syncRoot)} {description}",
                 maxBlockers: concurrencyLevel, initialCount: 1);
-            _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks.Token);
+            _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
 
             //_syncRoot = new IoZeroRefMut(_asyncTasks.Token);
 
@@ -46,7 +46,7 @@ namespace zero.core.patterns.queue
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
                     maxBlockers: concurrencyLevel, concurrencyLevel: 0, initialCount: 0);
-                _pressure.ZeroRef(ref _pressure, _asyncTasks.Token);
+                _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
             _enableBackPressure = enableBackPressure;
@@ -54,7 +54,7 @@ namespace zero.core.patterns.queue
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
                     maxBlockers: concurrencyLevel, concurrencyLevel: 0, initialCount: concurrencyLevel);
-                _backPressure.ZeroRef(ref _backPressure, _asyncTasks.Token);
+                _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
         }
 

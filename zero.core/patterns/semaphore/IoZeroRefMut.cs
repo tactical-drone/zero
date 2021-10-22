@@ -40,6 +40,11 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
+        public void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncToken)
+        {
+            throw new NotImplementedException();
+        }
+
         public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
             _semaphore.Set();

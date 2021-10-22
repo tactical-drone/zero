@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
-using Org.BouncyCastle.Utilities;
 using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
@@ -178,7 +177,7 @@ namespace zero.cocoon
 
             try
             {
-                if ((Adjunct?.Assimilated??false) && Uptime.ElapsedMs() > parm_min_uptime)
+                if ((Adjunct?.Assimilated??false) && Uptime.ElapsedMsToSec() > parm_min_uptime)
                     _logger.Info($"- {Description}, from: {ZeroedFrom?.Description}");
             }
             catch
@@ -228,14 +227,13 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask DetachNeighborAsync()
         {
-            CcAdjunct latch = null;
-            var state = ValueTuple.Create(this, latch);
+            var state = ValueTuple.Create(this, (CcAdjunct)null);
             await ZeroAtomicAsync(static (_, state, _) =>
             {
                 var (@this, latch) = state;
                 if (@this.Adjunct != null)
                     state.Item2 = @this.Adjunct;
-                
+
                 return new ValueTask<bool>(true);
             },state).FastPath().ConfigureAwait(Zc);
 

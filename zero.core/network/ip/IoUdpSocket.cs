@@ -50,10 +50,10 @@ namespace zero.core.network.ip
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
             _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, prefetchCount, 0);
-            _sendSync.ZeroRef(ref _sendSync, AsyncTasks.Token);
+            _sendSync.ZeroRef(ref _sendSync, AsyncTasks);
 
             _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, prefetchCount, 0);
-            _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks.Token);
+            _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks);
 
             InitHeap(concurrencyLevel, recv);
         }
@@ -93,7 +93,7 @@ namespace zero.core.network.ip
                 Make = static (o, s) =>
                 {
                     IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", 1, 0, 0);
-                    tcs.ZeroRef(ref tcs, s.AsyncTasks.Token);
+                    tcs.ZeroRef(ref tcs, s.AsyncTasks);
                     return tcs;
                 }, 
                 Context = this
