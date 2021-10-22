@@ -94,8 +94,8 @@ namespace zero.core.network.ip
         /// Listens for new connections
         /// </summary>
         /// <param name="connectionReceivedAction">Action to execute when an incoming connection was made</param>
+        /// <param name="nanite">Caller context</param>
         /// <param name="bootstrapAsync">Bootstrap code</param>
-        /// <returns>True on success, false otherwise</returns>
         public virtual ValueTask ListenAsync<T>(Func<T, IoNetClient<TJob>, ValueTask> connectionReceivedAction,
             T nanite = default,
             Func<ValueTask> bootstrapAsync = null)

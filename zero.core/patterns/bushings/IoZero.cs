@@ -677,7 +677,6 @@ namespace zero.core.patterns.bushings
             //Consumer
             _consumerTask = ZeroOptionAsync(static async @this =>
             {
-                //Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
                 //While supposed to be working
                 while (!@this.Zeroed())
                 {

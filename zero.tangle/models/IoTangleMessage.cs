@@ -14,6 +14,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.misc;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.interfaces;
 using zero.interop.entangled.native;
@@ -252,10 +253,10 @@ namespace zero.tangle.models
                         //Add tx to be processed
                         newInteropTransactions.Add(interopTx);
 
-                        TotalTpsCounter.TickAsync();
+                        await TotalTpsCounter.TickAsync().FastPath().ConfigureAwait(false);
                         if (interopTx.AddressBuffer.Length != 0 && interopTx.Value != 0)
                         {         
-                            ValueTpsCounter.TickAsync();
+                            await ValueTpsCounter.TickAsync().FastPath().ConfigureAwait(false);
                             _logger.Info($"{interopTx.AsTrytes(interopTx.AddressBuffer)}, {(interopTx.Value / 1000000).ToString().PadLeft(13, ' ')} Mi, " +
                                          $"[{interopTx.Pow}w, {s.ElapsedMilliseconds}ms, {DatumCount}f, {ValueTpsCounter.Total}/{TotalTpsCounter.Total}tx, {TotalTpsCounter.Fps():#####}/{ValueTpsCounter.Fps():F1} tps]");                            
                         }                                                

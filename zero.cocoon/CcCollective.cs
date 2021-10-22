@@ -369,7 +369,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 60 * 1;
+        public int parm_mean_pat_delay = 60 * 10;
 
 
         /// <summary>
@@ -877,7 +877,6 @@ namespace zero.cocoon
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0, int total = 1)
         {
-            return true;
             Interlocked.Exchange(ref Testing, 1);
             foreach (var ioNeighbor in WhisperingDrones)
             {

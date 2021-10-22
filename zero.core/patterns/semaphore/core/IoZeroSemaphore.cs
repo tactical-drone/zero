@@ -5,15 +5,14 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Org.BouncyCastle.Utilities.Collections;
 using zero.core.patterns.misc;
 
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// Zero Semaphore with experimental auto capacity scaling (disabled by default), set max count manually instead.
+    /// Zero Semaphore with strong order guarantees.
     ///
-    /// When scaling is enabled there is a slight performance hit
+    /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
     public struct IoZeroSemaphore : IIoZeroSemaphore
     {
@@ -25,7 +24,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="initialCount">The initial number of requests that will be non blocking</param>
         /// <param name="concurrencyLevel">The maximum "not-inline" or concurrent workers that this semaphore allows before blocking.</param>
         /// <param name="enableAutoScale">Experimental/dev: Cope with real time concurrency demand changes at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage and memory snowballs and set <see cref="maxBlockers"/> more accurately instead. Scaling down is not supported</param>
-        /// <param name="enableFairQ">Enable fair queueing at the cost of performance, when <see cref="enableAutoScale"/> is enabled</param>
+        /// <param name="enableFairQ">Enable fair queueing at the cost of performance. If not, sometimes <see cref="OnCompleted"/> might jump the queue to save queue performance and resources. Some continuations are effectively not queued in <see cref="OnCompleted"/> when set to true</param>
         /// <param name="enableDeadlockDetection">When <see cref="enableAutoScale"/> is enabled checks for deadlocks within a thread and throws when found</param>
         public IoZeroSemaphore(
             string description, 
@@ -45,7 +44,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
 
             _maxBlockers = maxBlockers;
-            _useMemoryBarrier = enableFairQ;
+            _useMemoryBarrier = _forceFairQ = enableFairQ;
             _maxAsyncWorkers = concurrencyLevel;
             _curSignalCount = initialCount;
             _zeroRef = null;
@@ -71,6 +70,7 @@ namespace zero.core.patterns.semaphore.core
         /// use memory barrier setting
         /// </summary>
         private readonly bool _useMemoryBarrier;
+        private readonly bool _forceFairQ;
 
         #endregion
 
@@ -90,7 +90,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A semaphore description
         /// </summary>
-        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  current = {_zeroRef.ZeroCount()}, qStatus = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}";
+        private string Description => $"{nameof(IoZeroSemaphore)}[{_description}]:  ready = {_zeroRef.ZeroCount()}, wait = {_zeroRef.ZeroWaitCount()}/{_maxBlockers}, async = {_zeroRef.ZeroAsyncCount()}/{_maxAsyncWorkers}";
 
         /// <summary>
         /// The maximum threads that can be blocked by this semaphore. This blocking takes storage
@@ -142,7 +142,7 @@ namespace zero.core.patterns.semaphore.core
         public int Capacity => _maxBlockers;
 
         /// <summary>
-        /// Allows for zero alloc <see cref="ValueTask"/> to be emitted
+        /// Allows for zero alloc <see cref="ValueTask"/> to be emitted. 
         /// </summary>
         private IIoZeroSemaphore _zeroRef;
 
@@ -157,7 +157,7 @@ namespace zero.core.patterns.semaphore.core
         private CancellationTokenRegistration _asyncTokenReg;
         
         /// <summary>
-        /// A "queue" of waiting continuations. The queue has weak order guarantees, but is mostly FIFO 
+        /// A queue of waiting continuations. The queue has strong order guarantees, FIFO
         /// </summary>
         private Action<object>[] _signalAwaiter;
 
@@ -220,7 +220,10 @@ namespace zero.core.patterns.semaphore.core
         }
         
         /// <summary>
-        /// Set ref to this and register cancellation
+        /// Set ref to this (struct address) and register cancellation.
+        ///
+        /// One would have liked to do this in the constructor, but C# currently does not support this.
+        /// This means that the user needs to call this function manually or the semaphore will error out.
         /// </summary>
         /// <param name="ref">The ref to this</param>
         /// <param name="asyncToken">The cancellation token</param>
@@ -293,15 +296,7 @@ namespace zero.core.patterns.semaphore.core
             //acquire lock
             var _ = false;
 
-            //tweak thread priority
-            if (_lock.IsHeld)
-                Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
-
             _lock.Enter(ref _);
-
-            //tweak thread priority
-            if (Thread.CurrentThread.Priority != ThreadPriority.Normal)
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
         }
 
         /// <summary>
@@ -418,8 +413,8 @@ namespace zero.core.patterns.semaphore.core
                     capturedContext = TaskScheduler.Current;
             }
 
-            //fast path
-            if (Signalled())
+            //fast path, but causes a one shot LIFO queue behavior which could be undesirable. For dev I would force fairQ, then later disable to for added test coverage when order guarantees are not needed.
+            if (!_forceFairQ && Signalled())
             {
                 ZeroComply(continuation, state, executionContext, capturedContext, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
                 return;
