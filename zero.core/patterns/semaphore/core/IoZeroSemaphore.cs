@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -488,7 +489,49 @@ namespace zero.core.patterns.semaphore.core
                     case null:
                         if (executionContext != null)
                         {
-                            ThreadPool.QueueUserWorkItem(callback, state, preferLocal: true);
+                            var currentContext = ExecutionContext.Capture();
+                            // Restore the captured ExecutionContext before executing anything.
+                            ExecutionContext.Restore(executionContext);
+
+                            if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                            {
+                                try
+                                {
+                                    ThreadPool.QueueUserWorkItem(callback, state, preferLocal: true);
+                                }
+                                finally
+                                {
+                                    ExecutionContext.Restore(currentContext!);
+                                }
+                            }
+                            else
+                            {
+                                // Running inline may throw; capture the edi if it does as we changed the ExecutionContext,
+                                // so need to restore it back before propagating the throw.
+                                ExceptionDispatchInfo edi = null;
+                                var syncContext = SynchronizationContext.Current;
+                                try
+                                {
+                                    callback(state);
+                                }
+                                catch (Exception ex)
+                                {
+                                    // Note: we have a "catch" rather than a "finally" because we want
+                                    // to stop the first pass of EH here.  That way we can restore the previous
+                                    // context before any of our callers' EH filters run.
+                                    edi = ExceptionDispatchInfo.Capture(ex);
+                                }
+                                finally
+                                {
+                                    // Set sync context back to what it was prior to coming in
+                                    SynchronizationContext.SetSynchronizationContext(syncContext);
+                                    // Restore the current ExecutionContext.
+                                    ExecutionContext.Restore(currentContext!);
+                                }
+
+                                // Now rethrow the exception; if there is one.
+                                edi?.Throw();
+                            }
                         }
                         else
                         {
@@ -502,7 +545,7 @@ namespace zero.core.patterns.semaphore.core
                                     @this.ZeroDecAsyncCount();
                                 }
 
-                                ThreadPool.UnsafeQueueUserWorkItem(Cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
+                                ThreadPool.UnsafeQueueUserWorkItem(Cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: false);
                             }
                             else
                             {
@@ -694,7 +737,6 @@ namespace zero.core.patterns.semaphore.core
                 {
                     _zeroRef.ZeroAddCount(releaseCount - released);
                     //update current count
-                    Console.WriteLine("B");
                     return ValueTask.FromResult(-1);
                 }
             }

@@ -237,7 +237,6 @@ namespace zero.core.misc
                     {
                         await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
                         await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc);
-                        Console.WriteLine(".");
                     }
                 }
             }
