@@ -986,39 +986,38 @@ namespace zero.cocoon.autopeer
 
                                                         var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
 
-                                                        switch ((CcDiscoveries.MessageTypes) packet.Type)
+                                                        if (!@this.Zeroed())
                                                         {
-                                                            case CcDiscoveries.MessageTypes.Ping:
-                                                                await currentRoute.ProcessAsync((Ping)message, extraData, packet);
-                                                                break;
-                                                            case CcDiscoveries.MessageTypes.Pong:
-                                                                await currentRoute.ProcessAsync((Pong)message, extraData, packet);
-                                                                break;
-                                                            case CcDiscoveries.MessageTypes.DiscoveryRequest:
-                                                                await currentRoute.ProcessAsync((DiscoveryRequest)message, extraData, packet);
-                                                                break;
-                                                            case CcDiscoveries.MessageTypes.DiscoveryResponse:
-                                                                await currentRoute.ProcessAsync((DiscoveryResponse) message, extraData, packet);
-                                                                break;
-                                                            case CcDiscoveries.MessageTypes.PeeringRequest:
-                                                                await currentRoute
-                                                                    .ProcessAsync((PeeringRequest) message, extraData,
-                                                                        packet);
-                                                                break;
-                                                            case CcDiscoveries.MessageTypes.PeeringResponse:
-                                                                await currentRoute
-                                                                    .ProcessAsync((PeeringResponse) message, extraData, packet);
-                                                                break;
-                                                            case CcDiscoveries.MessageTypes.PeeringDrop:
-                                                                await currentRoute
-                                                                    .ProcessAsync((PeeringDrop) message, extraData, packet);
-                                                                break;
+                                                            switch ((CcDiscoveries.MessageTypes) packet.Type)
+                                                            {
+                                                                case CcDiscoveries.MessageTypes.Ping:
+                                                                    await currentRoute.ProcessAsync((Ping)message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                                case CcDiscoveries.MessageTypes.Pong:
+                                                                    await currentRoute.ProcessAsync((Pong)message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                                case CcDiscoveries.MessageTypes.DiscoveryRequest:
+                                                                    await currentRoute.ProcessAsync((DiscoveryRequest)message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                                case CcDiscoveries.MessageTypes.DiscoveryResponse:
+                                                                    await currentRoute.ProcessAsync((DiscoveryResponse) message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                                case CcDiscoveries.MessageTypes.PeeringRequest:
+                                                                    await currentRoute.ProcessAsync((PeeringRequest) message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                                case CcDiscoveries.MessageTypes.PeeringResponse:
+                                                                    await currentRoute.ProcessAsync((PeeringResponse) message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                                case CcDiscoveries.MessageTypes.PeeringDrop:
+                                                                    await currentRoute.ProcessAsync((PeeringDrop) message, extraData, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    break;
+                                                            }
                                                         }
                                                     }
                                                     catch when(@this.Zeroed()){}
                                                     catch (Exception e) when (!@this.Zeroed())
                                                     {
-                                                        @this._logger?.Error(e, $"{message.GetType().Name} [FAILED]: l = {packet.Data.Length}, {@this.Key}");
+                                                        @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
                                                     }
                                                 }, @this);
                                             }
@@ -1037,7 +1036,7 @@ namespace zero.cocoon.autopeer
                                     }
                                 }
 
-                                if (!await @this._consumeTaskPool[^1].FastPath())
+                                if (!await @this._consumeTaskPool[^1].FastPath().ConfigureAwait(@this.Zc))
                                     break;
                             }
                         }
@@ -2220,7 +2219,8 @@ namespace zero.cocoon.autopeer
                 AdjunctState oldState;
                 if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified)) != AdjunctState.Verified)
                 {
-                    _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Verified)}");
+                    if(Collected)
+                        _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Verified)}");
                     return false;
                 }
                 
