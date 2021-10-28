@@ -21,6 +21,7 @@ using zero.core.core;
 using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
+using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.semaphore;
 using Packet = Proto.Packet;
@@ -90,6 +91,15 @@ namespace zero.cocoon
 
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
+
+            DupHeap = new IoHeap<ConcurrentBag<string>>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
+            {
+                Make = static (o, s) => new ConcurrentBag<string>(),
+                Prep = (popped, endpoint) =>
+                {
+                    popped.Add((string)endpoint);
+                }
+            };
 
             //ensure robotics
             ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter();
@@ -173,6 +183,7 @@ namespace zero.cocoon
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
+            DupHeap = null;
             _logger = null;
             _autoPeering = null;
             _autoPeeringTask = default;
@@ -218,6 +229,8 @@ namespace zero.cocoon
             {
                 
             }
+
+            await DupHeap.ClearAsync().FastPath().ConfigureAwait(Zc);
         }
 
         private Logger _logger;
@@ -242,6 +255,9 @@ namespace zero.cocoon
 
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new ConcurrentDictionary<long, ConcurrentBag<string>>();
+        public IoHeap<ConcurrentBag<string>> DupHeap { get; protected set; }
+
+        private uint _dupPoolSize = 2000;
 
         /// <summary>
         /// Bootstrap
@@ -474,12 +490,6 @@ namespace zero.cocoon
         private readonly int _handshakeResponseSize;
         private readonly int _handshakeBufferSize;
         public long Testing;
-
-
-        //public new ValueTask<bool> ZeroAtomicAsync(Func<IIoNanite, object, bool, ValueTask<bool>> ownershipAction, object userData = null, bool disposing = false, bool force = false)
-        //{
-        //    return base.ZeroAtomicAsync(ownershipAction, userData, disposing, force);
-        //}
 
         /// <summary>
         /// Perform handshake

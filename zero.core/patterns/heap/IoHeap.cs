@@ -214,7 +214,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="zero">Whether to destroy this object</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual ValueTask ReturnAsync(TItem item, bool zero = false)
+        public virtual async ValueTask ReturnAsync(TItem item, bool zero = false)
         {
 #if DEBUG
              if (item == null)
@@ -222,7 +222,8 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
+                if(_ioFpsCounter != default)
+                    await _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc);
 
                 if (!zero)
                     _ioHeapBuf.Add(item);
@@ -231,15 +232,12 @@ namespace zero.core.patterns.heap
                 
                 Interlocked.Decrement(ref _refCount);
             }
-            catch (Exception e) when(_zeroed > 0){ return ValueTask.FromException(e); }
-            catch (Exception e) when(_ioHeapBuf.Zeroed){ return ValueTask.FromException(e); }
+            catch (Exception) when(_zeroed > 0){ }
+            catch (Exception) when(_ioHeapBuf.Zeroed){ }
             catch (NullReferenceException e) when(!_ioHeapBuf.Zeroed && _zeroed == 0)
             {
                 _logger.Fatal(e ,$"{item}: Unexpected error while returning item to the heap! ");
-                return ValueTask.FromException(e);
             }
-
-            return ValueTask.CompletedTask;
         }
 
         /// <summary>

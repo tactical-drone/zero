@@ -10,7 +10,7 @@ namespace zero.core.misc
     /// <summary>
     /// A basic fps counter
     /// </summary>
-    public struct IoFpsCounter
+    public class IoFpsCounter
     {
         /// <summary>
         /// ConstructAsync
@@ -79,7 +79,7 @@ namespace zero.core.misc
         /// ReturnAsync current fps
         /// </summary>
         /// <returns></returns>
-        public readonly double Fps()
+        public double Fps()
         {
             if (_disabled)
                 return 99;

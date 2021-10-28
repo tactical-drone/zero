@@ -582,6 +582,16 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
+        /// Zeroed?
+        /// </summary>
+        /// <returns>True if zeroed</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public override bool Zeroed()
+        {
+            return base.Zeroed() || Source.Zeroed();
+        }
+
+        /// <summary>
         /// zero unmanaged
         /// </summary>
         public override void ZeroUnmanaged()

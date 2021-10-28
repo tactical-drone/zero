@@ -24,17 +24,6 @@ namespace zero.cocoon.models
         public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
 
-            //_protocolMsgBatch = _arrayPool.Rent(parm_max_msg_batch_size);
-            //_batchMsgHeap = new IoHeap<CcGossipBatch>(concurrencyLevel) { Make = o => new CcGossipBatch() };
-
-            _dupHeap = new IoHeap<ConcurrentBag<string>>($"{nameof(_dupHeap)}: {sinkDesc} ~> {jobDesc}", _poolSize * 2)
-            {
-                Make = static (o,s) => new ConcurrentBag<string>(),
-                Prep = (popped, endpoint) =>
-                {
-                    popped.Add((string) endpoint);
-                }
-            };
         }
 
         /// <summary>
@@ -53,7 +42,7 @@ namespace zero.cocoon.models
             //    batchMsg.RemoteEndPoint = null;
             //});
 
-            await _dupHeap.ClearAsync().FastPath().ConfigureAwait(Zc);
+            //await _dupHeap.ClearAsync().FastPath().ConfigureAwait(Zc);
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
@@ -62,7 +51,7 @@ namespace zero.cocoon.models
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            _dupHeap = null;
+            //_dupHeap = null;
             //_arrayPool = null;
             //_batchMsgHeap = null;
             base.ZeroUnmanaged();
@@ -104,12 +93,9 @@ namespace zero.cocoon.models
         /// </summary>
         readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
-        private IoHeap<ConcurrentBag<string>> _dupHeap;
-        private uint _poolSize = 10000;
-        private long _maxReq = int.MinValue;
-
-        // private ArrayPool<CcGossipBatch> _arrayPool = ArrayPool<CcGossipBatch>.Shared;
-        // private readonly int _concurrencyLevel;
+        //private IoHeap<ConcurrentBag<string>> _dupHeap;
+        //private uint _poolSize = 50;
+        //private long _maxReq = int.MinValue;
 
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
@@ -168,8 +154,6 @@ namespace zero.cocoon.models
                     
                     //read the token
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
-                    if (req > _maxReq)
-                        _maxReq = req;
 
                     try
                     {
@@ -179,15 +163,15 @@ namespace zero.cocoon.models
                             continue;
                         }
                         
-                        if (CcCollective.DupChecker.Count > _poolSize * 4 / 5)
+                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize * 2 / 3)
                         {
-                            var culled = CcCollective.DupChecker.Keys.Where(k => k < _maxReq - _poolSize / 2).ToList();
+                            var culled = CcCollective.DupChecker.Keys.Where(k => k < req).ToList();
                             foreach (var mId in culled)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
                                 {
                                     del.Clear();
-                                    await _dupHeap.ReturnAsync(del).FastPath().ConfigureAwait(Zc);
+                                    await CcCollective.DupHeap.ReturnAsync(del).FastPath().ConfigureAwait(Zc);
                                 }
                             }
                         }
@@ -220,7 +204,6 @@ namespace zero.cocoon.models
                             //PrintStateHistory();
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
-                        
                     }
 
                     if (State != IoJobMeta.JobState.Consumed)
@@ -230,16 +213,16 @@ namespace zero.cocoon.models
                     //set this message as seen if seen before
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
                         .RemoteAddress;
-                    var dupEndpoints = await _dupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
+                    var dupEndpoints = await CcCollective.DupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
 
                     if (dupEndpoints == null)
                         throw new OutOfMemoryException(
-                            $"{_dupHeap}: {_dupHeap.ReferenceCount}/{_dupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = {_maxReq}");
+                            $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
 
                     if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                     {
                         dupEndpoints.Clear();
-                        await _dupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
+                        await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
 
                         //best effort
                         if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))
