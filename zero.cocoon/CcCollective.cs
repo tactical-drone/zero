@@ -252,12 +252,11 @@ namespace zero.cocoon
         private readonly IoNodeAddress _peerAddress;
 
         readonly Random _random = new((int)DateTime.Now.Ticks);
-
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
-        public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new ConcurrentDictionary<long, ConcurrentBag<string>>();
+        public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new();
         public IoHeap<ConcurrentBag<string>> DupHeap { get; protected set; }
 
-        private uint _dupPoolSize = 2000;
+        private uint _dupPoolSize = 100;
 
         /// <summary>
         /// Bootstrap
@@ -303,15 +302,15 @@ namespace zero.cocoon
         /// </summary>
         public int TotalConnections => IngressCount + EgressCount;
 
-        public List<CcDrone> IngressDrones => Drones.Where(kv=> kv.Adjunct.IsIngress).ToList();
+        public List<CcDrone> IngressDrones => Drones?.Where(kv=> kv.Adjunct.IsIngress).ToList();
 
-        public List<CcDrone> EgressDrones => Drones.Where(kv => kv.Adjunct.IsEgress).ToList();
+        public List<CcDrone> EgressDrones => Drones?.Where(kv => kv.Adjunct.IsEgress).ToList();
 
-        public List<CcDrone> Drones => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsDroneConnected: true }).Cast<CcDrone>().ToList();
+        public List<CcDrone> Drones => Neighbors?.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsDroneConnected: true }).Cast<CcDrone>().ToList();
 
-        public List<CcAdjunct> Adjuncts => Hub.Neighbors.Values.Where(kv => ((CcAdjunct)kv).State > CcAdjunct.AdjunctState.Unverified).Cast<CcAdjunct>().ToList();
+        public List<CcAdjunct> Adjuncts => Hub?.Neighbors?.Values.Where(kv => ((CcAdjunct)kv).State > CcAdjunct.AdjunctState.Unverified).Cast<CcAdjunct>().ToList();
 
-        public List<CcDrone> WhisperingDrones => Neighbors.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsGossiping: true }).Cast<CcDrone>().ToList();
+        public List<CcDrone> WhisperingDrones => Neighbors?.Values.Where(kv => ((CcDrone)kv).Adjunct is { IsGossiping: true }).Cast<CcDrone>().ToList();
 
         /// <summary>
         /// Number of inbound neighbors

@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder.Extensions;
 using NLog;
 using zero.core.conf;
 using zero.core.data.market;
@@ -66,7 +64,7 @@ namespace zero.core.core
         /// <summary>
         /// All the neighbors connected to this node
         /// </summary>
-        public ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors = new();
+        public ConcurrentDictionary<string, IoNeighbor<TJob>> Neighbors { get; protected set; } = new();
 
         /// <summary>
         /// Allowed clients
@@ -117,9 +115,15 @@ namespace zero.core.core
         /// </summary>
         protected virtual async ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<TJob>, T, ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
+            //clear previous attempts
             if (_netServer != null)
-                throw new ConstraintException("The network has already been started");
-
+            {
+                await _netServer.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                _netServer = null;
+                return;
+            }
+            
+            //start the listener
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
@@ -363,13 +367,14 @@ namespace zero.core.core
             _logger.Trace($"Unimatrix Zero: {Description}");
             try
             {
-                while (!Zeroed())
+                var retry = 3;
+                while (!Zeroed() && retry-- > 0)
                 {
                     await SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath().ConfigureAwait(Zc);
                     _logger.Warn($"Listener restart... {Description}");
                 }
 
-                _logger.Trace($"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask})");
+                _logger.Trace($"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");
             }
             catch when(Zeroed()){}
             catch  (Exception e) when(!Zeroed())

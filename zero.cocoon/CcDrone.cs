@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -189,10 +190,10 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
-
-        public new ValueTask<bool> ZeroAsync(IIoNanite from)
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public override bool Zeroed()
         {
-            return base.ZeroAsync(from);
+            return base.Zeroed() || Source.Zeroed();
         }
 
         /// <summary>

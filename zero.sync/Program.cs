@@ -65,7 +65,7 @@ namespace zero.sync
             //QueueTestAsync();
             
             LogManager.LoadConfiguration("nlog.config");
-            var portOffset = -2000;
+            var portOffset = 0;
             
 #if DEBUG
             portOffset = 0;
@@ -79,32 +79,32 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 600;
+            var total = 1200;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
             {
-                CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{14627}",
-                    $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{14627}", new[] {$"udp://127.0.0.1:{14626}"}.ToList(),
+                CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{1234}",
+                    $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{1234}", new[] {$"udp://127.0.0.1:{1233}"}.ToList(),
                     0),
                 CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15670 + portOffset}",
-                    $"udp://127.0.0.1:{15630 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}",
-                    $"udp://127.0.0.1:{15630 + portOffset}",
+                    $"udp://127.0.0.1:{1235 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}",
+                    $"udp://127.0.0.1:{1235 + portOffset}",
                     new[]
                     {
-                        $"udp://127.0.0.1:{14627}", $"udp://127.0.0.1:{14627 + portOffset}",
+                        $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234 + portOffset}",
                         $"udp://127.0.0.1:{15631 + portOffset}"
                     }.ToList(), 1)
             };
 
-            //tasks.Add(CoCoonAsync(CcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{14627 + portOffset}", new[] { $"udp://127.0.0.1:{14626 + portOffset}", $"udp://127.0.0.1:{14626}" }.ToList(), 0));
+            //tasks.Add(CoCoonAsync(CcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{1234 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{1234 + portOffset}", new[] { $"udp://127.0.0.1:{1233 + portOffset}", $"udp://127.0.0.1:{1233}" }.ToList(), 0));
 
             for (var i = 2; i < total; i++)
             {
-                //tasks.Add(CoCoonAsync(CcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
-                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15629 + portOffset + i - 2}", $"udp://127.0.0.1:{15629 + portOffset + (total - i + 2) % (total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + Math.Abs(total/2 - i + 2)%(total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + (total / 2 + i - 2) % (total - 2)}", $"udp://127.0.0.1:{15629 + portOffset + random.Next(total - 2)}" }.ToList(), i));
-                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{14626}", $"udp://127.0.0.1:{14627}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(16)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(16)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{15630 + portOffset + random.Next(i)}" }.ToList(), i));
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{15629 + portOffset + i}", new[] { $"udp://127.0.0.1:{15629 + portOffset + i - 1}", $"udp://127.0.0.1:{15629 + portOffset + (i + 8) % total}" }.ToList(), i));
+                //tasks.Add(CoCoonAsync(CcIdentity.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", Enumerable.Range(0, 16).Select(i => $"udp://127.0.0.1:{1234 + portOffset + random.Next(total - 1)/* % (total/6 + 1)*/}").ToList(), i));
+                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 2}", $"udp://127.0.0.1:{1234 + portOffset + (total - i + 2) % (total - 2)}", $"udp://127.0.0.1:{1234 + portOffset + Math.Abs(total/2 - i + 2)%(total - 2)}", $"udp://127.0.0.1:{1234 + portOffset + (total / 2 + i - 2) % (total - 2)}", $"udp://127.0.0.1:{1234 + portOffset + random.Next(total - 2)}" }.ToList(), i));
+                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1233}", $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(16)}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(16)}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(i)}", $"udp://127.0.0.1:{1235 + portOffset + random.Next(i)}" }.ToList(), i));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + 8) % total}" }.ToList(), i));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
@@ -215,43 +215,48 @@ namespace zero.sync
                         uptimeCount = 1;
                         foreach (var ioCcNode in _nodes)
                         {
-
-                            opeers += ioCcNode.Drones.Count;
-                            var e = ioCcNode.EgressCount;
-                            var i = ioCcNode.IngressCount;
-                            minOut = Math.Min(minOut, e);
-                            minIn = Math.Min(minIn, i);
-                            if (ioCcNode.TotalConnections == 0)
-                                empty++;
-                            if (ioCcNode.EgressCount == 0)
-                                minOutC++;
-                            if (ioCcNode.IngressCount == 0)
-                                minInC++;
-
-                            if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)
+                            try
                             {
-                                Console.WriteLine($"[{ioCcNode.Description}]");
-                                foreach (var d in ioCcNode.Neighbors.Values)
+                                opeers += ioCcNode.Drones.Count;
+                                var e = ioCcNode.EgressCount;
+                                var i = ioCcNode.IngressCount;
+                                minOut = Math.Min(minOut, e);
+                                minIn = Math.Min(minIn, i);
+                                if (ioCcNode.TotalConnections == 0)
+                                    empty++;
+                                if (ioCcNode.EgressCount == 0)
+                                    minOutC++;
+                                if (ioCcNode.IngressCount == 0)
+                                    minInC++;
+
+                                if (ioCcNode.TotalConnections > ioCcNode.MaxDrones)
                                 {
-                                    var drone = (CcDrone) d;
-                                    Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
+                                    Console.WriteLine($"[{ioCcNode.Description}]");
+                                    foreach (var d in ioCcNode.Neighbors.Values)
+                                    {
+                                        var drone = (CcDrone) d;
+                                        Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
+                                    }
                                 }
-                            }
-                                
-
-                            ooutBound += e;
-                            oinBound += i;
-                            oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).Proxy);
                             
-                            uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
-                            {
-                                if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
-                                    return ((CcAdjunct)n).AttachTimestamp.Elapsed();
+                                ooutBound += e;
+                                oinBound += i;
+                                oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).Proxy);
+                            
+                                uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
+                                {
+                                    if (((CcAdjunct)n).IsDroneConnected && ((CcAdjunct)n).AttachTimestamp > 0)
+                                        return ((CcAdjunct)n).AttachTimestamp.Elapsed();
                                 
-                                return 0;
-                            }).Sum();
+                                    return 0;
+                                }).Sum();
 
-                            uptimeCount += ioCcNode.TotalConnections;
+                                uptimeCount += ioCcNode.TotalConnections;
+                            }
+                            catch 
+                            {
+                                
+                            }
                         }
 
                         if (outBound != ooutBound || inBound != oinBound || available != oavailable || opeers != peers)
