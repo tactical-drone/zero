@@ -159,7 +159,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(500).ConfigureAwait(Zc);
+                    await Task.Delay(100).ConfigureAwait(Zc);
                 }
                 
             });

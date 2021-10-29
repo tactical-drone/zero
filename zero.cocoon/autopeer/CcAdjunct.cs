@@ -51,9 +51,9 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 5);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 5);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 10, CcCollective.MaxAdjuncts * 5);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
 
             if (extraData != null)
             {
@@ -1178,7 +1178,7 @@ namespace zero.cocoon.autopeer
                 if (peeringResponse.Status)
                 {
                     AdjunctState oldState;
-                    if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified)) != AdjunctState.Verified)
+                    if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified)) != AdjunctState.Verified && (int)oldState != -1)
                     {
                         _logger.Warn($"{Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Verified)}");
                         peeringResponse.Status = false;
@@ -1244,7 +1244,7 @@ namespace zero.cocoon.autopeer
                     if (!await ConnectAsync().FastPath().ConfigureAwait(Zc))
                     {
                         AdjunctState oldState;
-                        if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+                        if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
                             _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
                         
                         _logger.Trace($"{nameof(PeeringResponse)}: FAILED to connect to {Description}");
@@ -1256,7 +1256,7 @@ namespace zero.cocoon.autopeer
                 {
 
                     AdjunctState oldState;
-                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
                         _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
 
                     if (_peerRequestsSentCount > 1)
@@ -1274,7 +1274,7 @@ namespace zero.cocoon.autopeer
                 case false:
                 {
                     AdjunctState oldState;
-                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
                         _logger.Warn($"{nameof(PeeringResponse)}{Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
                     
                     break;
@@ -1968,7 +1968,7 @@ namespace zero.cocoon.autopeer
                         $"udp://{pong.DstAddr}:{CcCollective.Services.CcRecord.Endpoints[CcService.Keys.peering].Port}");
 
                 AdjunctState oldState;
-                if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified)
+                if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Unverified)) != AdjunctState.Unverified && (int)oldState != -1)
                 {
                     _logger.Warn($"{nameof(Pong)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Unverified)}");
                     return;
@@ -2227,7 +2227,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 AdjunctState oldState;
-                if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified)) != AdjunctState.Verified)
+                if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified)) != AdjunctState.Verified && (int)oldState != -1)
                 {
                     if(Collected)
                         _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Verified)}");
@@ -2350,7 +2350,7 @@ namespace zero.cocoon.autopeer
                 //raced?
                 if (IsDroneAttached)
                 {
-                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, (AdjunctState)_currState.Value)) != AdjunctState.Peering)
+                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, (AdjunctState)_currState.Value)) != AdjunctState.Peering && (int)oldState != -1)
                         _logger.Warn($"{nameof(AttachPeerAsync)} - {Description}:1 Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
                     
                     return false;
@@ -2365,7 +2365,7 @@ namespace zero.cocoon.autopeer
                         direction == Heading.Egress && @this.CcCollective.EgressCount >= @this.CcCollective.parm_max_outbound)
                     {
                         AdjunctState oldState;
-                        if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+                        if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
                             @this._logger.Warn($"{nameof(AttachPeerAsync)} - {@this.Description}:2 Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
 
                         return new ValueTask<bool>(false);
@@ -2379,7 +2379,7 @@ namespace zero.cocoon.autopeer
                             $"oz: race for {direction} lost {ioCcDrone.Description}, current = {@this.Direction}, {@this._drone?.Description}");
 
                         AdjunctState oldState;
-                        if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+                        if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
                             @this._logger.Warn($"{nameof(AttachPeerAsync)} - {@this.Description}:3 Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
 
                         return new ValueTask<bool>(false);
@@ -2422,7 +2422,7 @@ namespace zero.cocoon.autopeer
                 _logger.Trace(e, Description);
             }
 
-            if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
+            if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
                 _logger.Warn($"{nameof(AttachPeerAsync)} - {Description}:5 Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
             return false;
         }

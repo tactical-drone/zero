@@ -237,7 +237,6 @@ namespace zero.core.patterns.queue
                 Debug.Assert(item != null);
                 return null;
             }
-                
             
             var blocked = false;
             try

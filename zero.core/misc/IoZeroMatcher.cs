@@ -229,15 +229,18 @@ namespace zero.core.misc
         /// <returns>A value task</returns>
         private async ValueTask PurgeAsync()
         {
-            if (_lut.Count > _capacity * 4 / 5)
+            if (_lut.Count > _capacity * 2 / 3)
             {
-                for (var n = _lut.Tail; n != null; n = n.Prev)
+                var n = _lut.Tail;
+                while (n != null)
                 {
+                    var t = n.Prev;
                     if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
                         await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
                         await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc);
                     }
+                    n = t;
                 }
             }
         }

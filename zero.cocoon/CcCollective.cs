@@ -895,7 +895,7 @@ namespace zero.cocoon
                 }
                 try
                 {
-                    await ((CcDrone) ioNeighbor).EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
+                    await ioNeighbor.EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
                     return true;
                 }
                 catch when(Zeroed()){}
