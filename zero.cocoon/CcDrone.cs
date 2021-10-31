@@ -223,19 +223,16 @@ namespace zero.cocoon
             return attached;
         }
 
-
-        internal class DetachNeighborAsyncResponse
-        {
-            public CcDrone @this;
-            public CcAdjunct detached;
-        }
-
         /// <summary>
         /// Detaches current neighbor
         /// </summary>
         public async ValueTask DetachNeighborAsync()
         {
-            await Adjunct.DetachPeerAsync().FastPath().ConfigureAwait(Zc);
+            if (Adjunct != null)
+            {
+                await Adjunct.DetachPeerAsync().FastPath().ConfigureAwait(Zc);
+                Adjunct = null;
+            }
         }
 
         /// <summary>
