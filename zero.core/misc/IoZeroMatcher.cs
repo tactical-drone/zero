@@ -85,6 +85,16 @@ namespace zero.core.misc
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
+
+        internal class ChallengeAsyncResponse
+        {
+            public IoZeroMatcher<T> @this;
+            public string key;
+            public T body;
+            public IoQueue<IoChallenge>.IoZNode node;
+        }
+
+
         /// <summary>
         /// Present a challenge
         /// </summary>
@@ -95,51 +105,58 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
         {
-            IoChallenge challenge = null;
-            IoQueue<IoChallenge>.IoZNode node = null;
-            try
+            IoQueue<IoChallenge>.IoZNode node = new IoQueue<IoChallenge>.IoZNode();
+            var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
+            await ZeroAtomicAsync(static async (_, state, __) =>
             {
-                if ((challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(Zc)) == null)
-                {
-                    await ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(Zc);
-
-                    challenge = await _valHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
-                    if (challenge == null)
-                        throw new OutOfMemoryException(
-                        $"{Description}: {nameof(_valHeap)} - heapSize = {_valHeap.Count}, ref = {_valHeap.ReferenceCount}");
-                }
-                
-                challenge.Payload = body;
-                challenge.Key = key;
-                challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                challenge.Hash = 0;
-
-                node = await _lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(Zc);
-                return node;
-            }
-            catch when(Zeroed()){}
-            catch (Exception e) when(!Zeroed())
-            {
-                LogManager.GetCurrentClassLogger().Fatal(e);
-                // ignored
-            }
-            finally
-            {
-                if (challenge!= null && node == null && _valHeap != null)
-                    await _valHeap.ReturnAsync(challenge).FastPath().ConfigureAwait(Zc);
-
+                IoChallenge challenge = null;
                 try
                 {
-                    await PurgeAsync().FastPath().ConfigureAwait(Zc);
+                    if ((challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc)) == null)
+                    {
+                        await state.@this.ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(state.@this.Zc);
+
+                        challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc);
+                        if (challenge == null)
+                            throw new OutOfMemoryException(
+                                $"{state.@this.Description}: {nameof(_valHeap)} - heapSize = {state.@this._valHeap.Count}, ref = {state.@this._valHeap.ReferenceCount}");
+                    }
+
+                    challenge.Payload = state.body;
+                    challenge.Key = state.key;
+                    challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    challenge.Hash = 0;
+                    var n = await state.@this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
+                    state.node = n;
                 }
-                catch (Exception e)
+                catch when (state.@this.Zeroed())
                 {
-                    LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {Description}");
+                }
+                catch (Exception e) when (!state.@this.Zeroed())
+                {
+                    LogManager.GetCurrentClassLogger().Fatal(e);
                     // ignored
                 }
-            }
+                finally
+                {
+                    if (challenge != null && state.node == null && state.@this._valHeap != null)
+                        await state.@this._valHeap.ReturnAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
 
-            return null;
+                    try
+                    {
+                        await state.@this.PurgeAsync().FastPath().ConfigureAwait(state.@this.Zc);
+                    }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {state.@this.Description}");
+                        // ignored
+                    }
+                }
+
+                return true;
+            }, state).FastPath().ConfigureAwait(false);
+
+            return state.node;
         }
         
         [ThreadStatic]
@@ -159,68 +176,74 @@ namespace zero.core.misc
         /// <returns>The response payload</returns>
         public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            IoChallenge potential = default;
-            var cmp = reqHash.Memory;
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            try
+            return await ZeroAtomicAsync(static async (_, state, __) =>
             {
-                var cur = _lut.Tail;
-                while(cur != null)
-                {
-                    //restart on collisions
-                    if (_lut.Modified)
-                    {
-                        cur = _lut.Tail;
-                        Thread.Yield();
-                        continue;
-                    }
-                    if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
-                    {
-                        potential = cur.Value;
-                        if (potential.Hash == 0)
-                        {
-                            var h = ArrayPool<byte>.Shared.Rent(32);
-                            if (!Sha256.TryComputeHash((potential.Payload as ByteString)!.Memory.Span,
-                                h, out var written))
-                            {
-                                LogManager.GetCurrentClassLogger().Fatal($"{_description}: Unable to compute hash");
-                            }
-
-                            potential.Payload = default;
-                            potential.Hash = MemoryMarshal.Read<long>(h);
-                            ArrayPool<byte>.Shared.Return(h);
-                        }
-
-                        if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
-                        {
-                            await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(Zc);
-                            await _valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(Zc);
-                            return  potential.TimestampMs.ElapsedMs() < _ttlMs;
-                        }
-                    }
-                    
-                    //drop old ones while we are at it
-                    if (cur.Value.TimestampMs.ElapsedMs() > _ttlMs)
-                    {
-                        await _lut.RemoveAsync(cur).FastPath().ConfigureAwait(Zc);
-                        await _valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(Zc);
-                    }
-                    cur = cur.Prev;
-                }
-            }
-            finally
-            {
+                var (@this, key,reqHash) = state;
+                var cmp = reqHash.Memory;
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    await PurgeAsync().FastPath().ConfigureAwait(Zc);
+                    var cur = @this._lut.Tail;
+                    while (cur != null)
+                    {
+                        //restart on collisions
+                        if (@this._lut.Modified)
+                        {
+                            cur = @this._lut.Tail;
+                            Thread.Yield();
+                            continue;
+                        }
+
+                        if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
+                        {
+                            var potential = cur.Value;
+                            if (potential.Hash == 0)
+                            {
+                                var h = ArrayPool<byte>.Shared.Rent(32);
+                                if (!Sha256.TryComputeHash((potential.Payload as ByteString)!.Memory.Span,
+                                        h, out var written))
+                                {
+                                    LogManager.GetCurrentClassLogger().Fatal($"{@this._description}: Unable to compute hash");
+                                }
+
+                                potential.Payload = default;
+                                potential.Hash = MemoryMarshal.Read<long>(h);
+                                ArrayPool<byte>.Shared.Return(h);
+                            }
+
+                            if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
+                            {
+                                await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                                await @this._valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(@this.Zc);
+                                return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
+                            }
+                        }
+
+                        //drop old ones while we are at it
+                        if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
+                        {
+                            await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                            await @this._valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(@this.Zc);
+                        }
+
+                        cur = cur.Prev;
+                    }
                 }
-                catch(Exception e)
+                finally
                 {
-                    LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {Description}");
-                    // ignored
+                    try
+                    {
+                        await @this.PurgeAsync().FastPath().ConfigureAwait(@this.Zc);
+                    }
+                    catch (Exception e)
+                    {
+                        LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {@this.Description}");
+                        // ignored
+                    }
                 }
-            }
-            return false;
+
+                return false;
+            }, (this,key,reqHash)).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

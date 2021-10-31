@@ -118,7 +118,7 @@ namespace zero.cocoon
             while (!@this.Zeroed())
             {
                 //periodically
-                await Task.Delay((_random.Next(@this.parm_mean_pat_delay / 4) + @this.parm_mean_pat_delay / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(Zc);
+                await Task.Delay((_random.Next(@this.parm_mean_pat_delay / 5) + @this.parm_mean_pat_delay / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(Zc);
                 
                 if (@this.Zeroed())
                     break;
@@ -153,12 +153,16 @@ namespace zero.cocoon
                                 .OrderBy(n => ((CcAdjunct)n).Priority)
                                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                             {
-                                await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc);
+                                if (!Zeroed())
+                                    await ((CcAdjunct)adjunct).SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc);
+                                else
+                                    break;
+
                                 c++;
                             }
                         }
 
-                        if (@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay)
+                        if (@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay && !Zeroed())
                         {
                             //bootstrap if alone
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(Zc);

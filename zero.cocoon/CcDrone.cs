@@ -223,23 +223,19 @@ namespace zero.cocoon
             return attached;
         }
 
+
+        internal class DetachNeighborAsyncResponse
+        {
+            public CcDrone @this;
+            public CcAdjunct detached;
+        }
+
         /// <summary>
         /// Detaches current neighbor
         /// </summary>
         public async ValueTask DetachNeighborAsync()
         {
-            var state = ValueTuple.Create(this, (CcAdjunct)null);
-            await ZeroAtomicAsync(static (_, state, _) =>
-            {
-                var (@this, latch) = state;
-                if (@this.Adjunct != null)
-                    state.Item2 = @this.Adjunct;
-
-                return new ValueTask<bool>(true);
-            },state).FastPath().ConfigureAwait(Zc);
-
-            if(state.Item2 != null)
-                await state.Item2.DetachPeerAsync().FastPath().ConfigureAwait(Zc);
+            await Adjunct.DetachPeerAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

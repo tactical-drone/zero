@@ -236,11 +236,11 @@ namespace zero.core.patterns.semaphore.core
 
             _asyncTokenReg = asyncTokenSource.Token.Register(s =>
             {
-                var (z, t, r) = (Tuple<IIoZeroSemaphore,CancellationToken,CancellationTokenRegistration>)s;
+                var (z, t, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
                 z.Zero();
                 r.Unregister();
                 r.Dispose();
-            }, Tuple.Create(_zeroRef,_asyncToken, _asyncTokenReg));
+            }, ValueTuple.Create(_zeroRef,_asyncToken, _asyncTokenReg));
         }
 
         /// <summary>

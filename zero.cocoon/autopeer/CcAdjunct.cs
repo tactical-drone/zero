@@ -51,7 +51,7 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 4);
             _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
             _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
 
@@ -931,72 +931,73 @@ namespace zero.cocoon.autopeer
                                 //consume
                                 for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
                                 {
-                                    try
+                                   
+                                    @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (batchJob, @this) =>
                                     {
-                                        @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (batchJob, @this) =>
+                                        try
                                         {
-                                            try
+                                            await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit,static async (msgBatch, discoveryBatch, ioConduit, @this) =>
                                             {
-                                                await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit,static async (msgBatch, discoveryBatch, ioConduit, @this) =>
+                                                IMessage message = default;
+                                                Packet packet = default;
+                                                try
                                                 {
-                                                    IMessage message = default;
-                                                    Packet packet = default;
+                                                    message = msgBatch.EmbeddedMsg;
+                                                    packet = msgBatch.Message;
+                                                
+                                                    var routed = @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out var currentRoute);
+                                                    //Router
                                                     try
                                                     {
-                                                        message = msgBatch.EmbeddedMsg;
-                                                        packet = msgBatch.Message;
-                                                    
-                                                        var routed = @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out var currentRoute);
-                                                        //Router
-                                                        try
+                                                        if (!routed)
                                                         {
-                                                            if (!routed)
+                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.Key == discoveryBatch.RemoteEndPoint);
+                                                            if (currentRoute != null)
                                                             {
-                                                                currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.Key == discoveryBatch.RemoteEndPoint);
-                                                                if (currentRoute != null)
+                                                                //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
+                                                                if (!@this.Router._routingTable.TryAdd(discoveryBatch.RemoteEndPoint, currentRoute))
                                                                 {
-                                                                    //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
-                                                                    if (!@this.Router._routingTable.TryAdd(discoveryBatch.RemoteEndPoint, currentRoute))
-                                                                    {
-                                                                        @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out currentRoute);
-                                                                    }
-                                                                    else
-                                                                    {
+                                                                    @this.Router._routingTable.TryGetValue(discoveryBatch.RemoteEndPoint, out currentRoute);
+                                                                }
+                                                                else
+                                                                {
 #if DEBUG
-                                                                        @this._logger.Trace($"Added new route: {@this.Description}");
+                                                                    @this._logger.Trace($"Added new route: {@this.Description}");
 #endif
-                                                                    }
-                                                                }
-                                                            }
-                                                            else
-                                                            {
-                                                                //validate
-                                                                for (var j = 2; j < 4; j++)
-                                                                {
-                                                                    for (var i = j; i < currentRoute!.Designation.PublicKey.Length; i += i)
-                                                                    {
-                                                                        if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
-                                                                        {
-                                                                            @this._logger.Warn($"{nameof(@this.Router)}: Dropped incoming {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
-                                                                            await currentRoute.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
-                                                                            currentRoute = null;
-                                                                        }
-                                                                    }
                                                                 }
                                                             }
                                                         }
-                                                        catch when(@this.Zeroed()){return;}
-                                                        catch (Exception e) when(!@this.Zeroed())
+                                                        else
                                                         {
-                                                            @this._logger.Error(e, @this.Description);
-                                                            return;
+                                                            //validate
+                                                            for (var j = 2; j < 4; j++)
+                                                            {
+                                                                for (var i = j; i < currentRoute!.Designation.PublicKey.Length; i += i)
+                                                                {
+                                                                    if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                                    {
+                                                                        @this._logger.Warn($"{nameof(@this.Router)}: Dropped incoming {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
+                                                                        await currentRoute.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
+                                                                        currentRoute = null;
+                                                                    }
+                                                                }
+                                                            }
                                                         }
+                                                    }
+                                                    catch when(@this.Zeroed()){return;}
+                                                    catch (Exception e) when(!@this.Zeroed())
+                                                    {
+                                                        @this._logger.Error(e, @this.Description);
+                                                        return;
+                                                    }
 
-                                                        currentRoute ??= @this.Hub.Router;
+                                                    currentRoute ??= @this.Hub.Router;
 
-                                                        var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
+                                                    var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
 
-                                                        if (!@this.Zeroed())
+                                                    if (!@this.Zeroed() && !currentRoute.Zeroed())
+                                                    {
+                                                        try
                                                         {
                                                             switch ((CcDiscoveries.MessageTypes) packet.Type)
                                                             {
@@ -1023,35 +1024,34 @@ namespace zero.cocoon.autopeer
                                                                     break;
                                                             }
                                                         }
+                                                        catch when(@this.Zeroed() || currentRoute.Zeroed()){}
+                                                        catch (Exception e) when (!@this.Zeroed() && !currentRoute.Zeroed())
+                                                        {
+                                                            @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
+                                                        }
                                                     }
-                                                    catch when(@this.Zeroed()){}
-                                                    catch (Exception e) when (!@this.Zeroed())
-                                                    {
-                                                        @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
-                                                    }
-                                                }, @this);
-                                            }
-                                            finally
-                                            {
-                                                if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
-                                                    batchJob.State = IoJobMeta.JobState.ConsumeErr;
-                                            }
-                                        }, @this);
-                                    }
-                                    catch when(!@this.Zeroed()){}
-                                    catch (Exception e)when(!@this.Zeroed())
-                                    {
-                                        @this._logger?.Error(e, $"Consumption failed for {@this.Description}");
-                                        break;
-                                    }
+                                                }
+                                                catch when(@this.Zeroed()) {}
+                                                catch (Exception e) when (!@this.Zeroed())
+                                                {
+                                                    @this._logger?.Error(e, $"{message!.GetType().Name} [FAILED]: l = {packet!.Data.Length}, {@this.Key}");
+                                                }
+                                            }, @this);
+                                        }
+                                        finally
+                                        {
+                                            if (batchJob != null && batchJob.State != IoJobMeta.JobState.Consumed)
+                                                batchJob.State = IoJobMeta.JobState.ConsumeErr;
+                                        }
+                                    }, @this);
                                 }
 
                                 if (!await @this._consumeTaskPool[^1].FastPath().ConfigureAwait(@this.Zc))
                                     break;
                             }
                         }
-                        catch when(@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) {}
-                        catch (Exception e) when (!@this.Zeroed() && !@this.Source.Zeroed() && @this._protocolConduit?.Source != null)
+                        catch when(@this.Zeroed() || @this._protocolConduit?.Source == null) {}
+                        catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.Source != null)
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }

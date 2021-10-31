@@ -33,7 +33,7 @@ namespace zero.cocoon.models.batches
         }
 
         /// <summary>
-        /// 
+        /// Return this instance to the heap
         /// </summary>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -23,7 +23,6 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            //_batchMsgHeap = new IoHeap<CcDiscoveryMessage, CcDiscoveries>((uint)parm_max_msg_batch_size) {Make = static (o,c) => new CcDiscoveryMessage(), Context = this};//TODO config
             _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", (uint)parm_max_msg_batch_size){ Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size), Context = this};
 
             _currentBatch = _batchHeap.TakeAsync().AsTask().GetAwaiter().GetResult();
@@ -71,7 +70,7 @@ namespace zero.cocoon.models
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            _currentBatch = Interlocked.CompareExchange(ref _currentBatch, null, _currentBatch);
+            _currentBatch?.Dispose();
             //if (_currentBatch != null)
             //{
 
