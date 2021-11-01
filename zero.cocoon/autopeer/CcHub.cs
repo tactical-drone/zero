@@ -92,6 +92,14 @@ namespace zero.cocoon.autopeer
             return base.ZeroManagedAsync();
         }
 
+        /// <summary>
+        /// Configure the UDP proxy router
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="acceptConnection"></param>
+        /// <param name="nanite"></param>
+        /// <param name="bootstrapAsync"></param>
+        /// <returns></returns>
         protected override ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
             return base.SpawnListenerAsync(static async (router, state) =>

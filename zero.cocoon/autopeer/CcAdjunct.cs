@@ -52,7 +52,7 @@ namespace zero.cocoon.autopeer
 
             //TODO tuning
             _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 4);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 4);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 5);
             _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
 
             if (extraData != null)

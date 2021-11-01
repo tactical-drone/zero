@@ -111,9 +111,7 @@ namespace zero.core.models.protobuffer
             MemoryOwner = null;
             ProtocolConduit = null;
             ArraySegment = null;
-
             Buffer = null;
-
             ReadOnlySequence = default;
             MemoryBuffer = null;
             ByteStream = null;

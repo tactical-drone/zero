@@ -35,7 +35,7 @@ namespace zero.core.patterns.queue
         private volatile uint _count;
         private volatile uint _next;
         private volatile uint _iteratorIdx;
-        private readonly IoNanoprobe _zeroSentinel;
+        private IoNanoprobe _zeroSentinel;
 
         /// <summary>
         /// Zero status
@@ -182,6 +182,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                Array.Clear(_storage, 0, _storage.Length);
                 _storage = null;
             }
 
@@ -247,6 +248,8 @@ namespace zero.core.patterns.queue
         /// </summary>
         public void Dispose()
         {
+            _zeroSentinel.ZeroAsync(_zeroSentinel);
+            _zeroSentinel = null;
             _storage = null;
         }
     }

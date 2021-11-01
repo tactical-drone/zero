@@ -257,6 +257,7 @@ namespace zero.core.patterns.semaphore.core
                     _asyncToken.Cancel();
                 _asyncTokenReg.Unregister();
                 _asyncTokenReg.Dispose();
+                _asyncToken = null;
             }
             catch
             {
@@ -268,11 +269,13 @@ namespace zero.core.patterns.semaphore.core
             {
                 var state = Interlocked.CompareExchange(ref _signalAwaiterState[i], null, _signalAwaiterState[i]);
                 var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
+                var executionState = Interlocked.CompareExchange(ref _signalExecutionState[i], null, _signalExecutionState[i]);
+                var context = Interlocked.CompareExchange(ref _signalCapturedContext[i], null, _signalCapturedContext[i]);
                 if (waiter != null)
                 {
                     try
                     {
-                        waiter(state);
+                        ZeroComply(waiter, state, executionState, context);
                     }
                     catch
                     {
@@ -285,6 +288,8 @@ namespace zero.core.patterns.semaphore.core
 
             Array.Clear(_signalAwaiter, 0, _maxBlockers);
             Array.Clear(_signalAwaiterState, 0, _maxBlockers);
+            Array.Clear(_signalExecutionState, 0, _maxBlockers);
+            Array.Clear(_signalCapturedContext, 0, _maxBlockers);
         }
 
         /// <summary>

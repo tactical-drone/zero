@@ -44,12 +44,6 @@ namespace zero.core.models.protobuffer
         }
         
         /// <summary>
-        /// Empty constructor
-        /// </summary>
-        public CcProtocBatchJob(){}
-
-
-        /// <summary>
         /// The transaction that is ultimately consumed
         /// </summary>
         private volatile TBatch _batch;
@@ -69,8 +63,8 @@ namespace zero.core.models.protobuffer
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
-            await ClearAsync().FastPath().ConfigureAwait(Zc);
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await ClearAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

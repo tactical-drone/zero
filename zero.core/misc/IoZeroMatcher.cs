@@ -33,6 +33,8 @@ namespace zero.core.misc
             {
                 Make = static (o,s) => new IoChallenge()
             };
+
+            _logger = LogManager.GetCurrentClassLogger();
         }
 
         /// <summary>
@@ -40,6 +42,10 @@ namespace zero.core.misc
         /// </summary>
         private string _description;
 
+        /// <summary>
+        /// Logger.
+        /// </summary>
+        private Logger _logger;
 
         /// <summary>
         /// Holds requests
@@ -114,12 +120,19 @@ namespace zero.core.misc
                 {
                     if ((challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc)) == null)
                     {
-                        await state.@this.ResponseAsync("", ByteString.Empty).FastPath().ConfigureAwait(state.@this.Zc);
+                        try
+                        {
+                            await state.@this.PurgeAsync().FastPath().ConfigureAwait(state.@this.Zc);
+                        }
+                        catch (Exception e)
+                        {
+                            state.@this._logger.Error(e, $" Purge failed: {state.@this.Description}");
+                            // ignored
+                        }
 
                         challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc);
                         if (challenge == null)
-                            throw new OutOfMemoryException(
-                                $"{state.@this.Description}: {nameof(_valHeap)} - heapSize = {state.@this._valHeap.Count}, ref = {state.@this._valHeap.ReferenceCount}");
+                            throw new OutOfMemoryException($"{state.@this.Description}: {nameof(_valHeap)} - heapSize = {state.@this._valHeap.Count}, ref = {state.@this._valHeap.ReferenceCount}");
                     }
 
                     challenge.Payload = state.body;
@@ -134,23 +147,13 @@ namespace zero.core.misc
                 }
                 catch (Exception e) when (!state.@this.Zeroed())
                 {
-                    LogManager.GetCurrentClassLogger().Fatal(e);
+                    state.@this._logger.Fatal(e);
                     // ignored
                 }
                 finally
                 {
                     if (challenge != null && state.node == null && state.@this._valHeap != null)
                         await state.@this._valHeap.ReturnAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
-
-                    try
-                    {
-                        await state.@this.PurgeAsync().FastPath().ConfigureAwait(state.@this.Zc);
-                    }
-                    catch (Exception e)
-                    {
-                        LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {state.@this.Description}");
-                        // ignored
-                    }
                 }
 
                 return true;
@@ -174,76 +177,63 @@ namespace zero.core.misc
         /// <param name="key">The response key</param>
         /// <param name="reqHash"></param>
         /// <returns>The response payload</returns>
-        public async ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
+        public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return await ZeroAtomicAsync(static async (_, state, __) =>
+            return ZeroAtomicAsync(static async (_, state, __) =>
             {
-                var (@this, key,reqHash) = state;
+                var (@this, key, reqHash) = state;
                 var cmp = reqHash.Memory;
                 var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                try
+
+                var cur = @this._lut.Tail;
+                while (cur != null)
                 {
-                    var cur = @this._lut.Tail;
-                    while (cur != null)
+                    //restart on collisions
+                    if (@this._lut.Modified)
                     {
-                        //restart on collisions
-                        if (@this._lut.Modified)
-                        {
-                            cur = @this._lut.Tail;
-                            Thread.Yield();
-                            continue;
-                        }
+                        cur = @this._lut.Tail;
+                        Thread.Yield();
+                        continue;
+                    }
 
-                        if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
+                    if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
+                    {
+                        var potential = cur.Value;
+                        if (potential.Hash == 0)
                         {
-                            var potential = cur.Value;
-                            if (potential.Hash == 0)
+                            var h = ArrayPool<byte>.Shared.Rent(32);
+                            if (!Sha256.TryComputeHash((potential.Payload as ByteString)!.Memory.Span,
+                                    h, out var written))
                             {
-                                var h = ArrayPool<byte>.Shared.Rent(32);
-                                if (!Sha256.TryComputeHash((potential.Payload as ByteString)!.Memory.Span,
-                                        h, out var written))
-                                {
-                                    LogManager.GetCurrentClassLogger().Fatal($"{@this._description}: Unable to compute hash");
-                                }
-
-                                potential.Payload = default;
-                                potential.Hash = MemoryMarshal.Read<long>(h);
-                                ArrayPool<byte>.Shared.Return(h);
+                                LogManager.GetCurrentClassLogger()
+                                    .Fatal($"{@this._description}: Unable to compute hash");
                             }
 
-                            if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
-                            {
-                                await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                                await @this._valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(@this.Zc);
-                                return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
-                            }
+                            potential.Payload = default;
+                            potential.Hash = MemoryMarshal.Read<long>(h);
+                            ArrayPool<byte>.Shared.Return(h);
                         }
 
-                        //drop old ones while we are at it
-                        if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
+                        if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
                         {
                             await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                            await @this._valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(@this.Zc);
+                            await @this._valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(@this.Zc);
+                            return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
                         }
+                    }
 
-                        cur = cur.Prev;
-                    }
-                }
-                finally
-                {
-                    try
+                    //drop old ones while we are at it
+                    if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
                     {
-                        await @this.PurgeAsync().FastPath().ConfigureAwait(@this.Zc);
+                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                        await @this._valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(@this.Zc);
                     }
-                    catch (Exception e)
-                    {
-                        LogManager.GetCurrentClassLogger().Error(e, $" Purge failed: {@this.Description}");
-                        // ignored
-                    }
+
+                    cur = cur.Prev;
                 }
 
                 return false;
-            }, (this,key,reqHash)).FastPath().ConfigureAwait(Zc);
+            }, (this, key, reqHash));
         }
 
         /// <summary>

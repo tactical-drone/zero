@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -88,7 +89,7 @@ namespace zero.core.patterns.queue
 
         public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _enableBackPressure && _backPressure.Zeroed();
 
-        public async ValueTask<bool> ZeroManagedAsync<Tc>(Func<T,Tc, ValueTask> op = null, Tc nanite = default, bool zero = false)
+        public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
             try
             {
@@ -97,7 +98,7 @@ namespace zero.core.patterns.queue
                     throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
                 #endif
                 
-                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 || !await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
 
                 if (!_asyncTasks.IsCancellationRequested)
@@ -149,10 +150,6 @@ namespace zero.core.patterns.queue
             catch (Exception)
             {
                 return false;
-            }
-            finally
-            {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);
             }
 
             _syncRoot.Zero();
@@ -230,6 +227,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item node</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<IoZNode> EnqueueAsync(T item)
         {
             if (_zeroed > 0 || item == null)
@@ -292,6 +290,7 @@ namespace zero.core.patterns.queue
         /// Blocking dequeue item
         /// </summary>
         /// <returns>The dequeued item</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<T> DequeueAsync()
         {
             IoZNode dq = null;
@@ -366,6 +365,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="node">The node to remove</param>
         /// <returns>True if the item was removed</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
             if (_zeroed > 0 || node == null)

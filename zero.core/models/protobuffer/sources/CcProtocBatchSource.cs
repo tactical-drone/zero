@@ -112,6 +112,9 @@ namespace zero.core.models.protobuffer.sources
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+
             _queuePressure.Zero();
             //_queueBackPressure.Zero();
             await MessageQueue.ZeroManagedAsync(static (msgBatch,_) =>
@@ -119,8 +122,6 @@ namespace zero.core.models.protobuffer.sources
                 msgBatch.Dispose();
                 return ValueTask.CompletedTask;
             },this).FastPath().ConfigureAwait(Zc);
-            
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -208,7 +209,7 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="nanite"></param>
         /// <returns>The async task</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override async ValueTask<bool> ProduceAsync<T>(
+        public override ValueTask<bool> ProduceAsync<T>(
             Func<IIoNanite, Func<IIoJob, T, ValueTask<bool>>, T, IIoJob, ValueTask<bool>> callback,
             IIoJob jobClosure = null,
             Func<IIoJob, T, ValueTask<bool>> barrier = null,
@@ -216,7 +217,7 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                return await callback(this, barrier, nanite, jobClosure).FastPath().ConfigureAwait(Zc);
+                return callback(this, barrier, nanite, jobClosure);
             }
             catch (Exception) when(Zeroed() || UpstreamSource.Zeroed()){}
             catch (Exception e) when (!Zeroed() && !UpstreamSource.Zeroed())
@@ -224,7 +225,7 @@ namespace zero.core.models.protobuffer.sources
                 _logger.Error(e, $"Source `{Description??"N/A"}' callback failed:");
             }
 
-            return false;
+            return ValueTask.FromResult(false);
         }
     }
 }

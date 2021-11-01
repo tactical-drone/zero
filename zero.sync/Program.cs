@@ -164,18 +164,6 @@ namespace zero.sync
                 
             });
 
-            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
-            {
-                Console.WriteLine("###");
-            };
-
-            Console.CancelKeyPress += (sender, args) =>
-            {
-                args.Cancel = true;
-                ZeroAsync(total).AsTask().GetAwaiter();
-            };
-
-
             _running = true;
             var outBound = 0;
             var inBound = 0;
@@ -335,11 +323,27 @@ namespace zero.sync
             var tsOrig = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var cOrig = ThreadPool.CompletedWorkItemCount;
             var c = ThreadPool.CompletedWorkItemCount;
-            while ((line = Console.ReadLine()) != null)
-            {
-                if (line.StartsWith("quit"))
-                    break;
 
+            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
+            {
+                Console.WriteLine("###");
+            };
+
+            Console.CancelKeyPress += (sender, args) =>
+            {
+                args.Cancel = true;
+                ZeroAsync(total).AsTask().GetAwaiter();
+            };
+
+            while ((line = Console.ReadLine())!= null && !line.StartsWith("quit"))
+            {
+                if (line == "gc")
+                {
+                    var pinned = GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount;
+                    GC.Collect(GC.MaxGeneration);
+                    Console.WriteLine($"Pinned was = {pinned}, now {GC.GetGCMemoryInfo(GCKind.Any).PinnedObjectsCount}");
+                }
+                
                 if (line == "q")
                     break;
 
@@ -359,19 +363,17 @@ namespace zero.sync
                     }
                     catch { }
                 }
+
+                if (line.StartsWith("zero"))
+                {
+                    ZeroAsync(total).AsTask().GetAwaiter();
+                }
             };
             Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
             
 
             _running = false;
-            foreach (var ccCollective in _nodes)
-            {
-                var t = ccCollective.ZeroAsync(new IoNanoprobe($"{Assembly.GetCallingAssembly()}"));
-            }
-
-            _nodes.Clear();
-            _nodes = null;
-
+            
             try
             {
                 if (reportingTask.Status == TaskStatus.Running)
@@ -383,11 +385,11 @@ namespace zero.sync
             tasks.Clear();
             tasks = null;
 
-            GC.Collect(GC.MaxGeneration);
-
             var s = host.StopAsync();
             LogManager.Shutdown();
-            Console.WriteLine("##");
+
+            Console.WriteLine("## - done");
+            GC.Collect(GC.MaxGeneration);
 
             Console.ReadLine();
         }

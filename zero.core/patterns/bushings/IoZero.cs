@@ -77,7 +77,9 @@ namespace zero.core.patterns.bushings
             JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size, true) { Make = mallocMessage, Context = source};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
-            await Source.ZeroHiveAsync(this, sourceZeroCascade).FastPath().ConfigureAwait(Zc);
+            
+            if(sourceZeroCascade)
+                await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
             _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)(ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
@@ -250,6 +252,8 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
             await _queue.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
             if(_previousJobFragment != null)
@@ -260,8 +264,8 @@ namespace zero.core.patterns.bushings
                 await sink.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
             },this).FastPath().ConfigureAwait(Zc);
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
+            await Source.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
 #if DEBUG
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
 #endif

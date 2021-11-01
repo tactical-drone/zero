@@ -402,7 +402,6 @@ namespace zero.core.patterns.misc
             _logger.Trace($"Z<~ {desc}: serial: {SerialNr} - Resistence is futile...");
 #endif
         }
-
         /// <summary>
         /// Cancellation token source
         /// </summary>
@@ -417,6 +416,7 @@ namespace zero.core.patterns.misc
             _nanoMutex = null;
             _zeroHive = null;
             _zeroHiveMind = null;
+            AsyncTasks = null;
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
@@ -430,6 +430,7 @@ namespace zero.core.patterns.misc
             _nanoMutex.Zero();
             _zeroHive.Clear();
             _zeroHiveMind.Clear();
+         
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
