@@ -51,13 +51,12 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 4);
-            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 5);
-            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency * 2, CcCollective.MaxAdjuncts * 2);
+            _pingRequest = new IoZeroMatcher<ByteString>(nameof(_pingRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency, CcCollective.MaxAdjuncts * 2);
+            _peerRequest = new IoZeroMatcher<ByteString>(nameof(_peerRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency, CcCollective.MaxAdjuncts * 2);
+            _discoveryRequest = new IoZeroMatcher<ByteString>(nameof(_discoveryRequest), (int)(CcCollective.MaxAdjuncts * parm_max_discovery_peers + 1), parm_max_network_latency, CcCollective.MaxAdjuncts * 2);
 
             if (extraData != null)
             {
-                
                 var (item1, item2, item3) = (Tuple<CcDesignation, CcService, IPEndPoint>) extraData;
                 Designation = item1;
                 Services = services ?? item2;
@@ -488,7 +487,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
         public int parm_max_network_latency = 60000;
 #else
-        public int parm_max_network_latency = 2000;
+        public int parm_max_network_latency = 1500;
 #endif
 
         /// <summary>

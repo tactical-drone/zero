@@ -384,11 +384,14 @@ namespace zero.sync
             reportingTask = null;
             tasks.Clear();
             tasks = null;
+            _nodes.Clear();
+            _nodes = null;
 
             var s = host.StopAsync();
             LogManager.Shutdown();
 
             Console.WriteLine("## - done");
+            
             GC.Collect(GC.MaxGeneration);
 
             Console.ReadLine();

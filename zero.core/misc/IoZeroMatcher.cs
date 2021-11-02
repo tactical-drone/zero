@@ -27,7 +27,7 @@ namespace zero.core.misc
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, capacity), concurrencyLevel * 2);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2);
 
             _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", _capacity)
             {
@@ -40,7 +40,7 @@ namespace zero.core.misc
         /// <summary>
         /// Description
         /// </summary>
-        private string _description;
+        private readonly string _description;
 
         /// <summary>
         /// Logger.
@@ -75,6 +75,7 @@ namespace zero.core.misc
 #if SAFE_RELEASE
             _lut = null;
             _valHeap = null;
+            _logger = null;
 #endif
         }
 
@@ -84,11 +85,11 @@ namespace zero.core.misc
         /// <returns></returns>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
             await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 
             await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
-
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
 
@@ -132,19 +133,32 @@ namespace zero.core.misc
 
                         challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc);
                         if (challenge == null)
-                            throw new OutOfMemoryException($"{state.@this.Description}: {nameof(_valHeap)} - heapSize = {state.@this._valHeap.Count}, ref = {state.@this._valHeap.ReferenceCount}");
+                        {
+                            var c = state.@this._lut.Tail;
+                            long ave = 0;
+                            var aveCounter = 0;
+                            while(c != null)
+                            {
+                                ave += c.Value.TimestampMs.ElapsedMs();
+                                aveCounter++;
+                                c = c.Next;
+                            }
+
+                            if (aveCounter == 0)
+                                aveCounter = 1;
+
+                            throw new OutOfMemoryException($"{state.@this.Description}: {nameof(_valHeap)} - heapSize = {state.@this._valHeap.Count}, ref = {state.@this._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {state.@this._ttlMs}ms, (c = {aveCounter})");
+                        }
+                            
                     }
 
                     challenge.Payload = state.body;
                     challenge.Key = state.key;
                     challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     challenge.Hash = 0;
-                    var n = await state.@this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
-                    state.node = n;
+                    state.node = await state.@this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
                 }
-                catch when (state.@this.Zeroed())
-                {
-                }
+                catch when (state.@this.Zeroed()) { }
                 catch (Exception e) when (!state.@this.Zeroed())
                 {
                     state.@this._logger.Fatal(e);
@@ -211,7 +225,7 @@ namespace zero.core.misc
 
                             potential.Payload = default;
                             potential.Hash = MemoryMarshal.Read<long>(h);
-                            ArrayPool<byte>.Shared.Return(h);
+                            ArrayPool<byte>.Shared.Return(h, true);
                         }
 
                         if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
@@ -229,7 +243,7 @@ namespace zero.core.misc
                         await @this._valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(@this.Zc);
                     }
 
-                    cur = cur.Prev;
+                    cur = cur.Next;
                 }
 
                 return false;
@@ -247,7 +261,7 @@ namespace zero.core.misc
                 var n = _lut.Tail;
                 while (n != null)
                 {
-                    var t = n.Prev;
+                    var t = n.Next;
                     if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
                         await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);

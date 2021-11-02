@@ -60,7 +60,7 @@ namespace zero.cocoon.models.batches
             {
                 try
                 {
-                    ArrayPool<CcDiscoveryMessage>.Shared.Return(_messages);
+                    ArrayPool<CcDiscoveryMessage>.Shared.Return(_messages, true);
                 }
                 catch
                 {

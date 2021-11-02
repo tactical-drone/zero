@@ -23,6 +23,7 @@ using zero.core.models.protobuffer;
 using zero.core.network.ip;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
 using Packet = Proto.Packet;
 
@@ -35,7 +36,7 @@ namespace zero.cocoon
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel)
+            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, 16) //TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -92,13 +93,14 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            DupHeap = new IoHeap<ConcurrentBag<string>>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
+            DupHeap = new IoHeap<IoBag<string>>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
             {
-                Make = static (o, s) => new ConcurrentBag<string>(),
+                Make = static (o, s) => new IoBag<string>($"{nameof(DupHeap)}, {((CcCollective)s).Description}", ((CcCollective)s)._dupPoolSize),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add((string)endpoint);
-                }
+                },
+                Context = this
             };
 
             //ensure robotics
@@ -257,8 +259,8 @@ namespace zero.cocoon
 
         readonly Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
-        public ConcurrentDictionary<long, ConcurrentBag<string>> DupChecker { get; } = new();
-        public IoHeap<ConcurrentBag<string>> DupHeap { get; protected set; }
+        public ConcurrentDictionary<long, IoBag<string>> DupChecker { get; } = new();
+        public IoHeap<IoBag<string>> DupHeap { get; protected set; }
 
         private uint _dupPoolSize = 100;
 

@@ -123,8 +123,8 @@ namespace zero.core.models.protobuffer
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            ArrayPool<byte>.Shared.Return(Buffer);
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            ArrayPool<byte>.Shared.Return(Buffer);
         }
 
         /// <summary>

@@ -183,7 +183,6 @@ namespace zero.core.patterns.queue
             finally
             {
                 Array.Clear(_storage, 0, _storage.Length);
-                _storage = null;
             }
 
             return true;

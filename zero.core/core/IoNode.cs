@@ -10,6 +10,7 @@ using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.core
 {
@@ -22,13 +23,14 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, uint maxNeighbors) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel)
         {
             _address = address;
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
+            NeighborTasks = new IoBag<Task>($"{nameof(NeighborTasks)}", maxNeighbors);
         }
 
         /// <summary>
@@ -108,7 +110,7 @@ namespace zero.core.core
         /// <summary>
         /// A set of all node tasks that are currently running
         /// </summary>
-        protected ConcurrentBag<Task> NeighborTasks = new();
+        protected IoBag<Task> NeighborTasks;
 
         /// <summary>
         /// Starts the node's listener
@@ -405,7 +407,9 @@ namespace zero.core.core
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            if(_netServer != null)
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+            if (_netServer != null)
                 await _netServer.ZeroAsync(this).ConfigureAwait(Zc);
 
             foreach (var ioNeighbor in Neighbors.Values)
@@ -421,11 +425,10 @@ namespace zero.core.core
             {
                 // ignored
             }
-            NeighborTasks.Clear();
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            await NeighborTasks.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+
             _logger.Info($"- {Description}");
-            
         }
 
         public bool WhiteList(IoNodeAddress address)
