@@ -56,7 +56,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// The index to the latest insert, best effort
         /// </summary>
-        private uint Prev => (_next - 1) % _capacity;
+        private uint Prev => _count > 0? (_next - 1) % _capacity : 0;
 
         //private ConcurrentBag<T> _bag = new ConcurrentBag<T>();
 
@@ -68,22 +68,33 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public void Add(T item)
         {
-            //_bag.Add(item);
-            //return;
-            
-            var nextIdx = Interlocked.Increment(ref _next); 
-            var latch = (nextIdx - 1) % _capacity;
-            T fail = null;
-            while (_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
+            try
             {
-                Interlocked.Decrement(ref _next);
-                latch = (Interlocked.Increment(ref _next) - 1)%_capacity;
+                if(Zeroed)
+                    return;
+            
+                //_bag.Add(item);
+                //return;
+            
+                var nextIdx = Interlocked.Increment(ref _next); 
+                var latch = (nextIdx - 1) % _capacity;
+                T fail = null;
+                while (_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
+                {
+                    Interlocked.Decrement(ref _next);
+                    latch = (Interlocked.Increment(ref _next) - 1)%_capacity;
+                }
+            
+                if (fail != null)
+                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+            
+                Interlocked.Increment(ref _count);
             }
-            
-            if (fail != null)
-                throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
-            
-            Interlocked.Increment(ref _count);
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
         }
         
 
@@ -148,7 +159,8 @@ namespace zero.core.patterns.queue
         {
             try
             {
-                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+
+                if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
                 
                 foreach (var item in _storage)
@@ -182,7 +194,14 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                Array.Clear(_storage, 0, _storage.Length);
+                if (zero)
+                {
+                    await _zeroSentinel.ZeroAsync(_zeroSentinel).FastPath().ConfigureAwait(Zc);
+                    _zeroSentinel = null;
+                    _storage = null;
+                }
+                else
+                    Array.Clear(_storage, 0, _storage.Length);
             }
 
             return true;
@@ -247,9 +266,9 @@ namespace zero.core.patterns.queue
         /// </summary>
         public void Dispose()
         {
-            _zeroSentinel.ZeroAsync(_zeroSentinel);
-            _zeroSentinel = null;
-            _storage = null;
+            //_zeroSentinel.ZeroAsync(_zeroSentinel);
+            //_zeroSentinel = null;
+            //_storage = null;
         }
     }
 }

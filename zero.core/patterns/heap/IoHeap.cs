@@ -154,9 +154,9 @@ namespace zero.core.patterns.heap
                 return;
             
             if (zeroAction != null)
-                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite).FastPath().ConfigureAwait(Zc);
+                await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true).FastPath().ConfigureAwait(Zc);
             else
-                await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

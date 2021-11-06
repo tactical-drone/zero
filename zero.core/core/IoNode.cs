@@ -426,7 +426,7 @@ namespace zero.core.core
                 // ignored
             }
 
-            await NeighborTasks.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+            await NeighborTasks.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
             _logger.Info($"- {Description}");
         }

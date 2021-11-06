@@ -78,7 +78,6 @@ namespace zero.cocoon.events.services
 
         public static async ValueTask AddEventAsync(AutoPeerEvent newAutoPeerEvent)
         {
-            return;
             try
             {
                 if (_operational > 0 || _queuedEvents[_curIdx%2].Count < EventBatchSize  * TotalBatches)

@@ -16,6 +16,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.cocoon.models
 {
@@ -55,6 +56,15 @@ namespace zero.cocoon.models
             //_arrayPool = null;
             //_batchMsgHeap = null;
             base.ZeroUnmanaged();
+        }
+
+        /// <summary>
+        /// Zeroed?
+        /// </summary>
+        /// <returns>True of false</returns>
+        public override bool Zeroed()
+        {
+            return base.Zeroed() || Source.Zeroed();
         }
 
         ///// <summary>
@@ -194,11 +204,11 @@ namespace zero.cocoon.models
                             else
                                 State = IoJobMeta.JobState.Consumed;
                         }
-                        catch (Exception) when (Zeroed() || Source.Zeroed())
+                        catch (Exception) when (Zeroed())
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
-                        catch (Exception e) when (!Zeroed() && !Source.Zeroed())
+                        catch (Exception e) when (!Zeroed())
                         {
                             _logger?.Fatal(e,$"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcDrone?.Adjunct}, cc = {CcDrone?.Adjunct?.CcCollective}, sync = `{CcDrone?.Adjunct?.CcCollective?.DupSyncRoot}'");
                             //PrintStateHistory();
@@ -213,23 +223,26 @@ namespace zero.cocoon.models
                     //set this message as seen if seen before
                     var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
                         .RemoteAddress;
-                    var dupEndpoints = await CcCollective.DupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
 
-                    if (dupEndpoints == null)
-                        throw new OutOfMemoryException(
-                            $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
 
-                    if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
+                    IoBag<string> dupEndpoints = null;
+                    if (!CcCollective.DupChecker.ContainsKey(req))
                     {
-                        await dupEndpoints.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
-                        await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
+                        dupEndpoints = await CcCollective.DupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
 
-                        //best effort
-                        if (CcCollective.DupChecker.TryGetValue(req, out var endpoints))
-                            endpoints.Add(endpoint);
+                        if (dupEndpoints == null)
+                            throw new OutOfMemoryException(
+                                $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
 
-                        State = IoJobMeta.JobState.ConInlined;
-                        continue;
+                        if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
+                        {
+                            await dupEndpoints.ZeroManagedAsync<object>(zero: false).FastPath().ConfigureAwait(Zc);
+                            await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
+
+                            //best effort
+                            if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
+                                dupEndpoints.Add(endpoint);
+                        }
                     }
 
                     State = IoJobMeta.JobState.ConInlined;

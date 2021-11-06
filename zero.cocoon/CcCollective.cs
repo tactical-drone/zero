@@ -93,9 +93,9 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            DupHeap = new IoHeap<IoBag<string>>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
+            DupHeap = new IoHeap<IoBag<string>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
             {
-                Make = static (o, s) => new IoBag<string>($"{nameof(DupHeap)}, {((CcCollective)s).Description}", ((CcCollective)s)._dupPoolSize),
+                Make = static (o, s) => new IoBag<string>($"{nameof(DupHeap)}:Bag ( ep = {o}), {s.Description}", s._dupPoolSize),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add((string)endpoint);
@@ -260,7 +260,7 @@ namespace zero.cocoon
         readonly Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, IoBag<string>> DupChecker { get; } = new();
-        public IoHeap<IoBag<string>> DupHeap { get; protected set; }
+        public IoHeap<IoBag<string>, CcCollective> DupHeap { get; protected set; }
 
         private uint _dupPoolSize = 100;
 
@@ -881,7 +881,7 @@ namespace zero.cocoon
             }
         }
 
-        private static readonly double _lambda = 0.5;
+        private static readonly double _lambda = 20;
         private static readonly int _maxAsyncConnectionAttempts = 2;
 
         private int _currentOutboundConnectionAttempts;
@@ -893,23 +893,31 @@ namespace zero.cocoon
         public async ValueTask<bool> BootAsync(long v = 0, int total = 1)
         {
             Interlocked.Exchange(ref Testing, 1);
-            foreach (var ioNeighbor in WhisperingDrones)
-            {
-                if (Poisson.Sample(Random.Shared, 1 / (double)total) == 0)
-                {
-                    continue;
-                }
-                try
-                {
-                    await ioNeighbor.EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
-                    return true;
-                }
-                catch when(Zeroed()){}
-                catch (Exception e)when(!Zeroed())
-                {
-                    _logger.Debug(e,Description);
-                }
-            }
+            //foreach (var ioNeighbor in WhisperingDrones)
+            //{
+            //    var s = Poisson.Sample(Random.Shared, 1 / (double)total);
+            //    Console.WriteLine(s);
+            //    if (s == 0)
+            //    {
+            //        continue;
+            //    }
+            //    try
+            //    {
+            //        await ioNeighbor.EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
+            //        return true;
+            //    }
+            //    catch when(Zeroed()){}
+            //    catch (Exception e)when(!Zeroed())
+            //    {
+            //        _logger.Debug(e,Description);
+            //    }
+            //}
+
+            
+            if(WhisperingDrones.Count > 0)
+                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count-1)].EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
+            
+            
 
             return false;
         }
