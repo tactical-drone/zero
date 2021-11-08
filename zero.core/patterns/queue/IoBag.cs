@@ -76,17 +76,16 @@ namespace zero.core.patterns.queue
             try
             {
                 var latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
-                T result = null;
-                var notCapped = false;
-                while (_count < _capacity && (notCapped = true) && (result = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
+                while (Interlocked.CompareExchange(ref _storage[latch], item, null) != null)
                 {
                     Interlocked.Decrement(ref _head);
+                    if (_count == _capacity)
+                        throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+
                     latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
-                    notCapped = false;
                 }
 
-                if(result == null && notCapped)
-                    Interlocked.Increment(ref _count);
+                Interlocked.Increment(ref _count);
             }
             catch (Exception e) when(!Zeroed)
             {
@@ -107,18 +106,15 @@ namespace zero.core.patterns.queue
             var target = _storage[latch];
             while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latch], null, target)) != target)
             {
-                Interlocked.Increment(ref _tail);
+                Interlocked.Decrement(ref _tail);
                 latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
                 target = _storage[latch];
             }
 
-            if (result != null)
-            {
-                Interlocked.Decrement(ref _count);
-                return true;
-            }
+            if (result != target || result == null) return false;
 
-            return false;
+            Interlocked.Decrement(ref _count);
+            return true;
         }
 
         /// <summary>
@@ -214,13 +210,13 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, _next);
+            Interlocked.Exchange(ref _iteratorIdx, _capacity);
         }
 
         /// <summary>
         /// Return the current element in the iterator
         /// </summary>
-        public T Current => _storage[Next];
+        public T Current => _storage[_iteratorIdx];
 
         /// <summary>
         /// Return the current element in the iterator

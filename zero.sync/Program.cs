@@ -149,21 +149,33 @@ namespace zero.sync
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
 
                 long v = 0;
-                while (_running)
-                {
-                    foreach (var task in tasks)
+                long C = 0;
+                long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                List<Task> gossipTasks = new List<Task>();
+                for (int i = 0; i < 3; i++)
+                { 
+                    gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
-                        //continue;
-                        if (await task.Result.BootAsync(v, tasks.Count).FastPath().ConfigureAwait(Zc))
+                        while (_running)
                         {
-                            v++;
-                            break;
-                        }
-                    }
+                            foreach (var task in tasks)
+                            {
+                                //continue;
+                                await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
+                                await Task.Delay(15).ConfigureAwait(Zc);
 
-                    await Task.Delay(5).ConfigureAwait(Zc);
+                                if (Interlocked.Increment(ref C) == 5000)
+                                {
+                                    Console.WriteLine($"{C/((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)/1000.0):0.0} g/ps");
+                                    Interlocked.Exchange(ref C, 0);
+                                    start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                }
+                            }
+                        }
+                        Console.WriteLine("Stopped gossip...");
+                    }).Unwrap());
                 }
-                
+
             });
 
             _running = true;
@@ -225,7 +237,7 @@ namespace zero.sync
                                     foreach (var d in ioCcNode.Neighbors.Values)
                                     {
                                         var drone = (CcDrone) d;
-                                        Console.WriteLine($"[{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
+                                        Console.WriteLine($"t = {ioCcNode.TotalConnections}, [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
                                     }
                                 }
                             

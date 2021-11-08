@@ -245,6 +245,9 @@ namespace zero.cocoon
                 if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
+                if(!Source.IsOperational)
+                    return;
+
                 //if (Interlocked.Read(ref _isTesting) > 0)
                 //    return;
 
@@ -263,7 +266,8 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        if(await ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.SendAsync(buf, 0, buf.Length).FastPath().ConfigureAwait(Zc) > 0)
+                        var socket = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket;
+                        if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 1000).FastPath().ConfigureAwait(Zc) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
                             await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
