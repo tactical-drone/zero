@@ -161,7 +161,7 @@ namespace zero.sync
                         }
                     }
 
-                    await Task.Delay(25).ConfigureAwait(Zc);
+                    await Task.Delay(5).ConfigureAwait(Zc);
                 }
                 
             });

@@ -225,8 +225,9 @@ namespace zero.cocoon.models
                         .RemoteAddress;
 
 
-                    IoBag<string> dupEndpoints = null;
-                    if (!CcCollective.DupChecker.ContainsKey(req))
+                    //IoBag<string> dupEndpoints = null;
+                    CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints);
+                    if (dupEndpoints == null)
                     {
                         dupEndpoints = await CcCollective.DupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
 
@@ -246,8 +247,6 @@ namespace zero.cocoon.models
                     }
 
                     State = IoJobMeta.JobState.ConInlined;
-
-                    var vt = ValueTuple.Create(this, read, endpoint, dupEndpoints);
 
                     foreach (var drone in CcCollective.WhisperingDrones)
                     {

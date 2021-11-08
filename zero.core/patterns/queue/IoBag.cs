@@ -34,6 +34,11 @@ namespace zero.core.patterns.queue
         private readonly uint _capacity;
         private volatile uint _count;
         private volatile uint _next;
+        private uint Head => _head % _capacity;
+        private volatile uint _head = 0;
+        private uint Tail => _tail % _capacity;
+        private volatile uint _tail = 0;
+        
         private volatile uint _iteratorIdx;
         private IoNanoprobe _zeroSentinel;
 
@@ -41,7 +46,6 @@ namespace zero.core.patterns.queue
         /// Zero status
         /// </summary>
         public bool Zeroed => _zeroed > 0;
-
 
         /// <summary>
         /// Description
@@ -56,9 +60,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// The index to the latest insert, best effort
         /// </summary>
-        private uint Prev => _count > 0? (_next - 1) % _capacity : 0;
-
-        //private ConcurrentBag<T> _bag = new ConcurrentBag<T>();
+        private uint Next => _count > 0? (_next - 1) % _capacity : 0;
 
         /// <summary>
         /// Add item to the bag
@@ -68,35 +70,56 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public void Add(T item)
         {
+            if (_count == _capacity)
+                throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+
             try
             {
-                if(Zeroed)
-                    return;
-            
-                //_bag.Add(item);
-                //return;
-            
-                var nextIdx = Interlocked.Increment(ref _next); 
-                var latch = (nextIdx - 1) % _capacity;
-                T fail = null;
-                while (_count < _capacity && (fail = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
+                var latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
+                T result = null;
+                var notCapped = false;
+                while (_count < _capacity && (notCapped = true) && (result = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
                 {
-                    Interlocked.Decrement(ref _next);
-                    latch = (Interlocked.Increment(ref _next) - 1)%_capacity;
+                    Interlocked.Decrement(ref _head);
+                    latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
+                    notCapped = false;
                 }
-            
-                if (fail != null)
-                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
-            
-                Interlocked.Increment(ref _count);
+
+                if(result == null && notCapped)
+                    Interlocked.Increment(ref _count);
             }
-            catch (Exception e)
+            catch (Exception e) when(!Zeroed)
             {
-                Console.WriteLine(e);
-                throw;
+                LogManager.GetCurrentClassLogger().Error(e);
             }
         }
         
+        /// <summary>
+        /// Try take from the bag, round robin
+        /// </summary>
+        /// <param name="result">The item to be fetched</param>
+        /// <returns>True if an item was found and returned, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public bool TryTake([MaybeNullWhen(false)] out T result)
+        {
+            result = null;
+            var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
+            var target = _storage[latch];
+            while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latch], null, target)) != target)
+            {
+                Interlocked.Increment(ref _tail);
+                latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
+                target = _storage[latch];
+            }
+
+            if (result != null)
+            {
+                Interlocked.Decrement(ref _count);
+                return true;
+            }
+
+            return false;
+        }
 
         /// <summary>
         /// Peeks the head of the queue
@@ -106,46 +129,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {
-            return (result = _storage[Prev]) != null;
-        }
-        
-        /// <summary>
-        /// Try take from the bag, normally the bag is LIFO 
-        /// </summary>
-        /// <param name="result">The item to be fetched</param>
-        /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public bool TryTake([MaybeNullWhen(false)] out T result)
-        {
-            // _bag.TryTake(out var r);
-            // result = r;
-            // return result != null;
-                 
-            result = null;
-            
-            var latch = Interlocked.Decrement(ref _next) % _capacity;
-            var target = _storage[latch];
-            while (_next > 0 && target != null)
-            {
-                if ((result = Interlocked.CompareExchange(ref _storage[latch], null, target)) == target)
-                {
-                    //Interlocked.Decrement(ref _next);
-                    Interlocked.Decrement(ref _count);
-                    break;    
-                }
-
-                Interlocked.Increment(ref _next);
-                latch = Interlocked.Decrement(ref _next) % _capacity;
-                target = _storage[latch];
-            }
-
-            if (result != null) return true;
-
-            Interlocked.Increment(ref _next);
-            return false;
+            return (result = _storage[Next]) != null;
         }
 
-        
         /// <summary>
         /// Zero managed cleanup
         /// </summary>
@@ -234,7 +220,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Return the current element in the iterator
         /// </summary>
-        public T Current => _storage[Prev];
+        public T Current => _storage[Next];
 
         /// <summary>
         /// Return the current element in the iterator
@@ -266,9 +252,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         public void Dispose()
         {
-            //_zeroSentinel.ZeroAsync(_zeroSentinel);
-            //_zeroSentinel = null;
-            //_storage = null;
+            
         }
     }
 }
