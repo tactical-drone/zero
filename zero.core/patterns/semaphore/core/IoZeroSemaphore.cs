@@ -447,13 +447,9 @@ namespace zero.core.patterns.semaphore.core
             
             if (slot == null)
             {
-                //_signalAwaiterState[headIdx] = state;
-                //_signalExecutionState[headIdx] = executionContext;
-                //_signalCapturedContext[headIdx] = capturedContext;
-
-                Volatile.Write(ref _signalAwaiterState[headIdx] , state);
-                Volatile.Write(ref _signalExecutionState[headIdx],executionContext);
-                Volatile.Write(ref _signalCapturedContext[headIdx] , capturedContext);
+                _signalAwaiterState[headIdx] = state;
+                _signalExecutionState[headIdx] = executionContext;
+                _signalCapturedContext[headIdx] = capturedContext;
                 
                 _zeroRef.ZeroIncWait();
                 ZeroUnlock();

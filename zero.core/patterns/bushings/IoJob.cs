@@ -119,7 +119,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <returns>This instance</returns>
         
-        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
+        public virtual ValueTask<IIoHeapItem> ConstructorAsync()
         {
 #if DEBUG
             for (var i = 0; i < StateTransitionHistory.Length; i++)
@@ -160,7 +160,7 @@ namespace zero.core.patterns.bushings
             //    StateTransitionHistory[prevState] = null;
             //}
 
-            return this;
+            return ValueTask.FromResult((IIoHeapItem)this);
         }
 
         /// <summary>

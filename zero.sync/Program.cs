@@ -152,7 +152,7 @@ namespace zero.sync
                 long C = 0;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < 4; i++)
                 { 
                     gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
@@ -163,7 +163,7 @@ namespace zero.sync
                                 //continue;
                                 await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
                                 await Task.Delay(15).ConfigureAwait(Zc);
-
+                                
                                 if (Interlocked.Increment(ref C) == 5000)
                                 {
                                     Console.WriteLine($"{C/((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)/1000.0):0.0} g/ps");

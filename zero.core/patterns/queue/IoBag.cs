@@ -32,8 +32,7 @@ namespace zero.core.patterns.queue
         private readonly string _description;
         private T[] _storage;
         private readonly uint _capacity;
-        private volatile uint _count;
-        private volatile uint _next;
+        private volatile uint _count;        
         private uint Head => _head % _capacity;
         private volatile uint _head = 0;
         private uint Tail => _tail % _capacity;
@@ -56,12 +55,7 @@ namespace zero.core.patterns.queue
         /// Current number of items in the bag
         /// </summary>
         public uint Count => _count;
-
-        /// <summary>
-        /// The index to the latest insert, best effort
-        /// </summary>
-        private uint Next => _count > 0? (_next - 1) % _capacity : 0;
-
+        
         /// <summary>
         /// Add item to the bag
         /// </summary>
@@ -125,7 +119,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {
-            return (result = _storage[Next]) != null;
+            return (result = _storage[Head - 1]) != null;
         }
 
         /// <summary>
