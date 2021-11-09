@@ -147,7 +147,7 @@ namespace zero.sync
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
                 Console.WriteLine($"Starting accounting... {tasks.Count}");
-
+                
                 long v = 0;
                 long C = 0;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

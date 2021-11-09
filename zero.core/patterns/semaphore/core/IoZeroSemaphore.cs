@@ -11,7 +11,11 @@ using zero.core.patterns.misc;
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// Zero Semaphore with strong order guarantees.
+    /// Zero Semaphore with strong order guarantees, mostly FIFO. 
+    /// 
+    /// LIFO upon entering (or scheduling) on a signalled semaphore.
+    /// 
+    /// Set <see cref="enableFairQ"/> to true to force FIFO at basically zero cost.
     ///
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
@@ -47,9 +51,10 @@ namespace zero.core.patterns.semaphore.core
             _maxBlockers = maxBlockers;
             _useMemoryBarrier = _forceFairQ = enableFairQ;
             _maxAsyncWorkers = concurrencyLevel;
+            _runContinuationsAsynchronously = _maxAsyncWorkers > 0;
             _curSignalCount = initialCount;
             _zeroRef = null;
-            _asyncToken = default;
+            _asyncTasks = default;
             _asyncTokenReg = default;
             _enableAutoScale = enableAutoScale;
             
@@ -106,6 +111,11 @@ namespace zero.core.patterns.semaphore.core
         private readonly uint _maxAsyncWorkers;
 
         /// <summary>
+        /// Whether we support async continuations 
+        /// </summary>
+        internal readonly bool _runContinuationsAsynchronously;
+
+        /// <summary>
         /// Current number of async workers
         /// </summary>
         private volatile uint _curAsyncWorkerCount;
@@ -150,7 +160,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The cancellation token
         /// </summary>
-        private CancellationTokenSource _asyncToken;
+        private CancellationTokenSource _asyncTasks;
         
         /// <summary>
         /// The cancellation token registration
@@ -232,7 +242,7 @@ namespace zero.core.patterns.semaphore.core
         {
             _zeroRef = @ref;
             _zeroWait = new ValueTask<bool>(_zeroRef, 23);
-            _asyncToken = asyncTokenSource;
+            _asyncTasks = asyncTokenSource;
 
             _asyncTokenReg = asyncTokenSource.Token.Register(s =>
             {
@@ -240,7 +250,7 @@ namespace zero.core.patterns.semaphore.core
                 z.Zero();
                 r.Unregister();
                 r.Dispose();
-            }, ValueTuple.Create(_zeroRef,_asyncToken, _asyncTokenReg));
+            }, ValueTuple.Create(_zeroRef,_asyncTasks, _asyncTokenReg));
         }
 
         /// <summary>
@@ -253,11 +263,11 @@ namespace zero.core.patterns.semaphore.core
             
             try
             {
-                if(_asyncToken.Token.CanBeCanceled)
-                    _asyncToken.Cancel();
+                if(_asyncTasks.Token.CanBeCanceled)
+                    _asyncTasks.Cancel();
                 _asyncTokenReg.Unregister();
                 _asyncTokenReg.Dispose();
-                _asyncToken = null;
+                _asyncTasks = null;
             }
             catch
             {
@@ -425,7 +435,7 @@ namespace zero.core.patterns.semaphore.core
             //fast path, but causes a one shot LIFO queue behavior which could be undesirable. For dev I would force fairQ, then later disable to for added test coverage when order guarantees are not needed.
             if (!_forceFairQ && Signalled())
             {
-                ZeroComply(continuation, state, executionContext, capturedContext, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
+                ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
                 return;
             }
             
@@ -481,20 +491,20 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="zeroed">If we are zeroed</param>
         /// <param name="executionContext"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining|MethodImplOptions.AggressiveOptimization)]
-        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool zeroed = false)
+        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool onComplete = false, bool zeroed = false)
         {
             try
-            {
+            {                
                 switch (capturedContext)
                 {
-                    case null:
-                        if (executionContext != null)
-                        {
+                    case null:                        
+                        if (executionContext != null && !onComplete)
+                        {                                                            
                             var currentContext = ExecutionContext.Capture();
                             // Restore the captured ExecutionContext before executing anything.
-                            ExecutionContext.Restore(executionContext);
+                            ExecutionContext.Restore(executionContext);                                                        
 
-                            if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                            if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
                             {
                                 try
                                 {
@@ -507,6 +517,9 @@ namespace zero.core.patterns.semaphore.core
                             }
                             else
                             {
+                                if(_runContinuationsAsynchronously)
+                                    _zeroRef.ZeroDecAsyncCount();
+
                                 // Running inline may throw; capture the edi if it does as we changed the ExecutionContext,
                                 // so need to restore it back before propagating the throw.
                                 ExceptionDispatchInfo edi = null;
@@ -535,8 +548,8 @@ namespace zero.core.patterns.semaphore.core
                             }
                         }
                         else
-                        {
-                            if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                        {                            
+                            if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
                             {
                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                 void Cb(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
@@ -546,14 +559,14 @@ namespace zero.core.patterns.semaphore.core
                                     @this.ZeroDecAsyncCount();
                                 }
 
-                                ThreadPool.UnsafeQueueUserWorkItem(Cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: false);
+                                ThreadPool.UnsafeQueueUserWorkItem(Cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
                             }
                             else
                             {
-                                _zeroRef.ZeroIncAsyncCount();
-                                callback(state); //TODO why do they not inline?
-                            }
-                                
+                                if(_runContinuationsAsynchronously)
+                                    _zeroRef.ZeroIncAsyncCount();
+                                callback(state);
+                            }                                
                         }
                         break;
 
@@ -566,7 +579,7 @@ namespace zero.core.patterns.semaphore.core
                         break;
 
                     case TaskScheduler ts:
-                        Task.Factory.StartNew(callback, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
+                        Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, ts);
                         break;
                 }
                 return true;
@@ -734,7 +747,7 @@ namespace zero.core.patterns.semaphore.core
 
                 //count the number of waiters released
                 released++;
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, zeroed: Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                 {
                     _zeroRef.ZeroAddCount(releaseCount - released);
                     //update current count
@@ -911,7 +924,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsCancellationRequested()
         {
-            return _asyncToken.IsCancellationRequested;
+            return _asyncTasks.IsCancellationRequested;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
