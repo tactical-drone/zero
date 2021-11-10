@@ -792,26 +792,24 @@ namespace zero.cocoon
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint.ToString()}: {Description}");
 
-            //Race for connection...
             var id = CcAdjunct.MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
-
-            if ((direction == CcAdjunct.Heading.Ingress) && (drone.Adjunct = (CcAdjunct) _autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
+            if ((direction == CcAdjunct.Heading.Ingress) && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
             {
                 _logger.Error($"Neighbor {id} not found, dropping {direction} connection to {remoteEp}");
                 return false;
             }
-
+            
             if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
             {
-                //did we win?
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                return (await ZeroAtomicAsync((n, o, d) =>
+                return (await ZeroAtomicAsync(static (n, o, d) =>
                 {
-                    var (@this, direction) = o;
+                    var (@this, id, direction, packet, drone, remoteEp) = o;
+                                                            
                     if (direction == CcAdjunct.Heading.Ingress)
                     {
-                        if(Interlocked.Increment(ref @this.IngressCount) - 1 < parm_max_inbound)
+                        if(Interlocked.Increment(ref @this.IngressCount) - 1 < @this.parm_max_inbound)
                         {
                             return ValueTask.FromResult(true);
                         }
@@ -823,7 +821,7 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        if (Interlocked.Increment(ref @this.EgressCount) - 1 < parm_max_outbound)
+                        if (Interlocked.Increment(ref @this.EgressCount) - 1 < @this.parm_max_outbound)
                         {
                             return ValueTask.FromResult(true);
                         }
@@ -833,7 +831,7 @@ namespace zero.cocoon
                             return ValueTask.FromResult(false);
                         }
                     }
-                }, (this, direction)).FastPath().ConfigureAwait(Zc) && attached);
+                }, (this, id, direction, packet, drone, remoteEp)).FastPath().ConfigureAwait(Zc) && attached);
             }
             else
             {

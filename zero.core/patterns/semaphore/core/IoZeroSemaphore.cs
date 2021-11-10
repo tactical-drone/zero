@@ -497,7 +497,16 @@ namespace zero.core.patterns.semaphore.core
             {                
                 switch (capturedContext)
                 {
-                    case null:                        
+                    case null:
+
+                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                        void AsyncCallback(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
+                        {
+                            var (@this, continuation, continuationState) = obj;
+                            continuation(continuationState);
+                            @this.ZeroDecAsyncCount();
+                        }
+
                         if (executionContext != null && !onComplete)
                         {                                                            
                             var currentContext = ExecutionContext.Capture();
@@ -507,8 +516,8 @@ namespace zero.core.patterns.semaphore.core
                             if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
                             {
                                 try
-                                {
-                                    ThreadPool.QueueUserWorkItem(callback, state, preferLocal: true);
+                                {                                    
+                                    ThreadPool.QueueUserWorkItem(AsyncCallback, ValueTuple.Create(_zeroRef, callback, state), preferLocal: true);
                                 }
                                 finally
                                 {
@@ -550,21 +559,13 @@ namespace zero.core.patterns.semaphore.core
                         else
                         {                            
                             if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
-                            {
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                void Cb(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
-                                {
-                                    var (@this, continuation, continuationState) = obj;
-                                    continuation(continuationState);
-                                    @this.ZeroDecAsyncCount();
-                                }
-
-                                ThreadPool.UnsafeQueueUserWorkItem(Cb, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
+                            {                                
+                                ThreadPool.UnsafeQueueUserWorkItem(AsyncCallback, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
                             }
                             else
                             {
                                 if(_runContinuationsAsynchronously)
-                                    _zeroRef.ZeroIncAsyncCount();
+                                    _zeroRef.ZeroDecAsyncCount();
                                 callback(state);
                             }                                
                         }

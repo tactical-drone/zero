@@ -113,13 +113,17 @@ namespace zero.core.patterns.bushings
         /// <param name="nanite">Adds closure manually</param>
         /// <returns>The current state of the job</returns>
         public abstract ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier,T nanite);
-        
+
         /// <summary>
         /// Initializes this instance for reuse from the heap
         /// </summary>
         /// <returns>This instance</returns>
-        
+
+#if DEBUG
+        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
+#else
         public virtual ValueTask<IIoHeapItem> ConstructorAsync()
+#endif
         {
 #if DEBUG
             for (var i = 0; i < StateTransitionHistory.Length; i++)
@@ -160,7 +164,11 @@ namespace zero.core.patterns.bushings
             //    StateTransitionHistory[prevState] = null;
             //}
 
+#if DEBUG
+            return (IIoHeapItem)this;
+#else
             return ValueTask.FromResult((IIoHeapItem)this);
+#endif
         }
 
         /// <summary>

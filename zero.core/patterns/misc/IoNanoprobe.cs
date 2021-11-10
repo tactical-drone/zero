@@ -325,7 +325,7 @@ namespace zero.core.patterns.misc
                     AsyncTasks?.Cancel();
             }
             catch (Exception) when(Zeroed()){}
-            catch (Exception) when (!Zeroed())
+            catch (Exception e) when (!Zeroed())
             {
 #if DEBUG
                 _logger.Trace(e, $"{Description}: Cancel async tasks failed!!!");
