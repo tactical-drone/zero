@@ -105,7 +105,7 @@ namespace zero.cocoon.models
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() && Source.Zeroed();
+            return base.Zeroed() || Source.Zeroed();
         }
 
         /// <summary>
@@ -361,19 +361,25 @@ namespace zero.cocoon.models
             }
             finally
             {
-                if (State != IoJobMeta.JobState.Consumed)
+                try
                 {
-                    if (PreviousJob.Syncing)
+                    if (State != IoJobMeta.JobState.Consumed)
                     {
-                        State = IoJobMeta.JobState.ConsumeErr;
-                    }
-                    else
-                    {
-                        State = IoJobMeta.JobState.ConInlined;
-                        _logger.Debug($"FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
+                        if (PreviousJob!= null && PreviousJob.Syncing)
+                        {
+                            State = IoJobMeta.JobState.ConsumeErr;
+                        }
+                        else
+                        {
+                            State = IoJobMeta.JobState.ConInlined;
+                            _logger.Debug($"FRAGGED = {DatumCount}, {BytesRead}/{BytesLeftToProcess}");
+                        }
                     }
                 }
-
+                catch (Exception e) when(!Zeroed())
+                {
+                    _logger.Error(e);
+                }                
             }
 
             return State;

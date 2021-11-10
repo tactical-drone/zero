@@ -152,7 +152,7 @@ namespace zero.sync
                 long C = 0;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 8; i++)
                 { 
                     gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
@@ -237,7 +237,7 @@ namespace zero.sync
                                     foreach (var d in ioCcNode.Neighbors.Values)
                                     {
                                         var drone = (CcDrone) d;
-                                        Console.WriteLine($"t = {ioCcNode.TotalConnections}, [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
+                                        Console.WriteLine($"t = {ioCcNode.TotalConnections} ({ioCcNode.IngressCount},{ioCcNode.EgressCount}), [{ioCcNode.Description}] -> {drone.Description} ][ {drone.Adjunct.MetaDesc}, uptime = {drone.Uptime.ElapsedMs():0.0}s");
                                     }
                                 }
                             

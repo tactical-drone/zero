@@ -156,93 +156,84 @@ namespace zero.core.core
                 }
 
                 if (await @this.ZeroAtomicAsync(static async (_, state, _) =>
+                {
+                    var (@this, newNeighbor) = state;
+                    try
                     {
-                        var (@this, newNeighbor) = state;
-                        try
+                        // Does this neighbor already exist?
+                        if (!@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
                         {
-                            // Does this neighbor already exist?
-                            if (!@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                            //Drop incoming //TODO? Drop existing? No because of race.
+                            if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
                             {
-                                //Drop incoming //TODO? Drop existing? No because of race.
-                                if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
+                                //Only drop incoming if the existing one is working
+                                if (existingNeighbor.Source.IsOperational)
                                 {
-                                    //Only drop incoming if the existing one is working
-                                    if (existingNeighbor.Source.IsOperational)
-                                    {
-                                        @this._logger.Trace(
-                                            $"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                        return false;
-                                    }
-                                    else //else drop existing
-                                    {
-                                        @this._logger.Debug(
-                                            $"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                        await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!"))
-                                            .FastPath().ConfigureAwait(@this.Zc);
-                                    }
+                                    @this._logger.Trace(
+                                        $"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                    return false;
+                                }
+                                else //else drop existing
+                                {
+                                    @this._logger.Debug(
+                                        $"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
+                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!"))
+                                        .FastPath().ConfigureAwait(@this.Zc);
                                 }
                             }
-
-                            //ZeroOnCascade(newNeighbor); 
-
-                            //Add new neighbor
-                            return await newNeighbor.ZeroAtomicAsync(static async (_, state, _) =>
+                        }
+                        
+                        //Add new neighbor                        
+                        //We use this locally captured variable as newNeighbor.Id disappears on zero
+                        var id = newNeighbor.Key;
+                        // Remove from lists if closed
+                        return await newNeighbor.ZeroSubAsync(static async (from, state) =>
+                        {
+                            var (@this, id, newNeighbor) = state;
+                            //DisconnectedEvent?.Invoke(this, newNeighbor);
+                            try
                             {
-                                var (@this, newNeighbor) = state;
-                                //We use this locally captured variable as newNeighbor.Id disappears on zero
-                                var id = newNeighbor.Key;
-                                // Remove from lists if closed
-                                await newNeighbor.ZeroSubAsync(static async (from, state) =>
+                                if (@this.Neighbors.TryRemove(id, out var zeroNeighbor))
                                 {
-                                    var (@this, id, newNeighbor) = state;
-                                    //DisconnectedEvent?.Invoke(this, newNeighbor);
-                                    try
-                                    {
-                                        if (@this.Neighbors.TryRemove(id, out var zeroNeighbor))
-                                        {
-                                            await zeroNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
-                                            @this._logger.Trace($"Removed {zeroNeighbor?.Description}");
-                                        }
-                                        else
-                                        {
-                                            @this._logger.Trace($"Cannot remove neighbor {id} not found!");
-                                        }
+                                    await zeroNeighbor.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
+                                    @this._logger.Trace($"Removed {zeroNeighbor?.Description}");
+                                }
+                                else
+                                {
+                                    @this._logger.Trace($"Cannot remove neighbor {id} not found!");
+                                }
 
-                                        return true;
-                                    }
-                                    catch (NullReferenceException e)
-                                    {
-                                        @this._logger?.Trace(e, @this.Description);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        @this._logger?.Trace(e,
-                                            $"Removing {newNeighbor.Description} from {@this.Description}");
-                                    }
-
-                                    return false;
-                                }, ValueTuple.Create(@this, id, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
                                 return true;
-                            }, ValueTuple.Create(@this, newNeighbor)).FastPath().ConfigureAwait(@this.Zc);
-                        }
-                        catch when (@this.Zeroed())
-                        {
-                        }
-                        catch (Exception e)when (!@this.Zeroed())
-                        {
-                            @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
-                        }
+                            }
+                            catch (NullReferenceException e)
+                            {
+                                @this._logger?.Trace(e, @this.Description);
+                            }
+                            catch (Exception e)
+                            {
+                                @this._logger?.Trace(e,$"Removing {newNeighbor.Description} from {@this.Description}");
+                            }
 
-                        return false;
-                    }, ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(@this.Zc))
+                            return false;
+                        }, (@this, id, newNeighbor)).FastPath().ConfigureAwait(@this.Zc) != null;                        
+                    }
+                    catch when (@this.Zeroed() || newNeighbor.Zeroed()){}
+                    catch (Exception e)when (!@this.Zeroed() && !newNeighbor.Zeroed())
+                    {
+                        @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
+                    }
+
+                    return false;
+                }
+                ,ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(@this.Zc))
                 {
                     //Start processing
                     await @this.ZeroAsync(static async state =>
-                        {
-                            var (@this, newNeighbor) = state;
-                            await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
-                        }, ValueTuple.Create(@this, newNeighbor), TaskCreationOptions.DenyChildAttach).FastPath()
-                        .ConfigureAwait(@this.Zc);
+                    {
+                        var (@this, newNeighbor) = state;
+                        await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
+                    }, ValueTuple.Create(@this, newNeighbor), TaskCreationOptions.DenyChildAttach).FastPath()
+                    .ConfigureAwait(@this.Zc);
                 }
                 else
                 {

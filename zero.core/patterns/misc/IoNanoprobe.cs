@@ -258,15 +258,24 @@ namespace zero.core.patterns.misc
         /// <param name="filePath"></param>
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
-        /// <returns>The handler</returns>
+        /// <returns>The handler</returns>        
         public ValueTask<LinkedListNode<IoZeroSub>> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
             T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = default)
         {
-            var newSub = new IoZeroSub($"{Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
-            
-            return ValueTask.FromResult(_zeroHive.AddFirst(newSub));
+            try
+            {
+                var newSub = new IoZeroSub($"zero sub> {Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
+                return ValueTask.FromResult(_zeroHive.AddFirst(newSub));
+            }
+            catch (Exception) when(Zeroed()) { }
+            catch (Exception e) when(!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(ZeroSubAsync)} returned with errors");
+            }
+
+            return ValueTask.FromResult<LinkedListNode<IoZeroSub>>(null);
         }
 
         /// <summary>

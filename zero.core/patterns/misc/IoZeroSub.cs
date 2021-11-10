@@ -40,11 +40,8 @@ namespace zero.core.patterns.misc
 
         public IoZeroSub SetAction<T>(Func<IIoNanite, T, ValueTask<bool>> callback, T closureState = default)
         {
-            ZeroAction = callback;
-
-            if (closureState != null)
-                State = closureState;
-                
+            ZeroAction = callback;            
+            State = closureState;                
             Target = callback?.Target;
             return this;
         }

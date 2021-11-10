@@ -509,7 +509,7 @@ namespace zero.cocoon
             if (Zeroed()) return false;
 
             try
-            {
+            {                
                 var handshakeBuffer = new byte[_handshakeBufferSize];
                 var ioNetSocket = drone.IoSource.IoNetSocket;
 
@@ -762,9 +762,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.EgressCount);
                             return ValueTask.FromResult(true);
-                        }, this).FastPath().ConfigureAwait(Zc);
-
-                        Interlocked.Increment(ref EgressCount);
+                        }, this).FastPath().ConfigureAwait(Zc);                        
                     }
                     else if (drone.IoSource.IoNetSocket.Ingress)
                     {
@@ -772,8 +770,7 @@ namespace zero.cocoon
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
                             return ValueTask.FromResult(true);
-                        }, this).FastPath().ConfigureAwait(Zc);
-                        Interlocked.Increment(ref IngressCount);
+                        }, this).FastPath().ConfigureAwait(Zc);                        
                     }
                 }
             }
@@ -807,7 +804,36 @@ namespace zero.cocoon
             if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
             {
                 //did we win?
-                return TotalConnections < MaxDrones && await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
+                var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
+
+                return (await ZeroAtomicAsync((n, o, d) =>
+                {
+                    var (@this, direction) = o;
+                    if (direction == CcAdjunct.Heading.Ingress)
+                    {
+                        if(Interlocked.Increment(ref @this.IngressCount) - 1 < parm_max_inbound)
+                        {
+                            return ValueTask.FromResult(true);
+                        }
+                        else
+                        {
+                            Interlocked.Decrement(ref @this.IngressCount);
+                            return ValueTask.FromResult(false);
+                        }
+                    }
+                    else
+                    {
+                        if (Interlocked.Increment(ref @this.EgressCount) - 1 < parm_max_outbound)
+                        {
+                            return ValueTask.FromResult(true);
+                        }
+                        else
+                        {
+                            Interlocked.Decrement(ref @this.EgressCount);
+                            return ValueTask.FromResult(false);
+                        }
+                    }
+                }, (this, direction)).FastPath().ConfigureAwait(Zc) && attached);
             }
             else
             {

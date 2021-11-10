@@ -487,7 +487,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
         public int parm_max_network_latency = 60000;
 #else
-        public int parm_max_network_latency = 1500;
+        public int parm_max_network_latency = 5000;
 #endif
 
         /// <summary>
@@ -971,13 +971,14 @@ namespace zero.cocoon.autopeer
                                                             //validate
                                                             for (var j = 2; j < 4; j++)
                                                             {
-                                                                for (var i = j; i < currentRoute!.Designation.PublicKey.Length; i += i)
+                                                                for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
                                                                 {
                                                                     if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
                                                                     {
                                                                         @this._logger.Warn($"{nameof(@this.Router)}: Dropped incoming {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)}");
                                                                         await currentRoute.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
                                                                         currentRoute = null;
+                                                                        break;
                                                                     }
                                                                 }
                                                             }

@@ -259,7 +259,7 @@ namespace zero.core.patterns.bushings
         public override bool Zeroed()
         {
             if(UpstreamSource != null)
-                return base.Zeroed() && UpstreamSource.Zeroed();
+                return base.Zeroed() || UpstreamSource.Zeroed();
 
             return base.Zeroed();
         }
