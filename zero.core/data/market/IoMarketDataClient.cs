@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reactive.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using NLog;
 
 namespace zero.core.data.market
@@ -50,8 +49,8 @@ namespace zero.core.data.market
                             break;
                         case TaskStatus.RanToCompletion:
                             Quality = 0;
-                            _lastFetchTime = DateTime.Now;
-                            return JsonConvert.DeserializeObject<IoCryptoCompareMarketData>(response.Result);                            
+                            _lastFetchTime = DateTime.Now;                            
+                            return JsonSerializer.Deserialize<IoCryptoCompareMarketData>(response.Result);                            
                     }
 
                     return default(IoCryptoCompareMarketData);

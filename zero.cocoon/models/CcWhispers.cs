@@ -119,11 +119,11 @@ namespace zero.cocoon.models
                 }
 
                 var round = 0;
-                while (BytesLeftToProcess > 0 && State != IoJobMeta.JobState.ConInlined)
+                while (BytesLeftToProcess > 0 && State == IoJobMeta.JobState.Consuming)
                 {
                     CcWhisperMsg whispers = null;
-                    if(round++ > 1)
-                        _logger.Fatal($"ROUND = {round}");
+                    //if(round++ > 1)
+                    //    _logger.Fatal($"ROUND = {round}");
                         
                     //deserialize
                     try
@@ -134,8 +134,7 @@ namespace zero.cocoon.models
                             break;
 
                         read = whispers.CalculateSize();
-                        BufferOffset += (uint)read;
-                        State = IoJobMeta.JobState.Consumed;
+                        BufferOffset += (uint)read;                        
                     }
                     catch (Exception e)
                     {
@@ -143,8 +142,7 @@ namespace zero.cocoon.models
                             _logger.Debug(e,
                                 $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(BufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
                         
-                        //try again
-                        State = IoJobMeta.JobState.ConInlined;
+                        //try again                     
                         Interlocked.Increment(ref BufferOffset);
                         continue;
                     }
@@ -158,9 +156,7 @@ namespace zero.cocoon.models
                     if (whispers == null || whispers.Data == null || whispers.Data.Length == 0)
                     {
                         continue;
-                    }
-
-                    State = IoJobMeta.JobState.SlowDup;
+                    }                    
                     
                     //read the token
                     var req = MemoryMarshal.Read<long>(whispers.Data.Span);
@@ -172,7 +168,7 @@ namespace zero.cocoon.models
                             State = IoJobMeta.JobState.ConsumeErr;
                             continue;
                         }
-                        
+
                         if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize * 2 / 3)
                         {
                             var culled = CcCollective.DupChecker.Keys.Where(k => k < req).ToList();
@@ -185,6 +181,14 @@ namespace zero.cocoon.models
                                 }
                             }
                         }
+                    }
+                    catch (Exception) when (Zeroed() || CcCollective == null || CcCollective.Zeroed() || CcCollective?.DupSyncRoot == null)
+                    {
+                        State = IoJobMeta.JobState.ConsumeErr;
+                    }
+                    catch (Exception e) when (!Zeroed() && CcCollective != null && !CcCollective.Zeroed() && CcCollective?.DupSyncRoot != null)
+                    {
+                        State = IoJobMeta.JobState.ConsumeErr;
                     }
                     finally
                     {
@@ -201,53 +205,52 @@ namespace zero.cocoon.models
                                 else
                                     State = IoJobMeta.JobState.Cancelled;
                             }
-                            else
-                                State = IoJobMeta.JobState.Consumed;
                         }
-                        catch (Exception) when (Zeroed())
+                        catch (Exception) when (Zeroed() || CcCollective == null || CcCollective.Zeroed() ||CcCollective?.DupSyncRoot == null)
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
-                        catch (Exception e) when (!Zeroed())
+                        catch (Exception e) when (!Zeroed() && CcCollective != null && !CcCollective.Zeroed() && CcCollective?.DupSyncRoot != null)
                         {
-                            _logger?.Fatal(e,$"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcDrone?.Adjunct}, cc = {CcDrone?.Adjunct?.CcCollective}, sync = `{CcDrone?.Adjunct?.CcCollective?.DupSyncRoot}'");
+                            _logger?.Fatal(e, $"{Description}, rounds = {round}, drone = {CcDrone}, adjunct = {CcDrone?.Adjunct}, cc = {CcDrone?.Adjunct?.CcCollective}, sync = `{CcDrone?.Adjunct?.CcCollective?.DupSyncRoot}'");
                             //PrintStateHistory();
                             State = IoJobMeta.JobState.ConsumeErr;
                         }
                     }
 
-                    if (State != IoJobMeta.JobState.Consumed)
+                    if (State != IoJobMeta.JobState.Consuming)
                         continue;
-                    
-                    State = IoJobMeta.JobState.FastDup;
+                                        
                     //set this message as seen if seen before
-                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket
-                        .RemoteAddress;
-
-
-                    //IoBag<string> dupEndpoints = null;
-                    CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints);
-                    if (dupEndpoints == null)
+                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
+                    
+                    if (!CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints))
                     {
                         dupEndpoints = await CcCollective.DupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
 
                         if (dupEndpoints == null)
                             throw new OutOfMemoryException(
                                 $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
-
+                        
                         if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                         {
-                            await dupEndpoints.ZeroManagedAsync<object>(zero: false).FastPath().ConfigureAwait(Zc);
+                            await dupEndpoints.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
                             await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
 
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
+                            {                        
                                 dupEndpoints.Add(endpoint);
+                                continue;
+                            }                                    
                         }
                     }
-
-                    State = IoJobMeta.JobState.ConInlined;
-
+                    else
+                    {                                    
+                        dupEndpoints.Add(endpoint);
+                        continue;
+                    }
+                    
                     foreach (var drone in CcCollective.WhisperingDrones)
                     {
                         try
@@ -258,8 +261,19 @@ namespace zero.cocoon.models
                             //Don't forward new messages to nodes from which we have received the msg in the mean time.
                             //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                             //which in turn lowers the traffic causing less congestion
-                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                            //if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                            //    continue;
+                            if (source.IoNetSocket.RemoteAddress == endpoint)
+                            {                                
                                 continue;
+                            }
+
+                            if (dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                            {
+                                Console.Write("!");
+                                continue;
+                            }
+
 
                             if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(Zc) <= 0)
                             {
@@ -268,16 +282,18 @@ namespace zero.cocoon.models
                             }
                             else
                             {
-                                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                                {
-                                    EventType = AutoPeerEventType.SendProtoMsg,
-                                    Msg = new ProtoMsg
+                                //Console.WriteLine($"{source.IoNetSocket.LocalAddress} ~> bq = {req}");
+                                if (AutoPeeringEventService.Operational)
+                                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                     {
-                                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                                        Id = drone.Adjunct.Designation.IdString(),
-                                        Type = $"gossip{Id % 6}"
-                                    }
-                                }).FastPath().ConfigureAwait(Zc);
+                                        EventType = AutoPeerEventType.SendProtoMsg,
+                                        Msg = new ProtoMsg
+                                        {
+                                            CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                                            Id = drone.Adjunct.Designation.IdString(),
+                                            Type = $"gossip{Id % 6}"
+                                        }
+                                    }).FastPath().ConfigureAwait(Zc);
                             }
                         }
                         catch when( Zeroed()){}

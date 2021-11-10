@@ -242,8 +242,7 @@ namespace zero.core.network.ip
                 }
 
                 NativeSocket.SendTimeout = timeout;
-                var sent = NativeSocket.Send(buffer.ToArray(), offset, length, SocketFlags.None);
-                NativeSocket.SendTimeout = 0;
+                var sent = NativeSocket.Send(buffer.Span.Slice(offset,length));                
                 return sent; //TODO optimize copy
             }
             catch (SocketException) when (!Zeroed())

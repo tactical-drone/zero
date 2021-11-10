@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+#if REF
 using Microsoft.VisualStudio.Threading;
 using zero.core.patterns.semaphore.core;
 
@@ -170,6 +171,7 @@ namespace zero.core.patterns.semaphore
         public bool IsCancellationRequested()
         {
             throw new NotImplementedException();
-        }
+        }        
     }
 }
+#endif

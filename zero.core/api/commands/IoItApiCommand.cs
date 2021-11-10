@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
 using NLog;
 
 namespace zero.core.api.commands
@@ -26,18 +26,18 @@ namespace zero.core.api.commands
             ApiLookup.TryAdd(key, this);
         }
 
-        public static async Task<ResponseBase> ProcessAsync(JObject jsonCommandObject)
+        public static async Task<ResponseBase> ProcessAsync(JsonDocument jsonCommandObject)
         {
             Logger.Trace($"API message received\n{jsonCommandObject}");
 
-            var key = jsonCommandObject.GetValue("command").ToString();
+            var key = jsonCommandObject.RootElement.GetProperty("command").ToString();
             return ApiLookup.ContainsKey(key)
                 ? await ApiLookup[key].ProcessCommandAsync(jsonCommandObject)
                 : new ErrorResponse {error = $"'{key}' parameter has not been specified"};
         }
 
 #pragma warning disable 1998
-        public virtual async Task<ResponseBase> ProcessCommandAsync(JObject jsonCommandobJObject)
+        public virtual async Task<ResponseBase> ProcessCommandAsync(JsonDocument jsonCommandobJObject)
 #pragma warning restore 1998
         {
             return new ErrorResponse {error = $"An undefined error has occurred"};

@@ -23,10 +23,14 @@ namespace zero.core.patterns.queue
         {
             _description = description;
             _capacity = capacity;
-            _storage = new T[_capacity];
+            _storage = new T[_capacity + 1];
+#if DEBUG
             _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
+#else
+            _zeroSentinel = new IoNanoprobe(null);
+#endif
         }
-            
+
         private volatile int _zeroed;
         private readonly bool Zc = true;
         private readonly string _description;
@@ -139,8 +143,10 @@ namespace zero.core.patterns.queue
                 if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
                 
-                foreach (var item in _storage)
+                //foreach (var item in _storage)
+                for(int i = 0; i < _capacity; i++)
                 {
+                    var item = _storage[i];
                     try
                     {
                         //TODO is this a good idea?
@@ -155,14 +161,19 @@ namespace zero.core.patterns.queue
                                 await ((IIoNanite)item).ZeroAsync((IIoNanite)nanite ?? _zeroSentinel)
                                     .FastPath()
                                     .ConfigureAwait(Zc);
-                        }
+                        }                        
                     }
                     catch (Exception) when(Zeroed){}
                     catch (Exception e) when (!Zeroed)
                     {
                         LogManager.GetCurrentClassLogger().Trace(e, $"{_description}: {op}, {item}, {nanite}");
                     }
+                    finally
+                    {
+                        _storage[i] = null;                        
+                    }
                 }
+                
             }
             catch
             {
@@ -170,14 +181,14 @@ namespace zero.core.patterns.queue
             }
             finally
             {
+                _count = 0;
+
                 if (zero)
                 {
                     await _zeroSentinel.ZeroAsync(_zeroSentinel).FastPath().ConfigureAwait(Zc);
                     _zeroSentinel = null;
                     _storage = null;
-                }
-                else
-                    Array.Clear(_storage, 0, _storage.Length);
+                }                
             }
 
             return true;
@@ -187,15 +198,17 @@ namespace zero.core.patterns.queue
         /// Move to next item
         /// </summary>
         /// <returns>True if the iterator could be advanced by 1</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
-        {
+        {            
             if (_iteratorIdx == 0)
                 return false;
-            
-            Interlocked.Decrement(ref _iteratorIdx);
-            
-            return true;
+
+            var tmpIdx = _iteratorIdx;
+
+            while ( _storage[Interlocked.Decrement(ref _iteratorIdx)] == null && _iteratorIdx != 0) { }
+
+            return _storage[_iteratorIdx] != null;
         }
 
         /// <summary>

@@ -1188,16 +1188,17 @@ namespace zero.cocoon.autopeer
                 var response = $"{(peeringResponse.Status ? "accept" : "reject")}";
                 _logger.Trace($"-/> {nameof(PeeringResponse)}({sent}): Sent {response}, {Description}");
 
-                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.SendProtoMsg,
-                    Msg = new ProtoMsg
+                if(AutoPeeringEventService.Operational)
+                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
-                        CollectiveId = Hub.Router.Designation.IdString(),
-                        Id = Designation.IdString(),
-                        Type = $"peer response {response}"
-                    }
-                }).FastPath().ConfigureAwait(Zc);
+                        EventType = AutoPeerEventType.SendProtoMsg,
+                        Msg = new ProtoMsg
+                        {
+                            CollectiveId = Hub.Router.Designation.IdString(),
+                            Id = Designation.IdString(),
+                            Type = $"peer response {response}"
+                        }
+                    }).FastPath().ConfigureAwait(Zc);
             }
             else
                 _logger.Debug($"<\\- {nameof(PeeringRequest)}: [FAILED], {Description}, {MetaDesc}");
@@ -1578,15 +1579,16 @@ namespace zero.cocoon.autopeer
                     {
                         if (@this.Hub.Neighbors.TryRemove(newAdjunct.Key, out var n))
                         {
-                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                            {
-                                EventType = AutoPeerEventType.RemoveAdjunct,
-                                Adjunct = new Adjunct
+                            if (AutoPeeringEventService.Operational)
+                                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                 {
-                                    CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
-                                    Id = newAdjunct.Designation.IdString(),
-                                }
-                            }).FastPath().ConfigureAwait(@this.Zc);
+                                    EventType = AutoPeerEventType.RemoveAdjunct,
+                                    Adjunct = new Adjunct
+                                    {
+                                        CollectiveId = @this.CcCollective.Hub.Router.Designation.IdString(),
+                                        Id = newAdjunct.Designation.IdString(),
+                                    }
+                                }).FastPath().ConfigureAwait(@this.Zc);
 
                             if (newAdjunct != n)
                             {
@@ -1618,15 +1620,16 @@ namespace zero.cocoon.autopeer
                 _logger.Debug($"# {newAdjunct.Description}");
 
                 //emit event
-                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.AddAdjunct,
-                    Adjunct = new Adjunct
+                if (AutoPeeringEventService.Operational)
+                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
-                        Id = newAdjunct.Designation.IdString(),
-                        CollectiveId = CcCollective.Hub.Router.Designation.IdString()
-                    }
-                }).FastPath().ConfigureAwait(Zc);
+                        EventType = AutoPeerEventType.AddAdjunct,
+                        Adjunct = new Adjunct
+                        {
+                            Id = newAdjunct.Designation.IdString(),
+                            CollectiveId = CcCollective.Hub.Router.Designation.IdString()
+                        }
+                    }).FastPath().ConfigureAwait(Zc);
 
                 //Start processing
                 await ZeroAsync(static async state =>
@@ -1709,16 +1712,17 @@ namespace zero.cocoon.autopeer
                 _logger.Trace($"-/> {nameof(DiscoveryResponse)}({sent}): Sent {count} discoveries to {Description}");
 
                 //Emit message event
-                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.SendProtoMsg,
-                    Msg = new ProtoMsg
+                if (AutoPeeringEventService.Operational)
+                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
-                        CollectiveId = Hub.Router.Designation.IdString(),
-                        Id = Designation.IdString(),
-                        Type = "discovery response"
-                    }
-                }).FastPath().ConfigureAwait(Zc);
+                        EventType = AutoPeerEventType.SendProtoMsg,
+                        Msg = new ProtoMsg
+                        {
+                            CollectiveId = Hub.Router.Designation.IdString(),
+                            Id = Designation.IdString(),
+                            Type = "discovery response"
+                        }
+                    }).FastPath().ConfigureAwait(Zc);
             }
             else
             {
@@ -1828,16 +1832,17 @@ namespace zero.cocoon.autopeer
                     _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
 #endif
 
-                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                    if (AutoPeeringEventService.Operational)
+                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Base58.Bitcoin.Encode(packet.PublicKey.Span[..8].ToArray()),
-                            Type = "pong"
-                        }
-                    }).FastPath().ConfigureAwait(Zc);
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Base58.Bitcoin.Encode(packet.PublicKey.Span[..8].ToArray()),
+                                Type = "pong"
+                            }
+                        }).FastPath().ConfigureAwait(Zc);
                 }
 
                 if (toProxyAddress != null && CcCollective.UdpTunnelSupport && toAddress.Ip != toProxyAddress.Ip)
@@ -1865,17 +1870,17 @@ namespace zero.cocoon.autopeer
                     else
                         _logger.Trace($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[ACK SYN]], {Description}");
 #endif
-
-                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                    if (AutoPeeringEventService.Operational)
+                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Designation.IdString(),
-                            Type = "pong"
-                        }
-                    }).FastPath().ConfigureAwait(Zc);
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Designation.IdString(),
+                                Type = "pong"
+                            }
+                        }).FastPath().ConfigureAwait(Zc);
                 }
                 else
                 {
@@ -2071,17 +2076,17 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         _logger.Trace($"-/> {nameof(Ping)}({sent})[{reqBuf.Span.PayloadSig()}, {challenge.Value.Payload.Memory.PayloadSig()}]: {Description}");
 #endif
-
-                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                        {
-                            EventType = AutoPeerEventType.SendProtoMsg,
-                            Msg = new ProtoMsg
+                        if (AutoPeeringEventService.Operational)
+                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                             {
-                                CollectiveId = Hub.Router.Designation.IdString(),
-                                Id = Designation.IdString(),
-                                Type = "ping"
-                            }
-                        }).FastPath().ConfigureAwait(Zc);
+                                EventType = AutoPeerEventType.SendProtoMsg,
+                                Msg = new ProtoMsg
+                                {
+                                    CollectiveId = Hub.Router.Designation.IdString(),
+                                    Id = Designation.IdString(),
+                                    Type = "ping"
+                                }
+                            }).FastPath().ConfigureAwait(Zc);
 
                         return true;
                     }
@@ -2109,16 +2114,17 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                         _logger.Trace($"-/> {nameof(Ping)}({sent})[{reqBuf.Span.PayloadSig()}]: dest = {dest}, {Description}");
 #endif
-                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                        {
-                            EventType = AutoPeerEventType.SendProtoMsg,
-                            Msg = new ProtoMsg
+                        if (AutoPeeringEventService.Operational)
+                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                             {
-                                CollectiveId = Hub.Router.Designation.IdString(),
-                                Id = id,
-                                Type = "ping"
-                            }
-                        }).FastPath().ConfigureAwait(Zc);
+                                EventType = AutoPeerEventType.SendProtoMsg,
+                                Msg = new ProtoMsg
+                                {
+                                    CollectiveId = Hub.Router.Designation.IdString(),
+                                    Id = id,
+                                    Type = "ping"
+                                }
+                            }).FastPath().ConfigureAwait(Zc);
 
                         return true;
                     }
@@ -2183,16 +2189,17 @@ namespace zero.cocoon.autopeer
                         $"-/> {nameof(DiscoveryRequest)}({sent}){reqBuf.Memory.PayloadSig()}: Sent, {Description}");
 
                     //Emit message event
-                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                    if (AutoPeeringEventService.Operational)
+                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Designation.IdString(),
-                            Type = "discovery request"
-                        }
-                    }).FastPath().ConfigureAwait(Zc);
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Designation.IdString(),
+                                Type = "discovery request"
+                            }
+                        }).FastPath().ConfigureAwait(Zc);
 
                     return true;
                 }
@@ -2256,16 +2263,17 @@ namespace zero.cocoon.autopeer
                     _logger.Trace(
                         $"-/> {nameof(PeeringRequest)}({sent})[{peerRequestRaw.Memory.PayloadSig()}]: Sent, {Description}");
 
-                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                    if (AutoPeeringEventService.Operational)
+                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Designation.IdString(),
-                            Type = "peer request"
-                        }
-                    }).FastPath().ConfigureAwait(Zc);
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Designation.IdString(),
+                                Type = "peer request"
+                            }
+                        }).FastPath().ConfigureAwait(Zc);
 
                     return true;
                 }
@@ -2311,16 +2319,17 @@ namespace zero.cocoon.autopeer
 
                 if (sent > 0)
                 {
-                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.SendProtoMsg,
-                        Msg = new ProtoMsg
+                    if (AutoPeeringEventService.Operational)
+                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
-                            CollectiveId = Hub.Router.Designation.IdString(),
-                            Id = Designation.IdString(),
-                            Type = $"peer disconnect"
-                        }
-                    }).FastPath().ConfigureAwait(Zc);
+                            EventType = AutoPeerEventType.SendProtoMsg,
+                            Msg = new ProtoMsg
+                            {
+                                CollectiveId = Hub.Router.Designation.IdString(),
+                                Id = Designation.IdString(),
+                                Type = $"peer disconnect"
+                            }
+                        }).FastPath().ConfigureAwait(Zc);
 
                     return true;
                 }
@@ -2401,16 +2410,17 @@ namespace zero.cocoon.autopeer
                 AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 //emit event
-                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                {
-                    EventType = AutoPeerEventType.AddDrone,
-                    Drone = new Drone
+                if (AutoPeeringEventService.Operational)
+                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
-                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                        Adjunct = ccDrone.Adjunct.Designation.IdString(),
-                        Direction = ccDrone.Adjunct.Direction.ToString(),
-                    }
-                }).FastPath().ConfigureAwait(Zc);
+                        EventType = AutoPeerEventType.AddDrone,
+                        Drone = new Drone
+                        {
+                            CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                            Adjunct = ccDrone.Adjunct.Designation.IdString(),
+                            Direction = ccDrone.Adjunct.Direction.ToString(),
+                        }
+                    }).FastPath().ConfigureAwait(Zc);
 
                 await SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc);
 
@@ -2466,15 +2476,16 @@ namespace zero.cocoon.autopeer
 
 
             //emit event
-            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-            {
-                EventType = AutoPeerEventType.RemoveDrone,
-                Drone = new Drone
-                {   
-                    CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                    Adjunct = Designation.IdString()
-                }
-            }).FastPath().ConfigureAwait(Zc);
+            if (AutoPeeringEventService.Operational)
+                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                {
+                    EventType = AutoPeerEventType.RemoveDrone,
+                    Drone = new Drone
+                    {
+                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                        Adjunct = Designation.IdString()
+                    }
+                }).FastPath().ConfigureAwait(Zc);
 
             SetState(AdjunctState.Verified);
         }

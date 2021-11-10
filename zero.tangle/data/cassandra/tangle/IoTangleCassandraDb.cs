@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Data.Linq;
 using Cassandra.Mapping;
-using Microsoft.VisualStudio.Threading;
 using NLog;
 using zero.core.data.contracts;
 using zero.core.data.market;

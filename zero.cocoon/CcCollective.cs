@@ -95,7 +95,7 @@ namespace zero.cocoon
 
             DupHeap = new IoHeap<IoBag<string>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
             {
-                Make = static (o, s) => new IoBag<string>($"{nameof(DupHeap)}:Bag ( ep = {o}), {s.Description}", s._dupPoolSize),
+                Make = static (o, s) => new IoBag<string>(null, s._dupPoolSize * 2),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add((string)endpoint);
@@ -221,14 +221,15 @@ namespace zero.cocoon
             {
                 if (!string.IsNullOrEmpty(id))
                 {
-                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                    {
-                        EventType = AutoPeerEventType.RemoveCollective,
-                        Collective = new Collective()
+                    if (AutoPeeringEventService.Operational)
+                        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                         {
-                            Id = id
-                        }
-                    }).FastPath().ConfigureAwait(Zc);
+                            EventType = AutoPeerEventType.RemoveCollective,
+                            Collective = new Collective()
+                            {
+                                Id = id
+                            }
+                        }).FastPath().ConfigureAwait(Zc);
                 }
             }
             catch 
@@ -261,8 +262,7 @@ namespace zero.cocoon
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, IoBag<string>> DupChecker { get; } = new();
         public IoHeap<IoBag<string>, CcCollective> DupHeap { get; protected set; }
-
-        private uint _dupPoolSize = 100;
+        private uint _dupPoolSize = 50;
 
         /// <summary>
         /// Bootstrap
@@ -1005,15 +1005,18 @@ namespace zero.cocoon
         public ValueTask EmitAsync()
         {
             //Emit collective event
-            return AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-            {
-                EventType = AutoPeerEventType.AddCollective,
-                Collective = new Collective
+            if (AutoPeeringEventService.Operational)
+                return AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                 {
-                    Id = CcId.IdString(),
-                    Ip = ExtAddress.Url
-                }
-            });
+                    EventType = AutoPeerEventType.AddCollective,
+                    Collective = new Collective
+                    {
+                        Id = CcId.IdString(),
+                        Ip = ExtAddress.Url
+                    }
+                });
+
+            return ValueTask.CompletedTask;
         }
     }
 }

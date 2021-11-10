@@ -53,6 +53,8 @@ namespace zero.cocoon
                     }
                 }
             },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach| TaskCreationOptions.PreferFairness);
+
+            m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb)) };
         }
 
         /// <summary>
@@ -238,6 +240,9 @@ namespace zero.cocoon
         /// <summary>
         /// A test mode
         /// </summary>
+        /// 
+        byte[] vb = new byte[8];
+        CcWhisperMsg m;
         public async ValueTask EmitTestGossipMsgAsync(long v)
         {
             try
@@ -256,30 +261,30 @@ namespace zero.cocoon
             
                 //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
                 {
-
-                    var vb = new byte[8];
+                    
                     Write(vb.AsSpan(), ref v);
 
-                    var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
+                    //var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
 
                     var buf = m.ToByteArray();
 
                     if (!Zeroed())
                     {
                         var socket = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket;
-                        if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 1000).FastPath().ConfigureAwait(Zc) > 0)
+                        if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 50).FastPath().ConfigureAwait(Zc) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
-                            await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
-                            {
-                                EventType = AutoPeerEventType.SendProtoMsg,
-                                Msg = new ProtoMsg
+                            if (AutoPeeringEventService.Operational)
+                                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                 {
-                                    CollectiveId = Adjunct.CcCollective.Hub.Router.Designation.IdString(),
-                                    Id = Adjunct.Designation.IdString(),
-                                    Type = "gossip"
-                                }
-                            }).FastPath().ConfigureAwait(Zc);
+                                    EventType = AutoPeerEventType.SendProtoMsg,
+                                    Msg = new ProtoMsg
+                                    {
+                                        CollectiveId = Adjunct.CcCollective.Hub.Router.Designation.IdString(),
+                                        Id = Adjunct.Designation.IdString(),
+                                        Type = "gossip"
+                                    }
+                                }).FastPath().ConfigureAwait(Zc);
                         }
                     }
                 }

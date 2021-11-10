@@ -79,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 1200;
+            var total = 50;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -163,6 +163,7 @@ namespace zero.sync
                                 //continue;
                                 await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
                                 await Task.Delay(15).ConfigureAwait(Zc);
+                                //Console.Write(".");
                                 
                                 if (Interlocked.Increment(ref C) == 5000)
                                 {
@@ -173,7 +174,7 @@ namespace zero.sync
                             }
                         }
                         Console.WriteLine("Stopped gossip...");
-                    }).Unwrap());
+                    }));
                 }
 
             });
@@ -390,6 +391,8 @@ namespace zero.sync
             
             try
             {
+                reportingTask.GetAwaiter().GetResult();
+                task.GetAwaiter().GetResult();
                 if (reportingTask.Status == TaskStatus.Running)
                     reportingTask.Dispose();
             }
@@ -419,7 +422,7 @@ namespace zero.sync
         private static Task QueueTestAsync() //TODO make unit tests
         {
 
-            IoQueue<int> q = new IoQueue<int>("test", 2000000000, 10);
+            IoQueue<int> q = new IoQueue<int>("test", 2000000000, 100);
             var head = q.EnqueueAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter();
             q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
@@ -530,26 +533,27 @@ namespace zero.sync
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var rounds = 10;
-            var mult = 100000;
+            var mult = 1000000;
             for (var i = 0; i < rounds; i++)
             {
+                Console.Write(".");
                 var i3 = i;
                 _concurrentTasks.Add(Task.Factory.StartNew(async () =>
-                {
+                {                    
                     for (int j = 0; j < mult; j++)
                     {
                         try
                         {
-                            await q.EnqueueAsync(i3).FastPath().ConfigureAwait(Zc);
-                            await q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(Zc);
-                            var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-                            var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+                            q.EnqueueAsync(i3).FastPath().ConfigureAwait(Zc);
+                            q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(Zc);
+                            var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(Zc);
+                            var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(Zc);
                             await q.EnqueueAsync(i3 + 4).FastPath().ConfigureAwait(Zc);
 
-                            q.RemoveAsync(i2).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
-                            q.RemoveAsync(i1).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                            q.RemoveAsync(await i2).FastPath().ConfigureAwait(Zc);
+                            q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                            q.RemoveAsync(await i1).FastPath().ConfigureAwait(Zc);
+                            q.DequeueAsync().FastPath().ConfigureAwait(Zc);
                             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
                         }
                         catch (Exception e)
@@ -585,10 +589,10 @@ namespace zero.sync
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, maxAsyncWork:0, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
-            var releaseCount = 3;
+            var releaseCount = 2;
             var enableThrottle = true;
             var waiters = 3;
-            var releasers = 1;
+            var releasers = 3;
             var targetSleep = (long)0;
             var logSpam = 40000;//at least 1
 
@@ -955,12 +959,12 @@ namespace zero.sync
 
 #pragma warning disable 4014
 
-            var t = new Task<CcCollective>(() =>
+            var t = new Task<CcCollective>(static cocoon =>
             {
-                cocoon.EmitAsync().AsTask().GetAwaiter();
-                cocoon.StartAsync();
-                return cocoon;
-            }, TaskCreationOptions.LongRunning);
+                ((CcCollective)cocoon).EmitAsync();
+                ((CcCollective)cocoon).StartAsync();
+                return (CcCollective)cocoon;
+            }, cocoon, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
             return t;
         }
     }

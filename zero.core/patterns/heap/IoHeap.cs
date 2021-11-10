@@ -178,7 +178,9 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref _count);
                         Interlocked.Increment(ref _refCount);
-                        return ValueTask.FromResult(Make(userData, Context));
+                        heapItem = Make(userData, Context);
+                        Prep?.Invoke(heapItem, userData);
+                        return ValueTask.FromResult(heapItem);
                     }
                     else //we have run out of capacity
                     {

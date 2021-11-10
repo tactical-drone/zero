@@ -36,7 +36,7 @@ namespace zero.core.patterns.semaphore.core
             int maxBlockers = 1, 
             int initialCount = 0,
             uint concurrencyLevel = 0,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : this()
+            bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
             

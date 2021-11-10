@@ -31,6 +31,7 @@ namespace zero.cocoon.events.services
         private static volatile int _operational = 0;
         private static long _seq;
         private static volatile uint _curIdx;
+        public static bool Operational => _operational > 0;
         
 
         public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)
@@ -80,7 +81,7 @@ namespace zero.cocoon.events.services
         {
             try
             {
-                if (_operational > 0 || _queuedEvents[_curIdx%2].Count < EventBatchSize  * TotalBatches)
+                if (_operational > 0 && _queuedEvents[_curIdx%2].Count < EventBatchSize  * TotalBatches)
                 {
                     newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     newAutoPeerEvent.Seq = Interlocked.Increment(ref _seq) - 1;
