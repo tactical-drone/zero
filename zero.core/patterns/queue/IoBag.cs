@@ -244,7 +244,9 @@ namespace zero.core.patterns.queue
                     idx1 = _iteratorIdx >> 6;
                     idx2 = 0x1UL << (int)_iteratorIdx % 64;
                     hotReload = _hotReload && (_hotReloadBloom[idx1] & idx2) > 0;
-                }                
+                }
+
+                idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
             }
 
             if (_hotReload)
