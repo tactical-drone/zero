@@ -252,7 +252,7 @@ namespace zero.core.patterns.queue
             if (_hotReload)
                 _hotReloadBloom[idx1] ^= idx2;
 
-            return _storage[_iteratorIdx] != null;
+            return _storage[idx] != null;
         }
 
         /// <summary>
