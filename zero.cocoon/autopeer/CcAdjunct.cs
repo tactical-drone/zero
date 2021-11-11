@@ -1507,7 +1507,7 @@ namespace zero.cocoon.autopeer
             //var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
             newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(id, services, newRemoteEp));
 
-            if (!Zeroed() && Hub.ZeroAtomicAsync(static async (s, state, ___) =>
+            if (!Zeroed() && Hub.ZeroAtomic(static async (s, state, ___) =>
             {
                 var (@this, newAdjunct) = state;
                 try
@@ -2365,7 +2365,7 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
-                if (!ZeroAtomicAsync( static (_, state, _) =>
+                if (!ZeroAtomic( static (_, state, _) =>
                 {
                     var (@this, ioCcDrone, direction) = state;
 

@@ -155,7 +155,7 @@ namespace zero.core.core
                     return;
                 }
 
-                if (@this.ZeroAtomicAsync(static async (_, state, _) =>
+                if (@this.ZeroAtomic(static async (_, state, _) =>
                 {
                     var (@this, newNeighbor) = state;
                     try
@@ -286,7 +286,7 @@ namespace zero.core.core
                 //We capture a local variable here as newNeighbor.Id disappears on zero
                 var id = newNeighbor.Key;
                 
-                if (ZeroAtomicAsync(static async (_,state,_) =>
+                if (ZeroAtomic(static async (_,state,_) =>
                 {
                     var (@this, newNeighbor) = state;
                     //New neighbor?

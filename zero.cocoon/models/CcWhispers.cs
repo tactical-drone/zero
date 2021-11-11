@@ -172,7 +172,7 @@ namespace zero.cocoon.models
                             continue;
                         }
 
-                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize * 2 / 3)
+                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize/2)
                         {
                             var culled = CcCollective.DupChecker.Keys.Where(k => k < req).ToList();
                             foreach (var mId in culled)
@@ -243,7 +243,7 @@ namespace zero.cocoon.models
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
                             {                        
-                                dupEndpoints.Add(endpoint, true);                                
+                                dupEndpoints.Add(endpoint.GetHashCode(), true);                                
                                 continue;
                             }                                    
                         }
@@ -252,7 +252,7 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            dupEndpoints.Add(endpoint, true);
+                            dupEndpoints.Add(endpoint.GetHashCode(), true);
                         }
                         catch (Exception)
                         {
@@ -275,7 +275,7 @@ namespace zero.cocoon.models
                             //Don't forward new messages to nodes from which we have received the msg in the mean time.
                             //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                             //which in turn lowers the traffic causing less congestion
-                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
+                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 
                             if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(Zc) <= 0)

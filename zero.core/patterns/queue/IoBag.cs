@@ -100,7 +100,7 @@ namespace zero.core.patterns.queue
 
                 if(_hotReload)
                 {
-                    _iteratorIdx = _capacity;                    
+                    _iteratorIdx = Head;
                     _hotReloadBloom[latch >> 8] &= 0x1UL << (int)(latch % 64);
                 }                    
             }
@@ -220,7 +220,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
         {            
-            if (_iteratorIdx == 0)
+            if (_iteratorIdx == Tail)
                 return false;
 
             var tmpIdx = _iteratorIdx;
@@ -234,8 +234,10 @@ namespace zero.core.patterns.queue
                 idx2 = 0x1UL << (int)_iteratorIdx % 64;
                 hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
             }
+
+            var idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;            
             
-            while ((_storage[Interlocked.Decrement(ref _iteratorIdx)] == null || !hotReload) && _iteratorIdx != 0) 
+            while ((_storage[idx] == null || !hotReload) && idx != Tail) 
             {
                 if(_hotReload)
                 {

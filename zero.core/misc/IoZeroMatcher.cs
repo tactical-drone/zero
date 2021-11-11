@@ -110,11 +110,11 @@ namespace zero.core.misc
         /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
+        public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
         {
             IoQueue<IoChallenge>.IoZNode node = new IoQueue<IoChallenge>.IoZNode();
             var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
-            ZeroAtomicAsync(static async (_, state, __) =>
+            ZeroAtomic(static async (_, state, __) =>
             {
                 IoChallenge challenge = null;
                 try
@@ -173,7 +173,7 @@ namespace zero.core.misc
                 return true;
             }, state);
 
-            return state.node;
+            return ValueTask.FromResult(state.node);
         }
         
         [ThreadStatic]
@@ -193,7 +193,7 @@ namespace zero.core.misc
         /// <returns>The response payload</returns>
         public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return ValueTask.FromResult(ZeroAtomicAsync(static async (_, state, __) =>
+            return ValueTask.FromResult(ZeroAtomic(static async (_, state, __) =>
             {
                 var (@this, key, reqHash) = state;
                 var cmp = reqHash.Memory;

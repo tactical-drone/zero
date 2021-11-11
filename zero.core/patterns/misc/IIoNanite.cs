@@ -81,7 +81,7 @@ namespace zero.core.patterns.misc
         /// <returns>true on success, false otherwise</returns>
         //ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,T userData = default,bool disposing = false, bool force = false);
         [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
-        bool ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false);
+        bool ZeroAtomic<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false);
 
         /// <summary>
         /// Collect unmanaged resources

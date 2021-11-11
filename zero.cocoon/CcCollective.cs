@@ -93,14 +93,13 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            _dupPoolSize = (uint)(parm_max_drone * 5);
-
-            DupHeap = new IoHeap<IoBag<string>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
+            _dupPoolSize = (uint)(parm_max_drone * 8);            
+            DupHeap = new IoHeap<IoBag<IoInt32>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize)
             {
-                Make = static (o, s) => new IoBag<string>(null, s._dupPoolSize * 2, (int)s.parm_max_adjunct, true),
+                Make = static (o, s) => new IoBag<IoInt32>(null, s.parm_max_adjunct, (int)s.parm_max_adjunct, true),
                 Prep = (popped, endpoint) =>
                 {
-                    popped.Add((string)endpoint);
+                    popped.Add(endpoint.GetHashCode());
                 },
                 Context = this
             };
@@ -262,8 +261,8 @@ namespace zero.cocoon
 
         readonly Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
-        public ConcurrentDictionary<long, IoBag<string>> DupChecker { get; } = new();
-        public IoHeap<IoBag<string>, CcCollective> DupHeap { get; protected set; }
+        public ConcurrentDictionary<long, IoBag<IoInt32>> DupChecker { get; } = new();
+        public IoHeap<IoBag<IoInt32>, CcCollective> DupHeap { get; protected set; }
         private uint _dupPoolSize;
 
         /// <summary>
@@ -805,7 +804,7 @@ namespace zero.cocoon
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                return (ZeroAtomicAsync(static (n, o, d) =>
+                return (ZeroAtomic(static (n, o, d) =>
                 {
                     var (@this, id, direction, packet, drone, remoteEp) = o;
                                                             

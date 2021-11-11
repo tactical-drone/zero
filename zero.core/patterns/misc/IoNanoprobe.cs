@@ -49,8 +49,7 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel">Consurrency level</param>
         /// <param name="mutex">locks in a mutex</param>
         public IoNanoprobe(string description, int concurrencyLevel, CancellationTokenSource asyncTasks)
-        {
-            string desc = "";
+        {            
             _concurrencyLevel = concurrencyLevel;
             _zId = Interlocked.Increment(ref _uidSeed);
 #if DEBUG            
@@ -83,11 +82,11 @@ namespace zero.core.patterns.misc
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
             
-            var enableFairQ = true;
-            var enableDeadlockDetection = true;
-#if RELEASE
-            enableDeadlockDetection = false;
-#endif
+//            var enableFairQ = true;
+//            var enableDeadlockDetection = true;
+//#if RELEASE
+//            enableDeadlockDetection = false;
+//#endif
 
             //_nanoMutex = new IoZeroSemaphore(description, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             //_nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
@@ -540,7 +539,7 @@ namespace zero.core.patterns.misc
         //    return false;
         //}
         [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
-        public bool ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false)
+        public bool ZeroAtomic<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false)
         {
             try
             {
