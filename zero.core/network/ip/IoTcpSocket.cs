@@ -164,7 +164,7 @@ namespace zero.core.network.ip
             try
             {
                 var connectTask = NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token);
-
+                
                 if (timeout > 0)
                 {
                     await ZeroAsync(static async state =>
@@ -180,10 +180,11 @@ namespace zero.core.network.ip
 
                 await connectTask.FastPath().ConfigureAwait(Zc);
 
-                NativeSocket.Blocking = true;
-                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint( "tcp", (IPEndPoint) NativeSocket.LocalEndPoint);
-                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint) NativeSocket.RemoteEndPoint);
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
+                RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.RemoteEndPoint);
 
+                NativeSocket.Blocking = true;
+                
                 _logger.Trace($"Connected to `{RemoteNodeAddress}': ({Description})");
                 return true;
             }
@@ -243,7 +244,7 @@ namespace zero.core.network.ip
 
                 NativeSocket.SendTimeout = timeout;
                 var sent = NativeSocket.Send(buffer.Span.Slice(offset,length));                
-                return sent; //TODO optimize copy
+                return sent;
             }
             catch (SocketException) when (!Zeroed())
             {

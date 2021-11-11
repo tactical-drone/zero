@@ -107,6 +107,9 @@ namespace zero.cocoon.models
         //private uint _poolSize = 50;
         //private long _maxReq = int.MinValue;
 
+
+        private long aveReg = 0;
+
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             var read = 0;
@@ -261,19 +264,8 @@ namespace zero.cocoon.models
                             //Don't forward new messages to nodes from which we have received the msg in the mean time.
                             //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
                             //which in turn lowers the traffic causing less congestion
-                            //if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
-                            //    continue;
-                            if (source.IoNetSocket.RemoteAddress == endpoint)
-                            {                                
+                            if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
                                 continue;
-                            }
-
-                            if (dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress))
-                            {
-                                Console.Write("!");
-                                continue;
-                            }
-
 
                             if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(Zc) <= 0)
                             {
@@ -282,7 +274,8 @@ namespace zero.cocoon.models
                             }
                             else
                             {
-                                //Console.WriteLine($"{source.IoNetSocket.LocalAddress} ~> bq = {req}");
+                                //if(req % 1000 == 0)
+                                //    Console.WriteLine($"{source.IoNetSocket.LocalAddress} ~> bq = {req} ~> {source.IoNetSocket.RemoteAddress}");
                                 if (AutoPeeringEventService.Operational)
                                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                     {

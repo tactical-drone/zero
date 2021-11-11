@@ -33,6 +33,7 @@ namespace zero.sync
 
         private static ConcurrentBag<CcCollective> _nodes = new ConcurrentBag<CcCollective>();
         private static volatile bool _running;
+        private static volatile bool _startAccounting;
         private static bool Zc = true;
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
@@ -79,7 +80,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 50;
+            var total = 600;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -139,33 +140,27 @@ namespace zero.sync
 
                     c++;
                 }
-
-                await Task.Delay(100 * total);
-                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                Console.WriteLine($"Starting accounting... {tasks.Count}");
-                
+                                                
                 long v = 0;
                 long C = 0;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 8; i++)
+                for (int i = 0; i < 3; i++)
                 { 
                     gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
+                        while(!_startAccounting)
+                            await Task.Delay(1000).ConfigureAwait(Zc);
+                        Console.WriteLine($"Starting accounting... {tasks.Count}");
                         while (_running)
                         {
                             foreach (var task in tasks)
                             {
                                 //continue;
                                 await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
-                                await Task.Delay(15).ConfigureAwait(Zc);
-                                //Console.Write(".");
+                                await Task.Delay(20).ConfigureAwait(Zc);
                                 
-                                if (Interlocked.Increment(ref C) == 5000)
+                                if (Interlocked.Increment(ref C) % 1000 == 0)
                                 {
                                     Console.WriteLine($"{C/((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)/1000.0):0.0} g/ps");
                                     Interlocked.Exchange(ref C, 0);
@@ -319,7 +314,12 @@ namespace zero.sync
                             {
                                 Console.ResetColor();
                             }
-                            lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                            lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();                            
+                        }
+
+                        if ((inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.92)
+                        {
+                            _startAccounting = true;
                         }
                     }
                     catch (Exception e)
@@ -390,11 +390,11 @@ namespace zero.sync
             _running = false;
             
             try
-            {
-                reportingTask.GetAwaiter().GetResult();
-                task.GetAwaiter().GetResult();
+            {                
                 if (reportingTask.Status == TaskStatus.Running)
                     reportingTask.Dispose();
+                if (task.Status == TaskStatus.Running)
+                    task.Dispose();
             }
             catch { }
 

@@ -77,7 +77,7 @@ namespace zero.core.network.ip
         public IoNodeAddress LocalNodeAddress { get; protected set; }
 
         //Local Address string
-        public string LocalAddress => LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();
+        public string LocalAddress => Kind < Connection.Listener || LocalNodeAddress == null ? "(zero)" : LocalNodeAddress.ToString();
 
         /// <summary>
         ///
@@ -108,12 +108,12 @@ namespace zero.core.network.ip
         /// <summary>
         /// Ingress connection
         /// </summary>
-        public bool Ingress => Kind == Connection.Ingress;
+        public bool IsIngress => Kind == Connection.Ingress;
 
         /// <summary>
         /// Egress connection
         /// </summary>
-        public bool Egress => Kind == Connection.Egress;
+        public bool IsEgress => Kind == Connection.Egress;
 
         /// <summary>
         /// Returns true if this is a TCP socket
@@ -146,8 +146,7 @@ namespace zero.core.network.ip
             try
             {
                 NativeSocket.Bind(listeningAddress.IpEndPoint);
-                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(),
-                    (IPEndPoint) NativeSocket.LocalEndPoint);
+                LocalNodeAddress = IoNodeAddress.CreateFromEndpoint(listeningAddress.Protocol().ToString().ToLower(),(IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.Create($"{listeningAddress.ProtocolDesc}0.0.0.0:709");
 
                 Key = LocalNodeAddress.Key;

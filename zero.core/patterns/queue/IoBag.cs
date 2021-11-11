@@ -19,11 +19,15 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, uint capacity)
+        public IoBag(string description, uint capacity, bool hotReload = false)
         {
             _description = description;
             _capacity = capacity;
-            _storage = new T[_capacity + 1];
+            _storage = new T[_capacity + 1];            
+            _hotReload = hotReload;
+
+            if (_hotReload)
+                _hotReloadBloom = new ulong[(_capacity>>6) + 1];
 #if DEBUG
             _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
 #else
@@ -35,6 +39,7 @@ namespace zero.core.patterns.queue
         private readonly bool Zc = true;
         private readonly string _description;
         private T[] _storage;
+        private bool _hotReload;
         private readonly uint _capacity;
         private volatile uint _count;        
         private uint Head => _head % _capacity;
@@ -44,6 +49,7 @@ namespace zero.core.patterns.queue
         
         private volatile uint _iteratorIdx;
         private IoNanoprobe _zeroSentinel;
+        private ulong[] _hotReloadBloom;
 
         /// <summary>
         /// Zero status
@@ -84,6 +90,12 @@ namespace zero.core.patterns.queue
                 }
 
                 Interlocked.Increment(ref _count);
+
+                if(_hotReload)
+                {
+                    _iteratorIdx = _capacity;                    
+                    _hotReloadBloom[latch >> 8] &= 0x1UL << (int)(latch % 64);
+                }                    
             }
             catch (Exception e) when(!Zeroed)
             {
@@ -205,8 +217,29 @@ namespace zero.core.patterns.queue
                 return false;
 
             var tmpIdx = _iteratorIdx;
+            uint idx1 = 0;
+            ulong idx2 = 0;
+            bool hotReload = false;
 
-            while ( _storage[Interlocked.Decrement(ref _iteratorIdx)] == null && _iteratorIdx != 0) { }
+            if(_hotReload)
+            {
+                idx1 = _iteratorIdx >> 6;
+                idx2 = 0x1UL << (int)_iteratorIdx % 64;
+                hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
+            }
+            
+            while ((_storage[Interlocked.Decrement(ref _iteratorIdx)] == null || !hotReload) && _iteratorIdx != 0) 
+            {
+                if(_hotReload)
+                {
+                    idx1 = _iteratorIdx >> 6;
+                    idx2 = 0x1UL << (int)_iteratorIdx % 64;
+                    hotReload = _hotReload && (_hotReloadBloom[idx1] & idx2) > 0;
+                }                
+            }
+
+            if (_hotReload)
+                _hotReloadBloom[idx1] ^= idx2;
 
             return _storage[_iteratorIdx] != null;
         }
@@ -218,6 +251,8 @@ namespace zero.core.patterns.queue
         public void Reset()
         {
             Interlocked.Exchange(ref _iteratorIdx, _capacity);
+            if (_hotReload)
+                Array.Clear(_hotReloadBloom, 0, _hotReloadBloom.Length);
         }
 
         /// <summary>

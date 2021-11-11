@@ -95,7 +95,7 @@ namespace zero.cocoon
 
             DupHeap = new IoHeap<IoBag<string>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
             {
-                Make = static (o, s) => new IoBag<string>(null, s._dupPoolSize * 2),
+                Make = static (o, s) => new IoBag<string>(null, s._dupPoolSize * 2, true),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add((string)endpoint);
@@ -514,7 +514,7 @@ namespace zero.cocoon
                 var ioNetSocket = drone.IoSource.IoNetSocket;
 
                 //inbound
-                if (drone.IoSource.IoNetSocket.Ingress)
+                if (drone.IoSource.IoNetSocket.IsIngress)
                 {
                     var verified = false;
                     
@@ -626,7 +626,7 @@ namespace zero.cocoon
                     }
                 }
                 //-----------------------------------------------------//
-                else if (drone.IoSource.IoNetSocket.Egress) //Outbound
+                else if (drone.IoSource.IoNetSocket.IsEgress) //Outbound
                 {
                     var handshakeRequest = new HandshakeRequest
                     {
@@ -756,7 +756,7 @@ namespace zero.cocoon
             {
                 if (handshakeSuccess)
                 {
-                    if (drone.IoSource.IoNetSocket.Egress)
+                    if (drone.IoSource.IoNetSocket.IsEgress)
                     {
                         await drone.ZeroSubAsync(static (_,@this) =>
                         {
@@ -764,7 +764,7 @@ namespace zero.cocoon
                             return ValueTask.FromResult(true);
                         }, this).FastPath().ConfigureAwait(Zc);                        
                     }
-                    else if (drone.IoSource.IoNetSocket.Ingress)
+                    else if (drone.IoSource.IoNetSocket.IsIngress)
                     {
                         await drone.ZeroSubAsync(static (from, @this) =>
                         {
