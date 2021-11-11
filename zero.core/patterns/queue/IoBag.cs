@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, uint capacity, bool hotReload = false)
+        public IoBag(string description, uint capacity, int concurrencyLevel, bool hotReload = false)
         {
             _description = description;
             _capacity = capacity;
@@ -29,9 +30,9 @@ namespace zero.core.patterns.queue
             if (_hotReload)
                 _hotReloadBloom = new ulong[(_capacity>>6) + 1];
 #if DEBUG
-            _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
+            _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}", concurrencyLevel, true);
 #else
-            _zeroSentinel = new IoNanoprobe(null);
+            _zeroSentinel = new IoNanoprobe("");
 #endif
         }
 
@@ -72,10 +73,16 @@ namespace zero.core.patterns.queue
         /// <param name="item">The item to be added</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public void Add(T item)
+        public void Add(T item, bool deDup = false)
         {
             if (_count == _capacity)
                 throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+            
+            if(deDup)
+            {
+                if (Contains(item))
+                    return;
+            }
 
             try
             {
@@ -242,6 +249,17 @@ namespace zero.core.patterns.queue
                 _hotReloadBloom[idx1] ^= idx2;
 
             return _storage[_iteratorIdx] != null;
+        }
+
+        /// <summary>
+        /// Contains
+        /// </summary>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
+        public bool Contains(T item)
+        {            
+            return _storage.Contains(item);
         }
 
         /// <summary>

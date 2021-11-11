@@ -93,9 +93,11 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
+            _dupPoolSize = (uint)(parm_max_drone * 5);
+
             DupHeap = new IoHeap<IoBag<string>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize * 2)
             {
-                Make = static (o, s) => new IoBag<string>(null, s._dupPoolSize * 2, true),
+                Make = static (o, s) => new IoBag<string>(null, s._dupPoolSize * 2, (int)s.parm_max_adjunct, true),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add((string)endpoint);
@@ -262,7 +264,7 @@ namespace zero.cocoon
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, IoBag<string>> DupChecker { get; } = new();
         public IoHeap<IoBag<string>, CcCollective> DupHeap { get; protected set; }
-        private uint _dupPoolSize = 50;
+        private uint _dupPoolSize;
 
         /// <summary>
         /// Bootstrap
@@ -803,7 +805,7 @@ namespace zero.cocoon
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                return (await ZeroAtomicAsync(static (n, o, d) =>
+                return (ZeroAtomicAsync(static (n, o, d) =>
                 {
                     var (@this, id, direction, packet, drone, remoteEp) = o;
                                                             
@@ -831,7 +833,7 @@ namespace zero.cocoon
                             return ValueTask.FromResult(false);
                         }
                     }
-                }, (this, id, direction, packet, drone, remoteEp)).FastPath().ConfigureAwait(Zc) && attached);
+                }, (this, id, direction, packet, drone, remoteEp)) && attached);
             }
             else
             {

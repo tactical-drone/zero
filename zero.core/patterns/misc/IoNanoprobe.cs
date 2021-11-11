@@ -43,6 +43,25 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
+        /// Only gives atomic async
+        /// </summary>
+        /// <param name="description">A description</param>
+        /// <param name="concurrencyLevel">Consurrency level</param>
+        /// <param name="mutex">locks in a mutex</param>
+        public IoNanoprobe(string description, int concurrencyLevel, CancellationTokenSource asyncTasks)
+        {
+            string desc = "";
+            _concurrencyLevel = concurrencyLevel;
+            _zId = Interlocked.Increment(ref _uidSeed);
+#if DEBUG            
+            desc = $"{nameof(_nanoMutex)}: {description}";
+#endif
+            AsyncTasks = asyncTasks; 
+            //_nanoMutex = new IoZeroSemaphore(desc, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel: 0);
+            //_nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
+        }
+
+        /// <summary>
         /// Constructs a nano probe
         /// </summary>
         /// <param name="description">A description</param>
@@ -70,8 +89,8 @@ namespace zero.core.patterns.misc
             enableDeadlockDetection = false;
 #endif
 
-            _nanoMutex = new IoZeroSemaphore(description, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel:0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            _nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
+            //_nanoMutex = new IoZeroSemaphore(description, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+            //_nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
         }
 
         /// <summary>
@@ -126,7 +145,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Sync root
         /// </summary>
-        private IIoZeroSemaphore _nanoMutex;
+        //private IIoZeroSemaphore _nanoMutex;
 
         /// <summary>
         /// Who zeroed this object
@@ -422,7 +441,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void ZeroUnmanaged()
         {
-            _nanoMutex = null;
+            //_nanoMutex = null;
             _zeroHive = null;
             _zeroHiveMind = null;
             AsyncTasks = null;
@@ -436,7 +455,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual ValueTask ZeroManagedAsync()
         {
-            _nanoMutex.Zero();
+            //_nanoMutex.Zero();
             _zeroHive.Clear();
             _zeroHiveMind.Clear();
          
@@ -464,9 +483,64 @@ namespace zero.core.patterns.misc
         ///  <param name="disposing">If this call is inside a disposing thread</param>
         ///  <param name="force">Forces the action regardless of zero state</param>
         ///  <returns>true if ownership was passed, false otherwise</returns>
-        public virtual async ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
-            T userData = default,
-            bool disposing = false, bool force = false)
+        //public async ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
+        //    T userData = default,
+        //    bool disposing = false, bool force = false)
+        //{
+        //    try
+        //    {
+        //        //Prevents strange things from happening
+        //        if (_zeroed > 0 && !force)
+        //            return false;
+
+        //        try
+        //        {
+        //            if (!force)
+        //            {
+        //                //lock (_nanoMutex)
+        //                try
+        //                {
+        //                    if (await _nanoMutex.WaitAsync().FastPath().ConfigureAwait(Zc))
+        //                    {
+        //                        return (_zeroed == 0) &&
+        //                               await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
+        //                    }
+        //                }
+        //                catch (Exception e)
+        //                {
+        //                    if (!Zeroed())
+        //                        _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+        //                    return false;
+        //                }
+        //                finally
+        //                {
+        //                    await _nanoMutex.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+        //                }
+        //            }
+        //            else
+        //            {
+        //                return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
+        //            }
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            _logger.Fatal(e, $"{Description}");
+        //            // ignored
+        //        }
+        //    }
+        //    catch (NullReferenceException e)
+        //    {
+        //        _logger.Trace(e);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
+        //    }
+
+        //    return false;
+        //}
+        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
+        public bool ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false)
         {
             try
             {
@@ -478,29 +552,21 @@ namespace zero.core.patterns.misc
                 {
                     if (!force)
                     {
-                        //lock (_nanoMutex)
                         try
                         {
-                            if (await _nanoMutex.WaitAsync().FastPath().ConfigureAwait(Zc))
-                            {
-                                return (_zeroed == 0) &&
-                                       await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
-                            }
+                            return (_zeroed == 0) && ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
                         }
                         catch (Exception e)
                         {
-                            if(!Zeroed())
+                            if (!Zeroed())
                                 _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
                             return false;
                         }
-                        finally
-                        {
-                            await _nanoMutex.ReleaseAsync().FastPath().ConfigureAwait(Zc);
-                        }
+
                     }
                     else
                     {
-                        return await ownershipAction(this, userData, disposing).FastPath().ConfigureAwait(Zc);
+                        return ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
                     }
                 }
                 catch (Exception e)

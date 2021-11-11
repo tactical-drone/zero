@@ -145,7 +145,7 @@ namespace zero.sync
                 long C = 0;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < 4; i++)
                 { 
                     gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
@@ -317,7 +317,7 @@ namespace zero.sync
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();                            
                         }
 
-                        if ((inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.92)
+                        if (!_startAccounting && (inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.917)
                         {
                             _startAccounting = true;
                         }

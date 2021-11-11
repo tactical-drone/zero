@@ -79,9 +79,9 @@ namespace zero.core.patterns.misc
         /// <param name="disposing">If disposing</param>
         /// <param name="force">Forces the action regardless of zero state</param>
         /// <returns>true on success, false otherwise</returns>
-        ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,
-            T userData = default,
-            bool disposing = false, bool force = false);
+        //ValueTask<bool> ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction,T userData = default,bool disposing = false, bool force = false);
+        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
+        bool ZeroAtomicAsync<T>(Func<IIoNanite, T, bool, ValueTask<bool>> ownershipAction, T userData = default, bool disposing = false, bool force = false);
 
         /// <summary>
         /// Collect unmanaged resources

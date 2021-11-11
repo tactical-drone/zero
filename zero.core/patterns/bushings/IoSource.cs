@@ -281,7 +281,7 @@ namespace zero.core.patterns.bushings
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
-                if (!await ZeroAtomicAsync(static async (nanite, parms, disposed) =>
+                if (!ZeroAtomicAsync(static async (nanite, parms, disposed) =>
                 {
                     var (@this, id, channelSource, jobMalloc, concurrencyLevel) = parms;
                     var newConduit = new IoConduit<TfJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
@@ -294,7 +294,7 @@ namespace zero.core.patterns.bushings
                     }
 
                     return true;
-                }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)).ConfigureAwait(Zc))
+                }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)))
                 {
                     if (!Zeroed())
                     {
@@ -309,7 +309,7 @@ namespace zero.core.patterns.bushings
                         }
                     }
 
-                    return null;
+                    return (IoConduit<TfJob>)null;
                 }
             }
 
@@ -322,7 +322,7 @@ namespace zero.core.patterns.bushings
             {
                 _logger.Fatal(e, $"Conduit {id} after race, not found");
             }
-            return null;
+            return (IoConduit<TfJob>)null;
         }
 
         

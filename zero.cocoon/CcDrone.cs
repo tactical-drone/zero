@@ -271,7 +271,7 @@ namespace zero.cocoon
                     if (!Zeroed())
                     {
                         var socket = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket;
-                        if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 50).FastPath().ConfigureAwait(Zc) > 0)
+                        if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 16).FastPath().ConfigureAwait(Zc) > 0)
                         {
                             //Interlocked.Increment(ref AccountingBit);
                             if (AutoPeeringEventService.Operational)

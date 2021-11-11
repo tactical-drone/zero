@@ -42,11 +42,11 @@ namespace zero.core.patterns.semaphore.core
             
             //validation
             if(maxBlockers < 1)
-                throw new ZeroValidationException($"{Description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
+                throw new ZeroValidationException($"{_description}: invalid {nameof(maxBlockers)} = {maxBlockers} specified, value must be larger than 0");
             if(initialCount < 0)
-                throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
+                throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, value may not be less than 0");
             if(initialCount > maxBlockers * 2)
-                throw new ZeroValidationException($"{Description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
+                throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
 
             _maxBlockers = maxBlockers;
             _useMemoryBarrier = _forceFairQ = enableFairQ;

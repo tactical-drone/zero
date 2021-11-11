@@ -114,7 +114,7 @@ namespace zero.core.misc
         {
             IoQueue<IoChallenge>.IoZNode node = new IoQueue<IoChallenge>.IoZNode();
             var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
-            await ZeroAtomicAsync(static async (_, state, __) =>
+            ZeroAtomicAsync(static async (_, state, __) =>
             {
                 IoChallenge challenge = null;
                 try
@@ -171,7 +171,7 @@ namespace zero.core.misc
                 }
 
                 return true;
-            }, state).FastPath().ConfigureAwait(false);
+            }, state);
 
             return state.node;
         }
@@ -193,7 +193,7 @@ namespace zero.core.misc
         /// <returns>The response payload</returns>
         public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return ZeroAtomicAsync(static async (_, state, __) =>
+            return ValueTask.FromResult(ZeroAtomicAsync(static async (_, state, __) =>
             {
                 var (@this, key, reqHash) = state;
                 var cmp = reqHash.Memory;
@@ -247,7 +247,7 @@ namespace zero.core.misc
                 }
 
                 return false;
-            }, (this, key, reqHash));
+            }, (this, key, reqHash)));
         }
 
         /// <summary>

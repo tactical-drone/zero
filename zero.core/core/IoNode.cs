@@ -30,7 +30,7 @@ namespace zero.core.core
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
-            NeighborTasks = new IoBag<Task>($"{nameof(NeighborTasks)}", maxNeighbors);
+            NeighborTasks = new IoBag<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel);
         }
 
         /// <summary>
@@ -155,7 +155,7 @@ namespace zero.core.core
                     return;
                 }
 
-                if (await @this.ZeroAtomicAsync(static async (_, state, _) =>
+                if (@this.ZeroAtomicAsync(static async (_, state, _) =>
                 {
                     var (@this, newNeighbor) = state;
                     try
@@ -225,7 +225,7 @@ namespace zero.core.core
 
                     return false;
                 }
-                ,ValueTuple.Create(@this, newNeighbor)).ConfigureAwait(@this.Zc))
+                ,ValueTuple.Create(@this, newNeighbor)))
                 {
                     //Start processing
                     await @this.ZeroAsync(static async state =>
@@ -286,7 +286,7 @@ namespace zero.core.core
                 //We capture a local variable here as newNeighbor.Id disappears on zero
                 var id = newNeighbor.Key;
                 
-                if (await ZeroAtomicAsync(static async (_,state,_) =>
+                if (ZeroAtomicAsync(static async (_,state,_) =>
                 {
                     var (@this, newNeighbor) = state;
                     //New neighbor?
@@ -305,7 +305,7 @@ namespace zero.core.core
                     //Existing broken neighbor...
                     if (existingNeighbor != null) await existingNeighbor.ZeroAsync(@this).ConfigureAwait(@this.Zc);
                     return true;
-                }, ValueTuple.Create(this,newNeighbor)).ConfigureAwait(Zc))
+                }, ValueTuple.Create(this,newNeighbor)))
                 {
                     await newNeighbor.ZeroSubAsync(static async (from, state ) =>
                     {

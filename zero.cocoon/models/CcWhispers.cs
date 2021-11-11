@@ -243,14 +243,25 @@ namespace zero.cocoon.models
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
                             {                        
-                                dupEndpoints.Add(endpoint);
+                                dupEndpoints.Add(endpoint, true);                                
                                 continue;
                             }                                    
                         }
                     }
                     else
-                    {                                    
-                        dupEndpoints.Add(endpoint);
+                    {
+                        try
+                        {
+                            dupEndpoints.Add(endpoint, true);
+                        }
+                        catch (Exception)
+                        {
+                            dupEndpoints.ToList().ForEach(endpoint =>
+                            {
+                                Console.WriteLine(endpoint);
+                            });
+                            throw;
+                        }                        
                         continue;
                     }
                     
