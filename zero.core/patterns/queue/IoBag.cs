@@ -101,7 +101,7 @@ namespace zero.core.patterns.queue
                     if (_hotReload)
                     {
                         _iteratorIdx = Head;
-                        _hotReloadBloom[latch >> 8] &= 0x1UL << (int)(latch % 64);
+                        _hotReloadBloom[latch >> 6] &= 0x1UL << (int)(latch % 64);
                     }
                 }                
                 else
@@ -161,7 +161,6 @@ namespace zero.core.patterns.queue
         {
             try
             {
-
                 if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
                 
@@ -232,6 +231,7 @@ namespace zero.core.patterns.queue
             bool hotReload = false;
 
             var idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
+            var tailCross = idx < Tail;
 
             if (_hotReload)
             {
