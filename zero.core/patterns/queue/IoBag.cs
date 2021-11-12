@@ -20,7 +20,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, uint capacity, int concurrencyLevel, bool hotReload = false)
+        public IoBag(string description, uint capacity, bool hotReload = false)
         {
             _description = description;
             _capacity = capacity;
@@ -102,7 +102,7 @@ namespace zero.core.patterns.queue
                     if (_hotReload)
                     {
                         _iteratorIdx = Head;
-                        _tailCross = Head >= Tail;
+                        _tailCross = Head > Tail;
                         _hotReloadBloom[latch >> 6] &= 0x1UL << (int)(latch % 64);
                     }
                 }                
@@ -223,8 +223,7 @@ namespace zero.core.patterns.queue
         /// <returns>True if the iterator could be advanced by 1</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
-        {                        
-            var tmpIdx = _iteratorIdx;
+        {                                    
             uint idx1 = 0;
             ulong idx2 = 0;
             bool hotReload = false;
@@ -238,9 +237,9 @@ namespace zero.core.patterns.queue
                 hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
             }
             else
-                _tailCross = idx >= Tail;
+                _tailCross = idx > Tail;
 
-            while ((_storage[idx] == null || !hotReload) && _tailCross != (idx >= Tail)) 
+            while ((_storage[idx] == null || !hotReload) && _tailCross != (idx > Tail)) 
             {
                 idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
 
@@ -275,14 +274,13 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, Head);
+            Interlocked.Exchange(ref _iteratorIdx, Head + 1);
             
             if (_hotReload)            
             {
-                _tailCross = Head >= Tail;
+                _tailCross = Head > Tail;
                 Array.Clear(_hotReloadBloom, 0, _hotReloadBloom.Length);
-            }
-                
+            }                
         }
 
         /// <summary>

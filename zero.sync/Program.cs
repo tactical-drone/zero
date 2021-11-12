@@ -35,6 +35,8 @@ namespace zero.sync
         private static volatile bool _running;
         private static volatile bool _startAccounting;
         private static bool Zc = true;
+        private static int _rampDelay = 300;
+        private static int _rampTarget = 40;
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
@@ -143,8 +145,8 @@ namespace zero.sync
                                                 
                 long v = 0;
                 long C = 0;
-                int rampDelay = 300;
-                const int rampTarget = 40;
+                _rampDelay = 300;
+                _rampTarget = 40;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
                 for (int i = 0; i < 1; i++)
@@ -162,15 +164,15 @@ namespace zero.sync
                                 await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
 
                                 //ramp
-                                if (rampDelay > rampTarget)
+                                if (_rampDelay > _rampTarget)
                                 {
-                                    Interlocked.Decrement(ref rampDelay);
-                                    Console.WriteLine($"ramp = {rampDelay}");
+                                    Interlocked.Decrement(ref _rampDelay);
+                                    Console.WriteLine($"ramp = {_rampDelay}");
                                 }                                    
-                                else if(rampDelay != rampTarget)
-                                    rampDelay = rampTarget;
+                                else if(_rampDelay != _rampTarget)
+                                    _rampDelay = _rampTarget;
 
-                                await Task.Delay(rampDelay).ConfigureAwait(Zc);
+                                await Task.Delay(_rampDelay).ConfigureAwait(Zc);
                                 
                                 if (Interlocked.Increment(ref C) % 1000 == 0)
                                 {
@@ -387,6 +389,19 @@ namespace zero.sync
                     {
                         LogManager.Configuration.Variables["zeroLogLevel"] = $"{line.Split(' ')[1]}";
                         LogManager.ReconfigExistingLoggers();
+                    }
+                    catch { }
+                }
+
+                if (line.StartsWith("ramp"))
+                {                    
+                    try
+                    {
+                        if (line.Contains("target"))
+                            _rampTarget = int.Parse(line.Split(' ')[2]);
+
+                        if (line.Contains("delay"))
+                            _rampDelay = int.Parse(line.Split(' ')[2]);
                     }
                     catch { }
                 }

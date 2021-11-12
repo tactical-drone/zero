@@ -39,7 +39,7 @@ namespace zero.core.patterns.heap
         {
             _description = description;
             _maxSize = maxSize;
-            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", _maxSize, 10);
+            _ioHeapBuf = new IoBag<TItem>($"{nameof(_ioHeapBuf)}: {description}", _maxSize);
             Context = context;
             _count = 0;
             _refCount = 0;

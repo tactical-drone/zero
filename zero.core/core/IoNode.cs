@@ -30,7 +30,7 @@ namespace zero.core.core
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
-            NeighborTasks = new IoBag<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel);
+            NeighborTasks = new IoBag<Task>($"{nameof(NeighborTasks)}", maxNeighbors);
         }
 
         /// <summary>

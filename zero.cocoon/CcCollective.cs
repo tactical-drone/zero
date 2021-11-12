@@ -96,7 +96,7 @@ namespace zero.cocoon
             _dupPoolSize = (uint)(parm_max_drone * 8);            
             DupHeap = new IoHeap<IoBag<IoInt32>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize)
             {
-                Make = static (o, s) => new IoBag<IoInt32>(null, s.parm_max_adjunct, (int)s.parm_max_adjunct, true),
+                Make = static (o, s) => new IoBag<IoInt32>(null, s.parm_max_adjunct, true),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add(endpoint.GetHashCode());
