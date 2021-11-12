@@ -49,6 +49,7 @@ namespace zero.core.patterns.queue
         private volatile uint _tail = 0;
         
         private volatile uint _iteratorIdx;
+        private volatile bool _tailCross;
         private IoNanoprobe _zeroSentinel;
         private ulong[] _hotReloadBloom;
 
@@ -101,6 +102,7 @@ namespace zero.core.patterns.queue
                     if (_hotReload)
                     {
                         _iteratorIdx = Head;
+                        _tailCross = Head >= Tail;
                         _hotReloadBloom[latch >> 6] &= 0x1UL << (int)(latch % 64);
                     }
                 }                
@@ -231,7 +233,6 @@ namespace zero.core.patterns.queue
             bool hotReload = false;
 
             var idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
-            var tailCross = idx < Tail;
 
             if (_hotReload)
             {
@@ -239,8 +240,10 @@ namespace zero.core.patterns.queue
                 idx2 = 0x1UL << (int)idx % 64;
                 hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
             }
-                        
-            while ((_storage[idx] == null || !hotReload) && idx != Tail) 
+            else
+                _tailCross = idx >= Tail;
+
+            while ((_storage[idx] == null || !hotReload) && _tailCross != (idx >= Tail)) 
             {
                 idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
 
@@ -276,8 +279,13 @@ namespace zero.core.patterns.queue
         public void Reset()
         {
             Interlocked.Exchange(ref _iteratorIdx, _capacity);
-            if (_hotReload)
+            
+            if (_hotReload)            
+            {
+                _tailCross = Head >= Tail;
                 Array.Clear(_hotReloadBloom, 0, _hotReloadBloom.Length);
+            }
+                
         }
 
         /// <summary>
