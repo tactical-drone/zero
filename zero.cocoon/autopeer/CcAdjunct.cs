@@ -2368,18 +2368,7 @@ namespace zero.cocoon.autopeer
                 if (!ZeroAtomic( static (_, state, _) =>
                 {
                     var (@this, ioCcDrone, direction) = state;
-
-                    //Guarantee hard cap on allowed drones here, other implemented caps are soft caps. This is the only one that matters
-                    if (direction == Heading.Ingress && @this.CcCollective.IngressCount >= @this.CcCollective.parm_max_inbound || 
-                        direction == Heading.Egress && @this.CcCollective.EgressCount >= @this.CcCollective.parm_max_outbound)
-                    {
-                        AdjunctState oldState;
-                        if ((oldState = @this.CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering && (int)oldState != -1)
-                            @this._logger.Warn($"{nameof(AttachPeerAsync)} - {@this.Description}:2 Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
-
-                        return new ValueTask<bool>(false);
-                    }
-
+                   
                     //Race for direction
                     if (Interlocked.CompareExchange(ref @this._direction, (int) direction, (int) Heading.Undefined) !=
                         (int) Heading.Undefined)
@@ -2457,8 +2446,7 @@ namespace zero.cocoon.autopeer
             await severedDrone.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
             
             Interlocked.Exchange(ref _direction, 0);
-            AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            Interlocked.Exchange(ref _totalPats, 0);
+            AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();            
             _peerRequestsRecvCount = _peerRequestsSentCount = 0;
 
             //send drop request

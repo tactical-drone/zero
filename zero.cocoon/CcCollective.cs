@@ -622,7 +622,7 @@ namespace zero.cocoon
                         //return await ConnectForTheWinAsync(CcNeighbor.Kind.Inbound, peer, packet,
                         //        (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint)
                         //    .FastPath().ConfigureAwait(ZC);
-                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct?.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational && IngressCount < parm_max_inbound;
+                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && won && drone.Adjunct.Direction == CcAdjunct.Heading.Ingress && drone.Source.IsOperational;
                         return handshakeSuccess;
                     }
                 }
@@ -699,8 +699,7 @@ namespace zero.cocoon
                             return false;
                         }
 
-                        _logger.Trace(
-                            $"HandshakeResponse [signed], from = egress, read = {bytesRead}, {drone.IoSource.Key}");
+                        _logger.Trace($"HandshakeResponse [signed], from = egress, read = {bytesRead}, {drone.IoSource.Key}");
 
                         //race for connection
                         var won = await ConnectForTheWinAsync(CcAdjunct.Heading.Egress, drone, packet,
@@ -731,24 +730,13 @@ namespace zero.cocoon
                             }
                         }
                     
-                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational && EgressCount < parm_max_outbound;
+                        handshakeSuccess = !Zeroed() && drone.Adjunct != null && !drone.Adjunct.Zeroed() && drone.Adjunct?.Direction == CcAdjunct.Heading.Egress && drone.Source.IsOperational;
                         return handshakeSuccess;
                     }
                 }
-            }
-            catch (NullReferenceException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (TaskCanceledException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (ObjectDisposedException e)
-            {
-                _logger.Trace(e, Description);
-            }
-            catch (Exception e)
+            }            
+            catch (Exception) when (Zeroed() || drone.Zeroed()) { }
+            catch (Exception e) when(!Zeroed() && !drone.Zeroed())
             {
                 _logger.Error(e,
                     $"Handshake (size = {bytesRead}/{_handshakeRequestSize}/{_handshakeResponseSize}) for {Description} failed with:");
@@ -804,7 +792,7 @@ namespace zero.cocoon
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                return (ZeroAtomic(static (n, o, d) =>
+                var capped = !ZeroAtomic(static (n, o, d) =>
                 {
                     var (@this, id, direction, packet, drone, remoteEp) = o;
                                                             
@@ -832,7 +820,14 @@ namespace zero.cocoon
                             return ValueTask.FromResult(false);
                         }
                     }
-                }, (this, id, direction, packet, drone, remoteEp)) && attached);
+                }, (this, id, direction, packet, drone, remoteEp)) && attached;
+
+                if(capped)
+                {
+                    await drone.DetachNeighborAsync().FastPath().ConfigureAwait(Zc);
+                }
+
+                return !capped;
             }
             else
             {

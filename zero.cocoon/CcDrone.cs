@@ -205,24 +205,33 @@ namespace zero.cocoon
         /// <param name="direction"></param>
         public async ValueTask<bool> AttachViaAdjunctAsync(CcAdjunct.Heading direction)
         {
-            //Raced?
-            if (Adjunct.IsDroneAttached)
-                return false;
-
-            //Attach the other way
-            var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(Zc);
-
-            if (attached)
+            try
             {
-                _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to neighbor {Adjunct.Description}");
-                _assimulated = true;
-            }
-            else
-            {
-                _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to neighbor {Adjunct.Description}, {Adjunct.MetaDesc}");
-            }
+                //Raced?
+                if (Adjunct.IsDroneAttached)
+                    return false;
 
-            return attached;
+                //Attach the other way
+                var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(Zc);
+
+                if (attached)
+                {
+                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to neighbor {Adjunct.Description}");
+                    _assimulated = true;
+                }
+                else
+                {
+                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to neighbor {Adjunct.Description}, {Adjunct.MetaDesc}");
+                }
+
+                return attached;
+            }
+            catch (Exception) when (Zeroed()) { }
+            catch (Exception e) when(!Zeroed())
+            {
+                _logger.Error(e, $"");                               
+            }            
+            return false; 
         }
 
         /// <summary>

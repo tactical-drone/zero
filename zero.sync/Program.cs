@@ -331,7 +331,7 @@ namespace zero.sync
                             lastUpdate = DateTimeOffset.UtcNow.ToUnixTimeSeconds();                            
                         }
 
-                        if (!_startAccounting && (inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.917)
+                        if (!_startAccounting && (inBound + outBound) / (double)(_nodes.Count * maxDrones) > 0.96)
                         {
                             _startAccounting = true;
                         }
