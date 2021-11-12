@@ -223,10 +223,7 @@ namespace zero.core.patterns.queue
         /// <returns>True if the iterator could be advanced by 1</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
-        {            
-            if (_iteratorIdx == Tail)
-                return false;
-
+        {                        
             var tmpIdx = _iteratorIdx;
             uint idx1 = 0;
             ulong idx2 = 0;
@@ -278,7 +275,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, _capacity);
+            Interlocked.Exchange(ref _iteratorIdx, Head);
             
             if (_hotReload)            
             {
