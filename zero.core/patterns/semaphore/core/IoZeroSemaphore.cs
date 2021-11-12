@@ -448,10 +448,8 @@ namespace zero.core.patterns.semaphore.core
 
             //Did we win?
             while ( _zeroRef.ZeroWaitCount() < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) != null )
-            {
-                _signalAwaiter[headIdx] = slot;
-                Thread.Yield();//The continuation executer wants this slot that we just put back, give it time to take it.
-
+            {                
+                _zeroRef.ZeroPrevHead();
                 headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
             }
             
@@ -682,7 +680,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="async"></param>
         /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
             Debug.Assert(_zeroRef != null);
@@ -708,34 +706,30 @@ namespace zero.core.patterns.semaphore.core
             {
                 //Lock
                 ZeroLock();
-
-                //choose a tail index to release
-                var latchIdx = (_zeroRef.ZeroNextTail() -1) % _maxBlockers;
-                var latch = _signalAwaiterState[latchIdx];
-
-                ////latch a chosen tail state
-                worker.State = Interlocked.CompareExchange(ref _signalAwaiterState[latchIdx], null, latch);
                 
-                //Did we loose?
-                if (worker.State == null)
-                {
-                    //restore the tail
-                    _zeroRef.ZeroPrevTail(); 
+                var latchIdx = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
+                var latch = _signalAwaiter[latchIdx];
 
-                    ZeroUnlock();
-
-                    //try again
-                    continue;
+                //latch a chosen head
+                while (_zeroRef.ZeroWaitCount() > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, latch)) == null) {
+                    _zeroRef.ZeroPrevTail();
+                    latchIdx = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
+                    latch = _signalAwaiter[latchIdx];
                 }
-                //latch a chosen tail
-                while ((worker.Continuation =
-                    Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, _signalAwaiter[latchIdx])) == null) {}
 
-                worker.ExecutionContext = Interlocked.CompareExchange(ref _signalExecutionState[latchIdx], null, _signalExecutionState[latchIdx]);
-                worker.CapturedContext = Interlocked.CompareExchange(ref _signalCapturedContext[latchIdx], null, _signalCapturedContext[latchIdx]);
+                if (worker.Continuation == null)
+                    continue;
 
                 //count the number of overall waiters
                 _zeroRef.ZeroDecWait();
+
+                worker.State = _signalAwaiterState[latchIdx];
+                worker.ExecutionContext = _signalExecutionState[latchIdx];
+                worker.CapturedContext = _signalCapturedContext[latchIdx];
+
+                _signalAwaiterState[latchIdx] = null;
+                _signalExecutionState[latchIdx] = null;
+                _signalCapturedContext[latchIdx] = null;                
 
                 //unlock
                 ZeroUnlock();

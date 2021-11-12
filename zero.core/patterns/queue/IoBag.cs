@@ -87,22 +87,25 @@ namespace zero.core.patterns.queue
             try
             {
                 var latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
-                while (Interlocked.CompareExchange(ref _storage[latch], item, null) != null)
-                {
-                    Interlocked.Decrement(ref _head);
-                    if (_count == _capacity)
-                        throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
-
+                T latched = null;
+                while (_count < _capacity && (latched = Interlocked.CompareExchange(ref _storage[latch], item, null)) != null)
+                {                    
+                    Interlocked.Decrement(ref _head);                    
                     latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
                 }
 
-                Interlocked.Increment(ref _count);
-
-                if(_hotReload)
+                if (latched == null)
                 {
-                    _iteratorIdx = Head;
-                    _hotReloadBloom[latch >> 8] &= 0x1UL << (int)(latch % 64);
-                }                    
+                    Interlocked.Increment(ref _count);
+
+                    if (_hotReload)
+                    {
+                        _iteratorIdx = Head;
+                        _hotReloadBloom[latch >> 8] &= 0x1UL << (int)(latch % 64);
+                    }
+                }                
+                else
+                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
             }
             catch (Exception e) when(!Zeroed)
             {

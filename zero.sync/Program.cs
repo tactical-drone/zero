@@ -143,9 +143,11 @@ namespace zero.sync
                                                 
                 long v = 0;
                 long C = 0;
+                int rampDelay = 300;
+                const int rampTarget = 40;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 1; i++)
                 { 
                     gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
@@ -158,7 +160,17 @@ namespace zero.sync
                             {
                                 //continue;
                                 await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
-                                await Task.Delay(20).ConfigureAwait(Zc);
+
+                                //ramp
+                                if (rampDelay > rampTarget)
+                                {
+                                    Interlocked.Decrement(ref rampDelay);
+                                    Console.WriteLine($"ramp = {rampDelay}");
+                                }                                    
+                                else if(rampDelay != rampTarget)
+                                    rampDelay = rampTarget;
+
+                                await Task.Delay(rampDelay).ConfigureAwait(Zc);
                                 
                                 if (Interlocked.Increment(ref C) % 1000 == 0)
                                 {
