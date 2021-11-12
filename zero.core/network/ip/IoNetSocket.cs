@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using zero.core.conf;
 using zero.core.patterns.bushings.contracts;
 
 namespace zero.core.network.ip
@@ -33,6 +34,19 @@ namespace zero.core.network.ip
 
         }
 
+
+        /// <summary>
+        /// 
+        /// </summary>
+        [IoParameter]
+        private bool parm_enable_tcp_keep_alive = false;        
+        [IoParameter]
+        private int parm_enable_tcp_keep_alive_time = 120;
+        [IoParameter]
+        private int parm_enable_tcp_keep_alive_retry_interval_sec = 2;
+        [IoParameter]
+        private int parm_enable_tcp_keep_alive_retry_count = 2;
+
         /// <summary>
         /// Configures the socket
         /// </summary>
@@ -51,13 +65,13 @@ namespace zero.core.network.ip
             NativeSocket.LingerState = new LingerOption(false, 0);
 
             // Disable the Nagle Algorithm for this tcp socket.
-            NativeSocket.NoDelay = false;
+            NativeSocket.NoDelay = true;
 
-            // Set the receive buffer size to 32k
-            NativeSocket.ReceiveBufferSize = 8192 * 4;
+            // Set the receive buffer size to 64k
+            NativeSocket.ReceiveBufferSize = 8192 * 8;
 
-            // Set the send buffer size to 32k.
-            NativeSocket.SendBufferSize = 8192 * 4;
+            // Set the send buffer size to 64k.
+            NativeSocket.SendBufferSize = 8192 * 8;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)
@@ -77,10 +91,13 @@ namespace zero.core.network.ip
             //    null
             //);
 
-            NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 2);
-            NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 5);
-            NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 1);
+            if(NativeSocket.ProtocolType  == ProtocolType.Tcp && parm_enable_tcp_keep_alive)
+            {
+                NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, parm_enable_tcp_keep_alive_retry_interval_sec);
+                NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, parm_enable_tcp_keep_alive_time);
+                NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, parm_enable_tcp_keep_alive_retry_count);
+            }
 
             //_logger.Trace($"Tcp Socket configured: {Description}:" +
             //              $"  ExclusiveAddressUse {socket.ExclusiveAddressUse}" +

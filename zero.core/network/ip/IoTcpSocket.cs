@@ -324,11 +324,12 @@ namespace zero.core.network.ip
             try
             {
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                NativeSocket.SendTimeout = 0;
                 return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0 || true);
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
-            {
+            {                
                 _logger.Error(e, Description);
             }
             return false;
