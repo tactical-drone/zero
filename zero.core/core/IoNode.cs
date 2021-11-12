@@ -166,19 +166,24 @@ namespace zero.core.core
                             //Drop incoming //TODO? Drop existing? No because of race.
                             if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
                             {
-                                //Only drop incoming if the existing one is working
-                                if (existingNeighbor.Source.IsOperational)
+                                try
                                 {
-                                    @this._logger.Trace(
-                                        $"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                    return false;
+                                    //Only drop incoming if the existing one is working
+                                    if (existingNeighbor.Source.IsOperational)
+                                    {
+                                        @this._logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                        return false;
+                                    }
+                                    else //else drop existing
+                                    {
+                                        @this._logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
+                                        await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!")).FastPath().ConfigureAwait(@this.Zc);
+                                    }
                                 }
-                                else //else drop existing
+                                catch when (@this.Zeroed() || existingNeighbor.Zeroed()) { }
+                                catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
                                 {
-                                    @this._logger.Debug(
-                                        $"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                    await existingNeighbor.ZeroAsync(new IoNanoprobe("Replaced, source dead!"))
-                                        .FastPath().ConfigureAwait(@this.Zc);
+                                    @this._logger?.Trace(e, $"existingNeighbor {existingNeighbor.Description} from {@this.Description}, had errors");
                                 }
                             }
                         }
@@ -205,11 +210,8 @@ namespace zero.core.core
 
                                 return true;
                             }
-                            catch (NullReferenceException e)
-                            {
-                                @this._logger?.Trace(e, @this.Description);
-                            }
-                            catch (Exception e)
+                            catch when(@this.Zeroed() || newNeighbor.Zeroed()){ }
+                            catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
                             {
                                 @this._logger?.Trace(e,$"Removing {newNeighbor.Description} from {@this.Description}");
                             }
