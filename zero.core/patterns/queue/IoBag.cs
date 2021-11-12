@@ -231,25 +231,25 @@ namespace zero.core.patterns.queue
             ulong idx2 = 0;
             bool hotReload = false;
 
-            if(_hotReload)
+            var idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
+
+            if (_hotReload)
             {
-                idx1 = _iteratorIdx >> 6;
-                idx2 = 0x1UL << (int)_iteratorIdx % 64;
+                idx1 = idx >> 6;
+                idx2 = 0x1UL << (int)idx % 64;
                 hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
             }
-
-            var idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;            
-            
+                        
             while ((_storage[idx] == null || !hotReload) && idx != Tail) 
             {
+                idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
+
                 if(_hotReload)
                 {
-                    idx1 = _iteratorIdx >> 6;
-                    idx2 = 0x1UL << (int)_iteratorIdx % 64;
-                    hotReload = _hotReload && (_hotReloadBloom[idx1] & idx2) > 0;
-                }
-
-                idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
+                    idx1 = idx >> 6;
+                    idx2 = 0x1UL << (int)idx % 64;
+                    hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
+                }                
             }
 
             if (_hotReload)

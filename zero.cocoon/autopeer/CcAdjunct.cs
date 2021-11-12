@@ -487,7 +487,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
         public int parm_max_network_latency = 60000;
 #else
-        public int parm_max_network_latency = 5000;
+        public int parm_max_network_latency = 15000;
 #endif
 
         /// <summary>
