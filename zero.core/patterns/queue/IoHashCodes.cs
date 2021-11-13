@@ -146,7 +146,10 @@ namespace zero.core.patterns.queue
         public void ZeroManaged(bool zero = false)
         {                       
             _count = 0;
-            if (zero)                                            
+            
+            if (!zero)
+                Array.Clear(_storage);
+            else
                 _storage = null;                        
         }
 
@@ -157,14 +160,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
         {
-            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
-            while ((_storage[idx] == default) && Interlocked.Decrement(ref _iteratorCount) >= 0)
-            {
-                idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
-                Console.Write(".");
-            }
-
-            return idx < _capacity && _storage[idx] != default;
+            int idx;
+            while ((_storage[idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity] == default) && Interlocked.Decrement(ref _iteratorCount) > 0){}
+            return _storage[idx] != default;
         }
 
         /// <summary>

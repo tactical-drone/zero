@@ -74,7 +74,7 @@ namespace zero.cocoon.autopeer
             if (Proxy)
             {
                 CompareAndEnterState(AdjunctState.Unverified, AdjunctState.Undefined);
-                ZeroAsync(RoboAsync, this,TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter();
+                ZeroAsync(RoboAsync, this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
             }
             else
             {

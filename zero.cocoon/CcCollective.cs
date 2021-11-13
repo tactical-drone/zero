@@ -105,7 +105,7 @@ namespace zero.cocoon
             };
 
             //ensure robotics
-            ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter();
+            ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
         }
 
         /// <summary>

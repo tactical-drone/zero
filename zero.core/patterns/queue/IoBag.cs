@@ -222,14 +222,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
         {            
-            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;                        
-            while ((_storage[idx] == default) && Interlocked.Decrement(ref _iteratorCount) >= 0) 
-            {
-                idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
-                Console.Write(".");
-            }
-            
-            return idx < _capacity && _storage[idx] != default;
+            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
+            while ((_storage[idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity] == default) && Interlocked.Decrement(ref _iteratorCount) > 0) {}
+            return _storage[idx] != default;
         }
 
         /// <summary>
