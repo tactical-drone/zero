@@ -94,9 +94,9 @@ namespace zero.cocoon
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
             _dupPoolSize = (uint)(parm_max_drone * 8);            
-            DupHeap = new IoHeap<IoBag<IoInt32>, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize)
+            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize)
             {
-                Make = static (o, s) => new IoBag<IoInt32>(null, s.parm_max_adjunct, true),
+                Make = static (o, s) => new IoHashCodes(null, s.parm_max_adjunct, true),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add(endpoint.GetHashCode());
@@ -261,8 +261,8 @@ namespace zero.cocoon
 
         readonly Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
-        public ConcurrentDictionary<long, IoBag<IoInt32>> DupChecker { get; } = new();
-        public IoHeap<IoBag<IoInt32>, CcCollective> DupHeap { get; protected set; }
+        public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; } = new();
+        public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
         private uint _dupPoolSize;
 
         /// <summary>

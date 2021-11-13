@@ -176,8 +176,7 @@ namespace zero.cocoon.models
                             foreach (var mId in culled)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
-                                {
-                                    await del.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                                {                                    
                                     await CcCollective.DupHeap.ReturnAsync(del).FastPath().ConfigureAwait(Zc);
                                 }
                             }
@@ -234,8 +233,7 @@ namespace zero.cocoon.models
                                 $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
                         
                         if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
-                        {
-                            await dupEndpoints.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                        {                            
                             await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
 
                             //best effort

@@ -66,7 +66,7 @@ namespace zero.sync
         {
             //SemTest();
             //QueueTestAsync();
-            BagTest();
+            //BagTest();
             
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 0;
@@ -172,10 +172,11 @@ namespace zero.sync
                                 }                                    
                                 else if(_rampDelay != _rampTarget)
                                     _rampDelay = _rampTarget;
-
-                                await Task.Delay(_rampDelay).ConfigureAwait(Zc);
+                                var d = _rampDelay;
+                                d++;
+                                await Task.Delay(d).ConfigureAwait(Zc);
                                 
-                                if (Interlocked.Increment(ref C) % 1000 == 0)
+                                if (Interlocked.Increment(ref C) % 100 == 0)
                                 {
                                     Console.WriteLine($"{C/((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)/1000.0):0.0} g/ps");
                                     Interlocked.Exchange(ref C, 0);

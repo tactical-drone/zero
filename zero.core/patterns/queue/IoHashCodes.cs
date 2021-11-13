@@ -14,49 +14,35 @@ namespace zero.core.patterns.queue
     /// <summary>
     /// A lighter concurrent bag implementation
     /// </summary>
-    public class IoBag<T>:IEnumerator<T>, IEnumerable<T>
-    where T:class
+    public class IoHashCodes : IEnumerator<int>, IEnumerable<int>    
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, uint capacity, bool hotReload = false)
+        public IoHashCodes(string description, uint capacity, bool hotReload = false)
         {
             _description = description;
             _capacity = capacity;
-            _storage = new T[_capacity];
-#if DEBUG
-            _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
-#else
-            _zeroSentinel = new IoNanoprobe("");
-#endif
+            _storage = new int[_capacity];
             Reset();
         }
-
-        private volatile int _zeroed;
-        private readonly bool Zc = true;
+        
         private readonly string _description;
-        private T[] _storage;        
+        private int[] _storage;
         private readonly uint _capacity;
-        private volatile uint _count;        
+        private volatile uint _count;
         private int Head => _head % (int)_capacity;
         private volatile int _head = 0;
         private int Tail => _tail % (int)_capacity;
         private volatile int _tail = 0;
-        
-        private volatile int _iteratorIdx = - 1;
-        private volatile int _iteratorCount;
-        private IoNanoprobe _zeroSentinel;
-        
-        /// <summary>
-        /// Zero status
-        /// </summary>
-        public bool Zeroed => _zeroed > 0;
 
+        private volatile int _iteratorIdx = -1;
+        private volatile int _iteratorCount;        
+        
         /// <summary>
         /// Description
         /// </summary>
-        public string Description => $"{nameof(IoBag<T>)}: {nameof(Count)} = {_count}, desc = {_description}";
+        public string Description => $"{nameof(IoHashCodes)}: {nameof(Count)} = {_count}, desc = {_description}";
 
         /// <summary>
         /// Current number of items in the bag
@@ -68,19 +54,19 @@ namespace zero.core.patterns.queue
         /// Capacity
         /// </summary>
         public uint Capacity => _capacity;
-        
+
         /// <summary>
         /// Add item to the bag
         /// </summary>
         /// <param name="item">The item to be added</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public void Add(T item, bool deDup = false)
+        public void Add(int item, bool deDup = false)
         {
             if (_count == _capacity)
                 throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
-            
-            if(deDup)
+
+            if (deDup)
             {
                 if (Contains(item))
                     return;
@@ -89,10 +75,10 @@ namespace zero.core.patterns.queue
             try
             {
                 var latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
-                T latched = default;
+                int latched = default;
                 while (_count < _capacity && (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
-                {                    
-                    Interlocked.Decrement(ref _head);                    
+                {
+                    Interlocked.Decrement(ref _head);
                     latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
                 }
 
@@ -100,23 +86,23 @@ namespace zero.core.patterns.queue
                 {
                     Interlocked.Increment(ref _iteratorCount);
                     Interlocked.Increment(ref _count);
-                }                    
+                }
                 else
                     throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
             }
-            catch (Exception e) when(!Zeroed)
+            catch (Exception e)
             {
                 LogManager.GetCurrentClassLogger().Error(e);
             }
         }
-        
+
         /// <summary>
         /// Try take from the bag, round robin
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public bool TryTake([MaybeNullWhen(false)] out T result)
+        public bool TryTake([MaybeNullWhen(false)] out int result)
         {
             result = default;
             var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
@@ -129,10 +115,10 @@ namespace zero.core.patterns.queue
             }
 
             if (result != target || result == default) return false;
-            
+
             Interlocked.Decrement(ref _count);
 
-            if(latch >= _iteratorIdx)
+            if (latch >= _iteratorIdx)
                 Interlocked.Decrement(ref _iteratorCount);
             return true;
         }
@@ -143,8 +129,8 @@ namespace zero.core.patterns.queue
         /// <param name="result">Returns the head of the Q</param>
         /// <returns>True if the head was not null, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryPeek([MaybeNullWhen(false)] out T result)
-        {                        
+        public bool TryPeek([MaybeNullWhen(false)] out int result)
+        {
             return (result = _storage[(_head - 1) % (int)_capacity]) != default;
         }
 
@@ -157,62 +143,11 @@ namespace zero.core.patterns.queue
         /// <typeparam name="TC">The callback context type</typeparam>
         /// <returns>True if successful, false if something went wrong</returns>
         /// <exception cref="ArgumentException">When zero is true but <see cref="nanite"/> is not of type <see cref="IIoNanite"/></exception>
-        public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
-        {
-            try
-            {
-                if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
-                    return true;
-                
-                //foreach (var item in _storage)
-                for(int i = 0; i < _capacity; i++)
-                {
-                    var item = _storage[i];
-                    try
-                    {
-                        //TODO is this a good idea?
-                        if(item == default)
-                            continue;
-                        
-                        if (!zero && op != null)
-                            await op(item, nanite).FastPath().ConfigureAwait(Zc);
-                        else if(zero)
-                        {
-                            if (!((IIoNanite)item)!.Zeroed())
-                                await ((IIoNanite)item).ZeroAsync((IIoNanite)nanite ?? _zeroSentinel)
-                                    .FastPath()
-                                    .ConfigureAwait(Zc);
-                        }                        
-                    }
-                    catch (Exception) when(Zeroed){}
-                    catch (Exception e) when (!Zeroed)
-                    {
-                        LogManager.GetCurrentClassLogger().Trace(e, $"{_description}: {op}, {item}, {nanite}");
-                    }
-                    finally
-                    {
-                        _storage[i] = default;                        
-                    }
-                }
-                
-            }
-            catch
-            {
-                return false;
-            }
-            finally
-            {
-                _count = 0;
-
-                if (zero)
-                {
-                    await _zeroSentinel.ZeroAsync(_zeroSentinel).FastPath().ConfigureAwait(Zc);
-                    _zeroSentinel = null;
-                    _storage = null;
-                }                
-            }
-
-            return true;
+        public void ZeroManaged(bool zero)
+        {           
+            _count = 0;
+            if (zero)                                            
+                _storage = null;                        
         }
 
         /// <summary>
@@ -221,14 +156,14 @@ namespace zero.core.patterns.queue
         /// <returns>True if the iterator could be advanced by 1</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
-        {            
-            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;                        
-            while ((_storage[idx] == default) && Interlocked.Decrement(ref _iteratorCount) >= 0) 
+        {
+            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
+            while ((_storage[idx] == default) && Interlocked.Decrement(ref _iteratorCount) >= 0)
             {
                 idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
                 Console.Write(".");
             }
-            
+
             return _storage[idx] != default;
         }
 
@@ -238,8 +173,8 @@ namespace zero.core.patterns.queue
         /// <param name="item"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
-        public bool Contains(T item)
-        {            
+        public bool Contains(int item)
+        {
             return _storage.Contains(item);
         }
 
@@ -256,7 +191,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Return the current element in the iterator
         /// </summary>
-        public T Current => _storage[_iteratorIdx];
+        public int Current => _storage[_iteratorIdx];
 
         /// <summary>
         /// Return the current element in the iterator
@@ -268,7 +203,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <returns>The bag enumerator</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IEnumerator<T> GetEnumerator()
+        public IEnumerator<int> GetEnumerator()
         {
             Reset();
             return this;
@@ -280,7 +215,7 @@ namespace zero.core.patterns.queue
         /// <returns>The bag enumerator</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         IEnumerator IEnumerable.GetEnumerator()
-        {            
+        {
             return GetEnumerator();
         }
 
@@ -289,7 +224,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         public void Dispose()
         {
-            
+
         }
     }
 }
