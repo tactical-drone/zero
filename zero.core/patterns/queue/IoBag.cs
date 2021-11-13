@@ -24,35 +24,30 @@ namespace zero.core.patterns.queue
         {
             _description = description;
             _capacity = capacity;
-            _storage = new T[_capacity + 1];            
-            _hotReload = hotReload;
-
-            if (_hotReload)
-                _hotReloadBloom = new ulong[(_capacity>>6) + 1];
+            _storage = new T[_capacity];
 #if DEBUG
-            _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}", concurrencyLevel, true);
+            _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
 #else
             _zeroSentinel = new IoNanoprobe("");
 #endif
+            Reset();
         }
 
         private volatile int _zeroed;
         private readonly bool Zc = true;
         private readonly string _description;
-        private T[] _storage;
-        private bool _hotReload;
+        private T[] _storage;        
         private readonly uint _capacity;
         private volatile uint _count;        
-        private uint Head => _head % _capacity;
-        private volatile uint _head = 0;
-        private uint Tail => _tail % _capacity;
-        private volatile uint _tail = 0;
+        private int Head => _head % (int)_capacity;
+        private volatile int _head = 0;
+        private int Tail => _tail % (int)_capacity;
+        private volatile int _tail = 0;
         
-        private volatile uint _iteratorIdx;
-        private volatile bool _tailCross;
+        private volatile int _iteratorIdx = - 1;
+        private volatile int _iteratorCount;
         private IoNanoprobe _zeroSentinel;
-        private ulong[] _hotReloadBloom;
-
+        
         /// <summary>
         /// Zero status
         /// </summary>
@@ -67,6 +62,12 @@ namespace zero.core.patterns.queue
         /// Current number of items in the bag
         /// </summary>
         public uint Count => _count;
+
+
+        /// <summary>
+        /// Capacity
+        /// </summary>
+        public uint Capacity => _capacity;
         
         /// <summary>
         /// Add item to the bag
@@ -97,15 +98,9 @@ namespace zero.core.patterns.queue
 
                 if (latched == null)
                 {
+                    Interlocked.Increment(ref _iteratorCount);
                     Interlocked.Increment(ref _count);
-
-                    if (_hotReload)
-                    {
-                        _iteratorIdx = Head;
-                        _tailCross = Head > Tail;
-                        _hotReloadBloom[latch >> 6] &= 0x1UL << (int)(latch % 64);
-                    }
-                }                
+                }                    
                 else
                     throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
             }
@@ -134,8 +129,11 @@ namespace zero.core.patterns.queue
             }
 
             if (result != target || result == null) return false;
-
+            
             Interlocked.Decrement(ref _count);
+
+            if(latch >= _iteratorIdx)
+                Interlocked.Decrement(ref _iteratorCount);
             return true;
         }
 
@@ -146,8 +144,8 @@ namespace zero.core.patterns.queue
         /// <returns>True if the head was not null, false otherwise</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
-        {
-            return (result = _storage[Head - 1]) != null;
+        {                        
+            return (result = _storage[(_head - 1) % (int)_capacity]) != null;
         }
 
         /// <summary>
@@ -223,37 +221,14 @@ namespace zero.core.patterns.queue
         /// <returns>True if the iterator could be advanced by 1</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
-        {                                    
-            uint idx1 = 0;
-            ulong idx2 = 0;
-            bool hotReload = false;
-
-            var idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
-
-            if (_hotReload)
+        {            
+            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;                        
+            while ((_storage[idx] == null) && Interlocked.Decrement(ref _iteratorCount) >= 0) 
             {
-                idx1 = idx >> 6;
-                idx2 = 0x1UL << (int)idx % 64;
-                hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
+                idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
+                Console.Write(".");
             }
-            else
-                _tailCross = idx > Tail;
-
-            while ((_storage[idx] == null || !hotReload) && _tailCross != (idx > Tail)) 
-            {
-                idx = Interlocked.Decrement(ref _iteratorIdx) % _capacity;
-
-                if(_hotReload)
-                {
-                    idx1 = idx >> 6;
-                    idx2 = 0x1UL << (int)idx % 64;
-                    hotReload = (_hotReloadBloom[idx1] & idx2) > 0;
-                }                
-            }
-
-            if (_hotReload)
-                _hotReloadBloom[idx1] ^= idx2;
-
+            
             return _storage[idx] != null;
         }
 
@@ -274,13 +249,8 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, Head + 1);
-            
-            if (_hotReload)            
-            {
-                _tailCross = Head > Tail;
-                Array.Clear(_hotReloadBloom, 0, _hotReloadBloom.Length);
-            }                
+            Interlocked.Exchange(ref _iteratorIdx, (_tail - 1) % (int)_capacity);
+            Interlocked.Exchange(ref _iteratorCount, (int)_count);
         }
 
         /// <summary>
@@ -300,6 +270,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<T> GetEnumerator()
         {
+            Reset();
             return this;
         }
 
@@ -309,7 +280,7 @@ namespace zero.core.patterns.queue
         /// <returns>The bag enumerator</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         IEnumerator IEnumerable.GetEnumerator()
-        {
+        {            
             return GetEnumerator();
         }
 

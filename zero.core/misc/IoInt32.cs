@@ -90,5 +90,11 @@ namespace zero.core.misc
         {
             return value.GetHashCode();
         }
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public override string ToString()
+        {
+            return value.ToString();
+        }
     }
 }

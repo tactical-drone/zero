@@ -66,6 +66,7 @@ namespace zero.sync
         {
             //SemTest();
             //QueueTestAsync();
+            BagTest();
             
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 0;
@@ -398,12 +399,26 @@ namespace zero.sync
                     try
                     {
                         if (line.Contains("target"))
+                        {
                             _rampTarget = int.Parse(line.Split(' ')[2]);
+                            Console.WriteLine($"rampTarget = {_rampTarget}");
+                        }
+                            
 
                         if (line.Contains("delay"))
+                        {
                             _rampDelay = int.Parse(line.Split(' ')[2]);
+                            Console.WriteLine($"rampDelay = {_rampDelay}");
+                        }
+                            
                     }
                     catch { }
+                }
+
+                if(line.Contains("gossip"))
+                {
+                    _startAccounting = !_startAccounting;
+                    Console.WriteLine($"gossip = {_startAccounting}");
                 }
 
                 if (line.StartsWith("zero"))
@@ -893,6 +908,38 @@ namespace zero.sync
             asyncTasks.Cancel();
             Console.ReadLine();
             Console.WriteLine("Done");
+            Console.ReadLine();
+        }
+
+        private static void BagTest() //TODO make unit tests
+        {
+            var bag = new IoBag<IoInt32>("test", 11, true);
+
+            for (int i = 0; i < bag.Capacity - 1; i++)
+            {
+                bag.Add(i);
+            }
+
+            Debug.Assert(bag.Contains((int)bag.Capacity / 2));
+
+
+            foreach (var i in bag)
+            {
+                Console.Write($"{i}, ");
+                if (i == 7)
+                    bag.Add(11);
+
+                if (i == 11)
+                    break;
+            }
+
+            Console.Write($"\n");
+            foreach (var i in bag)
+            {
+                bag.TryTake(out var r);
+                Console.Write($"{r}, ");
+            }
+
             Console.ReadLine();
         }
 

@@ -366,7 +366,8 @@ namespace zero.core.core
                 while (!Zeroed() && retry-- > 0)
                 {
                     await SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath().ConfigureAwait(Zc);
-                    _logger.Warn($"Listener restart... {Description}");
+                    if(!Zeroed())
+                        _logger.Warn($"Listener restart... {Description}");
                 }
 
                 _logger.Trace($"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");

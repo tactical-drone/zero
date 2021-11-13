@@ -325,7 +325,7 @@ namespace zero.core.network.ip
             {
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                 NativeSocket.SendTimeout = 0;
-                return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0 || true);
+                return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0 ) || true;
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())

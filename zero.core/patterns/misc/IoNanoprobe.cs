@@ -41,25 +41,7 @@ namespace zero.core.patterns.misc
             Description = reason;
             _zId = Interlocked.Increment(ref _uidSeed);
         }
-
-        /// <summary>
-        /// Only gives atomic async
-        /// </summary>
-        /// <param name="description">A description</param>
-        /// <param name="concurrencyLevel">Consurrency level</param>
-        /// <param name="mutex">locks in a mutex</param>
-        public IoNanoprobe(string description, int concurrencyLevel, CancellationTokenSource asyncTasks)
-        {            
-            _concurrencyLevel = concurrencyLevel;
-            _zId = Interlocked.Increment(ref _uidSeed);
-#if DEBUG            
-            desc = $"{nameof(_nanoMutex)}: {description}";
-#endif
-            AsyncTasks = asyncTasks; 
-            //_nanoMutex = new IoZeroSemaphore(desc, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel: 0);
-            //_nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
-        }
-
+        
         /// <summary>
         /// Constructs a nano probe
         /// </summary>
@@ -80,16 +62,7 @@ namespace zero.core.patterns.misc
             CascadeTime = default;
             Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _zId = Interlocked.Increment(ref _uidSeed);
-            AsyncTasks = new CancellationTokenSource();
-            
-//            var enableFairQ = true;
-//            var enableDeadlockDetection = true;
-//#if RELEASE
-//            enableDeadlockDetection = false;
-//#endif
-
-            //_nanoMutex = new IoZeroSemaphore(description, maxBlockers: _concurrencyLevel * 2, initialCount: 1, concurrencyLevel: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            //_nanoMutex.ZeroRef(ref _nanoMutex, AsyncTasks);
+            AsyncTasks = new CancellationTokenSource();            
         }
 
         /// <summary>
