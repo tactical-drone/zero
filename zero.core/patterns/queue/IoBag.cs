@@ -229,7 +229,7 @@ namespace zero.core.patterns.queue
                 Console.Write(".");
             }
             
-            return _storage[idx] != default;
+            return idx < _capacity && _storage[idx] != default;
         }
 
         /// <summary>
@@ -256,7 +256,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Return the current element in the iterator
         /// </summary>
-        public T Current => _storage[_iteratorIdx];
+        public T Current => _storage[_iteratorIdx % _capacity];
 
         /// <summary>
         /// Return the current element in the iterator

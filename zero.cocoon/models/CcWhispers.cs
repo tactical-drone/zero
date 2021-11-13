@@ -176,7 +176,8 @@ namespace zero.cocoon.models
                             foreach (var mId in culled)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
-                                {                                    
+                                {
+                                    del.ZeroManaged();
                                     await CcCollective.DupHeap.ReturnAsync(del).FastPath().ConfigureAwait(Zc);
                                 }
                             }
@@ -233,12 +234,13 @@ namespace zero.cocoon.models
                                 $"{CcCollective.DupHeap}: {CcCollective.DupHeap.ReferenceCount}/{CcCollective.DupHeap.MaxSize} - c = {CcCollective.DupChecker.Count}, m = _maxReq");
                         
                         if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
-                        {                            
+                        {
+                            dupEndpoints.ZeroManaged();
                             await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
 
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
-                            {                        
+                            {                                                     
                                 dupEndpoints.Add(endpoint.GetHashCode(), true);                                
                                 continue;
                             }                                    
@@ -250,12 +252,12 @@ namespace zero.cocoon.models
                         {
                             dupEndpoints.Add(endpoint.GetHashCode(), true);
                         }
-                        catch (Exception)
+                        catch (Exception) when(!Zeroed())
                         {
-                            dupEndpoints.ToList().ForEach(endpoint =>
-                            {
-                                Console.WriteLine(endpoint);
-                            });                            
+                            //dupEndpoints.ToList().ForEach(endpoint =>
+                            //{
+                            //    Console.WriteLine(endpoint);
+                            //});                            
                         }                        
                         continue;
                     }

@@ -143,8 +143,8 @@ namespace zero.core.patterns.queue
         /// <typeparam name="TC">The callback context type</typeparam>
         /// <returns>True if successful, false if something went wrong</returns>
         /// <exception cref="ArgumentException">When zero is true but <see cref="nanite"/> is not of type <see cref="IIoNanite"/></exception>
-        public void ZeroManaged(bool zero)
-        {           
+        public void ZeroManaged(bool zero = false)
+        {                       
             _count = 0;
             if (zero)                                            
                 _storage = null;                        
@@ -164,7 +164,7 @@ namespace zero.core.patterns.queue
                 Console.Write(".");
             }
 
-            return _storage[idx] != default;
+            return idx < _capacity && _storage[idx] != default;
         }
 
         /// <summary>
@@ -191,7 +191,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Return the current element in the iterator
         /// </summary>
-        public int Current => _storage[_iteratorIdx];
+        public int Current => _storage[_iteratorIdx % _capacity];
 
         /// <summary>
         /// Return the current element in the iterator
