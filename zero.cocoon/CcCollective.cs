@@ -105,7 +105,7 @@ namespace zero.cocoon
             };
 
             //ensure robotics
-            ZeroAsync(RoboAsync,this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            ZeroAsync(RoboAsync,this,TaskCreationOptions.DenyChildAttach);
         }
 
         /// <summary>
@@ -431,7 +431,7 @@ namespace zero.cocoon
                     @this._autoPeeringTask = @this._autoPeering.StartAsync(@this.DeepScanAsync);
                     await @this._autoPeeringTask;
                 }
-            }, this,  TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+            }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 
             //start node listener
             await base.SpawnListenerAsync(static async (drone,@this) =>
@@ -779,7 +779,7 @@ namespace zero.cocoon
         private async ValueTask<bool> ConnectForTheWinAsync(CcAdjunct.Heading direction, CcDrone drone, Packet packet, IPEndPoint remoteEp)
         {
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
-                throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint.ToString()}: {Description}");
+                throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint}: {Description}");
 
             var id = CcAdjunct.MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
             if ((direction == CcAdjunct.Heading.Ingress) && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
@@ -1013,6 +1013,16 @@ namespace zero.cocoon
                 });
 
             return ValueTask.CompletedTask;
+        }
+
+        public void PrintNeighborhood()
+        {
+            _logger.Info(Description);
+            _logger.Info(Hub.Description);
+            foreach (var adjunct in Adjuncts)
+            {
+                _logger.Info(adjunct.Description);
+            }
         }
     }
 }

@@ -79,11 +79,11 @@ namespace zero.sync
             {
                 host = CreateHostBuilder(args).Build();
                 host.Run();
-            }, TaskCreationOptions.LongRunning);
+            }, TaskCreationOptions.DenyChildAttach);
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 600;
+            var total = 400;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -126,7 +126,7 @@ namespace zero.sync
                 var injectionCount = 75;
                 foreach (var task in tasks)
                 {
-                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.LongRunning);
+                    var h = Task.Factory.StartNew(() => task.Start(), TaskCreationOptions.DenyChildAttach);
                     if (c % injectionCount == 0)
                     {
                         await Task.Delay(rateLimit += 10).ConfigureAwait(Zc);
@@ -345,7 +345,7 @@ namespace zero.sync
 
                     Thread.Sleep(30000);
                 }
-            }, TaskCreationOptions.LongRunning);
+            }, TaskCreationOptions.DenyChildAttach);
 
            
 
@@ -385,7 +385,7 @@ namespace zero.sync
                     c = ThreadPool.CompletedWorkItemCount;
                 }
 
-                if (line.StartsWith("log"))
+                if (line.StartsWith("log "))
                 {
                     try
                     {
@@ -395,7 +395,7 @@ namespace zero.sync
                     catch { }
                 }
 
-                if (line.StartsWith("ramp"))
+                if (line.StartsWith("ramp "))
                 {                    
                     try
                     {
@@ -416,10 +416,19 @@ namespace zero.sync
                     catch { }
                 }
 
-                if(line.Contains("gossip"))
+                if(line.StartsWith("gossip"))
                 {
                     _startAccounting = !_startAccounting;
                     Console.WriteLine($"gossip = {_startAccounting}");
+                }
+
+                if (line.StartsWith("dn "))
+                {
+                    try
+                    {
+                        _nodes.FirstOrDefault(n => n.CcId.IdString() == line.Split(' ')[1]).PrintNeighborhood();
+                    }
+                    catch (Exception){}                    
                 }
 
                 if (line.StartsWith("zero"))
@@ -605,7 +614,7 @@ namespace zero.sync
                         }
                     }
                     Console.Write($"({i3}-{q.Count})");
-                }, new CancellationToken(), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
+                }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
             }
             Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();
             
@@ -663,7 +672,7 @@ namespace zero.sync
 
             //TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness | TaskCreationOptions.RunContinuationsAsynchronously;
             //TaskCreationOptions options = TaskCreationOptions.None;
-            TaskCreationOptions options = TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach;
+            TaskCreationOptions options = TaskCreationOptions.DenyChildAttach;
 
             var startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             
@@ -1039,7 +1048,7 @@ namespace zero.sync
                 ((CcCollective)cocoon).EmitAsync();
                 ((CcCollective)cocoon).StartAsync();
                 return (CcCollective)cocoon;
-            }, cocoon, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            }, cocoon, TaskCreationOptions.DenyChildAttach);
             return t;
         }
     }

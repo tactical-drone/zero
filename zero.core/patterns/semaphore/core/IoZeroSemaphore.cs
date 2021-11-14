@@ -277,22 +277,35 @@ namespace zero.core.patterns.semaphore.core
             var i = 0;
             while (i < _signalAwaiter.Length)
             {
-                var state = Interlocked.CompareExchange(ref _signalAwaiterState[i], null, _signalAwaiterState[i]);
                 var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
-                var executionState = Interlocked.CompareExchange(ref _signalExecutionState[i], null, _signalExecutionState[i]);
-                var context = Interlocked.CompareExchange(ref _signalCapturedContext[i], null, _signalCapturedContext[i]);
-                if (waiter != null)
+                if(waiter != null)
                 {
-                    try
+                    object state = null;
+
+                    var c = 100;
+                    while(state == null && c--> 0)
+                        state = Interlocked.CompareExchange(ref _signalAwaiterState[i], null, _signalAwaiterState[i]);
+
+                    //This should never happen
+                    if (state == null)                                           
+                        continue;                                            
+
+                    var executionState = Interlocked.CompareExchange(ref _signalExecutionState[i], null, _signalExecutionState[i]);
+                    var context = Interlocked.CompareExchange(ref _signalCapturedContext[i], null, _signalCapturedContext[i]);
+                    if (waiter != null)
                     {
-                        ZeroComply(waiter, state, executionState, context);
-                    }
-                    catch
-                    {
-                        // ignored
+                        try
+                        {
+                            if (waiter != null && state != null)
+                                ZeroComply(waiter, state, executionState, context);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
                     }
                 }
-
+                
                 i++;
             }
 

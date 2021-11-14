@@ -175,7 +175,7 @@ namespace zero.core.network.ip
                         if (!@this.IsConnected())
                             @this.AsyncTasks.Cancel();
                         
-                    }, ValueTuple.Create(this, timeout), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+                    }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
                 }
 
                 await connectTask.FastPath().ConfigureAwait(Zc);

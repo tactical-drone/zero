@@ -74,7 +74,7 @@ namespace zero.cocoon.autopeer
             if (Proxy)
             {
                 CompareAndEnterState(AdjunctState.Unverified, AdjunctState.Undefined);
-                ZeroAsync(RoboAsync, this,TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+                ZeroAsync(RoboAsync, this,TaskCreationOptions.DenyChildAttach);
             }
             else
             {
@@ -487,7 +487,7 @@ namespace zero.cocoon.autopeer
 #if DEBUG
         public int parm_max_network_latency = 60000;
 #else
-        public int parm_max_network_latency = 15000;
+        public int parm_max_network_latency = 3000;
 #endif
 
         /// <summary>
@@ -661,7 +661,7 @@ namespace zero.cocoon.autopeer
                 {
                     await Task.Delay(@this.parm_max_network_latency * 2, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
                     await @this.Router.SendPingAsync(@this.RemoteAddress).FastPath().ConfigureAwait(@this.Zc);
-                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+                }, this, TaskCreationOptions.DenyChildAttach);
             }
             else
             {
@@ -786,7 +786,7 @@ namespace zero.cocoon.autopeer
                     Interlocked.Add(ref CcAdjunct.ConnectionTime, ts.ElapsedMs());
                     Interlocked.Increment(ref CcAdjunct.ConnectionCount);
                 }
-            }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+            }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
             
             return true;
         }
@@ -918,7 +918,7 @@ namespace zero.cocoon.autopeer
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
                     
-                    },this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.DenyChildAttach);
+                    },this, TaskCreationOptions.DenyChildAttach);
 
                     consumer = ZeroOptionAsync(static async @this  =>
                     {
@@ -1055,7 +1055,7 @@ namespace zero.cocoon.autopeer
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
-                    }, this, TaskCreationOptions.AttachedToParent | TaskCreationOptions.PreferFairness );
+                    }, this, TaskCreationOptions.DenyChildAttach);
                     await Task.WhenAll(producer.AsTask(), consumer.AsTask()).ConfigureAwait(Zc);
                 }
                 while (!Zeroed());
@@ -1087,12 +1087,12 @@ namespace zero.cocoon.autopeer
             if (!Assimilating || request.Timestamp.ElapsedMs() > parm_max_network_latency * 2)
             {
                 if(Proxy)
-                    _logger.Trace($"{(Proxy ? "V>" : "X>")}{nameof(PeeringDrop)}: Ignoring {request.Timestamp.ElapsedDelta()}s old/invalid request");
+                    _logger.Error($"{nameof(PeeringDrop)}: Ignoring {request.Timestamp.ElapsedDelta()}s old/invalid request, {Description}");
                 return;
             }
             
             //PAT
-            LastPat = 0;
+            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             if (IsDroneAttached)
             {
@@ -1163,7 +1163,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             //PAT
-            LastPat = 0;
+            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             var peeringResponse = new PeeringResponse
             {
@@ -1235,7 +1235,7 @@ namespace zero.cocoon.autopeer
             _logger.Trace($"<\\- {nameof(PeeringResponse)}: Accepted = {response.Status}, {Description}");
 
             //PAT
-            LastPat = 0;
+            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             switch (response.Status)
             {
@@ -1267,7 +1267,7 @@ namespace zero.cocoon.autopeer
                             if (!await @this.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(@this.Zc))
                                 @this._logger.Debug($"{nameof(PeeringResponse)} - {@this.Description}: {nameof(SendDiscoveryRequestAsync)} did not execute...");
 
-                        }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
+                        }, this,TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                     }
 
                     break;
@@ -1418,7 +1418,7 @@ namespace zero.cocoon.autopeer
                 $"<\\- {nameof(DiscoveryResponse)}: Received {response.Peers.Count} potentials from {Description}");
 
             //PAT
-            LastPat = 0;
+            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             foreach (var responsePeer in response.Peers)
             {
@@ -1480,7 +1480,7 @@ namespace zero.cocoon.autopeer
 #endif
                     }
                         
-                }, ValueTuple.Create(this,newRemoteEp, id, services), TaskCreationOptions.LongRunning|TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                }, ValueTuple.Create(this,newRemoteEp, id, services), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                 
                 count++;
             }
@@ -1677,7 +1677,7 @@ namespace zero.cocoon.autopeer
             }
 
             //PAT
-            LastPat = 0;
+            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             var discoveryResponse = new DiscoveryResponse
             {
@@ -1858,7 +1858,7 @@ namespace zero.cocoon.autopeer
             }
             else //PROCESS ACK
             {
-                LastPat = 0;
+                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 var sent = 0;
                 if ((sent = await SendMessageAsync(data: pong.ToByteString(), type: CcDiscoveries.MessageTypes.Pong)
@@ -1954,14 +1954,14 @@ namespace zero.cocoon.autopeer
                             @this._logger.Debug($"{@this.Description}: Collecting {fromAddress.IpEndPoint} failed!");
 #endif
                         }
-                    }, ValueTuple.Create(this, fromAddress, remoteServices, idCheck), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                    }, ValueTuple.Create(this, fromAddress, remoteServices, idCheck), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                 }
             }
             else if (!Verified) //Process ACK SYN
             {
                 //PAT
-                LastPat = 0;
-                
+                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
                 //TODO: vector?
                 //set ext address as seen by neighbor
                 ExtGossipAddress =
@@ -1996,7 +1996,7 @@ namespace zero.cocoon.autopeer
             else 
             {
                 //PAT
-                LastPat = 0;
+                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 if (Volatile.Read(ref _viral).ElapsedMsToSec() >= parm_virality)
                 {
@@ -2449,7 +2449,6 @@ namespace zero.cocoon.autopeer
             AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();            
             _peerRequestsRecvCount = _peerRequestsSentCount = 0;
 
-            //send drop request
             await SendPeerDropAsync().FastPath().ConfigureAwait(Zc);
 
             if (direction == Heading.Ingress && CcCollective.IngressCount < CcCollective.parm_max_inbound)
@@ -2458,8 +2457,11 @@ namespace zero.cocoon.autopeer
                 await ZeroAsync(static async @this =>
                 {
                     await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                    //send drop request
+                    
+                    await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
                     await @this.SendPingAsync().FastPath().ConfigureAwait(@this.Zc);
-                }, this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness).FastPath().ConfigureAwait(Zc);
+                }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
             }
 
 

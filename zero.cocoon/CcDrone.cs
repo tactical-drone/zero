@@ -52,7 +52,7 @@ namespace zero.cocoon
                         await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(@this.Zc);
                     }
                 }
-            },this, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach| TaskCreationOptions.PreferFairness);
+            },this, TaskCreationOptions.DenyChildAttach);
 
             m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb)) };
         }
