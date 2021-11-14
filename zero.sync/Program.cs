@@ -431,6 +431,29 @@ namespace zero.sync
                     catch (Exception){}                    
                 }
 
+                if (line.StartsWith("ec"))
+                {
+                    try
+                    {
+                        ulong sum = 0;
+                        foreach (var ccCollective in _nodes)
+                            sum += ccCollective.EventCount;                        
+
+                        var ave = sum / (ulong)_nodes.Count;
+                        var std = 0;
+                        foreach (var ccCollective in _nodes)
+                        {
+                            var delta = (long)ave - (long)ccCollective.EventCount;
+                            Console.Write($"{delta}, ");
+                            if(Math.Abs((double)delta) > ave * ave)                            
+                                std++;                            
+                        }                            
+                        
+                        Console.WriteLine($"\nave = {ave}, std = {std}/{_nodes.Count}"); 
+                    }
+                    catch (Exception) { }
+                }
+
                 if (line.StartsWith("zero"))
                 {
                     ZeroAsync(total).AsTask().GetAwaiter();

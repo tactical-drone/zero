@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -264,6 +265,8 @@ namespace zero.cocoon
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
         private uint _dupPoolSize;
+        private ulong _eventCounter;
+        public ulong EventCount => _eventCounter;
 
         /// <summary>
         /// Bootstrap
@@ -1024,5 +1027,12 @@ namespace zero.cocoon
                 _logger.Info(adjunct.Description);
             }
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IncEventCounter()
+        {
+            Interlocked.Increment(ref _eventCounter);
+        }
+
     }
 }

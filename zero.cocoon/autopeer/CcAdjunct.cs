@@ -1092,7 +1092,7 @@ namespace zero.cocoon.autopeer
             }
             
             //PAT
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            LastPat = 0;
 
             if (IsDroneAttached)
             {
@@ -1163,7 +1163,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             //PAT
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            LastPat = 0;
 
             var peeringResponse = new PeeringResponse
             {
@@ -1235,7 +1235,7 @@ namespace zero.cocoon.autopeer
             _logger.Trace($"<\\- {nameof(PeeringResponse)}: Accepted = {response.Status}, {Description}");
 
             //PAT
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            LastPat = 0;
 
             switch (response.Status)
             {
@@ -1418,7 +1418,7 @@ namespace zero.cocoon.autopeer
                 $"<\\- {nameof(DiscoveryResponse)}: Received {response.Peers.Count} potentials from {Description}");
 
             //PAT
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            LastPat = 0;
 
             foreach (var responsePeer in response.Peers)
             {
@@ -1677,7 +1677,7 @@ namespace zero.cocoon.autopeer
             }
 
             //PAT
-            LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            LastPat = 0;
 
             var discoveryResponse = new DiscoveryResponse
             {
@@ -1858,7 +1858,7 @@ namespace zero.cocoon.autopeer
             }
             else //PROCESS ACK
             {
-                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                LastPat = 0;
 
                 var sent = 0;
                 if ((sent = await SendMessageAsync(data: pong.ToByteString(), type: CcDiscoveries.MessageTypes.Pong)
@@ -1960,7 +1960,7 @@ namespace zero.cocoon.autopeer
             else if (!Verified) //Process ACK SYN
             {
                 //PAT
-                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                LastPat = 0;
 
                 //TODO: vector?
                 //set ext address as seen by neighbor
@@ -1996,7 +1996,7 @@ namespace zero.cocoon.autopeer
             else 
             {
                 //PAT
-                LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                LastPat = 0;
 
                 if (Volatile.Read(ref _viral).ElapsedMsToSec() >= parm_virality)
                 {

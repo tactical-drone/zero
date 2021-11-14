@@ -244,12 +244,12 @@ namespace zero.cocoon.models
                                 dupEndpoints.Add(endpoint.GetHashCode(), true);                                
                                 continue;
                             }                                    
-                        }
+                        }                        
                     }
                     else
                     {
                         try
-                        {
+                        {                            
                             dupEndpoints.Add(endpoint.GetHashCode(), true);
                         }
                         catch (Exception) when(!Zeroed())
@@ -261,13 +261,13 @@ namespace zero.cocoon.models
                         }                        
                         continue;
                     }
-                    
+
+                    CcCollective.IncEventCounter();
                     foreach (var drone in CcCollective.WhisperingDrones)
                     {
                         try
                         {
-                            var source =
-                                (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)drone.Source;
+                            var source = (IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)drone.Source;
 
                             //Don't forward new messages to nodes from which we have received the msg in the mean time.
                             //This trick has the added bonus of using congestion as a governor to catch more of those overlaps, 
