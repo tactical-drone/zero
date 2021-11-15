@@ -282,7 +282,26 @@ namespace zero.cocoon
                         var socket = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket;
                         if (socket.IsConnected() && await socket.SendAsync(buf, 0, buf.Length, timeout: 20).FastPath().ConfigureAwait(Zc) > 0)
                         {
-                            //Interlocked.Increment(ref AccountingBit);
+                            var dupEndpoints = await Adjunct.CcCollective.DupHeap.TakeAsync(IoSource.IoNetSocket.LocalAddress).FastPath().ConfigureAwait(Zc);
+
+                            if (dupEndpoints == null)
+                                throw new OutOfMemoryException(
+                                    $"{Adjunct.CcCollective.DupHeap}: {Adjunct.CcCollective.DupHeap.ReferenceCount}/{Adjunct.CcCollective.DupHeap.MaxSize} - c = {Adjunct.CcCollective.DupChecker.Count}, m = _maxReq");
+
+                            if (!Adjunct.CcCollective.DupChecker.TryAdd(v, dupEndpoints))
+                            {
+                                dupEndpoints.ZeroManaged();
+                                await Adjunct.CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
+
+                                //best effort
+                                if (Adjunct.CcCollective.DupChecker.TryGetValue(v, out dupEndpoints))
+                                {
+                                    dupEndpoints.Add(IoSource.IoNetSocket.LocalAddress.GetHashCode(), true);                                    
+                                }
+                            }
+
+                            Interlocked.Increment(ref AccountingBit);
+                            Adjunct.CcCollective.IncEventCounter();
                             if (AutoPeeringEventService.Operational)
                                 await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                 {

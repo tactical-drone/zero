@@ -39,7 +39,21 @@ namespace zero.core.misc
                 return -delta;
             return delta;
         }
-        
+
+        /// <summary>
+        /// Delta time since in unix time
+        /// </summary>
+        /// <param name="timestamp"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ElapsedDeltaMs(this long timestamp)
+        {
+            var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
+            if (delta < 0)
+                return -delta;
+            return delta;
+        }
+
         /// <summary>
         /// Delta time since in unix time
         /// </summary>

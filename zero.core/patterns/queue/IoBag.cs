@@ -221,8 +221,8 @@ namespace zero.core.patterns.queue
         /// <returns>True if the iterator could be advanced by 1</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool MoveNext()
-        {            
-            var idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity;
+        {
+            var idx = 0;
             while ((_storage[idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity] == default) && Interlocked.Decrement(ref _iteratorCount) > 0) {}
             return _storage[idx] != default;
         }

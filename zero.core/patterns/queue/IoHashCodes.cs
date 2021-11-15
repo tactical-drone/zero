@@ -107,6 +107,7 @@ namespace zero.core.patterns.queue
             result = default;
             var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
             var target = _storage[latch];
+
             while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latch], default, target)) != target)
             {
                 Interlocked.Decrement(ref _tail);
@@ -143,12 +144,18 @@ namespace zero.core.patterns.queue
         /// <typeparam name="TC">The callback context type</typeparam>
         /// <returns>True if successful, false if something went wrong</returns>
         /// <exception cref="ArgumentException">When zero is true but <see cref="nanite"/> is not of type <see cref="IIoNanite"/></exception>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void ZeroManaged(bool zero = false)
         {                       
             _count = 0;
             
             if (!zero)
-                Array.Clear(_storage);
+            {
+                for (int i = 0; i < _storage.Length; i++)
+                {
+                    _storage[i] = default;
+                }
+            }                
             else
                 _storage = null;                        
         }

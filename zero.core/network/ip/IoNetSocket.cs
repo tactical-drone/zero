@@ -65,13 +65,13 @@ namespace zero.core.network.ip
             NativeSocket.LingerState = new LingerOption(false, 0);
 
             // Disable the Nagle Algorithm for this tcp socket.
-            NativeSocket.NoDelay = true;
+            NativeSocket.NoDelay = false;
 
             // Set the receive buffer size to 64k
-            NativeSocket.ReceiveBufferSize = 8192 * 8;
+            NativeSocket.ReceiveBufferSize = 8192 * 80;
 
             // Set the send buffer size to 64k.
-            NativeSocket.SendBufferSize = 8192 * 8;
+            NativeSocket.SendBufferSize = 8192 * 80;
 
             // Set the timeout for synchronous receive methods to
             // 1 second (1000 milliseconds.)

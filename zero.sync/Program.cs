@@ -67,7 +67,8 @@ namespace zero.sync
             //SemTest();
             //QueueTestAsync();
             //BagTest();
-            
+            //BagTest2();
+
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 0;
             
@@ -440,16 +441,26 @@ namespace zero.sync
                             sum += ccCollective.EventCount;                        
 
                         var ave = sum / (ulong)_nodes.Count;
+                        long aveDelta = 0;
                         var std = 0;
                         foreach (var ccCollective in _nodes)
                         {
                             var delta = (long)ave - (long)ccCollective.EventCount;
-                            Console.Write($"{delta}, ");
-                            if(Math.Abs((double)delta) > ave * ave)                            
-                                std++;                            
-                        }                            
-                        
-                        Console.WriteLine($"\nave = {ave}, std = {std}/{_nodes.Count}"); 
+                            aveDelta += Math.Abs(delta) * 2;
+
+                            Console.Write($"{delta}, ");                            
+                        }
+
+                        aveDelta /= _nodes.Count;                        
+
+                        foreach (var ccCollective in _nodes)
+                        {
+                            var delta = (long)ave - (long)ccCollective.EventCount;
+                            if (Math.Abs((double)delta) > aveDelta)
+                                std++;
+                        }
+
+                        Console.WriteLine($"\nave = {ave}, std = {std}/{_nodes.Count} ({aveDelta})"); 
                     }
                     catch (Exception) { }
                 }
@@ -948,7 +959,39 @@ namespace zero.sync
         {
             var bag = new IoBag<IoInt32>("test", 11, true);
 
-            for (int i = 0; i < bag.Capacity - 1; i++)
+            for (int i = 1; i < bag.Capacity; i++)
+            {
+                bag.Add(i);
+            }
+
+            Debug.Assert(bag.Contains((int)bag.Capacity / 2));
+
+
+            foreach (var i in bag)
+            {
+                Console.Write($"{i}, ");
+                if (i == 7)
+                    bag.Add(11);
+
+                if (i == 11)
+                    break;
+            }
+
+            Console.Write($"\n");
+            foreach (var i in bag)
+            {
+                bag.TryTake(out var r);
+                Console.Write($"{r}, ");
+            }
+
+            Console.ReadLine();
+        }
+
+        private static void BagTest2() //TODO make unit tests
+        {
+            var bag = new IoHashCodes("test", 11, true);
+
+            for (int i = 1; i < bag.Capacity; i++)
             {
                 bag.Add(i);
             }
