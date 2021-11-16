@@ -23,5 +23,8 @@
     <ProjectReference Include="..\zero.core\zero.core.csproj" />
     <ProjectReference Include="..\zero.interop\zero.interop.csproj" />
   </ItemGroup>
-
+	
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 </Project>

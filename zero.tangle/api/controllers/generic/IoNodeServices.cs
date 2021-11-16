@@ -24,10 +24,10 @@ namespace zero.tangle.api.controllers.generic
     /// <summary>
     /// Node services
     /// </summary>
-    /// <seealso cref="Microsoft.AspNetCore.Mvc.Controller" />
+    /// <seealso cref="Controller" />
     /// <seealso cref="IIoNodeController" />
     [EnableCors("ApiCorsPolicy")]
-    [ApiController]
+
     //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]    
     public class IoNodeServices<TKey> : Controller, IIoNodeController
     {

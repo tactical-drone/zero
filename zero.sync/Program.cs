@@ -151,7 +151,7 @@ namespace zero.sync
                 _rampTarget = 1000;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 2; i++)
+                for (int i = 0; i < 4; i++)
                 { 
                     gossipTasks.Add(Task.Factory.StartNew(async () =>
                     {
@@ -162,9 +162,9 @@ namespace zero.sync
                         {
                             foreach (var task in tasks)
                             {
-                                //continue;
-                                await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc);
-
+                                if(!await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc))
+                                    continue;
+                                
                                 //ramp
                                 if (_rampDelay > _rampTarget)
                                 {
@@ -434,35 +434,43 @@ namespace zero.sync
 
                 if (line.StartsWith("ec"))
                 {
-                    try
+                    if (line.Contains("clear"))
                     {
-                        long sum = 0;
                         foreach (var ccCollective in _nodes)
-                            sum += ccCollective.EventCount;                        
-
-                        var ave = sum / _nodes.Count;
-                        long aveDelta = 0;
-                        var std = 0;
-                        foreach (var ccCollective in _nodes)
-                        {
-                            var delta = (long)ave - (long)ccCollective.EventCount;
-                            aveDelta += Math.Abs(delta) * 2;
-
-                            Console.Write($"{delta}, ");                            
-                        }
-
-                        aveDelta /= _nodes.Count;                        
-
-                        foreach (var ccCollective in _nodes)
-                        {
-                            var delta = (long)ave - (long)ccCollective.EventCount;
-                            if (Math.Abs((double)delta) > aveDelta)
-                                std++;
-                        }
-
-                        Console.WriteLine($"\nave = {ave}, std = {std}/{_nodes.Count} ({aveDelta})"); 
+                            ccCollective.ClearEventCounter();
                     }
-                    catch (Exception) { }
+                    else
+                    {
+                        try
+                        {
+                            long sum = 0;
+                            foreach (var ccCollective in _nodes)
+                                sum += ccCollective.EventCount;
+
+                            var ave = sum / _nodes.Count;
+                            long aveDelta = 0;
+                            var std = 0;
+                            foreach (var ccCollective in _nodes)
+                            {
+                                var delta = (long)ave - (long)ccCollective.EventCount;
+                                aveDelta += Math.Abs(delta) * 2;
+
+                                Console.Write($"{delta}, ");
+                            }
+
+                            aveDelta /= _nodes.Count;
+
+                            foreach (var ccCollective in _nodes)
+                            {
+                                var delta = (long)ave - (long)ccCollective.EventCount;
+                                if (Math.Abs((double)delta) > aveDelta)
+                                    std++;
+                            }
+
+                            Console.WriteLine($"\nave = {ave}, std = {std}/{_nodes.Count} ({aveDelta})");
+                        }
+                        catch (Exception) { }
+                    }
                 }
 
                 if (line.StartsWith("zero"))

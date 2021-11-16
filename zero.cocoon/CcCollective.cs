@@ -936,11 +936,14 @@ namespace zero.cocoon
             //    }
             //}
 
+
+            if (WhisperingDrones.Count > 0)
+            {
+                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count - 1)].EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
+                return true;
+            }
             
-            if(WhisperingDrones.Count > 0)
-                await WhisperingDrones[_random.Next(0, WhisperingDrones.Count-1)].EmitTestGossipMsgAsync(v).FastPath().ConfigureAwait(Zc);
-            
-            return true;
+            return false;
         }
 
         /// <summary>
@@ -1032,6 +1035,11 @@ namespace zero.cocoon
         public void IncEventCounter()
         {
             Interlocked.Increment(ref _eventCounter);
+        }
+
+        public void ClearEventCounter()
+        {
+            Interlocked.Exchange(ref _eventCounter, 0);
         }
 
     }

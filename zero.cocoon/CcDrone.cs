@@ -258,7 +258,7 @@ namespace zero.cocoon
                 if (Interlocked.Read(ref ((CcCollective) Node).Testing) == 0)
                     return;
 
-                if(!Source.IsOperational)
+                if(!Source.IsOperational || Adjunct.CcCollective.TotalConnections < 1)
                     return;
 
                 //if (Interlocked.Read(ref _isTesting) > 0)

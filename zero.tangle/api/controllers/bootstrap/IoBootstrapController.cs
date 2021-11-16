@@ -5,10 +5,9 @@ using zero.tangle.entangled;
 
 namespace zero.tangle.api.controllers.bootstrap
 {
-    [EnableCors("ApiCorsPolicy")]    
-    [ApiController]
+    [EnableCors("ApiCorsPolicy")]
     [Route("bootstrap")]
-    public class IoBootstrapController:Controller
+    public class IoBootstrapController: Controller
     {
         public IoBootstrapController()
         {

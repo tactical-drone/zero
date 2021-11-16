@@ -53,8 +53,4 @@
     <Folder Include="api\commands\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
 </Project>
