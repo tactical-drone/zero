@@ -14,8 +14,8 @@ namespace zero.core.patterns.semaphore.core
         ValueTask<bool> WaitAsync();
         void Zero();
         int ReadyCount { get; }
-        uint CurNrOfBlockers { get; }
-        public uint MaxAsyncWorkers { get; }
+        int CurNrOfBlockers { get; }
+        public int MaxAsyncWorkers { get; }
         public int Capacity { get; }
     
 
@@ -28,29 +28,29 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroAddCount(int value);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroHead();
+        internal int ZeroHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroTail();
+        internal int ZeroTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroNextTail();
+        internal int ZeroNextTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroNextHead();
+        internal int ZeroNextHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroPrevTail();
+        internal int ZeroPrevTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroPrevHead();
+        internal int ZeroPrevHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroIncWait();
+        internal int ZeroIncWait();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroDecWait();
+        internal int ZeroDecWait();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroWaitCount();
+        internal int ZeroWaitCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroIncAsyncCount();
+        internal int ZeroIncAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroDecAsyncCount();
+        internal int ZeroDecAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal uint ZeroAsyncCount();
+        internal int ZeroAsyncCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal short ZeroToken();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

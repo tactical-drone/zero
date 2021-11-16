@@ -19,7 +19,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// returns an identity
         /// </summary>
-        ulong SerialNr { get; }
+        long SerialNr { get; }
         
         /// <summary>
         /// The source of zero

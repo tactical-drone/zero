@@ -2,7 +2,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using Microsoft.AspNetCore.Authentication;
 using NLog;
 
 namespace zero.core.misc

@@ -103,7 +103,7 @@ namespace zero.core.network.ip
             if (IoListenSocket != null)
                 throw new ConstraintException($"Listener has already been started for `{ListeningAddress}'");
             
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         /// <summary>

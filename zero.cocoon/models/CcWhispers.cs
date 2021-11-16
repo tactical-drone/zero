@@ -360,7 +360,7 @@ namespace zero.cocoon.models
             //    _logger.Error(e,
             //        $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             //}
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         /// <summary>

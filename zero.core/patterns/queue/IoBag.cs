@@ -20,7 +20,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, uint capacity, bool hotReload = false)
+        public IoBag(string description, int capacity, bool hotReload = false)
         {
             _description = description;
             _capacity = capacity;
@@ -37,8 +37,8 @@ namespace zero.core.patterns.queue
         private readonly bool Zc = true;
         private readonly string _description;
         private T[] _storage;        
-        private readonly uint _capacity;
-        private volatile uint _count;        
+        private readonly int _capacity;
+        private volatile int _count;        
         private int Head => _head % (int)_capacity;
         private volatile int _head = 0;
         private int Tail => _tail % (int)_capacity;
@@ -61,20 +61,20 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Current number of items in the bag
         /// </summary>
-        public uint Count => _count;
+        public int Count => _count;
 
 
         /// <summary>
         /// Capacity
         /// </summary>
-        public uint Capacity => _capacity;
+        public int Capacity => _capacity;
         
         /// <summary>
         /// Add item to the bag
         /// </summary>
         /// <param name="item">The item to be added</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(T item, bool deDup = false)
         {
             if (_count == _capacity)
@@ -115,7 +115,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryTake([MaybeNullWhen(false)] out T result)
         {
             result = default;
@@ -219,7 +219,7 @@ namespace zero.core.patterns.queue
         /// Move to next item
         /// </summary>
         /// <returns>True if the iterator could be advanced by 1</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
             var idx = 0;

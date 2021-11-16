@@ -84,7 +84,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 400;
+            var total = 150;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -144,11 +144,11 @@ namespace zero.sync
 
                     c++;
                 }
-                                                
-                long v = 0;
+                                
+                long v = 1;
                 long C = 0;
-                _rampDelay = 300;
-                _rampTarget = 100;
+                _rampDelay = 1500;
+                _rampTarget = 1000;
                 long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 List<Task> gossipTasks = new List<Task>();
                 for (int i = 0; i < 2; i++)

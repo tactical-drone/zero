@@ -23,7 +23,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, uint maxAsyncSinks = 0, uint maxAsyncSources = 0) : base(description, concurrencyLevel)
+        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSinks = 0, int maxAsyncSources = 0) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             
@@ -156,12 +156,12 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The number of concurrent sinks allowed
         /// </summary>
-        public uint MaxAsyncSinks { get; protected set; }
+        public int MaxAsyncSinks { get; protected set; }
 
         /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
-        public uint MaxAsyncSources { get; protected set; }
+        public int MaxAsyncSources { get; protected set; }
 
         /// <summary>
         /// If async workers are enabled
@@ -300,7 +300,7 @@ namespace zero.core.patterns.bushings
                     {
                         try
                         {
-                            return ValueTask.FromResult((IoConduit<TfJob>)IoConduits[id]);
+                            return new ValueTask<IoConduit<TfJob>>((IoConduit<TfJob>)IoConduits[id]);
                         }
                         catch when(Zeroed()){}
                         catch (Exception e)when(!Zeroed())
@@ -309,20 +309,20 @@ namespace zero.core.patterns.bushings
                         }
                     }
 
-                    return ValueTask.FromResult((IoConduit<TfJob>)null);
+                    return new ValueTask<IoConduit<TfJob>>();
                 }
             }
 
             try
             {
-                return ValueTask.FromResult((IoConduit<TfJob>)IoConduits[id]);
+                return new ValueTask<IoConduit<TfJob>>((IoConduit<TfJob>)IoConduits[id]);
             }
             catch when(channelSource == null || Zeroed()){}
             catch (Exception e)when (channelSource !=null && !Zeroed())
             {
                 _logger.Fatal(e, $"Conduit {id} after race, not found");
             }
-            return ValueTask.FromResult((IoConduit<TfJob>)null);
+            return new ValueTask<IoConduit<TfJob>>((IoConduit<TfJob>)null);
         }
 
         

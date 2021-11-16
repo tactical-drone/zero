@@ -23,7 +23,7 @@ namespace zero.core.patterns.heap
         /// <param name="maxSize"></param>
         /// <param name="context"></param>
         /// <param name="enablePerf"></param>
-        public IoHeapIo(string description, uint maxSize, TContext context = null, bool enablePerf = false) : base(description, maxSize, context, enablePerf)
+        public IoHeapIo(string description, int maxSize, TContext context = null, bool enablePerf = false) : base(description, maxSize, context, enablePerf)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -110,7 +110,7 @@ namespace zero.core.patterns.heap
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite
     {
-        public IoHeapIo(string description, uint maxSize, bool enablePerf = false) : base(description, maxSize, null, enablePerf)
+        public IoHeapIo(string description, int maxSize, bool enablePerf = false) : base(description, maxSize, null, enablePerf)
         {
         }
     }

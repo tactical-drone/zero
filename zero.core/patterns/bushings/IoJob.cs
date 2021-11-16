@@ -167,7 +167,7 @@ namespace zero.core.patterns.bushings
 #if DEBUG
             return (IIoHeapItem)this;
 #else
-            return ValueTask.FromResult((IIoHeapItem)this);
+            return new ValueTask<IIoHeapItem>((IIoHeapItem)this);
 #endif
         }
 
@@ -204,7 +204,7 @@ namespace zero.core.patterns.bushings
             await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
             {
                 ioHeapItem.ZeroManaged();
-                return ValueTask.CompletedTask;
+                return default;
             }, this).FastPath().ConfigureAwait(Zc);
 #endif
             if (PreviousJob != null)

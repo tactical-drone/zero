@@ -35,7 +35,7 @@ namespace zero.core.patterns.semaphore.core
             string description, 
             int maxBlockers = 1, 
             int initialCount = 0,
-            uint concurrencyLevel = 0,
+            int concurrencyLevel = 0,
             bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
@@ -86,7 +86,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The current token
         /// </summary>
-        private volatile uint _token;
+        private volatile int _token;
 #endif
         /// <summary>
         /// A semaphore description
@@ -108,7 +108,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Max number of async workers
         /// </summary>
-        private readonly uint _maxAsyncWorkers;
+        private readonly int _maxAsyncWorkers;
 
         /// <summary>
         /// Whether we support async continuations 
@@ -118,7 +118,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Current number of async workers
         /// </summary>
-        private volatile uint _curAsyncWorkerCount;
+        private volatile int _curAsyncWorkerCount;
 
         /// <summary>
         /// The current available number of threads that can enter the semaphore without blocking 
@@ -128,7 +128,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// The current number of threads blocking on this semaphore
         /// </summary>
-        private volatile uint _curWaitCount;
+        private volatile int _curWaitCount;
 
         /// <summary>
         /// The number of threads that can enter the semaphore without blocking 
@@ -138,13 +138,13 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Nr of threads currently waiting on this semaphore
         /// </summary>
-        public uint CurNrOfBlockers => _zeroRef.ZeroWaitCount();
+        public int CurNrOfBlockers => _zeroRef.ZeroWaitCount();
 
         /// <summary>
         /// Maximum allowed concurrent "not inline" continuations before
         /// they become inline.
         /// </summary>
-        public uint MaxAsyncWorkers => _maxAsyncWorkers;
+        public int MaxAsyncWorkers => _maxAsyncWorkers;
 
         /// <summary>
         /// Maximum concurrent blockers this semaphore can accomodate. Each extra thread
@@ -190,12 +190,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private volatile uint _head;
+        private volatile int _head;
 
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private volatile uint _tail;
+        private volatile int _tail;
 
         /// <summary>
         /// Whether this semaphore has been cleared out
@@ -248,7 +248,9 @@ namespace zero.core.patterns.semaphore.core
             {
                 var (z, t, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
                 z.Zero();
+#if NET6
                 r.Unregister();
+#endif
                 r.Dispose();
             }, ValueTuple.Create(_zeroRef,_asyncTasks, _asyncTokenReg));
         }
@@ -265,7 +267,9 @@ namespace zero.core.patterns.semaphore.core
             {
                 if(_asyncTasks.Token.CanBeCanceled)
                     _asyncTasks.Cancel();
+#if NET6
                 _asyncTokenReg.Unregister();
+#endif
                 _asyncTokenReg.Dispose();
                 _asyncTasks = null;
             }
@@ -353,7 +357,7 @@ namespace zero.core.patterns.semaphore.core
         /// if auto scaling is enabled 
         /// </summary>
         private readonly bool _enableAutoScale;
-        #endregion
+#endregion
 
         /// <summary>
         /// Returns true if exit is clean, false otherwise
@@ -421,7 +425,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="state">The state</param>
         /// <param name="token">The safety token</param>
         /// <param name="flags">FLAGS</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnCompleted(Action<object> continuation, object state, short token,
             ValueTaskSourceOnCompletedFlags flags)
         {
@@ -440,9 +444,19 @@ namespace zero.core.patterns.semaphore.core
 
             if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
             {
-                capturedContext = SynchronizationContext.Current;
-                if (capturedContext == null && TaskScheduler.Current != TaskScheduler.Default)
-                    capturedContext = TaskScheduler.Current;
+                SynchronizationContext sc = SynchronizationContext.Current;
+                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+                {
+                    capturedContext = sc;
+                }
+                else
+                {
+                    TaskScheduler ts = TaskScheduler.Current;
+                    if (ts != TaskScheduler.Default)
+                    {
+                        capturedContext = ts;
+                    }
+                }                
             }
 
             //fast path, but causes a one shot LIFO queue behavior which could be undesirable. For dev I would force fairQ, then later disable to for added test coverage when order guarantees are not needed.
@@ -501,7 +515,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="capturedContext"></param>
         /// <param name="zeroed">If we are zeroed</param>
         /// <param name="executionContext"></param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining|MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool onComplete = false, bool zeroed = false)
         {
             try
@@ -521,7 +535,7 @@ namespace zero.core.patterns.semaphore.core
                         if (executionContext != null && !onComplete)
                         {                                                            
                             var currentContext = ExecutionContext.Capture();
-                            // Restore the captured ExecutionContext before executing anything.
+                            // Restore the captured ExecutionContext before executing anything.                            
                             ExecutionContext.Restore(executionContext);                                                        
 
                             if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
@@ -531,7 +545,7 @@ namespace zero.core.patterns.semaphore.core
                                     ThreadPool.QueueUserWorkItem(AsyncCallback, ValueTuple.Create(_zeroRef, callback, state), preferLocal: true);
                                 }
                                 finally
-                                {
+                                {                                    
                                     ExecutionContext.Restore(currentContext!);
                                 }
                             }
@@ -648,7 +662,7 @@ namespace zero.core.patterns.semaphore.core
             
             //copy Q
             
-            var j = (uint)0;
+            var j = (int)0;
             //special zero case
             if (_zeroRef.ZeroTail() != _zeroRef.ZeroHead() || prevZeroState[_zeroRef.ZeroTail()] != null && prevZeroQ.Length == 1)
             {
@@ -658,7 +672,7 @@ namespace zero.core.patterns.semaphore.core
             }
             else
             {
-                for (var i = _zeroRef.ZeroTail(); i != _zeroRef.ZeroHead() || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % (uint)prevZeroQ.Length)
+                for (var i = _zeroRef.ZeroTail(); i != _zeroRef.ZeroHead() || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % (int)prevZeroQ.Length)
                 {
                     _signalAwaiter[j] = prevZeroQ[i];
                     _signalAwaiterState[j] = prevZeroState[i];
@@ -693,7 +707,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="async"></param>
         /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
         {
             Debug.Assert(_zeroRef != null);
@@ -704,8 +718,8 @@ namespace zero.core.patterns.semaphore.core
 
             //fail fast on cancellation token
             if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed() )
-            {
-                return ValueTask.FromResult(-1);
+            {                
+                return new ValueTask<int>(-1);
             }
 
             //lock in return value
@@ -759,7 +773,7 @@ namespace zero.core.patterns.semaphore.core
                 {
                     _zeroRef.ZeroAddCount(releaseCount - released);
                     //update current count
-                    return ValueTask.FromResult(-1);
+                    return new ValueTask<int>(-1);
                 }
             }
 
@@ -769,7 +783,7 @@ namespace zero.core.patterns.semaphore.core
                 _zeroRef.ZeroAddCount(delta);
             
             //return previous number of waiters
-            return ValueTask.FromResult(released);
+            return new ValueTask<int>(released);
         }
         
         /// <summary>
@@ -781,7 +795,7 @@ namespace zero.core.patterns.semaphore.core
         { 
             //fail fast 
             if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
-                return ValueTask.FromResult(false);
+                return new ValueTask<bool>(false);
 
             //fast path
             if (Signalled())
@@ -789,7 +803,7 @@ namespace zero.core.patterns.semaphore.core
             
             //insane checks
             if (_zeroRef.ZeroWaitCount() >= _maxBlockers)
-                return ValueTask.FromResult(false);
+                return new ValueTask<bool>(false);
 
             //thread will attempt to block
 #if TOKEN
@@ -803,61 +817,61 @@ namespace zero.core.patterns.semaphore.core
         /// returns the next tail
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroNextTail()
+        int IIoZeroSemaphore.ZeroNextTail()
         {
             return Interlocked.Increment(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroNextHead()
+        int IIoZeroSemaphore.ZeroNextHead()
         {
             return Interlocked.Increment(ref _head);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroPrevTail()
+        int IIoZeroSemaphore.ZeroPrevTail()
         {
             return Interlocked.Decrement(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroPrevHead()
+        int IIoZeroSemaphore.ZeroPrevHead()
         {
             return Interlocked.Decrement(ref _head);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroIncWait()
+        int IIoZeroSemaphore.ZeroIncWait()
         {
             return Interlocked.Increment(ref _curWaitCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroDecWait()
+        int IIoZeroSemaphore.ZeroDecWait()
         {
             return Interlocked.Decrement(ref _curWaitCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroWaitCount()
+        int IIoZeroSemaphore.ZeroWaitCount()
         {
             return _curWaitCount;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroIncAsyncCount()
+        int IIoZeroSemaphore.ZeroIncAsyncCount()
         {
             return Interlocked.Increment(ref _curAsyncWorkerCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroDecAsyncCount()
+        int IIoZeroSemaphore.ZeroDecAsyncCount()
         {
             return Interlocked.Decrement(ref _curAsyncWorkerCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroAsyncCount()
+        int IIoZeroSemaphore.ZeroAsyncCount()
         {
             return _curAsyncWorkerCount;
         }
@@ -887,15 +901,15 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroHead()
+        int IIoZeroSemaphore.ZeroHead()
         {
-            return (uint)(_head % _maxBlockers);
+            return (int)(_head % _maxBlockers);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        uint IIoZeroSemaphore.ZeroTail()
+        int IIoZeroSemaphore.ZeroTail()
         {
-            return (uint)(_tail % _maxBlockers);
+            return (int)(_tail % _maxBlockers);
         }
 
 

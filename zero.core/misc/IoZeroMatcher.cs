@@ -21,13 +21,13 @@ namespace zero.core.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, uint capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", (uint)Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2);
 
             _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", _capacity)
             {
@@ -173,7 +173,7 @@ namespace zero.core.misc
                 return true;
             }, state);
 
-            return ValueTask.FromResult(state.node);
+            return new ValueTask<IoQueue<IoChallenge>.IoZNode>(state.node);
         }
         
         [ThreadStatic]
@@ -183,7 +183,7 @@ namespace zero.core.misc
         /// <summary>
         /// The bucket capacity this matcher targets
         /// </summary>
-        private readonly uint _capacity;
+        private readonly int _capacity;
 
         /// <summary>
         /// Present a response
@@ -193,7 +193,7 @@ namespace zero.core.misc
         /// <returns>The response payload</returns>
         public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            return ValueTask.FromResult(ZeroAtomic(static async (_, state, __) =>
+            return new ValueTask<bool>(ZeroAtomic(static async (_, state, __) =>
             {
                 var (@this, key, reqHash) = state;
                 var cmp = reqHash.Memory;

@@ -64,7 +64,7 @@ namespace zero.core.patterns.misc
             ZeroAction = null;
             State = null;
             Target = null;
-            return ValueTask.CompletedTask;
+            return default;
         }
         
     }

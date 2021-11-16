@@ -35,7 +35,7 @@ namespace zero.core.patterns.heap
         /// <param name="context"></param>
         /// <param name="enablePerf"></param>
         /// 
-        public IoHeap(string description, uint maxSize, TContext context = null, bool enablePerf = false)
+        public IoHeap(string description, int maxSize, TContext context = null, bool enablePerf = false)
         {
             _description = description;
             _maxSize = maxSize;
@@ -82,31 +82,31 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        protected volatile uint _count;
+        protected volatile int _count;
         
         /// <summary>
         /// The current WorkHeap size
         /// </summary>
-        public uint Count => _count;
+        public int Count => _count;
 
         /// <summary>
         /// The maximum heap size
         /// </summary>
-        private uint _maxSize;
+        private int _maxSize;
 
         /// <summary>
         /// The number of outstanding references
         /// </summary>
-        private volatile uint _refCount;
+        private volatile int _refCount;
         /// <summary>
         /// The number of outstanding references
         /// </summary>
-        public uint ReferenceCount =>_refCount; //TODO refactor
+        public int ReferenceCount =>_refCount; //TODO refactor
 
         /// <summary>
         /// The maximum heap size allowed. Configurable, collects & compacts on shrinks
         /// </summary>
-        public uint MaxSize
+        public int MaxSize
         {
             get => _maxSize;
 
@@ -180,7 +180,7 @@ namespace zero.core.patterns.heap
                         Interlocked.Increment(ref _refCount);
                         heapItem = Make(userData, Context);
                         Prep?.Invoke(heapItem, userData);
-                        return ValueTask.FromResult(heapItem);
+                        return new ValueTask<TItem>(heapItem);
                     }
                     else //we have run out of capacity
                     {
@@ -191,7 +191,7 @@ namespace zero.core.patterns.heap
                 {
                     Interlocked.Increment(ref _refCount);
                     Prep?.Invoke(heapItem, userData);
-                    return ValueTask.FromResult(heapItem);
+                    return new ValueTask<TItem>(heapItem);
                 }
             }
             catch (NullReferenceException e) //TODO IIoNanite
@@ -290,7 +290,7 @@ namespace zero.core.patterns.heap
     public class IoHeap<T2> : IoHeap<T2, object> 
         where T2 : class
     {
-        public IoHeap(string description, uint maxSize, object context = null) : base(description, maxSize, context)
+        public IoHeap(string description, int maxSize, object context = null) : base(description, maxSize, context)
         {
         }
     }

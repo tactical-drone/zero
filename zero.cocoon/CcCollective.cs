@@ -94,7 +94,7 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            _dupPoolSize = (uint)(parm_max_drone * 8);            
+            _dupPoolSize = parm_max_drone * 8;  
             DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize)
             {
                 Make = static (o, s) => new IoHashCodes(null, 200, true),
@@ -264,7 +264,7 @@ namespace zero.cocoon
         public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
-        private uint _dupPoolSize;
+        private int _dupPoolSize;
         private ulong _eventCounter;
         public ulong EventCount => _eventCounter;
 
@@ -347,14 +347,14 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_inbound = 4;
+        public int parm_max_inbound = 4;
 
         /// <summary>
         /// Max inbound neighbors
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_outbound = 4;
+        public int parm_max_outbound = 4;
 
         /// <summary>
         /// Max adjuncts
@@ -368,7 +368,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_adjunct = 16;
+        public int parm_max_adjunct = 16;
 
         /// <summary>
         /// Protocol version
@@ -400,18 +400,18 @@ namespace zero.cocoon
         /// <summary>
         /// Client to neighbor ratio
         /// </summary>
-        [IoParameter] public uint parm_client_to_neighbor_ratio = 2;
+        [IoParameter] public int parm_client_to_neighbor_ratio = 2;
 
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
-        public uint MaxDrones => parm_max_outbound + parm_max_inbound;
+        public int MaxDrones => parm_max_outbound + parm_max_inbound;
 
 
         /// <summary>
         /// Maximum number of allowed drones
         /// </summary>
-        public uint MaxAdjuncts => MaxDrones * parm_client_to_neighbor_ratio;
+        public int MaxAdjuncts => MaxDrones * parm_client_to_neighbor_ratio;
 
         /// <summary>
         /// The node id
@@ -1015,7 +1015,7 @@ namespace zero.cocoon
                     }
                 });
 
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         public void PrintNeighborhood()

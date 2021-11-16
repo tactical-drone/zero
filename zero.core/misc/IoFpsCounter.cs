@@ -52,7 +52,7 @@ namespace zero.core.misc
         /// <summary>
         /// Increment count
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask TickAsync()
         {
             if(_disabled)

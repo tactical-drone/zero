@@ -19,7 +19,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoHashCodes(string description, uint capacity, bool hotReload = false)
+        public IoHashCodes(string description, int capacity, bool hotReload = false)
         {
             _description = description;
             _capacity = capacity;
@@ -29,8 +29,8 @@ namespace zero.core.patterns.queue
         
         private readonly string _description;
         private int[] _storage;
-        private readonly uint _capacity;
-        private volatile uint _count;
+        private readonly int _capacity;
+        private volatile int _count;
         private int Head => _head % (int)_capacity;
         private volatile int _head = 0;
         private int Tail => _tail % (int)_capacity;
@@ -47,20 +47,20 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Current number of items in the bag
         /// </summary>
-        public uint Count => _count;
+        public int Count => _count;
 
 
         /// <summary>
         /// Capacity
         /// </summary>
-        public uint Capacity => _capacity;
+        public int Capacity => _capacity;
 
         /// <summary>
         /// Add item to the bag
         /// </summary>
         /// <param name="item">The item to be added</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(int item, bool deDup = false)
         {
             if (_count == _capacity)
@@ -101,7 +101,7 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="result">The item to be fetched</param>
         /// <returns>True if an item was found and returned, false otherwise</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryTake([MaybeNullWhen(false)] out int result)
         {
             result = default;
@@ -134,7 +134,7 @@ namespace zero.core.patterns.queue
         {
             return (result = _storage[(_head - 1) % (int)_capacity]) != default;
         }
-
+        
         /// <summary>
         /// Zero managed cleanup
         /// </summary>
@@ -143,19 +143,13 @@ namespace zero.core.patterns.queue
         /// <param name="zero">Whether the bag is assumed to contain <see cref="IIoNanite"/>s and should only be zeroed out</param>
         /// <typeparam name="TC">The callback context type</typeparam>
         /// <returns>True if successful, false if something went wrong</returns>
-        /// <exception cref="ArgumentException">When zero is true but <see cref="nanite"/> is not of type <see cref="IIoNanite"/></exception>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        /// <exception cref="ArgumentException">When zero is true but <see cref="nanite"/> is not of type <see cref="IIoNanite"/></exception>        
         public void ZeroManaged(bool zero = false)
         {                       
             _count = 0;
             
-            if (!zero)
-            {
-                for (int i = 0; i < _storage.Length; i++)
-                {
-                    _storage[i] = default;
-                }
-            }                
+            if (!zero)                            
+                Array.Clear(_storage, 0, _storage.Length);                            
             else
                 _storage = null;                        
         }
@@ -164,7 +158,7 @@ namespace zero.core.patterns.queue
         /// Move to next item
         /// </summary>
         /// <returns>True if the iterator could be advanced by 1</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
             int idx;

@@ -23,7 +23,7 @@ namespace zero.core.core
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, uint maxNeighbors) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel)
+        public IoNode(IoNodeAddress address, Func<IoNode<TJob>, IoNetClient<TJob>, object, IoNeighbor<TJob>> mallocNeighbor, int prefetch, int concurrencyLevel, int maxNeighbors) : base($"{nameof(IoNode<TJob>)}", concurrencyLevel)
         {
             _address = address;
             MallocNeighbor = mallocNeighbor;

@@ -15,7 +15,7 @@ namespace zero.core.patterns.bushings
         where TState : struct, Enum {
         public IoStateTransition(int initState = 0)
         {
-            var list = Enum.GetValues<TState>();
+            var list = Enum.GetValues(typeof(TState));
 
             ConstructorAsync().AsTask().GetAwaiter().GetResult();
             _value = initState;

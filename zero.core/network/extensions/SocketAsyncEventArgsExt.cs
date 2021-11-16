@@ -6,7 +6,7 @@ namespace zero.core.network.extensions
 {
     public sealed class SocketAsyncEventArgsExt : SocketAsyncEventArgs, IDisposable
     {
-        public SocketAsyncEventArgsExt():base(false)
+        public SocketAsyncEventArgsExt()
         {
             
         }

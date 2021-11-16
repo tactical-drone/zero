@@ -23,7 +23,7 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", (uint)parm_max_msg_batch_size){ Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size), Context = this};
+            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", parm_max_msg_batch_size){ Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size), Context = this};
 
             _currentBatch = _batchHeap.TakeAsync().AsTask().GetAwaiter().GetResult();
             if (_currentBatch == null)
@@ -40,7 +40,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, (uint)batchSize, cc, cc, (uint)cc, (uint)cc);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc, cc, cc, cc);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,
@@ -88,13 +88,13 @@ namespace zero.cocoon.models
             //{
             //    batch.Message = null;
             //    batch.EmbeddedMsg = null;
-            //    return ValueTask.CompletedTask;
+            //    return default;
             //}).FastPath().ConfigureAwait(ZC);
 
             await _batchHeap.ZeroManagedAsync<object>(static (batch, _) =>
             {
                 batch.Dispose();
-                return ValueTask.CompletedTask;
+                return default;
             }).FastPath().ConfigureAwait(Zc);
         }
 

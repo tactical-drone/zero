@@ -65,7 +65,7 @@ namespace zero.core.network.ip
         {
             if (recv)
             {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", (uint)concurrencyLevel)
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel)
                 {
                     Make = static (o, s) =>
                     {
@@ -77,7 +77,7 @@ namespace zero.core.network.ip
                 };
             }
             
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", (uint)concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel)
             {
                 Make = static (o, s) =>
                 {
@@ -88,7 +88,7 @@ namespace zero.core.network.ip
                 Context = this
             };
 
-            _tcsHeap = new IoHeap<IIoZeroSemaphore, IoUdpSocket>($"{nameof(_tcsHeap)}: {Description}", (uint)concurrencyLevel)
+            _tcsHeap = new IoHeap<IIoZeroSemaphore, IoUdpSocket>($"{nameof(_tcsHeap)}: {Description}", concurrencyLevel)
             {
                 Make = static (o, s) =>
                 {
@@ -140,7 +140,7 @@ namespace zero.core.network.ip
                     }
                     ((IDisposable)o).Dispose();
 
-                    return ValueTask.CompletedTask;
+                    return default;
                 }, this).FastPath().ConfigureAwait(Zc);
             }
             
@@ -160,13 +160,13 @@ namespace zero.core.network.ip
                     // ignored
                 }
                 ((IDisposable)o).Dispose();
-                return ValueTask.CompletedTask;
+                return default;
             },this).FastPath().ConfigureAwait(Zc);
 
             await _tcsHeap.ZeroManagedAsync<object>((o,_) =>
             {
                 o.Zero();
-                return ValueTask.CompletedTask;
+                return default;
             }).FastPath().ConfigureAwait(Zc);
 
             _sendSync.Zero();
@@ -258,8 +258,8 @@ namespace zero.core.network.ip
             ConfigureSocket();
 
             try
-            {
-                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token).FastPath().ConfigureAwait(Zc);
+            {                
+                NativeSocket.Connect(remoteAddress.IpEndPoint);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.RemoteEndPoint);
             }

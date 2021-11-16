@@ -81,7 +81,7 @@ namespace zero.core.network.ip
             IoNetClient<TJob> _, int timeout = 0)
         {
             if (!remoteAddress.Validated)
-                return ValueTask.FromResult<IoNetClient<TJob>>(null);
+                return new ValueTask<IoNetClient<TJob>>();
 
             //ZEROd later on inside net server once we know the connection succeeded 
             return base.ConnectAsync(remoteAddress, new IoTcpClient<TJob>($"{nameof(IoTcpClient<TJob>)} ~> {Description}", ReadAheadBufferSize, ConcurrencyLevel), timeout);

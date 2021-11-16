@@ -28,7 +28,7 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="concurrencyLevel"></param>
         /// <param name="maxAsyncSinks"></param>
         /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource, uint batchSize, int prefetchSize, int concurrencyLevel, uint maxAsyncSinks = 0, uint maxAsyncSources = 0) 
+        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSinks = 0, int maxAsyncSources = 0) 
             : base(description, prefetchSize, concurrencyLevel, maxAsyncSinks, maxAsyncSources)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -120,7 +120,7 @@ namespace zero.core.models.protobuffer.sources
             await MessageQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
                 msgBatch.Dispose();
-                return ValueTask.CompletedTask;
+                return default;
             },this).FastPath().ConfigureAwait(Zc);
         }
 
@@ -225,7 +225,7 @@ namespace zero.core.models.protobuffer.sources
                 _logger.Error(e, $"Source `{Description??"N/A"}' callback failed:");
             }
 
-            return ValueTask.FromResult(false);
+            return new ValueTask<bool>(false);
         }
     }
 }

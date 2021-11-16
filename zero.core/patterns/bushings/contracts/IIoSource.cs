@@ -114,12 +114,12 @@ namespace zero.core.patterns.bushings.contracts
         /// <summary>
         /// The number of concurrent sinks allowed
         /// </summary>
-        uint MaxAsyncSinks { get; }
+        int MaxAsyncSinks { get; }
 
         /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
-        uint MaxAsyncSources { get; }
+        int MaxAsyncSources { get; }
 
         /// <summary>
         /// If async workers are currently enabled

@@ -82,7 +82,7 @@ namespace zero.core.patterns.bushings
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
-            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (uint)(ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
+            _queue = new IoQueue<IoSink<TJob>>($"zero Q: {_description}", (ZeroConcurrencyLevel() * 2 + Source.PrefetchSize), ZeroConcurrencyLevel());
         }
 
         /// <summary>
@@ -152,7 +152,7 @@ namespace zero.core.patterns.bushings
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_q_size = 256; //TODO
+        public int parm_max_q_size = 256; //TODO
 
         /// <summary>
         /// Minimum useful uptime in seconds

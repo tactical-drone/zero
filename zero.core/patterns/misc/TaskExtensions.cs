@@ -72,7 +72,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ValueTask<T> FastPath<T>(this ValueTask<T> task)
         {
-            return task.IsCompletedSuccessfully ? ValueTask.FromResult(task.Result) : task;
+            return task.IsCompletedSuccessfully ? new ValueTask<T>(task.Result) : task;
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ValueTask FastPath(this ValueTask task)
         {
-            return task.IsCompletedSuccessfully ? ValueTask.CompletedTask : task;
+            return task.IsCompletedSuccessfully ? default : task;
         }
 
 
@@ -97,6 +97,6 @@ namespace zero.core.patterns.misc
         {
             while (token.CanBeCanceled && !token.IsCancellationRequested)
                 await Task.Delay(-1, token);
-        }
+        }        
     }    
 }

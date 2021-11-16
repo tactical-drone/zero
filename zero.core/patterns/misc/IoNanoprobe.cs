@@ -91,7 +91,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// seeds UIDs
         /// </summary>
-        private static ulong _uidSeed;
+        private static long _uidSeed;
 
 
         /// <summary>
@@ -102,12 +102,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Used for equality compares
         /// </summary>
-        private ulong _zId;
+        private long _zId;
 
         /// <summary>
         /// returns UID
         /// </summary>
-        public ulong SerialNr => _zId;
+        public long SerialNr => _zId;
 
         /// <summary>
         /// Description
@@ -203,13 +203,13 @@ namespace zero.core.patterns.misc
             }
 #endif
             if (_zeroed > 0)
-                return ValueTask.FromResult(true);
+                return new ValueTask<bool>(true);
 
             ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
             var z = ZeroAsync(true);
 
             GC.SuppressFinalize(this);
-            return ValueTask.FromResult(true);
+            return new ValueTask<bool>(true);
         }
 
         /// <summary>
@@ -258,7 +258,7 @@ namespace zero.core.patterns.misc
             try
             {
                 var newSub = new IoZeroSub($"zero sub> {Path.GetFileName(filePath)}:{memberName} line {lineNumber}").SetAction(sub, closureState);
-                return ValueTask.FromResult(_zeroHive.AddFirst(newSub));
+                return new ValueTask<LinkedListNode<IoZeroSub>>(_zeroHive.AddFirst(newSub));                
             }
             catch (Exception) when(Zeroed()) { }
             catch (Exception e) when(!Zeroed())
@@ -266,7 +266,7 @@ namespace zero.core.patterns.misc
                 _logger.Error(e, $"{nameof(ZeroSubAsync)} returned with errors");
             }
 
-            return ValueTask.FromResult<LinkedListNode<IoZeroSub>>(null);
+            return new ValueTask<LinkedListNode<IoZeroSub>>();            
         }
 
         /// <summary>
@@ -277,7 +277,7 @@ namespace zero.core.patterns.misc
         public ValueTask<bool> UnsubscribeAsync(LinkedListNode<IoZeroSub> sub)
         {
             _zeroHive.Remove(sub);
-            return ValueTask.FromResult(true);
+            return new ValueTask<bool>(true);
         }
 
         /// <summary>
@@ -434,7 +434,7 @@ namespace zero.core.patterns.misc
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         /// <summary>
@@ -665,12 +665,12 @@ namespace zero.core.patterns.misc
                 return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
                     unwrap, filePath, methodName, lineNumber);
             }
-            catch (Exception e) when(Zeroed()){ return ValueTask.FromException(e);}
+            catch (Exception e) when(Zeroed()){ return new ValueTask(Task.FromException(e));}
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"{Description}, c = {continuation}, s = {state}, {Path.GetFileName(filePath)}:{methodName} line {lineNumber}");
             }
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         /// <summary>

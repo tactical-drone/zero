@@ -94,7 +94,7 @@ namespace zero.core.models.protobuffer
         private ValueTask ClearAsync()
         {
             _batch?.Dispose();
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         /// <summary>
@@ -158,7 +158,7 @@ namespace zero.core.models.protobuffer
         {
             //No work is needed, we just mark the job as consumed (Batched and forwarded).
             State = IoJobMeta.JobState.ConInlined;
-            return ValueTask.FromResult(State);
+            return new ValueTask<IoJobMeta.JobState>(State);
         }
     }
 }

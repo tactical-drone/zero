@@ -31,7 +31,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoQueue(string description, uint capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
+        public IoQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
         {
             _description = description;
 

@@ -157,15 +157,15 @@ namespace zero.core.network.ip
             }
             catch (Exception e) when (Zeroed())
             {
-                return ValueTask.FromException(e);
+                return new ValueTask(Task.FromException(e));                
             }
             catch (Exception e)
             {
                 _logger.Error(e, $"Unable to bind socket at {listeningAddress}: {Description}");
-                return ValueTask.FromException(e);
+                return new ValueTask(Task.FromException(e));
             }
 
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         /// <summary>
@@ -223,7 +223,7 @@ namespace zero.core.network.ip
                 if (!Proxy && NativeSocket.IsBound && NativeSocket.Connected)
                 {
                     NativeSocket.Shutdown(SocketShutdown.Both);
-                    await NativeSocket.DisconnectAsync(false).FastPath().ConfigureAwait(Zc);
+                    NativeSocket.Disconnect(true);
                 }
             }
             catch when (Zeroed()){}

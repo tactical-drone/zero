@@ -163,22 +163,26 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                var connectTask = NativeSocket.ConnectAsync(remoteAddress.IpEndPoint, AsyncTasks.Token);
+                var args = new SocketAsyncEventArgs
+                {
+                    RemoteEndPoint = remoteAddress.IpEndPoint,
+                    DisconnectReuseSocket = true                    
+                };                
                 
+                var result = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, null, null);
+
                 if (timeout > 0)
                 {
                     await ZeroAsync(static async state =>
                     {
-                        var (@this, timeout) = state;
+                        var (@this, result, timeout) = state;
                         await Task.Delay(timeout, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
 
                         if (!@this.IsConnected())
-                            @this.AsyncTasks.Cancel();
-                        
-                    }, ValueTuple.Create(this, timeout), TaskCreationOptions.DenyChildAttach);
-                }
+                            @this.NativeSocket.EndConnect(result);
 
-                await connectTask.FastPath().ConfigureAwait(Zc);
+                    }, ValueTuple.Create(this, result, timeout), TaskCreationOptions.DenyChildAttach);
+                }
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.RemoteEndPoint);

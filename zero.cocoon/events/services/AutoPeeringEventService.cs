@@ -24,11 +24,11 @@ namespace zero.cocoon.events.services
         private static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
             //TODO tuning
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000),
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 4000),
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 4000)
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile uint _curIdx;
         public static bool Operational => _operational > 0;

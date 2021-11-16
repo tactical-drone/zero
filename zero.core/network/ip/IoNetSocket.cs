@@ -94,9 +94,11 @@ namespace zero.core.network.ip
             if(NativeSocket.ProtocolType  == ProtocolType.Tcp && parm_enable_tcp_keep_alive)
             {
                 NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+#if NET6
                 NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, parm_enable_tcp_keep_alive_retry_interval_sec);
                 NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, parm_enable_tcp_keep_alive_time);
                 NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, parm_enable_tcp_keep_alive_retry_count);
+#endif
             }
 
             //_logger.Trace($"Tcp Socket configured: {Description}:" +
