@@ -284,7 +284,7 @@ namespace zero.cocoon.models
                     }
                     finally
                     {
-                        BufferOffset += (uint)read;
+                        BufferOffset += read;
                     }
 
                     if (read == 0)

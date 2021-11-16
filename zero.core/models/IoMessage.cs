@@ -77,42 +77,42 @@ namespace zero.core.models
         /// <summary>
         /// The number of bytes read into the buffer
         /// </summary>
-        public volatile uint BytesRead;
+        public volatile int BytesRead;
 
         /// <summary>
         /// The number of bytes left to process in this buffer
         /// </summary>
-        public uint BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
+        public int BytesLeftToProcess => BytesRead - (BufferOffset - DatumProvisionLengthMax);
         
         /// <summary>
         /// The current offset
         /// </summary>
-        public volatile uint BufferOffset;
+        public volatile int BufferOffset;
 
         /// <summary>
         /// Total number of datums contained inside the buffer
         /// </summary>
-        public volatile uint DatumCount;
+        public volatile int DatumCount;
 
         /// <summary>
         /// The number of bytes remaining of a fragmented datum
         /// </summary>
-        public volatile uint DatumFragmentLength;
+        public volatile int DatumFragmentLength;
 
         /// <summary>
         /// The expected datum length
         /// </summary>
-        public volatile uint DatumSize;
+        public volatile int DatumSize;
 
         /// <summary>
         /// The length of the buffer offset to allow previous fragments to be concatenated to the current buffer
         /// </summary>
-        public volatile uint DatumProvisionLengthMax;
+        public volatile int DatumProvisionLengthMax;
 
         /// <summary>
         /// Message receive buffer size
         /// </summary>        
-        public volatile uint BufferSize;
+        public volatile int BufferSize;
    
         /// <summary>
         /// Prepares this item for use after being popped from the heap

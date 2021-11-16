@@ -192,7 +192,6 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public override bool Zeroed()
         {
             return base.Zeroed() || Source.Zeroed();

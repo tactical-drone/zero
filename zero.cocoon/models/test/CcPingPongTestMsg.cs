@@ -58,14 +58,14 @@ namespace zero.cocoon.models.test
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_datums_per_buffer = 4;
+        public int parm_datums_per_buffer = 4;
 
         /// <summary>
         /// Max gossip message size
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_max_datum_size = 8;
+        public int parm_max_datum_size = 8;
         
         /// <summary>
         /// 
@@ -139,7 +139,7 @@ namespace zero.cocoon.models.test
                         //Async read the message from the message stream
                         if (@this.Source.IsOperational)
                         {
-                            @this.BytesRead += (uint)await ((IoSocket)ioSocket)
+                            @this.BytesRead += await ((IoSocket)ioSocket)
                                 .ReadAsync(@this.ArraySegment, (int)@this.BufferOffset, (int)@this.BufferSize).FastPath()
                                 .ConfigureAwait(@this.Zc);
 

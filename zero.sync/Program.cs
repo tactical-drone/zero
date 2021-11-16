@@ -436,11 +436,11 @@ namespace zero.sync
                 {
                     try
                     {
-                        ulong sum = 0;
+                        long sum = 0;
                         foreach (var ccCollective in _nodes)
                             sum += ccCollective.EventCount;                        
 
-                        var ave = sum / (ulong)_nodes.Count;
+                        var ave = sum / _nodes.Count;
                         long aveDelta = 0;
                         var std = 0;
                         foreach (var ccCollective in _nodes)
@@ -595,11 +595,6 @@ namespace zero.sync
             {
                 q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
                 q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();    
-            }
-            else
-            {
-                q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
-                q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();   
             }
 
             foreach (var ioZNode in q)

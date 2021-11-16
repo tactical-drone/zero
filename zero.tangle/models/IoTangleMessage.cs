@@ -42,10 +42,10 @@ namespace zero.tangle.models
             _entangled = Entangled<TKey>.Default;            
 
             //Set some tangle specific protocol constants
-            DatumSize = (uint)(Codec.MessageSize + ((Source is IoTcpClient<IoTangleMessage<TKey>>) ? Codec.MessageCrcSize : 0));
+            DatumSize = Codec.MessageSize + ((Source is IoTcpClient<IoTangleMessage<TKey>>) ? Codec.MessageCrcSize : 0);
             
             //Init buffers
-            BufferSize = (uint)(DatumSize * parm_datums_per_buffer);
+            BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
             //DatumProvisionLength = DatumProvisionLengthMax;
             Buffer = new byte[BufferSize + DatumProvisionLengthMax];
@@ -228,7 +228,7 @@ namespace zero.tangle.models
                                 {
                                     Source.Synced = false;
                                     localSync = false;
-                                    BufferOffset -= (uint)(syncFailureThreshold - 1) * DatumSize;
+                                    BufferOffset -= (syncFailureThreshold - 1) * DatumSize;
                                     curSyncFailureCount = syncFailureThreshold;                                    
                                 }
                             }                            
@@ -498,7 +498,7 @@ namespace zero.tangle.models
                                 //Success
                                 case TaskStatus.RanToCompletion:
                                     var bytesRead = rx.Result;
-                                    BytesRead = (uint)bytesRead;
+                                    BytesRead = bytesRead;
 
                                     //TODO double check this hack
                                     if (BytesRead == 0)

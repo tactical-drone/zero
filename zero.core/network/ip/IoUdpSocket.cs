@@ -481,6 +481,7 @@ namespace zero.core.network.ip
                         //remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint)?.Address.GetAddressBytes() ?? Array.Empty<byte>());
                         remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
+                        remoteEp = (IPEndPoint)args.RemoteEndPoint;
 
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                         

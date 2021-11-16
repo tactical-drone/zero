@@ -143,7 +143,9 @@ namespace zero.core.network.ip
         /// <summary>
         /// Connecting
         /// </summary>
+#if NET6
         private int WSAEWOULDBLOCK = 10035;
+#endif
 
         /// <summary>
         /// Connect to a remote endpoint

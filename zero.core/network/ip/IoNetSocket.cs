@@ -41,11 +41,13 @@ namespace zero.core.network.ip
         [IoParameter]
         private bool parm_enable_tcp_keep_alive = false;        
         [IoParameter]
+#if NET6
         private int parm_enable_tcp_keep_alive_time = 120;
         [IoParameter]
         private int parm_enable_tcp_keep_alive_retry_interval_sec = 2;
         [IoParameter]
         private int parm_enable_tcp_keep_alive_retry_count = 2;
+#endif
 
         /// <summary>
         /// Configures the socket

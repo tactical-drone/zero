@@ -134,7 +134,7 @@ namespace zero.cocoon.models
                             break;
 
                         read = whispers.CalculateSize();
-                        BufferOffset += (uint)read;                        
+                        BufferOffset += read;                        
                     }
                     catch (Exception e)
                     {

@@ -72,7 +72,7 @@ namespace zero.core.models.protobuffer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_datums_per_buffer = 5;
+        public int parm_datums_per_buffer = 5;
 
         
         /// <summary>
@@ -154,7 +154,7 @@ namespace zero.core.models.protobuffer
                         if (job.MessageService.IsOperational && !job.Zeroed())
                         {
                             var bytesRead = await ((IoSocket)ioSocket)
-                                .ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, (int)job.BufferSize,
+                                .ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, job.BufferSize,
                                     job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
 
                             //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
@@ -207,7 +207,7 @@ namespace zero.core.models.protobuffer
                             //    _this._msgCount = 0;
                             //}
 
-                            job.BytesRead += (uint)bytesRead;
+                            job.BytesRead += bytesRead;
 
                             job.JobSync();
 

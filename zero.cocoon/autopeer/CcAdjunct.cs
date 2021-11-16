@@ -235,17 +235,17 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public volatile bool Assimilated;
 
-        private volatile uint _peerRequestsRecvCount;
+        private volatile int _peerRequestsRecvCount;
         /// <summary>
         /// Indicates whether we have successfully established a connection before
         /// </summary>
-        protected uint PeerRequestsRecvCount => _peerRequestsRecvCount;
+        protected int PeerRequestsRecvCount => _peerRequestsRecvCount;
 
-        private volatile uint _peerRequestsSentCount;
+        private volatile int _peerRequestsSentCount;
         /// <summary>
         /// Number of peer requests
         /// </summary>
-        public uint PeerRequestsSentCount => _peerRequestsSentCount;
+        public int PeerRequestsSentCount => _peerRequestsSentCount;
 
         /// <summary>
         /// Node broadcast priority. 
@@ -584,7 +584,6 @@ namespace zero.cocoon.autopeer
         /// Zeroed?
         /// </summary>
         /// <returns>True if zeroed</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public override bool Zeroed()
         {
             return base.Zeroed() || Source.Zeroed();
@@ -950,7 +949,7 @@ namespace zero.cocoon.autopeer
                                                     {
                                                         if (!routed)
                                                         {
-                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.Key == discoveryBatch.RemoteEndPoint);
+                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.EndpointIpPort == discoveryBatch.RemoteEndPoint);
                                                             if (currentRoute != null)
                                                             {
                                                                 //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
@@ -993,7 +992,9 @@ namespace zero.cocoon.autopeer
 
                                                     currentRoute ??= @this.Hub.Router;
 
-                                                    var extraData = IPEndPoint.Parse(discoveryBatch.RemoteEndPoint);//TODO get rid of this
+                                                    var ip = discoveryBatch.RemoteEndPoint.Split(':');
+                                                    
+                                                    var extraData = new IPEndPoint(IPAddress.Parse(ip[0]), int.Parse(ip[1]));
 
                                                     if (!@this.Zeroed() && !currentRoute.Zeroed())
                                                     {
@@ -2050,7 +2051,7 @@ namespace zero.cocoon.autopeer
                 //Create the ping request
                 var pingRequest = new Ping
                 {
-                    DstAddr = dest.IpEndPoint.Address.ToString(),
+                    DstAddr = dest.Ip,
                     NetworkId = parm_network_id,
                     Version = parm_protocol_version,
                     SrcAddr = "0.0.0.0",
@@ -2100,10 +2101,8 @@ namespace zero.cocoon.autopeer
                 }
                 else //The destination state was undefined, this is local
                 {
-                    var router = Hub.Router;
-
                     IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
-                    if ((challenge = await router._pingRequest.ChallengeAsync(dest.IpPort, reqBuf).FastPath().ConfigureAwait(Zc)) == null)
+                    if ((challenge = await _pingRequest.ChallengeAsync(dest.IpPort, reqBuf).FastPath().ConfigureAwait(Zc)) == null)
                         return false;
 
                     var sent = await SendMessageAsync(reqBuf, CcDiscoveries.MessageTypes.Ping, dest)
@@ -2121,7 +2120,7 @@ namespace zero.cocoon.autopeer
                                 Msg = new ProtoMsg
                                 {
                                     CollectiveId = Hub.Router.Designation.IdString(),
-                                    Id = id,
+                                    Id = id??Designation.IdString(),
                                     Type = "ping"
                                 }
                             }).FastPath().ConfigureAwait(Zc);
@@ -2129,7 +2128,7 @@ namespace zero.cocoon.autopeer
                         return true;
                     }
 
-                    await router._pingRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(Zc);
+                    await _pingRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(Zc);
                     if(Collected)
                         _logger.Trace($"-/> {nameof(Ping)}:(X) [FAILED], {Description}");
                     return false;

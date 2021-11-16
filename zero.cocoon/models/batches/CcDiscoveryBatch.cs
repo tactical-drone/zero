@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,7 +24,7 @@ namespace zero.cocoon.models.batches
 
         IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         CcDiscoveryMessage[] _messages;
-        public volatile string RemoteEndPoint;
+        public string RemoteEndPoint;
         private int _disposed;
 
         public CcDiscoveryMessage this[int i]

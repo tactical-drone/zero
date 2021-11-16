@@ -261,12 +261,12 @@ namespace zero.cocoon
         private readonly IoNodeAddress _peerAddress;
 
         readonly Random _random = new((int)DateTime.Now.Ticks);
-        public IoZeroSemaphoreSlim DupSyncRoot { get; init; }
+        public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
         private int _dupPoolSize;
-        private ulong _eventCounter;
-        public ulong EventCount => _eventCounter;
+        private long _eventCounter;
+        public long EventCount => _eventCounter;
 
         /// <summary>
         /// Bootstrap
@@ -753,7 +753,7 @@ namespace zero.cocoon
                         await drone.ZeroSubAsync(static (_,@this) =>
                         {
                             Interlocked.Decrement(ref @this.EgressCount);
-                            return ValueTask.FromResult(true);
+                            return new ValueTask<bool>(true);
                         }, this).FastPath().ConfigureAwait(Zc);                        
                     }
                     else if (drone.IoSource.IoNetSocket.IsIngress)
@@ -761,7 +761,7 @@ namespace zero.cocoon
                         await drone.ZeroSubAsync(static (from, @this) =>
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
-                            return ValueTask.FromResult(true);
+                            return new ValueTask<bool>(true);
                         }, this).FastPath().ConfigureAwait(Zc);                        
                     }
                 }
@@ -803,24 +803,24 @@ namespace zero.cocoon
                     {
                         if(Interlocked.Increment(ref @this.IngressCount) - 1 < @this.parm_max_inbound)
                         {
-                            return ValueTask.FromResult(true);
+                            return new ValueTask<bool>(true);
                         }
                         else
                         {
                             Interlocked.Decrement(ref @this.IngressCount);
-                            return ValueTask.FromResult(false);
+                            return new ValueTask<bool>(false);
                         }
                     }
                     else
                     {
                         if (Interlocked.Increment(ref @this.EgressCount) - 1 < @this.parm_max_outbound)
                         {
-                            return ValueTask.FromResult(true);
+                            return new ValueTask<bool>(true);
                         }
                         else
                         {
                             Interlocked.Decrement(ref @this.EgressCount);
-                            return ValueTask.FromResult(false);
+                            return new ValueTask<bool>(false);
                         }
                     }
                 }, (this, id, direction, packet, drone, remoteEp)) && attached;
@@ -908,7 +908,7 @@ namespace zero.cocoon
         private static readonly int _maxAsyncConnectionAttempts = 2;
 
         private int _currentOutboundConnectionAttempts;
-        private readonly Poisson _poisson = new(_lambda, Random.Shared);
+        private readonly Poisson _poisson = new(_lambda, new Random((int)DateTimeOffset.UtcNow.Ticks));
 
         /// <summary>
         /// Boots the node
@@ -991,7 +991,7 @@ namespace zero.cocoon
 
                         await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
                         //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                        if (!await Hub.Router.SendPingAsync(ioNodeAddress, ioNodeAddress.Key).FastPath().ConfigureAwait(Zc))
+                        if (!await Hub.Router.SendPingAsync(ioNodeAddress).FastPath().ConfigureAwait(Zc))
                         {
                             if(!Hub.Router.Zeroed())
                                 _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
