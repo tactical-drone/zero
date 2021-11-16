@@ -24,8 +24,8 @@ namespace zero.cocoon.events.services
         private static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
             //TODO tuning
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 4000),
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 4000)
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 1000),
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 1000)
         };
 
         private static volatile int _operational = 1;
@@ -46,27 +46,16 @@ namespace zero.cocoon.events.services
                 if (_queuedEvents[_curIdx%2].Count == 0)
                     await Task.Delay(200).ConfigureAwait(Zc);
 
-                var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx)-1) % 2];
-                var cur = curQ.Head;
+                var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx) - 1) % 2];
 
-                if (cur == null)
-                    return response;
 
                 int c = 0;
-                while (c < EventBatchSize && cur != null)
+                AutoPeerEvent cur;
+                while (c < EventBatchSize && (cur = await curQ.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                 {
-                    response.Events.Add(cur.Value);
-
-                    var tmp = cur.Prev;
-                    cur.Prev = null;
-                    cur.Next = null;
-                    cur.Value = default;
-                    await curQ.NodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(Zc);
-                    cur = tmp;
+                    response.Events.Add(cur);
                     c++;
                 }
-
-                curQ.Clip(cur, curQ.Count);
 
             }
             catch (Exception e)

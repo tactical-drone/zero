@@ -296,13 +296,17 @@ namespace zero.core.patterns.semaphore.core
 
                     var executionState = Interlocked.CompareExchange(ref _signalExecutionState[i], null, _signalExecutionState[i]);
                     var context = Interlocked.CompareExchange(ref _signalCapturedContext[i], null, _signalCapturedContext[i]);
-                    try
+                    if (waiter != null)
                     {
-                        ZeroComply(waiter, state, executionState, context);
-                    }
-                    catch
-                    {
-                        // ignored
+                        try
+                        {
+                            if (waiter != null && state != null)
+                                ZeroComply(waiter, state, executionState, context);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
                     }
                 }
                 

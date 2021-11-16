@@ -132,6 +132,7 @@ namespace zero.core.misc
                         }
 
                         challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc);
+                        
                         if (challenge == null)
                         {
                             var c = state.@this._lut.Tail;
