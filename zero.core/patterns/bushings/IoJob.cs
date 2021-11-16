@@ -38,7 +38,7 @@ namespace zero.core.patterns.bushings
             Source = source;
             _jobDesc = desc;
 #if DEBUG
-            _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (uint)(Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2)) { Make = static (o, s) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = (int)IoJobMeta.JobState.Halted } };
+            _stateHeap = new($"{nameof(_stateHeap)}: {desc}", (Enum.GetNames(typeof(IoJobMeta.JobState)).Length * 2)) { Make = static (o, s) => new IoStateTransition<IoJobMeta.JobState>() { FinalState = (int)IoJobMeta.JobState.Halted } };
 #endif
         }
 

@@ -368,7 +368,7 @@ namespace zero.core.patterns.bushings
 
                                 //signal back pressure
                                 if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
-                                    await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(Zc);
+                                    nextJob.Source.PrefetchPressure();
 
                                 //Enqueue the job for the consumer
                                 nextJob.State = IoJobMeta.JobState.Queued;
@@ -390,7 +390,7 @@ namespace zero.core.patterns.bushings
 
                                 // Signal prefetch back pressure
                                 if (enablePrefetchOption && nextJob.Source is { PrefetchEnabled: true })
-                                    await nextJob.Source.PrefetchPressure().FastPath().ConfigureAwait(Zc);
+                                    nextJob.Source.PrefetchPressure();
 
                                 //ReturnJobToHeapAsync job
                                 nextJob.State = IoJobMeta.JobState.Reject;
@@ -413,7 +413,7 @@ namespace zero.core.patterns.bushings
                                     await Task.Delay(parm_min_failed_production_time, AsyncTasks.Token).ConfigureAwait(Zc);
 
                                 //signal back pressure
-                                await Source.BackPressureAsync().FastPath().ConfigureAwait(Zc);
+                                Source.BackPressureAsync();
                             }
                         }
                     }
@@ -577,7 +577,7 @@ namespace zero.core.patterns.bushings
 
                             curJob.State = IoJobMeta.JobState.Consumed;
 
-                            await Source.BackPressureAsync().FastPath().ConfigureAwait(Zc);
+                            Source.BackPressureAsync();
 
                             //sync previous failed job buffers
                             if (SyncRecoveryModeEnabled)

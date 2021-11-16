@@ -523,7 +523,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_spare_bays = 0;
+        public int parm_min_spare_bays = 1;
 
         /// <summary>
         /// Network id

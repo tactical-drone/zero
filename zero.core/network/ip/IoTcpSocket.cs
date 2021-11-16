@@ -156,33 +156,35 @@ namespace zero.core.network.ip
             if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc))
                 return false;
 
-            NativeSocket.Blocking = false;
+            //NativeSocket.Blocking = false;
 
             ConfigureSocket();
 
             _sw.Restart();
             try
             {
-                var args = new SocketAsyncEventArgs
-                {
-                    RemoteEndPoint = remoteAddress.IpEndPoint,
-                    DisconnectReuseSocket = true                    
-                };                
-                
-                var result = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, null, null);
+                var result = NativeSocket.ConnectAsync(remoteAddress.IpEndPoint);
 
                 if (timeout > 0)
                 {
                     await ZeroAsync(static async state =>
                     {
                         var (@this, result, timeout) = state;
-                        await Task.Delay(timeout, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                        await Task.Delay(timeout + 15, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
 
                         if (!@this.IsConnected())
-                            @this.NativeSocket.EndConnect(result);
+                            result.Dispose();
 
                     }, ValueTuple.Create(this, result, timeout), TaskCreationOptions.DenyChildAttach);
                 }
+
+                await result.ConfigureAwait(Zc);
+
+                //var result = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, null, null);
+                //result.AsyncWaitHandle.WaitOne(timeout);
+
+                if (!IsConnected())
+                    return false;
 
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.RemoteEndPoint);
@@ -192,33 +194,33 @@ namespace zero.core.network.ip
                 _logger.Trace($"Connected to `{RemoteNodeAddress}': ({Description})");
                 return true;
             }
-            catch (SocketException exception)
+            catch (SocketException e)
             {
                 {
-                    if (exception.ErrorCode == WSAEWOULDBLOCK)
-                    {
-                        while (!Zeroed() && _sw.ElapsedMilliseconds < 10000 &&
-                               !NativeSocket.Poll(100000, SelectMode.SelectError) &&
-                               !NativeSocket.Poll(100000, SelectMode.SelectWrite))
-                        { }
+                    //if (exception.ErrorCode == WSAEWOULDBLOCK)
+                    //{
+                    //    while (!Zeroed() && _sw.ElapsedMilliseconds < 10000 &&
+                    //           !NativeSocket.Poll(100000, SelectMode.SelectError) &&
+                    //           !NativeSocket.Poll(100000, SelectMode.SelectWrite))
+                    //    { }
 
-                        if (Zeroed() || _sw.ElapsedMilliseconds >= 10000)
-                        {
-                            NativeSocket.Close();
-                            return false;
-                        }
-                    }
+                    //    if (Zeroed() || _sw.ElapsedMilliseconds >= 10000)
+                    //    {
+                    //        NativeSocket.Close();
+                    //        return false;
+                    //    }
+                    //}
                 }
 
-                NativeSocket.Blocking = true;
+                //NativeSocket.Blocking = true;
 
-                _logger.Trace($"Connected to `{RemoteNodeAddress}': ({Description})");
-                return true;
+                _logger.Trace(e,$"Failed connecting to `{RemoteNodeAddress}': ({Description})");
+                return false;
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e, $"Connected to `{remoteAddress}' failed: {Description}");
+                _logger.Error(e, $"Connecting to `{remoteAddress}' failed: {Description}");
             }
 
             return false;
@@ -329,7 +331,7 @@ namespace zero.core.network.ip
             {
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                 NativeSocket.SendTimeout = 0;
-                return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0 ) || true;
+                return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())

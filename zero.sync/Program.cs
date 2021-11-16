@@ -630,17 +630,29 @@ namespace zero.sync
                     {
                         try
                         {
-                            q.EnqueueAsync(i3).FastPath().ConfigureAwait(Zc);
-                            q.EnqueueAsync(i3 + 1).FastPath().ConfigureAwait(Zc);
-                            var i1 = q.EnqueueAsync(i3 + 2).FastPath().ConfigureAwait(Zc);
-                            var i2 = q.EnqueueAsync(i3 + 3).FastPath().ConfigureAwait(Zc);
-                            await q.EnqueueAsync(i3 + 4).FastPath().ConfigureAwait(Zc);
+                            var eq1 = q.EnqueueAsync(i3);
+                            var eq2 = q.EnqueueAsync(i3 + 1);
+                            var i1 = q.EnqueueAsync(i3 + 2);
+                            var i2 = q.EnqueueAsync(i3 + 3);
+                            var i4 = q.EnqueueAsync(i3 + 3);
 
-                            q.RemoveAsync(await i2).FastPath().ConfigureAwait(Zc);
-                            q.DequeueAsync().FastPath().ConfigureAwait(Zc);
-                            q.RemoveAsync(await i1).FastPath().ConfigureAwait(Zc);
-                            q.DequeueAsync().FastPath().ConfigureAwait(Zc);
-                            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                            await eq2;
+                            await eq1;
+                            await i4;
+                            await i2;
+                            await i1;
+
+                            var d1 = q.RemoveAsync(i2.Result);
+                            var d2 = q.DequeueAsync();
+                            var d3 = q.RemoveAsync(i1.Result).FastPath().ConfigureAwait(Zc);
+                            var d4 = q.DequeueAsync();
+                            var d5 = q.DequeueAsync();
+
+                            await d5;
+                            await d4;
+                            await d3;
+                            await d2;
+                            await d1;
                         }
                         catch (Exception e)
                         {
@@ -907,7 +919,7 @@ namespace zero.sync
                            
                            try
                            {
-                               Interlocked.Add(ref semCount, curCount = await mutex.ReleaseAsync(releaseCount, true).FastPath().ConfigureAwait(Zc));
+                               Interlocked.Add(ref semCount, curCount = mutex.ReleaseAsync(releaseCount, true));
 
                                Interlocked.Increment(ref semPollCount);
                                Interlocked.Increment(ref dq[i1]);

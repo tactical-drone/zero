@@ -215,10 +215,9 @@ namespace zero.core.patterns.queue
             finally
             {
                 if(blocked)
-                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                    _syncRoot.ReleaseAsync();
 
-                if(_pressure != null)
-                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                _pressure?.ReleaseAsync();
             }
         }
 
@@ -279,10 +278,9 @@ namespace zero.core.patterns.queue
             {
                 _modified = false;
                 if (blocked)
-                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);    
-                
-                if(_pressure != null)
-                    await _pressure.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                    _syncRoot.ReleaseAsync();
+
+                _pressure?.ReleaseAsync();
             }
         }
 
@@ -295,7 +293,7 @@ namespace zero.core.patterns.queue
         {
             IoZNode dq = null;
 
-            if (_zeroed > 0 || _count == 0 || _head == null)
+            if (_zeroed > 0 || _count == 0 && _pressure == null)
             {
                 return default;
             }
@@ -310,10 +308,15 @@ namespace zero.core.patterns.queue
                     return default;
 
                 blocked = true;
+
+                if (_count <= 0)
+                    return default;
+
                 _modified = true;
 
                 dq = _head;
                 _head = _head.Prev;
+
                 if (_head != null)
                     _head.Next = null;
                 else
@@ -324,20 +327,20 @@ namespace zero.core.patterns.queue
             catch when (_zeroed > 0) { }
             catch (Exception e) when (_zeroed == 0)
             {
-                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed!");
+                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed! {nameof(_count)} = {_count}, {nameof(_head)} = {_head}, {nameof(_tail)} = {_tail}, heap => {_nodeHeap.Description}");
             }
             finally
             {
                 _modified = false;
 
-                if (_enableBackPressure && await _backPressure.ReleaseAsync().FastPath().ConfigureAwait(false) == -1)
+                if (_enableBackPressure && _backPressure.ReleaseAsync() == -1)
                 {
                     if(_zeroed == 0 && !_backPressure.Zeroed())
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}.{nameof(_backPressure.ReleaseAsync)}: back pressure release failure ~> {_backPressure}");
                 }
 
                 if (blocked)
-                    await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                    _syncRoot.ReleaseAsync();
             }
             //return dequeued item
             
@@ -401,7 +404,7 @@ namespace zero.core.patterns.queue
             finally
             {
                 _modified = false;
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                _syncRoot.ReleaseAsync();
                 node!.Prev = null;
                 node!.Next = null;
             }
@@ -477,7 +480,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                await _syncRoot.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                _syncRoot.ReleaseAsync();
             }
 
         }

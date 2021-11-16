@@ -259,7 +259,7 @@ namespace zero.core.network.ip
 
             try
             {                
-                NativeSocket.Connect(remoteAddress.IpEndPoint);
+                await NativeSocket.ConnectAsync(remoteAddress.IpEndPoint);
                 LocalNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.LocalEndPoint);
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("udp", (IPEndPoint) NativeSocket.RemoteEndPoint);
             }
@@ -398,7 +398,7 @@ namespace zero.core.network.ip
                 if (tcs != default)
                     await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(Zc);
 
-                await _sendSync.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                _sendSync.ReleaseAsync();
             }
 
             return 0;
@@ -420,11 +420,11 @@ namespace zero.core.network.ip
         private IoHeap<IIoZeroSemaphore, IoUdpSocket> _tcsHeap;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private async void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
+        private void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
         {
             try
             {
-                await ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync();
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -534,7 +534,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                await _rcvSync.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+                _rcvSync.ReleaseAsync();
             }
 
             return 0;

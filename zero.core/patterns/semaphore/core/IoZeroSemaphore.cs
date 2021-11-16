@@ -296,17 +296,13 @@ namespace zero.core.patterns.semaphore.core
 
                     var executionState = Interlocked.CompareExchange(ref _signalExecutionState[i], null, _signalExecutionState[i]);
                     var context = Interlocked.CompareExchange(ref _signalCapturedContext[i], null, _signalCapturedContext[i]);
-                    if (waiter != null)
+                    try
                     {
-                        try
-                        {
-                            if (waiter != null && state != null)
-                                ZeroComply(waiter, state, executionState, context);
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
+                        ZeroComply(waiter, state, executionState, context);
+                    }
+                    catch
+                    {
+                        // ignored
                     }
                 }
                 
@@ -445,7 +441,7 @@ namespace zero.core.patterns.semaphore.core
             if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
             {
                 SynchronizationContext sc = SynchronizationContext.Current;
-                if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+                if (sc != null && sc.GetType() == typeof(SynchronizationContext))
                 {
                     capturedContext = sc;
                 }
@@ -460,12 +456,21 @@ namespace zero.core.patterns.semaphore.core
             }
 
             //fast path, but causes a one shot LIFO queue behavior which could be undesirable. For dev I would force fairQ, then later disable to for added test coverage when order guarantees are not needed.
-            if (!_forceFairQ && Signalled())
+            //if (!_forceFairQ && Signalled())
+            //{
+            //    ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
+            //    return;
+            //}
+
+            if (Signalled())
             {
-                ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
-                return;
+                if (ReleaseAsync(1, bestEffort: true) != 1)
+                {
+                    ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
+                    return;
+                }
             }
-            
+
             //lock
             ZeroLock();
 
@@ -513,86 +518,41 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="callback">The callback</param>
         /// <param name="state">The state</param>
         /// <param name="capturedContext"></param>
+        /// <param name="onComplete">Whether this call originates from <see cref="OnCompleted"/></param>
         /// <param name="zeroed">If we are zeroed</param>
         /// <param name="executionContext"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool onComplete = false, bool zeroed = false)
         {
             try
-            {                
+            {
+                //Execute with captured context
+                if (!onComplete && executionContext != null)
+                {
+                    ExecutionContext.Run(
+                        executionContext, 
+                        static s =>
+                        {
+                            var (callback, state) = (ValueTuple<Action<object>, object>)s;
+                            callback(state);
+                        },
+                        ValueTuple.Create(callback,state));
+                    return true;
+                }
+
                 switch (capturedContext)
                 {
                     case null:
-
-                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                        void AsyncCallback(ValueTuple<IIoZeroSemaphore, Action<object>, object> obj)
+                        if (_runContinuationsAsynchronously)
                         {
-                            var (@this, continuation, continuationState) = obj;
-                            continuation(continuationState);
-                            @this.ZeroDecAsyncCount();
-                        }
-
-                        if (executionContext != null && !onComplete)
-                        {                                                            
-                            var currentContext = ExecutionContext.Capture();
-                            // Restore the captured ExecutionContext before executing anything.                            
-                            ExecutionContext.Restore(executionContext);                                                        
-
-                            if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
-                            {
-                                try
-                                {                                    
-                                    ThreadPool.QueueUserWorkItem(AsyncCallback, ValueTuple.Create(_zeroRef, callback, state), preferLocal: true);
-                                }
-                                finally
-                                {                                    
-                                    ExecutionContext.Restore(currentContext!);
-                                }
-                            }
+                            if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                                Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
                             else
-                            {
-                                if(_runContinuationsAsynchronously)
-                                    _zeroRef.ZeroDecAsyncCount();
-
-                                // Running inline may throw; capture the edi if it does as we changed the ExecutionContext,
-                                // so need to restore it back before propagating the throw.
-                                ExceptionDispatchInfo edi = null;
-                                var syncContext = SynchronizationContext.Current;
-                                try
-                                {
-                                    callback(state);
-                                }
-                                catch (Exception ex)
-                                {
-                                    // Note: we have a "catch" rather than a "finally" because we want
-                                    // to stop the first pass of EH here.  That way we can restore the previous
-                                    // context before any of our callers' EH filters run.
-                                    edi = ExceptionDispatchInfo.Capture(ex);
-                                }
-                                finally
-                                {
-                                    // Set sync context back to what it was prior to coming in
-                                    SynchronizationContext.SetSynchronizationContext(syncContext);
-                                    // Restore the current ExecutionContext.
-                                    ExecutionContext.Restore(currentContext!);
-                                }
-
-                                // Now rethrow the exception; if there is one.
-                                edi?.Throw();
-                            }
+                                _zeroRef.ZeroDecAsyncCount();
                         }
                         else
-                        {                            
-                            if (_runContinuationsAsynchronously && _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
-                            {                                
-                                ThreadPool.UnsafeQueueUserWorkItem(AsyncCallback, ValueTuple.Create(_zeroRef, callback,state), preferLocal: true);
-                            }
-                            else
-                            {
-                                if(_runContinuationsAsynchronously)
-                                    _zeroRef.ZeroDecAsyncCount();
-                                callback(state);
-                            }                                
+                        {
+                            callback(state);
                         }
                         break;
 
@@ -704,11 +664,12 @@ namespace zero.core.patterns.semaphore.core
         /// Allow waiter(s) to enter the semaphore
         /// </summary>
         /// <param name="releaseCount">The number of waiters to enter</param>
-        /// <param name="async"></param>
+        /// <param name="asynch"></param>
+        /// <param name="bestEffort">Whether this originates from <see cref="OnCompleted"/></param>
         /// <returns>The number of signals sent, before this one, -1 on failure</returns>
         /// <exception cref="ZeroValidationException">Fails on preconditions</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
+        public int ReleaseAsync(int releaseCount = 1, bool asynch = false, bool bestEffort = false)
         {
             Debug.Assert(_zeroRef != null);
 
@@ -717,9 +678,9 @@ namespace zero.core.patterns.semaphore.core
                 throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
 
             //fail fast on cancellation token
-            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed() )
+            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
             {                
-                return new ValueTask<int>(-1);
+                return -1;
             }
 
             //lock in return value
@@ -767,23 +728,24 @@ namespace zero.core.patterns.semaphore.core
                     throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
 
-                //count the number of waiters released
-                released++;
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, zeroed: Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, false, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
                 {
                     _zeroRef.ZeroAddCount(releaseCount - released);
                     //update current count
-                    return new ValueTask<int>(-1);
+                    return -1;
                 }
+
+                //count the number of waiters released
+                released++;
             }
 
             //update current count
             var delta = releaseCount - released;
-            if(delta > 0)
+            if(delta > 0 && !bestEffort)
                 _zeroRef.ZeroAddCount(delta);
             
             //return previous number of waiters
-            return new ValueTask<int>(released);
+            return released;
         }
         
         /// <summary>

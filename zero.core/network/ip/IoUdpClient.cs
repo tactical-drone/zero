@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.misc;
 
 namespace zero.core.network.ip
 {
@@ -64,8 +65,8 @@ namespace zero.core.network.ip
         /// </returns>
         public override async ValueTask<bool> ConnectAsync(IoNodeAddress remoteAddress, int timeout)
         {
-            IoNetSocket = (await ZeroHiveAsync(new IoUdpSocket(PrefetchSize, ZeroConcurrencyLevel()), true)).target;
-            return await base.ConnectAsync(remoteAddress, timeout).ConfigureAwait(Zc);
+            IoNetSocket = (await ZeroHiveAsync(new IoUdpSocket(PrefetchSize, ZeroConcurrencyLevel()), true).FastPath().ConfigureAwait(Zc)).target;
+            return await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc);
         }
 
         public override void Blacklist(int remoteAddressPort)

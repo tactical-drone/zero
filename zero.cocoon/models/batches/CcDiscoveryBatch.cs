@@ -48,7 +48,7 @@ namespace zero.cocoon.models.batches
 
         public int Count => _messages.Length;
 
-        public int Filled;
+        public volatile int Filled;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void Dispose(bool disposing)

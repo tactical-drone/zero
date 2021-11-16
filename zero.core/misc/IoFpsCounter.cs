@@ -71,7 +71,7 @@ namespace zero.core.misc
                 _index %= 2;
                 Volatile.Write(ref _count[_index], 0);
                 _timeStamp[_index] = DateTime.Now;
-                await _mutex.ReleaseAsync().FastPath().ConfigureAwait(true);
+                _mutex.ReleaseAsync();
             }            
         }
 

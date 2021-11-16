@@ -36,11 +36,11 @@ namespace zero.cocoon.models
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
             var batchSize = 64;
-            var cc = 24;
+            var cc = 16;
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc, cc, cc, cc);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc, cc, 0, 0);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,
@@ -453,9 +453,6 @@ namespace zero.cocoon.models
                         @this._currentBatch = await @this._batchHeap.TakeAsync().FastPath().ConfigureAwait(@this.Zc);
                         if (@this._currentBatch == null)
                             throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.MaxSize}, ref = {@this._batchHeap.ReferenceCount}");
-                        
-                        if (@this._currentBatch == null)
-                            throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._currentBatch)}");
 
                         @this._currentBatch.Filled = 0;
 

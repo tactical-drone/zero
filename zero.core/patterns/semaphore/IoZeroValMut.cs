@@ -53,7 +53,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
         
-        public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
+        public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false, bool bestEffort = false)
         {
             throw new NotImplementedException();
         }
@@ -107,7 +107,9 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        ValueTask<int> IIoZeroSemaphore.ReleaseAsync(int releaseCount, bool async)
+#pragma warning disable CS1066 // The default value specified will have no effect because it applies to a member that is used in contexts that do not allow optional arguments
+        int IIoZeroSemaphore.ReleaseAsync(int releaseCount, bool asynch = false, bool bestEffort = false)
+#pragma warning restore CS1066 // The default value specified will have no effect because it applies to a member that is used in contexts that do not allow optional arguments
         {
             throw new NotImplementedException();
         }
