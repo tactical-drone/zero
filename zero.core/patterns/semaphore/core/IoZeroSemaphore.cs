@@ -873,7 +873,7 @@ namespace zero.core.patterns.semaphore.core
                 latch = _curSignalCount;
             }
 
-            return slot == latch;
+            return slot == latch && latch > 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -18,15 +18,15 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
-        private const int EventBatchSize = 500;
-        private const int TotalBatches = 1000;
+        private const int EventBatchSize = 4000;
+        private const int TotalBatches = 100;
         private static bool Zc = false;
         private readonly ILogger<AutoPeeringEventService> _logger;
         private static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
             //TODO tuning
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 10000),
-            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 10000)
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000),
+            new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
         };
 
         private static volatile int _operational = 1;
@@ -53,8 +53,8 @@ namespace zero.cocoon.events.services
 
                 int c = 0;
 
-                while (curQ.Count == 0 && c++ < 10)
-                    await Task.Delay(200).ConfigureAwait(Zc);
+                while (curQ.Count == 0 && c++ < 100)
+                    await Task.Delay(50).ConfigureAwait(Zc);
 
                 c = 0;
                 AutoPeerEvent cur;
