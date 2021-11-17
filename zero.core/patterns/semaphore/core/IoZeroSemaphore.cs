@@ -404,18 +404,10 @@ namespace zero.core.patterns.semaphore.core
         {
             //signal true on cancel so that threads can unwind
             if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
-            {
                 return true;
-            }
-
+            
             //enter or block?
-            if (_zeroRef.ZeroCount() > 0)
-            {
-                if (_zeroRef.ZeroDecCount() >= 0)
-                    return true;
-                _zeroRef.ZeroIncCount();
-            }
-            return false;
+            return _zeroRef.ZeroEnter();
         }
 
         /// <summary>
@@ -437,39 +429,38 @@ namespace zero.core.patterns.semaphore.core
             ExecutionContext executionContext = default;
             object capturedContext = default;
 
-            if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
+            void ExtractStack(out ExecutionContext ec, out object cc)
             {
-                executionContext = ExecutionContext.Capture();
-            }
-
-            if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
-            {
-                SynchronizationContext sc = SynchronizationContext.Current;
-                if (sc != null && sc.GetType() == typeof(SynchronizationContext))
+                ec = null;
+                cc = null;
+                if ((flags & ValueTaskSourceOnCompletedFlags.FlowExecutionContext) != 0)
                 {
-                    capturedContext = sc;
+                    ec = ExecutionContext.Capture();
                 }
-                else
+
+                if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
                 {
-                    TaskScheduler ts = TaskScheduler.Current;
-                    if (ts != TaskScheduler.Default)
+                    var sc = SynchronizationContext.Current;
+                    if (sc != null && sc.GetType() != typeof(SynchronizationContext))
                     {
-                        capturedContext = ts;
+                        cc = sc;
                     }
-                }                
+                    else
+                    {
+                        var ts = TaskScheduler.Current;
+                        if (ts != TaskScheduler.Default)
+                        {
+                            cc = ts;
+                        }
+                    }
+                }
             }
-
-            //fast path, but causes a one shot LIFO queue behavior which could be undesirable. For dev I would force fairQ, then later disable to for added test coverage when order guarantees are not needed.
-            //if (!_forceFairQ && Signalled())
-            //{
-            //    ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
-            //    return;
-            //}
-
+            
             if (Signalled())
             {
                 if (ReleaseAsync(1, bestEffort: true) != 1)
                 {
+                    ExtractStack(out executionContext, out capturedContext);
                     ZeroComply(continuation, state, executionContext, capturedContext, true, Zeroed() || state is IIoNanite nanite && nanite.Zeroed());
                     return;
                 }
@@ -491,6 +482,8 @@ namespace zero.core.patterns.semaphore.core
             
             if (slot == null)
             {
+                ExtractStack(out executionContext, out capturedContext);
+
                 _signalAwaiterState[headIdx] = state;
                 _signalExecutionState[headIdx] = executionContext;
                 _signalCapturedContext[headIdx] = capturedContext;
@@ -858,6 +851,29 @@ namespace zero.core.patterns.semaphore.core
         int IIoZeroSemaphore.ZeroDecCount()
         {
             return Interlocked.Decrement(ref _curSignalCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool IIoZeroSemaphore.ZeroEnter()
+        {
+            if (_curSignalCount <= 0)
+                return false;
+
+            var latch = _curSignalCount;
+
+            if (latch <= 0)
+                return false;
+
+            int slot = -1;
+            while (_curSignalCount > 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
+            {
+                if (slot == 0)
+                    return false;
+
+                latch = _curSignalCount;
+            }
+
+            return slot == latch;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

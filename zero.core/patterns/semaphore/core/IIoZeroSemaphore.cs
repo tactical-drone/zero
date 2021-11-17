@@ -17,8 +17,10 @@ namespace zero.core.patterns.semaphore.core
         int CurNrOfBlockers { get; }
         public int MaxAsyncWorkers { get; }
         public int Capacity { get; }
-    
 
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool ZeroEnter();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroCount();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

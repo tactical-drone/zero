@@ -82,6 +82,11 @@ namespace zero.core.patterns.semaphore
         public int MaxAsyncWorkers => _semaphore.MaxAsyncWorkers;
         public int Capacity => _semaphore.Capacity;
 
+        bool IIoZeroSemaphore.ZeroEnter()
+        {
+            throw new NotImplementedException();
+        }
+
         int IIoZeroSemaphore.ZeroCount()
         {
             throw new NotImplementedException();

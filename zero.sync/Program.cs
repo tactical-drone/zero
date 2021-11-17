@@ -33,6 +33,7 @@ namespace zero.sync
 
         private static ConcurrentBag<CcCollective> _nodes = new ConcurrentBag<CcCollective>();
         private static volatile bool _running;
+        private static volatile bool _verboseGossip;
         private static volatile bool _startAccounting;
         private static bool Zc = true;
         private static int _rampDelay = 300;
@@ -84,7 +85,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 150;
+            var total = 20;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -100,8 +101,6 @@ namespace zero.sync
                     }.ToList())
             };
 
-            //tasks.Add(CoCoonAsync(CcIdentity.Generate(true), $"tcp://127.0.0.1:{14667 + portOffset}", $"udp://127.0.0.1:{1234 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}", $"udp://127.0.0.1:{1234 + portOffset}", new[] { $"udp://127.0.0.1:{1233 + portOffset}", $"udp://127.0.0.1:{1233}" }.ToList(), 0));
-
             for (var i = 2; i < total; i++)
             {
                 //if(1234 + portOffset + i == 1900 )
@@ -115,7 +114,7 @@ namespace zero.sync
             //Console.WriteLine("Prepping...");
             //Thread.Sleep(10000);
 
-            var task = Task.Run(async () =>
+            var task = Task.Factory.StartNew(async () =>
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");
                 var c = 1;
@@ -140,53 +139,7 @@ namespace zero.sync
 
                     c++;
                 }
-                                
-                long v = 1;
-                long C = 0;
-                _rampDelay = 1500;
-                _rampTarget = 1000;
-                long start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                List<Task> gossipTasks = new List<Task>();
-                for (int i = 0; i < 4; i++)
-                { 
-                    gossipTasks.Add(Task.Factory.StartNew(async () =>
-                    {
-                        while(!_startAccounting)
-                            await Task.Delay(1000).ConfigureAwait(Zc);
-                        Console.WriteLine($"Starting accounting... {tasks.Count}");
-                        await Task.Delay(1500 * i).ConfigureAwait(Zc);
-                        while (_running)
-                        {
-                            foreach (var task in tasks)
-                            {
-                                if(!await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath().ConfigureAwait(Zc))
-                                    continue;
-                                
-                                //ramp
-                                if (_rampDelay > _rampTarget)
-                                {
-                                    Interlocked.Decrement(ref _rampDelay);
-                                    Console.WriteLine($"ramp = {_rampDelay}");
-                                }                                    
-                                else if(_rampDelay != _rampTarget)
-                                    _rampDelay = _rampTarget;
-                                var d = _rampDelay;
-                                d++;
-                                await Task.Delay(d).ConfigureAwait(Zc);
-                                
-                                if (Interlocked.Increment(ref C) % 5000 == 0)
-                                {
-                                    Console.WriteLine($"{C/((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)/1000.0):0.0} g/ps");
-                                    Interlocked.Exchange(ref C, 0);
-                                    start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                                }
-                            }
-                        }
-                        Console.WriteLine("Stopped gossip...");
-                    }));
-                }
-
-            });
+            }, TaskCreationOptions.DenyChildAttach);
 
             _running = true;
             var outBound = 0;
@@ -414,10 +367,94 @@ namespace zero.sync
                     catch { }
                 }
 
-                if(line.StartsWith("gossip"))
+                var gossipTasks = new List<Task>();
+
+                if (line.StartsWith("gossip"))
                 {
-                    _startAccounting = !_startAccounting;
-                    Console.WriteLine($"gossip = {_startAccounting}");
+                    if (line.Contains("verbose"))
+                    {
+                        _verboseGossip = !_verboseGossip;
+                        Console.WriteLine($"gossip verbose = {_verboseGossip}");
+                    }
+                    else if (line.Contains("restart"))
+                    {
+                        if (gossipTasks.Count > 0)
+                        {
+                            _running = false;
+                            _startAccounting = false;
+                            Task.WaitAll(gossipTasks.ToArray());
+                            gossipTasks.Clear();
+                        }
+
+                        long v = 1;
+                        long C = 0;
+                        _rampDelay = 1500;
+                        _rampTarget = 1000;
+                        var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        var threads = 1;
+                        _running = true;
+                        for (int i = 0; i < threads; i++)
+                        {
+                            var i1 = i;
+                            gossipTasks.Add(Task.Factory.StartNew(async () =>
+                            {
+                                while (!_startAccounting)
+                                    await Task.Delay(1000).ConfigureAwait(Zc);
+                                Console.WriteLine($"Starting accounting... {tasks.Count}");
+                                await Task.Delay(random.Next(1000 / threads) * i1).ConfigureAwait(Zc);
+                                while (_running)
+                                {
+                                    if (!_startAccounting)
+                                    {
+                                        await Task.Delay(1000).ConfigureAwait(Zc);
+                                        continue;
+                                    }
+
+                                    foreach (var task in tasks)
+                                    {
+                                        if (!_startAccounting)
+                                            break;
+                                        if (!await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath()
+                                                .ConfigureAwait(Zc))
+                                        {
+                                            if (_verboseGossip)
+                                                Console.Write("*");
+                                            continue;
+                                        }
+
+                                        if (_verboseGossip)
+                                            Console.Write(".");
+
+                                        //ramp
+                                        if (_rampDelay > _rampTarget)
+                                        {
+                                            Interlocked.Decrement(ref _rampDelay);
+                                            //Console.WriteLine($"ramp = {_rampDelay}");
+                                        }
+
+                                        var d = _rampDelay;
+                                        d++;
+                                        await Task.Delay(d).ConfigureAwait(Zc);
+
+                                        if (Interlocked.Increment(ref C) % 5000 == 0)
+                                        {
+                                            Console.WriteLine($"{C / ((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start) / 1000.0):0.0} g/ps");
+                                            Interlocked.Exchange(ref C, 0);
+                                            start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                        }
+                                    }
+                                }
+                                Console.WriteLine("Stopped gossip...");
+                            }, TaskCreationOptions.DenyChildAttach));
+                            _startAccounting = true;
+                        }
+                        Console.WriteLine($"Stopped auto peering...  {tasks.Count}");
+                    }
+                    else
+                    {
+                        _startAccounting = !_startAccounting;
+                        Console.WriteLine($"gossip = {_startAccounting}");
+                    }
                 }
 
                 if (line.StartsWith("dn "))
@@ -447,11 +484,13 @@ namespace zero.sync
                             var ave = sum / _nodes.Count;
                             long aveDelta = 0;
                             var std = 0;
+                            var i = 0;
                             foreach (var ccCollective in _nodes)
                             {
-                                var delta = (long)ave - (long)ccCollective.EventCount;
-                                aveDelta += Math.Abs(delta) * 2;
+                                var delta = ccCollective.EventCount - ave;
+                                aveDelta += Math.Abs(delta);
 
+                                //Console.Write($"[{i++}]({delta}), ");
                                 Console.Write($"{delta}, ");
                             }
 
@@ -459,8 +498,8 @@ namespace zero.sync
 
                             foreach (var ccCollective in _nodes)
                             {
-                                var delta = (long)ave - (long)ccCollective.EventCount;
-                                if (Math.Abs((double)delta) > aveDelta)
+                                var delta = ccCollective.EventCount - ave;
+                                if (aveDelta > 0 && delta < 0 && ave - delta > aveDelta * 2)
                                     std++;
                             }
 
@@ -468,6 +507,12 @@ namespace zero.sync
                         }
                         catch (Exception) { }
                     }
+                }
+
+                if (line.StartsWith("stream"))
+                {
+                    AutoPeeringEventService.ToggleActive();
+                    Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
                 }
 
                 if (line.StartsWith("zero"))
@@ -537,7 +582,7 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            var c = q.Tail;
+            var c = q.Head;
             while (c != null)
             {
                 Console.Write(c.Value);
@@ -545,21 +590,6 @@ namespace zero.sync
             }
             
             Console.WriteLine("\nDQ head");
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            foreach (var ioZNode in q)
-            {
-                Console.Write(ioZNode.Value);
-            }
-
-            Console.WriteLine();
-            c = q.Tail;
-            while (c != null)
-            {
-                Console.Write(c.Value);
-                c = c.Next;
-            }
-            
-            Console.WriteLine("\nDQ tail");
             q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
             foreach (var ioZNode in q)
             {
@@ -567,7 +597,22 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            c = q.Tail;
+            c = q.Head;
+            while (c != null)
+            {
+                Console.Write(c.Value);
+                c = c.Next;
+            }
+            
+            Console.WriteLine("\nDQ tail");
+            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            foreach (var ioZNode in q)
+            {
+                Console.Write(ioZNode.Value);
+            }
+
+            Console.WriteLine();
+            c = q.Head;
             while (c != null)
             {
                 Console.Write(c.Value);
@@ -577,8 +622,8 @@ namespace zero.sync
 
             Console.WriteLine("\nDQ second last prime");
             q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
             q.DequeueAsync().FastPath().ConfigureAwait(Zc).GetAwaiter();
 
             foreach (var ioZNode in q)
@@ -587,7 +632,7 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            c = q.Tail;
+            c = q.Head;
             while (c != null)
             {
                 Console.Write(c.Value);
@@ -598,8 +643,8 @@ namespace zero.sync
 
             if (true)
             {
-                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();
-                q.RemoveAsync(q.Tail).FastPath().ConfigureAwait(Zc).GetAwaiter();    
+                q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();
+                q.RemoveAsync(q.Head).FastPath().ConfigureAwait(Zc).GetAwaiter();    
             }
 
             foreach (var ioZNode in q)
@@ -608,7 +653,7 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            c = q.Tail;
+            c = q.Head;
             while (c != null)
             {
                 Console.Write(c.Value);
@@ -618,7 +663,7 @@ namespace zero.sync
             var _concurrentTasks = new List<Task>();
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var rounds = 10;
+            var rounds = 20;
             var mult = 1000000;
             for (var i = 0; i < rounds; i++)
             {
@@ -631,9 +676,9 @@ namespace zero.sync
                         try
                         {
                             var eq1 = q.EnqueueAsync(i3);
-                            var eq2 = q.EnqueueAsync(i3 + 1);
+                            var eq2 = q.PushAsync(i3 + 1);
                             var i1 = q.EnqueueAsync(i3 + 2);
-                            var i2 = q.EnqueueAsync(i3 + 3);
+                            var i2 = q.PushAsync(i3 + 3);
                             var i4 = q.EnqueueAsync(i3 + 3);
 
                             await eq2;
@@ -664,7 +709,7 @@ namespace zero.sync
             }
             Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();
             
-            Console.WriteLine($"count = {q.Count}, Head = {q?.Head?.Value}, tail = {q?.Tail?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds*mult*6/(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
+            Console.WriteLine($"count = {q.Count}, Head = {q?.Tail?.Value}, tail = {q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds*mult*6/(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
             
             q.Reset();
             foreach (var ioZNode in q)

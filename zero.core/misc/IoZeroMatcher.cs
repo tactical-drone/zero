@@ -135,7 +135,7 @@ namespace zero.core.misc
                         
                         if (challenge == null)
                         {
-                            var c = state.@this._lut.Tail;
+                            var c = state.@this._lut.Head;
                             long ave = 0;
                             var aveCounter = 0;
                             while(c != null)
@@ -200,13 +200,14 @@ namespace zero.core.misc
                 var cmp = reqHash.Memory;
                 var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-                var cur = @this._lut.Tail;
+                var cur = @this._lut.Head;
                 while (cur != null)
                 {
                     //restart on collisions
                     if (@this._lut.Modified)
                     {
-                        cur = @this._lut.Tail;
+                        cur = @this._lut.Head;
+                        @this._lut.Reset();
                         Thread.Yield();
                         continue;
                     }
@@ -259,7 +260,7 @@ namespace zero.core.misc
         {
             if (_lut.Count > _capacity * 2 / 3)
             {
-                var n = _lut.Tail;
+                var n = _lut.Head;
                 while (n != null)
                 {
                     var t = n.Next;

@@ -68,14 +68,14 @@ namespace zero.core.patterns.queue
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
         
-        private volatile IoZNode _tail = null;
         private volatile IoZNode _head = null;
+        private volatile IoZNode _tail = null;
         private volatile int _count;
         private readonly bool _enableBackPressure;
         
         public int Count => _count;
-        public IoZNode Tail => _tail;
         public IoZNode Head => _head;
+        public IoZNode Tail => _tail;
 
         public IoHeap<IoZNode> NodeHeap => _nodeHeap;
         public IIoZeroSemaphore Pressure => _backPressure;
@@ -129,8 +129,8 @@ namespace zero.core.patterns.queue
                     }
                 }
 
-                _tail = null;
                 _head = null;
+                _tail = null;
                 _iteratorIoZNode = null;
 
                 await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
@@ -196,17 +196,17 @@ namespace zero.core.patterns.queue
                 }
                 blocked = true;
                 
-                node.Prev = _head;
-                if (_head == null)
+                node.Prev = _tail;
+                if (_tail == null)
                 {
-                    _tail = _head = node;
+                    _head = _tail = node;
                 }
-                else if (_head.Prev != null)
+                else if (_tail.Prev != null)
                 {
-                    _head.Prev.Next = node;
+                    _tail.Prev.Next = node;
                 }
 
-                _head = node;
+                _tail = node;
                 
                 Interlocked.Increment(ref _count);
 
@@ -222,7 +222,7 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Blocking enqueue item at the back
+        /// Blocking enqueue item at the head of the Q
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item node</returns>
@@ -260,15 +260,15 @@ namespace zero.core.patterns.queue
                 }
                 blocked = true;
 
-                node.Next = _tail;
-                if (_tail == null)
+                node.Next = _head;
+                if (_head == null)
                 {
-                    _tail = _head = node;
+                    _head = _tail = node;
                 }
                 else
                 {
-                    _tail.Prev = node;
-                    _tail = node;
+                    _head.Prev = node;
+                    _head = node;
                 }
                 
                 Interlocked.Increment(ref _count);
@@ -276,7 +276,6 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _modified = false;
                 if (blocked)
                     _syncRoot.ReleaseAsync();
 
@@ -314,25 +313,23 @@ namespace zero.core.patterns.queue
 
                 _modified = true;
 
-                dq = _head;
-                _head = _head.Prev;
+                dq = _tail;
+                _tail = _tail.Prev;
 
-                if (_head != null)
-                    _head.Next = null;
+                if (_tail != null)
+                    _tail.Next = null;
                 else
-                    _tail = null;
+                    _head = null;
 
                 Interlocked.Decrement(ref _count);
             }
             catch when (_zeroed > 0) { }
             catch (Exception e) when (_zeroed == 0)
             {
-                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed! {nameof(_count)} = {_count}, {nameof(_head)} = {_head}, {nameof(_tail)} = {_tail}, heap => {_nodeHeap.Description}");
+                LogManager.GetCurrentClassLogger().Error(e, $"{_description}: DQ failed! {nameof(_count)} = {_count}, {nameof(_tail)} = {_tail}, {nameof(_head)} = {_head}, heap => {_nodeHeap.Description}");
             }
             finally
             {
-                _modified = false;
-
                 if (_enableBackPressure && _backPressure.ReleaseAsync() == -1)
                 {
                     if(_zeroed == 0 && !_backPressure.Zeroed())
@@ -388,22 +385,21 @@ namespace zero.core.patterns.queue
                     if (next != null)
                         next.Prev = node.Prev;
                     else //we were at the front
-                        _head = node.Prev;
+                        _tail = node.Prev;
                 }
                 else //we were at the back
                 {
-                    _tail = _tail.Next;
-                    if (_tail != null)
-                        _tail.Prev = null;
+                    _head = _head.Next;
+                    if (_head != null)
+                        _head.Prev = null;
                     else
-                        _head = null;
+                        _tail = null;
                 }
 
                 Interlocked.Decrement(ref _count);
             }
             finally
             {
-                _modified = false;
                 _syncRoot.ReleaseAsync();
                 node!.Prev = null;
                 node!.Next = null;
@@ -419,13 +415,14 @@ namespace zero.core.patterns.queue
             if (_count == 0)
                 return false;
 
-            _iteratorIoZNode = _iteratorIoZNode == null ? _head : _iteratorIoZNode.Prev;
+            _iteratorIoZNode = _iteratorIoZNode == null ? _tail : _iteratorIoZNode.Prev;
             
             return _iteratorIoZNode != null;
         }
 
         public void Reset()
         {
+            _modified = false;
             _iteratorIoZNode = null;
         }
 
@@ -439,12 +436,12 @@ namespace zero.core.patterns.queue
             //TODO why does this execute?
             //_backPressure = null;
             //_asyncTasks = null;
-            //_head = null;
+            //_tail = null;
             //_iteratorIoZNode = null;
             //_nodeHeap = null;
             //_pressure = null;
             //_syncRoot = null;
-            //_tail = null;
+            //_head = null;
         }
 
         public IEnumerator<IoZNode> GetEnumerator()
@@ -467,7 +464,7 @@ namespace zero.core.patterns.queue
                 var cur = Head;
                 while (cur != null)
                 {
-                    var tmp = cur.Prev;
+                    var tmp = cur.Next;
                     cur.Prev = null;
                     cur.Value = default;
                     cur.Next = null;
@@ -476,26 +473,44 @@ namespace zero.core.patterns.queue
                 }
 
                 _count = 0;
-                _head = _tail = null;
+                _tail = _head = null;
             }
             finally
             {
                 _syncRoot.ReleaseAsync();
             }
-
         }
 
         /// <summary>
         /// Clip the queue
         /// </summary>
-        /// <param name="cur">The new head pointer</param>
+        /// <param name="crisper">The new head pointer</param>
         /// <param name="count">The number of elements clipped</param>
-        public void Clip(IoZNode cur, int count)
+        public async ValueTask ClipAsync(IoZNode crisper)
         {
-            _head = cur;
-            Interlocked.Add(ref _count, -count);
-            if (_count == 0)
-                _tail = null;
+            try
+            {
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc))
+                    return;
+
+                var cur = _head;
+                var c = 0;
+                while (cur != crisper)
+                {
+                    await _nodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(Zc);
+                    cur = cur.Next;
+                    c++;
+                }
+
+                _head = crisper;
+                Interlocked.Add(ref _count, -c);
+                if (_count == 0)
+                    _tail = null;
+            }
+            finally
+            {
+                _syncRoot.ReleaseAsync();
+            }
         }
     }
 }

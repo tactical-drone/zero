@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.semaphore
@@ -130,6 +126,11 @@ namespace zero.core.patterns.semaphore
         }
 
         int IIoZeroSemaphore.ZeroAsyncCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        bool IIoZeroSemaphore.ZeroEnter()
         {
             throw new NotImplementedException();
         }
