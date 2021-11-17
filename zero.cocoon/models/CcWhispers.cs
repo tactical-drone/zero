@@ -195,7 +195,7 @@ namespace zero.cocoon.models
                     {
                         try
                         {
-                            if (CcCollective.DupSyncRoot.ReleaseAsync() == -1)
+                            if (CcCollective.DupSyncRoot.Release() == -1)
                             {
                                 if (CcCollective != null && !CcCollective.DupSyncRoot.Zeroed() && !Zeroed() && !Source.Zeroed())
                                 {

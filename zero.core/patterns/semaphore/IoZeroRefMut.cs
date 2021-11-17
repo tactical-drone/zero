@@ -46,7 +46,7 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        public ValueTask<int> ReleaseAsync(int releaseCount = 1, bool async = false)
+        public ValueTask<int> Release(int releaseCount = 1, bool async = false)
         {
             _semaphore.Set();
             return ValueTask.FromResult(1);

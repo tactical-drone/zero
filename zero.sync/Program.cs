@@ -85,7 +85,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 500;
+            var total = 400;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -392,7 +392,7 @@ namespace zero.sync
                         _rampDelay = 1500;
                         _rampTarget = 1000;
                         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        var threads = 1;
+                        var threads = 2;
                         _running = true;
                         for (int i = 0; i < threads; i++)
                         {
@@ -965,7 +965,7 @@ namespace zero.sync
                            
                            try
                            {
-                               Interlocked.Add(ref semCount, curCount = mutex.ReleaseAsync(releaseCount, true));
+                               Interlocked.Add(ref semCount, curCount = mutex.Release(releaseCount));
 
                                Interlocked.Increment(ref semPollCount);
                                Interlocked.Increment(ref dq[i1]);

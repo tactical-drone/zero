@@ -486,7 +486,7 @@ namespace zero.core.patterns.misc
         //                }
         //                finally
         //                {
-        //                    await _nanoMutex.ReleaseAsync().FastPath().ConfigureAwait(Zc);
+        //                    await _nanoMutex.Release().FastPath().ConfigureAwait(Zc);
         //                }
         //            }
         //            else

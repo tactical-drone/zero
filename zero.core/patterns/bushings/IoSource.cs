@@ -409,7 +409,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> PressureAsync(int releaseCount = 1)
         {
-            return new ValueTask<int>(_pressure.ReleaseAsync(releaseCount, MaxAsyncSources > 0));
+            return new ValueTask<int>(_pressure.Release(releaseCount));
         }
 
         /// <summary>
@@ -431,7 +431,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BackPressureAsync(int releaseCount = 1)
         {
-            return _backPressure.ReleaseAsync(releaseCount, MaxAsyncSinks > 0);
+            return _backPressure.Release(releaseCount);
         }
 
         /// <summary>
@@ -452,7 +452,7 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PrefetchPressure(int releaseCount = 1)
         {
-            return _prefetchPressure.ReleaseAsync(releaseCount, MaxAsyncSources > 0);
+            return _prefetchPressure.Release(releaseCount);
         }
 
         /// <summary>

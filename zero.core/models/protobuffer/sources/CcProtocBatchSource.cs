@@ -145,7 +145,7 @@ namespace zero.core.models.protobuffer.sources
 
                 var plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
 
-                _queuePressure.ReleaseAsync();
+                _queuePressure.Release();
                 
                 return plugged;
             }

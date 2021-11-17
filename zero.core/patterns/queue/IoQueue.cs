@@ -215,9 +215,9 @@ namespace zero.core.patterns.queue
             finally
             {
                 if(blocked)
-                    _syncRoot.ReleaseAsync();
+                    _syncRoot.Release();
 
-                _pressure?.ReleaseAsync();
+                _pressure?.Release();
             }
         }
 
@@ -277,9 +277,9 @@ namespace zero.core.patterns.queue
             finally
             {
                 if (blocked)
-                    _syncRoot.ReleaseAsync();
+                    _syncRoot.Release();
 
-                _pressure?.ReleaseAsync();
+                _pressure?.Release();
             }
         }
 
@@ -330,14 +330,14 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                if (_enableBackPressure && _backPressure.ReleaseAsync() == -1)
+                if (_enableBackPressure && _backPressure.Release() == -1)
                 {
                     if(_zeroed == 0 && !_backPressure.Zeroed())
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}.{nameof(_backPressure.ReleaseAsync)}: back pressure release failure ~> {_backPressure}");
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}.{nameof(_backPressure.Release)}: back pressure release failure ~> {_backPressure}");
                 }
 
                 if (blocked)
-                    _syncRoot.ReleaseAsync();
+                    _syncRoot.Release();
             }
             //return dequeued item
             
@@ -400,7 +400,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.ReleaseAsync();
+                _syncRoot.Release();
                 node!.Prev = null;
                 node!.Next = null;
             }
@@ -477,7 +477,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.ReleaseAsync();
+                _syncRoot.Release();
             }
         }
 
@@ -509,7 +509,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                _syncRoot.ReleaseAsync();
+                _syncRoot.Release();
             }
         }
     }

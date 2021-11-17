@@ -9,7 +9,7 @@ namespace zero.core.patterns.semaphore.core
     {
         void ZeroRef(ref IIoZeroSemaphore @ref, CancellationTokenSource asyncToken);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int ReleaseAsync(int releaseCount = 1, bool asynch = false, bool bestEffort = false);
+        int Release(int releaseCount = 1, bool bestEffort = false);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         ValueTask<bool> WaitAsync();
         void Zero();

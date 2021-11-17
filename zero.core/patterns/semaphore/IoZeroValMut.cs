@@ -104,7 +104,7 @@ namespace zero.core.patterns.semaphore
         }
 
 #pragma warning disable CS1066 // The default value specified will have no effect because it applies to a member that is used in contexts that do not allow optional arguments
-        int IIoZeroSemaphore.ReleaseAsync(int releaseCount, bool asynch = false, bool bestEffort = false)
+        int IIoZeroSemaphore.Release(int releaseCount, bool bestEffort = false)
 #pragma warning restore CS1066 // The default value specified will have no effect because it applies to a member that is used in contexts that do not allow optional arguments
         {
             throw new NotImplementedException();

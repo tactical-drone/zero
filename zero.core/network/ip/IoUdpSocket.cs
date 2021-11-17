@@ -398,7 +398,7 @@ namespace zero.core.network.ip
                 if (tcs != default)
                     await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(Zc);
 
-                _sendSync.ReleaseAsync();
+                _sendSync.Release();
             }
 
             return 0;
@@ -424,7 +424,7 @@ namespace zero.core.network.ip
         {
             try
             {
-                ((IIoZeroSemaphore)eventArgs.UserToken)!.ReleaseAsync();
+                ((IIoZeroSemaphore)eventArgs.UserToken)!.Release();
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -535,7 +535,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                _rcvSync.ReleaseAsync();
+                _rcvSync.Release();
             }
 
             return 0;
