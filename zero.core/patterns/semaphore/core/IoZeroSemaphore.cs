@@ -441,7 +441,7 @@ namespace zero.core.patterns.semaphore.core
                 if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
                 {
                     var sc = SynchronizationContext.Current;
-                    if (sc != null && sc.GetType() != typeof(SynchronizationContext))
+                    if (sc != null && sc.GetType() == typeof(SynchronizationContext))
                     {
                         cc = sc;
                     }
@@ -856,24 +856,15 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool IIoZeroSemaphore.ZeroEnter()
         {
-            if (_curSignalCount <= 0)
-                return false;
-
+            int slot = -1;
             var latch = _curSignalCount;
 
-            if (latch <= 0)
-                return false;
-
-            int slot = -1;
-            while (_curSignalCount > 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
+            while (latch > 0 && (slot = Interlocked.CompareExchange(ref _curSignalCount, latch - 1, latch)) != latch)
             {
                 if (slot == 0)
                     return false;
 
                 latch = _curSignalCount;
-
-                if (latch <= 0)
-                    return false;
             }
 
             return slot == latch;
