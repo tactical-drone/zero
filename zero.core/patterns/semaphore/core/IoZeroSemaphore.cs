@@ -248,7 +248,7 @@ namespace zero.core.patterns.semaphore.core
             {
                 var (z, t, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
                 z.Zero();
-#if NET6
+#if NET6_0
                 r.Unregister();
 #endif
                 r.Dispose();
@@ -267,7 +267,7 @@ namespace zero.core.patterns.semaphore.core
             {
                 if(_asyncTasks.Token.CanBeCanceled)
                     _asyncTasks.Cancel();
-#if NET6
+#if NET6_0
                 _asyncTokenReg.Unregister();
 #endif
                 _asyncTokenReg.Dispose();

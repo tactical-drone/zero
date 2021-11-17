@@ -143,7 +143,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Connecting
         /// </summary>
-#if NET6
+#if NET6_0
         private int WSAEWOULDBLOCK = 10035;
 #endif
 

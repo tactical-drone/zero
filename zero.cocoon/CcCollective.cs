@@ -166,7 +166,7 @@ namespace zero.cocoon
                             }
                         }
 
-                        if (@this.Neighbors.Count == 0 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay && !Zeroed())
+                        if (@this.Neighbors.Count <= parm_max_drone / 2 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay && !Zeroed())
                         {
                             //bootstrap if alone
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(Zc);

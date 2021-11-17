@@ -28,7 +28,7 @@ namespace zero.cocoon.events.services
             new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 1000)
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile int _curIdx;
         public static bool Operational => _operational > 0;
@@ -42,12 +42,10 @@ namespace zero.cocoon.events.services
                 if (_operational == 0)
                     return response;
 
-                //block a bit on empty queues
-                if (_queuedEvents[_curIdx%2].Count == 0)
-                    await Task.Delay(200).ConfigureAwait(Zc);
-
                 var curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx) - 1) % 2];
 
+                if (curQ.Count == 0)
+                    return null;
 
                 int c = 0;
                 AutoPeerEvent cur;

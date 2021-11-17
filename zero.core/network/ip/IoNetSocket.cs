@@ -41,7 +41,7 @@ namespace zero.core.network.ip
         [IoParameter]
         private bool parm_enable_tcp_keep_alive = false;        
         [IoParameter]
-#if NET6
+#if NET6_0
         private int parm_enable_tcp_keep_alive_time = 120;
         [IoParameter]
         private int parm_enable_tcp_keep_alive_retry_interval_sec = 2;
@@ -96,7 +96,7 @@ namespace zero.core.network.ip
             if(NativeSocket.ProtocolType  == ProtocolType.Tcp && parm_enable_tcp_keep_alive)
             {
                 NativeSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-#if NET6
+#if NET6_0
                 NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, parm_enable_tcp_keep_alive_retry_interval_sec);
                 NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, parm_enable_tcp_keep_alive_time);
                 NativeSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, parm_enable_tcp_keep_alive_retry_count);
