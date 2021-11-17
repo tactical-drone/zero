@@ -40,7 +40,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc, cc, 0, 0);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc, cc, cc/2, cc/2);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,

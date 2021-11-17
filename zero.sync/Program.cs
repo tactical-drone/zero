@@ -85,7 +85,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 150;
+            var total = 500;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -384,6 +384,7 @@ namespace zero.sync
                             _startAccounting = false;
                             Task.WaitAll(gossipTasks.ToArray());
                             gossipTasks.Clear();
+                            AutoPeeringEventService._queuedEvents[0].ClearAsync().GetAwaiter();
                         }
 
                         long v = 1;

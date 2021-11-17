@@ -2,7 +2,6 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -11,12 +10,8 @@ using zero.core.patterns.misc;
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// Zero Semaphore with strong order guarantees, mostly FIFO. 
+    /// Zero Semaphore with strong order guarantees
     /// 
-    /// LIFO upon entering (or scheduling) on a signalled semaphore.
-    /// 
-    /// Set <see cref="enableFairQ"/> to true to force FIFO at basically zero cost.
-    ///
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
     public struct IoZeroSemaphore : IIoZeroSemaphore
@@ -49,9 +44,9 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{_description}: invalid {nameof(initialCount)} = {initialCount} specified, larger than {nameof(maxBlockers)} * 2 = {maxBlockers * 2}");
 
             _maxBlockers = maxBlockers;
-            _useMemoryBarrier = _forceFairQ = enableFairQ;
+            _useMemoryBarrier = enableFairQ;
             _maxAsyncWorkers = concurrencyLevel;
-            _runContinuationsAsynchronously = _maxAsyncWorkers > 0;
+            RunContinuationsAsynchronously = _maxAsyncWorkers > 0;
             _curSignalCount = initialCount;
             _zeroRef = null;
             _asyncTasks = default;
@@ -76,7 +71,6 @@ namespace zero.core.patterns.semaphore.core
         /// use memory barrier setting
         /// </summary>
         private readonly bool _useMemoryBarrier;
-        private readonly bool _forceFairQ;
 
         #endregion
 
@@ -113,7 +107,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Whether we support async continuations 
         /// </summary>
-        internal readonly bool _runContinuationsAsynchronously;
+        internal readonly bool RunContinuationsAsynchronously;
 
         /// <summary>
         /// Current number of async workers
@@ -180,12 +174,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
-        private ExecutionContext[] _signalExecutionState;
+        private readonly ExecutionContext[] _signalExecutionState;
 
         /// <summary>
         /// Holds the state of a queued item
         /// </summary>
-        private object[] _signalCapturedContext;
+        private readonly object[] _signalCapturedContext;
 
         /// <summary>
         /// A pointer to the head of the Q
@@ -246,7 +240,7 @@ namespace zero.core.patterns.semaphore.core
 
             _asyncTokenReg = asyncTokenSource.Token.Register(s =>
             {
-                var (z, t, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
+                var (z, _, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
                 z.Zero();
 #if NET6_0
                 r.Unregister();
@@ -296,17 +290,13 @@ namespace zero.core.patterns.semaphore.core
 
                     var executionState = Interlocked.CompareExchange(ref _signalExecutionState[i], null, _signalExecutionState[i]);
                     var context = Interlocked.CompareExchange(ref _signalCapturedContext[i], null, _signalCapturedContext[i]);
-                    if (waiter != null)
+                    try
                     {
-                        try
-                        {
-                            if (waiter != null && state != null)
-                                ZeroComply(waiter, state, executionState, context);
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
+                        ZeroComply(waiter, state, executionState, context);
+                    }
+                    catch
+                    {
+                        // ignored
                     }
                 }
                 
@@ -418,16 +408,15 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="token">The safety token</param>
         /// <param name="flags">FLAGS</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void OnCompleted(Action<object> continuation, object state, short token,
-            ValueTaskSourceOnCompletedFlags flags)
+        public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
         {
 #if TOKEN
             if (_zeroRef.ZeroToken() != token)
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_zeroRef.ZeroToken()}");
 #endif
 
-            ExecutionContext executionContext = default;
-            object capturedContext = default;
+            ExecutionContext executionContext;
+            object capturedContext;
 
             void ExtractStack(out ExecutionContext ec, out object cc)
             {
@@ -540,10 +529,14 @@ namespace zero.core.patterns.semaphore.core
                 switch (capturedContext)
                 {
                     case null:
-                        if (_runContinuationsAsynchronously)
+                        if (RunContinuationsAsynchronously)
                         {
                             if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
-                                Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                                Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).ContinueWith(
+                                    (_, zeroRef) =>
+                                    {
+                                        ((IIoZeroSemaphore) zeroRef).ZeroDecAsyncCount();
+                                    }, _zeroRef);
                             else
                                 _zeroRef.ZeroDecAsyncCount();
                         }
@@ -619,7 +612,7 @@ namespace zero.core.patterns.semaphore.core
             
             //copy Q
             
-            var j = (int)0;
+            var j = 0;
             //special zero case
             if (_zeroRef.ZeroTail() != _zeroRef.ZeroHead() || prevZeroState[_zeroRef.ZeroTail()] != null && prevZeroQ.Length == 1)
             {
@@ -629,7 +622,7 @@ namespace zero.core.patterns.semaphore.core
             }
             else
             {
-                for (var i = _zeroRef.ZeroTail(); i != _zeroRef.ZeroHead() || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % (int)prevZeroQ.Length)
+                for (var i = _zeroRef.ZeroTail(); i != _zeroRef.ZeroHead() || prevZeroState[i] != null && j < _maxBlockers; i = (i + 1) % prevZeroQ.Length)
                 {
                     _signalAwaiter[j] = prevZeroQ[i];
                     _signalAwaiterState[j] = prevZeroState[i];
@@ -879,13 +872,13 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IIoZeroSemaphore.ZeroHead()
         {
-            return (int)(_head % _maxBlockers);
+            return _head % _maxBlockers;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IIoZeroSemaphore.ZeroTail()
         {
-            return (int)(_tail % _maxBlockers);
+            return _tail % _maxBlockers;
         }
 
 
