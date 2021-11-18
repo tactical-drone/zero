@@ -434,13 +434,14 @@ namespace zero.core.patterns.semaphore.core
                 }
             }
 
+            ExtractStack(out executionContext, out capturedContext);
+
             //lock
             ZeroLock();
 
             //choose a head index for blocking state
             var headIdx = (_zeroRef.ZeroNextHead() - 1) % _maxBlockers;
             Action<object> slot = null;
-
             //Did we win?
             while ( _zeroRef.ZeroWaitCount() < _maxBlockers && (slot = Interlocked.CompareExchange(ref _signalAwaiter[headIdx], continuation, null)) != null )
             {                
@@ -450,16 +451,18 @@ namespace zero.core.patterns.semaphore.core
             
             if (slot == null)
             {
-                ExtractStack(out executionContext, out capturedContext);
-
-                _signalAwaiterState[headIdx] = state;
                 _signalExecutionState[headIdx] = executionContext;
                 _signalCapturedContext[headIdx] = capturedContext;
+                Thread.MemoryBarrier();
+                _signalAwaiterState[headIdx] = state;
                 
                 _zeroRef.ZeroIncWait();
                 ZeroUnlock();
+                return;
             }
-            else if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
+
+            _zeroRef.ZeroPrevHead();
+            if (_enableAutoScale) //EXPERIMENTAL: double concurrent capacity
             {
                 //release lock
                 ZeroUnlock();
@@ -656,8 +659,8 @@ namespace zero.core.patterns.semaphore.core
             Debug.Assert(_zeroRef != null);
 
             //preconditions
-            if(releaseCount < 1 || releaseCount - _zeroRef.ZeroCount() > _maxBlockers)
-                throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
+            //if(releaseCount < 1 || releaseCount - _zeroRef.ZeroCount() > _maxBlockers)
+            //    throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
 
             //fail fast on cancellation token
             if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
@@ -680,22 +683,46 @@ namespace zero.core.patterns.semaphore.core
                 var latchIdx = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
                 var latch = _signalAwaiter[latchIdx];
 
+                worker.State = _signalAwaiterState[latchIdx];
+                worker.ExecutionContext = _signalExecutionState[latchIdx];
+                worker.CapturedContext = _signalCapturedContext[latchIdx];
                 //latch a chosen head
-                while (_zeroRef.ZeroWaitCount() > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, latch)) == null) {
+                while (latch != null && _zeroRef.ZeroWaitCount() > 0 && (worker.Continuation = Interlocked.CompareExchange(ref _signalAwaiter[latchIdx], null, latch)) != latch) {
                     _zeroRef.ZeroPrevTail();
                     latchIdx = (_zeroRef.ZeroNextTail() - 1) % _maxBlockers;
                     latch = _signalAwaiter[latchIdx];
+                    worker.State = _signalAwaiterState[latchIdx];
+                    worker.ExecutionContext = _signalExecutionState[latchIdx];
+                    worker.CapturedContext = _signalCapturedContext[latchIdx];
                 }
 
                 if (worker.Continuation == null)
+                {
+                    if(latch != null)
+                        _zeroRef.ZeroPrevTail();
                     continue;
+                }
+
+                //Just in case
+                while (worker.State == null)
+                    worker.State = _signalAwaiterState[latchIdx];
+
+                worker.ExecutionContext ??= _signalExecutionState[latchIdx];
+                worker.CapturedContext ??= _signalCapturedContext[latchIdx];
 
                 //count the number of overall waiters
                 _zeroRef.ZeroDecWait();
 
-                worker.State = _signalAwaiterState[latchIdx];
-                worker.ExecutionContext = _signalExecutionState[latchIdx];
-                worker.CapturedContext = _signalCapturedContext[latchIdx];
+                //worker.State = _signalAwaiterState[latchIdx];
+
+                //if (worker.State == null)
+
+                //{
+                //    Console.WriteLine("*");
+                //}
+                
+                //worker.ExecutionContext = _signalExecutionState[latchIdx];
+                //worker.CapturedContext = _signalCapturedContext[latchIdx];
 
                 _signalAwaiterState[latchIdx] = null;
                 _signalExecutionState[latchIdx] = null;

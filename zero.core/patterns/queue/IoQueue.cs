@@ -167,7 +167,8 @@ namespace zero.core.patterns.queue
         /// <returns>The queued item's linked list node</returns>
         public async ValueTask<IoZNode> PushAsync(T item)
         {
-            var blocked = false;
+            var entered = false;
+            IoZNode retVal = default;
             try
             {
                 if (_zeroed > 0 || item == null)
@@ -181,43 +182,47 @@ namespace zero.core.patterns.queue
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
                     return null;
                 }
-                    
-
+                
                 var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
                 node.Value = item;
+                node.Prev = null;
+                node.Next = null;
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc); ;
                     return null;
                 }
-                blocked = true;
+                entered = true;
                 
-                node.Prev = _tail;
                 if (_tail == null)
                 {
                     _head = _tail = node;
                 }
-                else if (_tail.Prev != null)
+                else 
                 {
-                    _tail.Prev.Next = node;
+                    node.Prev = _tail;
+                    _tail.Next = node;
+                    _tail = node;
                 }
 
-                _tail = node;
-                
-                Interlocked.Increment(ref _count);
-
-                return node;
+                return retVal = node;
             }
             finally
             {
-                if(blocked)
+                var success = _tail == retVal;
+
+                if (success)
+                    Interlocked.Increment(ref _count);
+
+                if (entered)
                     _syncRoot.Release();
 
-                _pressure?.Release();
+                if (success)
+                    _pressure?.Release();
             }
         }
 
@@ -235,7 +240,8 @@ namespace zero.core.patterns.queue
                 return null;
             }
             
-            var blocked = false;
+            var entered = false;
+            IoZNode retVal = default;
             try
             {
                 //wait on back pressure
@@ -251,35 +257,42 @@ namespace zero.core.patterns.queue
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
                 
                 node.Value = item;
-                
+                node.Prev = null;
+                node.Next = null;
+
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
                     await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc);
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncRoot}");
                     return null;
                 }
-                blocked = true;
+                entered = true;
 
-                node.Next = _head;
                 if (_head == null)
                 {
                     _head = _tail = node;
                 }
                 else
                 {
+                    node.Next = _head;
                     _head.Prev = node;
                     _head = node;
                 }
                 
-                Interlocked.Increment(ref _count);
-                return node;
+                return retVal = node;
             }
             finally
             {
-                if (blocked)
+                var success = retVal != null;
+
+                if (success)
+                    Interlocked.Increment(ref _count);
+
+                if (entered)
                     _syncRoot.Release();
 
-                _pressure?.Release();
+                if(success)
+                    _pressure?.Release();
             }
         }
 
@@ -308,7 +321,7 @@ namespace zero.core.patterns.queue
 
                 blocked = true;
 
-                if (_count <= 0)
+                if (_count == 0)
                     return default;
 
                 _modified = true;
@@ -376,7 +389,7 @@ namespace zero.core.patterns.queue
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return false;
                 _modified = true;
-                //unhook
+
                 if (node.Prev != null)
                 {
                     var next = node.Next;
@@ -384,10 +397,10 @@ namespace zero.core.patterns.queue
 
                     if (next != null)
                         next.Prev = node.Prev;
-                    else //we were at the front
+                    else 
                         _tail = node.Prev;
                 }
-                else //we were at the back
+                else
                 {
                     _head = _head.Next;
                     if (_head != null)
@@ -401,8 +414,6 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
-                node!.Prev = null;
-                node!.Next = null;
             }
 
             await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc);
@@ -415,7 +426,7 @@ namespace zero.core.patterns.queue
             if (_count == 0)
                 return false;
 
-            _iteratorIoZNode = _iteratorIoZNode == null ? _tail : _iteratorIoZNode.Prev;
+            _iteratorIoZNode = _iteratorIoZNode == null ? _head : _iteratorIoZNode.Next;
             
             return _iteratorIoZNode != null;
         }

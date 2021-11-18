@@ -560,15 +560,15 @@ namespace zero.sync
         {
 
             IoQueue<int> q = new IoQueue<int>("test", 2000000000, 100);
-            var head = q.EnqueueAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-            q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            var head = q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            q.EnqueueAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.PushAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.PushAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
             var five = q.EnqueueAsync(5).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-            q.EnqueueAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.EnqueueAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            var tail = q.EnqueueAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            q.PushAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.PushAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.PushAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            var tail = q.PushAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
 
             Console.WriteLine("Init");
             foreach (var ioZNode in q)
@@ -583,11 +583,11 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            var c = q.Head;
+            var c = q.Tail;
             while (c != null)
             {
                 Console.Write(c.Value);
-                c = c.Next;
+                c = c.Prev;
             }
             
             Console.WriteLine("\nDQ head");
@@ -598,11 +598,11 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            c = q.Head;
+            c = q.Tail;
             while (c != null)
             {
                 Console.Write(c.Value);
-                c = c.Next;
+                c = c.Prev;
             }
             
             Console.WriteLine("\nDQ tail");
@@ -613,11 +613,11 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            c = q.Head;
+            c = q.Tail;
             while (c != null)
             {
                 Console.Write(c.Value);
-                c = c.Next;
+                c = c.Prev;
             }
             
 
@@ -633,11 +633,11 @@ namespace zero.sync
             }
 
             Console.WriteLine();
-            c = q.Head;
+            c = q.Tail;
             while (c != null)
             {
                 Console.Write(c.Value);
-                c = c.Next;
+                c = c.Prev;
             }
             
             Console.WriteLine("\nDQ second last");
@@ -680,7 +680,7 @@ namespace zero.sync
                             var eq2 = q.PushAsync(i3 + 1);
                             var i1 = q.EnqueueAsync(i3 + 2);
                             var i2 = q.PushAsync(i3 + 3);
-                            var i4 = q.EnqueueAsync(i3 + 3);
+                            var i4 = q.EnqueueAsync(i3 + 4);
 
                             await eq2;
                             await eq1;
@@ -688,17 +688,18 @@ namespace zero.sync
                             await i2;
                             await i1;
 
-                            var d1 = q.RemoveAsync(i2.Result);
+                            //await q.RemoveAsync(i1.Result);
+
+                            //await q.RemoveAsync(i2.Result);
                             var d2 = q.DequeueAsync();
-                            var d3 = q.RemoveAsync(i1.Result).FastPath().ConfigureAwait(Zc);
+                            
                             var d4 = q.DequeueAsync();
                             var d5 = q.DequeueAsync();
-
+                            await q.DequeueAsync();
+                            await q.DequeueAsync();
                             await d5;
                             await d4;
-                            await d3;
                             await d2;
-                            await d1;
                         }
                         catch (Exception e)
                         {

@@ -128,8 +128,13 @@ namespace zero.core.patterns.queue
                 target = _storage[latch];
             }
 
-            if (result != target || result == default) return false;
-            
+            if (result != target || result == default)
+            {
+                Interlocked.Decrement(ref _tail);
+                return false;
+            }
+
+
             Interlocked.Decrement(ref _count);
 
             if(latch >= _iteratorIdx)
