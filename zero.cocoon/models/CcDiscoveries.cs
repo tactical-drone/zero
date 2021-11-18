@@ -244,11 +244,11 @@ namespace zero.cocoon.models
                         totalBytesProcessed += read;
 
                         //sync fragmented datums
-                        if (IoZero.SyncRecoveryModeEnabled && totalBytesProcessed == BytesRead && State != IoJobMeta.JobState.Consumed)//TODO hacky
-                        {
-                            read = 0;
-                            State = IoJobMeta.JobState.ConInlined;
-                        }
+                        //if (IoZero.SyncRecoveryModeEnabled && totalBytesProcessed == BytesRead && State != IoJobMeta.JobState.Consumed)//TODO hacky
+                        //{
+                        //    read = 0;
+                        //    State = IoJobMeta.JobState.ConInlined;
+                        //}
 
                         var tmpBufferOffset = BufferOffset;
 

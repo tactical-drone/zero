@@ -21,7 +21,7 @@ namespace zero.cocoon.models
     {
         public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
-
+            
         }
 
         /// <summary>

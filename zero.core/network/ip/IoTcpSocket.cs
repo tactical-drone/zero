@@ -158,8 +158,6 @@ namespace zero.core.network.ip
             if (!await base.ConnectAsync(remoteAddress, timeout).FastPath().ConfigureAwait(Zc))
                 return false;
 
-            //NativeSocket.Blocking = false;
-
             ConfigureSocket();
 
             _sw.Restart();
@@ -182,9 +180,6 @@ namespace zero.core.network.ip
 
                 await result.ConfigureAwait(Zc);
 
-                //var result = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, null, null);
-                //result.AsyncWaitHandle.WaitOne(timeout);
-
                 if (!IsConnected())
                     return false;
 
@@ -198,24 +193,6 @@ namespace zero.core.network.ip
             }
             catch (SocketException e)
             {
-                {
-                    //if (exception.ErrorCode == WSAEWOULDBLOCK)
-                    //{
-                    //    while (!Zeroed() && _sw.ElapsedMilliseconds < 10000 &&
-                    //           !NativeSocket.Poll(100000, SelectMode.SelectError) &&
-                    //           !NativeSocket.Poll(100000, SelectMode.SelectWrite))
-                    //    { }
-
-                    //    if (Zeroed() || _sw.ElapsedMilliseconds >= 10000)
-                    //    {
-                    //        NativeSocket.Close();
-                    //        return false;
-                    //    }
-                    //}
-                }
-
-                //NativeSocket.Blocking = true;
-
                 _logger.Trace(e,$"Failed connecting to `{RemoteNodeAddress}': ({Description})");
                 return false;
             }
@@ -254,10 +231,9 @@ namespace zero.core.network.ip
                 var sent = NativeSocket.Send(buffer.Span.Slice(offset,length));                
                 return sent;
             }
-            catch (SocketException) when (!Zeroed())
+            catch (SocketException e) when (!Zeroed())
             {
-                //TODO why is this spamming An established connection was aborted?
-                //_logger.Trace( $"{nameof(SendAsync)}: {Description}, {e.Message}");
+                _logger.Debug($"{nameof(SendAsync)}: {e.Message} - {Description}");
                 await ZeroAsync(this).FastPath().ConfigureAwait(Zc);
             }
             catch (Exception) when (Zeroed()){}
@@ -306,7 +282,7 @@ namespace zero.core.network.ip
             }
             catch (SocketException e) when (!Zeroed())
             {
-                _logger.Trace($"{nameof(ReadAsync)}: {Description}, {e.Message}");
+                _logger.Debug($"{nameof(ReadAsync)}: {e.Message} -  {Description}");
                 await ZeroAsync(this).FastPath().ConfigureAwait(Zc);
             }
             catch (Exception) when (Zeroed()){}

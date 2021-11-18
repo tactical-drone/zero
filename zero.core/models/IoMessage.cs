@@ -160,7 +160,7 @@ namespace zero.core.models
                 BufferOffset-=bytesLeft;
                 BytesRead += bytesLeft;
 
-                p.MemoryBuffer.Slice((int)(p.BufferOffset + p.BytesRead - p.BytesLeftToProcess)).CopyTo(MemoryBuffer[(int)BufferOffset..]);
+                p.MemoryBuffer.Slice(DatumProvisionLengthMax + p.BytesRead - bytesLeft).CopyTo(MemoryBuffer[BufferOffset..]);
                 
                 p.State = IoJobMeta.JobState.Consumed;
                 p.State = IoJobMeta.JobState.Accept;
@@ -185,7 +185,7 @@ namespace zero.core.models
         {
             //Set how many datums we have available to process
             DatumCount = BytesLeftToProcess / DatumSize;
-            DatumFragmentLength = BytesLeftToProcess % DatumSize;
+            DatumFragmentLength = BytesLeftToProcess;
 
             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
             Syncing = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State == IoJobMeta.JobState.Consumed;
