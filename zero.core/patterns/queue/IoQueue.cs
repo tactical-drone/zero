@@ -161,11 +161,11 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Blocking enqueue at the front
+        /// Blocking enqueue at the back
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item's linked list node</returns>
-        public async ValueTask<IoZNode> PushAsync(T item)
+        public async ValueTask<IoZNode> EnqueueAsync(T item)
         {
             var entered = false;
             IoZNode retVal = default;
@@ -232,7 +232,7 @@ namespace zero.core.patterns.queue
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item node</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask<IoZNode> EnqueueAsync(T item)
+        public async ValueTask<IoZNode> PushBackAsync(T item)
         {
             if (_zeroed > 0 || item == null)
             {
@@ -248,7 +248,7 @@ namespace zero.core.patterns.queue
                 if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
                     if (_zeroed == 0 && !_backPressure.Zeroed())
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
+                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
                     return null;
                 }
 
@@ -268,15 +268,15 @@ namespace zero.core.patterns.queue
                 }
                 entered = true;
 
-                if (_head == null)
+                if (_tail == null)
                 {
                     _head = _tail = node;
                 }
                 else
                 {
-                    node.Next = _head;
-                    _head.Prev = node;
-                    _head = node;
+                    node.Prev = _tail;
+                    _tail.Next = node;
+                    _tail = node;
                 }
                 
                 return retVal = node;
@@ -326,13 +326,13 @@ namespace zero.core.patterns.queue
 
                 _modified = true;
 
-                dq = _tail;
-                _tail = _tail.Prev;
+                dq = _head;
+                _head = _head.Next;
 
-                if (_tail != null)
-                    _tail.Next = null;
+                if (_head != null)
+                    _head.Prev = null;
                 else
-                    _head = null;
+                    _tail = null;
 
                 Interlocked.Decrement(ref _count);
             }
@@ -358,7 +358,6 @@ namespace zero.core.patterns.queue
             {
                 if (dq != null)
                 {
-                    dq.Prev = null;
                     var retVal = dq.Value;
                     await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(Zc);
                     return retVal;

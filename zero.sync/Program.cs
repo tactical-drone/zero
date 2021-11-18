@@ -85,7 +85,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 1200;
+            var total = 150;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -560,15 +560,15 @@ namespace zero.sync
         {
 
             IoQueue<int> q = new IoQueue<int>("test", 2000000000, 100);
-            var head = q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-            q.EnqueueAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.PushAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.PushAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            var five = q.EnqueueAsync(5).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
-            q.PushAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.PushAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            q.PushAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
-            var tail = q.PushAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(4).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            var five = q.PushBackAsync(5).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
+            q.EnqueueAsync(6).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(7).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            q.EnqueueAsync(8).FastPath().ConfigureAwait(Zc).GetAwaiter();
+            var tail = q.EnqueueAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
 
             Console.WriteLine("Init");
             foreach (var ioZNode in q)
@@ -676,11 +676,11 @@ namespace zero.sync
                     {
                         try
                         {
-                            var eq1 = q.EnqueueAsync(i3);
-                            var eq2 = q.PushAsync(i3 + 1);
-                            var i1 = q.EnqueueAsync(i3 + 2);
-                            var i2 = q.PushAsync(i3 + 3);
-                            var i4 = q.EnqueueAsync(i3 + 4);
+                            var eq1 = q.PushBackAsync(i3);
+                            var eq2 = q.EnqueueAsync(i3 + 1);
+                            var i1 = q.PushBackAsync(i3 + 2);
+                            var i2 = q.EnqueueAsync(i3 + 3);
+                            var i4 = q.PushBackAsync(i3 + 4);
 
                             await eq2;
                             await eq1;

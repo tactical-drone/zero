@@ -497,7 +497,7 @@ namespace zero.core.patterns.bushings
                     if(!job.PreviousJob.Syncing)
                         await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(Zc);
                     else
-                        await _previousJobFragment.PushAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(Zc);
+                        await _previousJobFragment.EnqueueAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(Zc);
 
                     job.PreviousJob = null;
                     return;
