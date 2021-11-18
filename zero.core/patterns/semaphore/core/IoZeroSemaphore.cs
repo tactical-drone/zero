@@ -713,17 +713,6 @@ namespace zero.core.patterns.semaphore.core
                 //count the number of overall waiters
                 _zeroRef.ZeroDecWait();
 
-                //worker.State = _signalAwaiterState[latchIdx];
-
-                //if (worker.State == null)
-
-                //{
-                //    Console.WriteLine("*");
-                //}
-                
-                //worker.ExecutionContext = _signalExecutionState[latchIdx];
-                //worker.CapturedContext = _signalCapturedContext[latchIdx];
-
                 _signalAwaiterState[latchIdx] = null;
                 _signalExecutionState[latchIdx] = null;
                 _signalCapturedContext[latchIdx] = null;                
