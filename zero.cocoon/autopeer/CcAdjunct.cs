@@ -1544,17 +1544,20 @@ namespace zero.cocoon.autopeer
                         }
                         else //try harder 
                         {
-                            var dropped = good.FirstOrDefault();
-                            if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Peering)
+                            foreach (var ioNeighbor in good)
                             {
-                                await ((CcAdjunct)dropped).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(@this.Zc);
-                                @this._logger.Debug($"@ {dropped.Description}");
+                                if (((CcAdjunct)ioNeighbor).State < AdjunctState.Peering)
+                                {
+                                    await ((CcAdjunct)ioNeighbor).ZeroAsync(new IoNanoprobe("Assimilated!")).FastPath().ConfigureAwait(@this.Zc);
+                                    @this._logger.Debug($"@ {ioNeighbor.Description}");
+                                    break;
+                                }
                             }
                         }
                     }
                     
                     //Transfer?
-                    if (!@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
+                    if (@this.Hub.Neighbors.Count >= @this.CcCollective.MaxAdjuncts || !@this.Hub.Neighbors.TryAdd(newAdjunct.Key, newAdjunct))
                     {
                         await newAdjunct.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
                         return false;    

@@ -94,7 +94,7 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            _dupPoolSize = parm_max_drone * 8;  
+            _dupPoolSize = parm_max_drone * 1000;  
             DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolSize)
             {
                 Make = static (o, s) => new IoHashCodes(null, 200, true),

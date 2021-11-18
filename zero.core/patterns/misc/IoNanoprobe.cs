@@ -194,7 +194,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public virtual ValueTask<bool> ZeroAsync(IIoNanite from)
+        public async ValueTask<bool> ZeroAsync(IIoNanite from)
         {
 #if DEBUG
             if (from == null)
@@ -203,13 +203,14 @@ namespace zero.core.patterns.misc
             }
 #endif
             if (_zeroed > 0)
-                return new ValueTask<bool>(true);
+                return true;
 
             ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
-            var z = ZeroAsync(true);
+
+            await ZeroAsync(true).FastPath().ConfigureAwait(Zc);
 
             GC.SuppressFinalize(this);
-            return new ValueTask<bool>(true);
+            return true;
         }
 
         /// <summary>

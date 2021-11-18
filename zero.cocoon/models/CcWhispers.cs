@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -14,9 +13,7 @@ using zero.core.misc;
 using zero.core.models.protobuffer;
 using zero.core.network.ip;
 using zero.core.patterns.bushings.contracts;
-using zero.core.patterns.heap;
 using zero.core.patterns.misc;
-using zero.core.patterns.queue;
 
 namespace zero.cocoon.models
 {
@@ -240,10 +237,9 @@ namespace zero.cocoon.models
 
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))
-                            {                                                     
-                                dupEndpoints.Add(endpoint.GetHashCode(), true);                                
-                                continue;
-                            }                                    
+                                dupEndpoints.Add(endpoint.GetHashCode(), true);
+                            
+                            continue;
                         }                        
                     }
                     else
