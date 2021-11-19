@@ -167,9 +167,9 @@ namespace zero.cocoon.models
                             break;
                         }
 
-                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize/2)
+                        if (CcCollective.DupChecker.Count > CcCollective.DupHeap.MaxSize*4/5)
                         {
-                            var culled = CcCollective.DupChecker.Keys.Where(k => k < req).ToList();
+                            var culled = CcCollective.DupChecker.Keys.Where(k => k < req - CcCollective.DupPoolFPSTarget / 3).ToList();
                             foreach (var mId in culled)
                             {
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))

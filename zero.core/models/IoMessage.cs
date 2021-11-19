@@ -188,7 +188,7 @@ namespace zero.core.models
             DatumFragmentLength = BytesLeftToProcess;
 
             //Mark this job so that it does not go back into the heap until the remaining fragment has been picked up
-            Syncing = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State == IoJobMeta.JobState.Consumed;
+            Syncing = DatumFragmentLength > 0 && IoZero.SyncRecoveryModeEnabled && State >= IoJobMeta.JobState.Consuming;
         }
     }
 }

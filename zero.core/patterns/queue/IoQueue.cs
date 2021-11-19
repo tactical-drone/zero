@@ -268,15 +268,15 @@ namespace zero.core.patterns.queue
                 }
                 entered = true;
 
-                if (_tail == null)
+                if (_head == null)
                 {
                     _head = _tail = node;
                 }
                 else
                 {
-                    node.Prev = _tail;
-                    _tail.Next = node;
-                    _tail = node;
+                    node.Next = _head;
+                    _head.Prev = node;
+                    _head = node;
                 }
                 
                 return retVal = node;
