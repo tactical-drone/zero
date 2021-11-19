@@ -224,7 +224,7 @@ namespace zero.test.core.patterns.queue{
                             _output.WriteLine(e.ToString());
                         }
                     }
-                    _output.WriteLine(($"({i3}-{_context.Q.Count})"));
+                    _output.WriteLine($"({i3}-{_context.Q.Count})");
                 }, new CancellationToken(), TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
             }
             Task.WhenAll(_concurrentTasks).GetAwaiter().GetResult();

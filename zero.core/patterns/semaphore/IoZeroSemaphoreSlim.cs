@@ -13,8 +13,9 @@ namespace zero.core.patterns.semaphore
     /// </summary>
     public class IoZeroSemaphoreSlim: IoNanoprobe, IIoZeroSemaphore
     {
-        public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks, 
-            string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int maxAsyncWork = 0, int initialCount = 0,
+        public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks,
+            string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
+            int maxAsyncWork = 0,
             bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}", maxBlockers)
         {
             _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);

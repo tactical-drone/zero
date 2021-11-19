@@ -53,7 +53,7 @@ namespace zero.cocoon
             _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
             
-            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount:1);
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount: 1);
             DupSyncRoot.ZeroHiveAsync(DupSyncRoot).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake

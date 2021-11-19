@@ -730,7 +730,7 @@ namespace zero.sync
             CancellationTokenSource asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
-            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, maxAsyncWork:0, initialCount: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
+            var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
             var releaseCount = 2;

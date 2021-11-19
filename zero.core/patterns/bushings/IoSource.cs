@@ -52,19 +52,17 @@ namespace zero.core.patterns.bushings
             try
             {
                 _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}, {description}",
-                    maxBlockers: concurrencyLevel, maxAsyncWork:MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                    maxBlockers: concurrencyLevel, maxAsyncWork: MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
                 _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}, {description}",
                     maxBlockers: concurrencyLevel,
-                    maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
-                    enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                    maxAsyncWork: MaxAsyncSources, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
 
                 _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}, {description}"
                     , maxBlockers: concurrencyLevel,
-                    maxAsyncWork: MaxAsyncSources,
                     initialCount: prefetchSize,
-                    enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                    maxAsyncWork: MaxAsyncSources, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             }
             catch (Exception e)
             {
