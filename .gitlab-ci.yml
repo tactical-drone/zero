@@ -2,9 +2,11 @@ image: mcr.microsoft.com/dotnet/sdk:6.0
 
 stages:
   - build
+  - tests
   
 variables:
   project: "zero.sync"
+  LOGFILEPATH: "$build_path/zero.test/JUnitTestLogFile.xml"
 
 before_script:
   - "dotnet --version"
@@ -19,4 +21,15 @@ build:
   script:
     - "cd $build_path"
     - "dotnet build"
+
+test:
+    stage: tests
+    script:
+    - dotnet test --logger "junit;LogFilePath="$LOGFILEPATH
+    artifacts:
+        when: always
+        paths:
+        - $LOGFILEPATH
+        reports:
+            junit: $LOGFILEPATH
 
