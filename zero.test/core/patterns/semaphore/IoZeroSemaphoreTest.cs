@@ -23,6 +23,8 @@ namespace zero.test.core.patterns.semaphore
             int loopCount = 10;
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
 
+            var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
             var t = Task.Factory.StartNew(async () =>
             {
                 for (int i = 0; i < loopCount; i++)
@@ -39,7 +41,6 @@ namespace zero.test.core.patterns.semaphore
 
             Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
 
-            var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var c = 0;
             while (c++ < loopCount)
             {
