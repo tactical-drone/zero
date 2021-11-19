@@ -6,7 +6,7 @@ stages:
   
 variables:
   project: "zero.sync"
-  LOGFILEPATH: "zero.test/JUnitTestLogFile.xml"
+  LOGFILEPATH: "JUnitTestLogFile.xml"
 
 before_script:
   - "dotnet --version"
