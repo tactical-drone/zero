@@ -46,7 +46,7 @@ namespace zero.test.core.patterns.semaphore
                 Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
                 var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - s;
                 _output.WriteLine($"d = {delta}");
-                Assert.InRange(delta, 50, 100);
+                Assert.InRange(delta, 50, 200);
                 s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
 
