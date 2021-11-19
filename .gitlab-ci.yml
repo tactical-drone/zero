@@ -31,5 +31,5 @@ test:
         paths:
         - $LOGFILEPATH
         reports:
-            junit: $LOGFILEPATH
+            junit: zero.test/$LOGFILEPATH
 
