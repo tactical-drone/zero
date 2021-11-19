@@ -29,7 +29,7 @@ test:
     artifacts:
         when: always
         paths:
-        - $LOGFILEPATH
+        - zero.test/$LOGFILEPATH
         reports:
             junit: zero.test/$LOGFILEPATH
 
