@@ -179,8 +179,13 @@ namespace zero.test.core.patterns.queue{
 
             //_context.Q.ClearAsync().AsTask().GetAwaiter().GetResult();
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+#if DEBUG
             var rounds = 10;
             var mult = 10000;
+#else
+            var rounds = 100;
+            var mult = 100000;
+#endif
             for (var i = 0; i < rounds; i++)
             {
                 var i3 = i;
@@ -231,7 +236,13 @@ namespace zero.test.core.patterns.queue{
             Assert.NotNull(_context.Q.Tail);
 
             var kops = rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start);
+
+#if DEBUG
             Assert.InRange(kops, 225, int.MaxValue);
+#else
+            Assert.InRange(kops, 4500, int.MaxValue);
+#endif
+
             Debug.WriteLine($"kops = {kops}");
 
             while(_context.Q.Count > 0)
@@ -247,7 +258,7 @@ namespace zero.test.core.patterns.queue{
         {
             public Context()
             {
-                Q = new IoQueue<int>("test Q", 2000000000, 100);
+                Q = new IoQueue<int>("test Q", 2000000000, 1000);
                 Q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
                 Q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
                 Head = Q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();

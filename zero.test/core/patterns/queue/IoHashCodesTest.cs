@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 using Xunit;
 using zero.core.misc;
@@ -8,13 +6,13 @@ using zero.core.patterns.queue;
 
 namespace zero.test.core.patterns.queue
 {
-    public class IoBagTest :IDisposable
+    public class IoHashCodesTest : IDisposable
     {
-        private IoBag<IoInt32> _bag;
+        private IoHashCodes _bag;
 
-        public IoBagTest()
+        public IoHashCodesTest()
         {
-            _bag = new IoBag<IoInt32>("test", 11, true);
+            _bag = new IoHashCodes("test", 11, true);
         }
 
         [Fact]
@@ -49,7 +47,7 @@ namespace zero.test.core.patterns.queue
 
         public void Dispose()
         {
-            _bag.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
+            _bag.ZeroManaged(true);
             _bag = null;
         }
     }
