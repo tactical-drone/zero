@@ -224,7 +224,7 @@ namespace zero.cocoon.models
                     
                     if (!CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints))
                     {
-                        dupEndpoints = await CcCollective.DupHeap.TakeAsync(endpoint).FastPath().ConfigureAwait(Zc);
+                        dupEndpoints = CcCollective.DupHeap.Take(endpoint);
 
                         if (dupEndpoints == null)
                             throw new OutOfMemoryException(

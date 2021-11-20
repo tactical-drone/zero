@@ -364,11 +364,11 @@ namespace zero.core.network.ip
                 if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(Zc))
                     return 0;
 
-                args = await _sendArgs.TakeAsync().FastPath().ConfigureAwait(Zc);
+                args = _sendArgs.Take();
                 if (args == null)
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
-                tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
+                tcs = _tcsHeap.Take();
                 if (tcs == null)
                     throw new OutOfMemoryException(nameof(_tcsHeap));
 
@@ -456,8 +456,8 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    var args = await _recvArgs.TakeAsync().FastPath().ConfigureAwait(Zc);
-                    var tcs = await _tcsHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
+                    var args = _recvArgs.Take();
+                    var tcs = _tcsHeap.Take();
                     try
                     {
                         //var args = new SocketAsyncEventArgs();

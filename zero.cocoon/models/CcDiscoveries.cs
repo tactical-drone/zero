@@ -25,7 +25,7 @@ namespace zero.cocoon.models
         {
             _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", parm_max_msg_batch_size){ Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size), Context = this};
 
-            _currentBatch = _batchHeap.TakeAsync().AsTask().GetAwaiter().GetResult();
+            _currentBatch = _batchHeap.Take();
             if (_currentBatch == null)
                 throw new OutOfMemoryException($"{sinkDesc}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
         }
@@ -450,7 +450,7 @@ namespace zero.cocoon.models
                             return false;
                         }
 
-                        @this._currentBatch = await @this._batchHeap.TakeAsync().FastPath().ConfigureAwait(@this.Zc);
+                        @this._currentBatch = @this._batchHeap.Take();
                         if (@this._currentBatch == null)
                             throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.MaxSize}, ref = {@this._batchHeap.ReferenceCount}");
 

@@ -2,7 +2,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Cassandra;
 using NLog;
 using zero.core.patterns.misc;
 using Logger = NLog.Logger;
@@ -40,7 +39,7 @@ namespace zero.core.patterns.heap
             {
                 //Take from heap
                 
-                if ((next = await TakeAsync(context).FastPath().ConfigureAwait(Zc)) != null && !await next.ConstructAsync())
+                if ((next = Take(context)) != null && !await next.ConstructAsync())
                     return null;
                 
                 //fail
@@ -59,7 +58,7 @@ namespace zero.core.patterns.heap
                     Interlocked.Increment(ref _count);
                     _logger.Trace($"Flushing `{GetType()}'");
 
-                    next = await TakeAsync(context).FastPath().ConfigureAwait(Zc);
+                    next = Take(context);
                     //Return another item from the heap
                     if (next == null)
                     {

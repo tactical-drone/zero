@@ -21,6 +21,7 @@ namespace zero.test.core.patterns.semaphore
         async Task TestMutex()
         {
             int loopCount = 10;
+            int targetSleep = 100;
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
 
             var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -29,7 +30,7 @@ namespace zero.test.core.patterns.semaphore
             {
                 for (int i = 0; i < loopCount; i++)
                 {
-                    await Task.Delay(50);
+                    await Task.Delay(targetSleep);
                     var r = m.Release();
                     if (r != 1)
                     {
@@ -42,15 +43,18 @@ namespace zero.test.core.patterns.semaphore
             Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
 
             var c = 0;
+            long ave = 0;
             while (c++ < loopCount)
             {
                 Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
                 var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - s;
+                ave += delta;
                 _output.WriteLine($"d = {delta}");
-                Assert.InRange(delta, 50, 3000);
+                Assert.InRange(delta, targetSleep/2, 3000);
                 s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
 
+            Assert.InRange(ave/loopCount, targetSleep/2, targetSleep/2 + targetSleep);
             Assert.Equal(loopCount + 1, c);
         }
 

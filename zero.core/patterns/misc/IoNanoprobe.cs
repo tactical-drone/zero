@@ -327,19 +327,24 @@ namespace zero.core.patterns.misc
             //Dispose managed
             if (disposing)
             {
-
-                foreach (var zeroSub in _zeroHive)
+                if (_zeroHive != null)
                 {
-                    if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
-                        _logger.Error($"{zeroSub?.From} - zero sub {((IIoNanite)zeroSub?.Target)?.Description} on {Description} returned with errors!");
+                    foreach (var zeroSub in _zeroHive)
+                    {
+                        if (!await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
+                            _logger.Error($"{zeroSub?.From} - zero sub {((IIoNanite)zeroSub?.Target)?.Description} on {Description} returned with errors!");
+                    }
                 }
 
-                foreach (var zeroSub in _zeroHiveMind)
+                if (_zeroHiveMind != null)
                 {
-                    if(!zeroSub.Zeroed())
-                        await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                    foreach (var zeroSub in _zeroHiveMind)
+                    {
+                        if (!zeroSub.Zeroed())
+                            await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                    }
                 }
-
+                
                 CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;
                 TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -429,8 +434,8 @@ namespace zero.core.patterns.misc
         public virtual ValueTask ZeroManagedAsync()
         {
             //_nanoMutex.Zero();
-            _zeroHive.Clear();
-            _zeroHiveMind.Clear();
+            _zeroHive?.Clear();
+            _zeroHiveMind?.Clear();
          
 #if DEBUG
             Interlocked.Increment(ref _extracted);

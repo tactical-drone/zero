@@ -278,7 +278,7 @@ namespace zero.cocoon
 
                     if (!Zeroed())
                     {
-                        var dupEndpoints = await Adjunct.CcCollective.DupHeap.TakeAsync(IoSource.IoNetSocket.LocalAddress).FastPath().ConfigureAwait(Zc);
+                        var dupEndpoints = Adjunct.CcCollective.DupHeap.Take(IoSource.IoNetSocket.LocalAddress);
 
                         if (dupEndpoints == null)
                             throw new OutOfMemoryException(

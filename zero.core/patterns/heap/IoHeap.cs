@@ -157,6 +157,9 @@ namespace zero.core.patterns.heap
                 await _ioHeapBuf.ZeroManagedAsync(zeroAction, nanite, true).FastPath().ConfigureAwait(Zc);
             else
                 await _ioHeapBuf.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+
+            _count = 0;
+            _refCount = 0;
         }
 
         /// <summary>
@@ -165,7 +168,7 @@ namespace zero.core.patterns.heap
         /// <exception cref="InternalBufferOverflowException">Thrown when the max heap size is breached</exception>
         /// <returns>True if the item required malloc, false if popped from the heap otherwise<see cref="TItem"/></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<TItem> TakeAsync(object userData = null)
+        public TItem Take(object userData = null)
         {
             try
             {
@@ -173,14 +176,14 @@ namespace zero.core.patterns.heap
                 if (!_ioHeapBuf.TryTake(out var heapItem))
                 {
                     //And we can allocate more heap space
-                    if (Count < _maxSize)
+                    if (_count < _maxSize)
                     {
                         //Allocate and return
                         Interlocked.Increment(ref _count);
                         Interlocked.Increment(ref _refCount);
                         heapItem = Make(userData, Context);
                         Prep?.Invoke(heapItem, userData);
-                        return new ValueTask<TItem>(heapItem);
+                        return heapItem;
                     }
                     else //we have run out of capacity
                     {
@@ -191,7 +194,7 @@ namespace zero.core.patterns.heap
                 {
                     Interlocked.Increment(ref _refCount);
                     Prep?.Invoke(heapItem, userData);
-                    return new ValueTask<TItem>(heapItem);
+                    return heapItem;
                 }
             }
             catch (NullReferenceException e) //TODO IIoNanite

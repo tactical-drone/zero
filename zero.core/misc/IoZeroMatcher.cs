@@ -119,7 +119,7 @@ namespace zero.core.misc
                 IoChallenge challenge = null;
                 try
                 {
-                    if ((challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc)) == null)
+                    if ((challenge = state.@this._valHeap.Take()) == null)
                     {
                         try
                         {
@@ -131,7 +131,7 @@ namespace zero.core.misc
                             // ignored
                         }
 
-                        challenge = await state.@this._valHeap.TakeAsync().FastPath().ConfigureAwait(state.@this.Zc);
+                        challenge = state.@this._valHeap.Take();
                         
                         if (challenge == null)
                         {

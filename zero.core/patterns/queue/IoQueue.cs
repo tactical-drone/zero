@@ -183,7 +183,7 @@ namespace zero.core.patterns.queue
                     return null;
                 }
                 
-                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
+                var node = _nodeHeap.Take();
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
 
@@ -252,7 +252,7 @@ namespace zero.core.patterns.queue
                     return null;
                 }
 
-                var node = await _nodeHeap.TakeAsync().FastPath().ConfigureAwait(Zc);
+                var node = _nodeHeap.Take();
                 if (node == null)
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
                 
