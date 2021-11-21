@@ -68,8 +68,8 @@ namespace zero.core.patterns.queue
         private CancellationTokenSource _asyncTasks = new CancellationTokenSource();
         private IoHeap<IoZNode> _nodeHeap;
         
-        private volatile IoZNode _head = null;
-        private volatile IoZNode _tail = null;
+        private volatile IoZNode _head;
+        private volatile IoZNode _tail;
         private volatile int _count;
         private readonly bool _enableBackPressure;
         

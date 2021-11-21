@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Management;
-using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Filters;
 using NLog;
-using NLog.LayoutRenderers;
 
 namespace zero.core.patterns.misc
 {
@@ -13,11 +11,11 @@ namespace zero.core.patterns.misc
     {
         public object ZeroAction;
         public static readonly object ZeroSentinel = new();
-        object State = ZeroSentinel;
+        object _state = ZeroSentinel;
+        private int _executed;
         public object Target { get; private set; }
         public string From { get; }
-
-        public volatile bool Schedule = true;
+        public bool Executed => _executed > 0;
 
         public IoZeroSub(string from)
         {   
@@ -25,7 +23,7 @@ namespace zero.core.patterns.misc
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Func<IIoNanite, T, ValueTask<bool>> GenericCast<T>(T obj)
+        public Func<IIoNanite, T, ValueTask<bool>> ZeroFunc<T>(T obj)
         {
             try
             {
@@ -41,7 +39,7 @@ namespace zero.core.patterns.misc
         public IoZeroSub SetAction<T>(Func<IIoNanite, T, ValueTask<bool>> callback, T closureState = default)
         {
             ZeroAction = callback;            
-            State = closureState;                
+            _state = closureState;                
             Target = callback?.Target;
             return this;
         }
@@ -50,22 +48,22 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                return GenericCast((dynamic)State)(@from, (dynamic)State);
+                if (Interlocked.CompareExchange(ref _executed, 1, 0) != 0)
+                    return new ValueTask<bool>(true);
+
+                return ZeroFunc((dynamic)_state)(@from, (dynamic)_state);
             }
             catch (Exception e)
             {
-                LogManager.GetCurrentClassLogger().Trace(e,$"{ZeroAction}, {Target}, {State}");
+                LogManager.GetCurrentClassLogger().Trace(e, $"{ZeroAction}, {Target}, {_state}");
                 return new ValueTask<bool>(false);
             }
+            finally
+            {
+                ZeroAction = default;
+                _state = default;
+                Target = default;
+            }
         }
-
-        public ValueTask ZeroAsync()
-        {
-            ZeroAction = null;
-            State = null;
-            Target = null;
-            return default;
-        }
-        
     }
 }

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.misc
 {
@@ -59,7 +60,7 @@ namespace zero.core.patterns.misc
         /// <param name="memberName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>The handler</returns>
-        ValueTask<LinkedListNode<IoZeroSub>> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
+        ValueTask<IoQueue<IoZeroSub>.IoZNode> ZeroSubAsync<T>(Func<IIoNanite, T, ValueTask<bool>> sub,
             T closureState = default,
             [CallerFilePath] string filePath = null, [CallerMemberName] string memberName = null,
             [CallerLineNumber] int lineNumber = 0);
@@ -69,7 +70,7 @@ namespace zero.core.patterns.misc
         /// Unsubscribe
         /// </summary>
         /// <param name="sub">The original subscription</param>
-        public ValueTask<bool> UnsubscribeAsync(LinkedListNode<IoZeroSub> sub);
+        public ValueTask<bool> UnsubscribeAsync(IoQueue<IoZeroSub>.IoZNode sub);
 
         /// <summary>
         /// Ensures that this action is synchronized 
@@ -106,7 +107,7 @@ namespace zero.core.patterns.misc
         /// Return the hive mind
         /// </summary>
         /// <returns>The hive</returns>
-        LinkedList<IIoNanite> ZeroHiveMind();
+        IoBag<IIoNanite> ZeroHiveMind();
 
         /// <summary>
         /// Maintain zero context

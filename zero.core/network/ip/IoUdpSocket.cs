@@ -36,7 +36,8 @@ namespace zero.core.network.ip
         {
             Proxy = true;
             //TODO tuning (send)
-            Init(4 * 16 + 16, 4 * 16 + 16); //16 MaxAdjuncts that can send + 16 nodes
+            //Init(4 * 16 + 16, 4 * 16 + 16); //16 MaxAdjuncts that can send + 16 nodes
+            Init(32,16);
         }
 
 

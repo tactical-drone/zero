@@ -25,6 +25,7 @@ namespace zero.core.patterns.queue
             _description = description;
             _capacity = capacity;
             _storage = new T[_capacity];
+            _hotReload = hotReload;
 #if DEBUG
             _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
 #else
@@ -37,17 +38,18 @@ namespace zero.core.patterns.queue
         private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
         private T[] _storage;        
-        private readonly int _capacity;
+        private int _capacity;
         private volatile int _count;        
-        private int Head => _head % (int)_capacity;
+        private int Head => _head % _capacity;
         private volatile int _head = 0;
-        private int Tail => _tail % (int)_capacity;
+        private int Tail => _tail % _capacity;
         private volatile int _tail = 0;
         
         private volatile int _iteratorIdx = - 1;
         private volatile int _iteratorCount;
         private IoNanoprobe _zeroSentinel;
-        
+        private readonly bool _hotReload;
+
         /// <summary>
         /// ZeroAsync status
         /// </summary>
@@ -77,7 +79,16 @@ namespace zero.core.patterns.queue
         public void Add(T item, bool deDup = false)
         {
             if (_count == _capacity)
-                throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+            {
+                if(!_hotReload)
+                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+
+                var tmp = _storage;
+                var tmpCapacity = _capacity;
+                _capacity *= 2;
+                _storage = new T[_capacity];
+                Array.Copy(tmp,0,_storage, 0, tmpCapacity);
+            }
             
             if(deDup)
             {

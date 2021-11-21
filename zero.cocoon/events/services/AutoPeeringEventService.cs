@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using NLog;
-using Tangle.Net.Repository.Client;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
@@ -18,18 +17,18 @@ namespace zero.cocoon.events.services
             _logger = logger;
         }
 
-        private const int EventBatchSize = 4000;
+        private const int EventBatchSize = 500;
         private const int TotalBatches = 100;
         private static bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly ILogger<AutoPeeringEventService> _logger;
-        public static IoQueue<AutoPeerEvent>[] _queuedEvents =
+        public static IoQueue<AutoPeerEvent>[] QueuedEvents =
         {
             //TODO tuning
             new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000),
             new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
         };
 
-        private static volatile int _operational = 0;
+        private static volatile int _operational = 1;
         private static long _seq;
         private static volatile int _curIdx;
         public static bool Operational => _operational > 0;
@@ -49,7 +48,7 @@ namespace zero.cocoon.events.services
             try
             {
                 //IoQueue<AutoPeerEvent> curQ = _queuedEvents[(Interlocked.Increment(ref _curIdx) - 1) % 2];
-                IoQueue<AutoPeerEvent> curQ = _queuedEvents[0];
+                IoQueue<AutoPeerEvent> curQ = QueuedEvents[0];
 
                 int c = 0;
 
@@ -97,7 +96,7 @@ namespace zero.cocoon.events.services
         {
             try
             {
-                var curQ = _queuedEvents[_curIdx % 2];
+                var curQ = QueuedEvents[_curIdx % 2];
                 if (_operational > 0 && curQ.Count < EventBatchSize  * TotalBatches)
                 {
                     newAutoPeerEvent.Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -118,9 +117,9 @@ namespace zero.cocoon.events.services
         public static async ValueTask ClearAsync()
         {
             Interlocked.Exchange(ref _operational, 0);
-            var q = _queuedEvents;
-            _queuedEvents = null;
-            if (_queuedEvents == null)
+            var q = QueuedEvents;
+            QueuedEvents = null;
+            if (QueuedEvents == null)
                 return;
             await q[0].ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
             await q[1].ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);

@@ -81,9 +81,9 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 2000;
-            var maxDrones = 8;
-            var maxAdjuncts = 16;
+            var total = 400;
+            var maxDrones = 9;
+            var maxAdjuncts = 18;
             var tasks = new ConcurrentBag<Task<CcCollective>>
             {
                 CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{1234}",
@@ -102,7 +102,7 @@ namespace zero.sync
                 //if(1234 + portOffset + i == 1900 )
                 //    continue;
 
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + 16) % total}", $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList()));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList()));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
@@ -380,7 +380,7 @@ namespace zero.sync
                             _startAccounting = false;
                             Task.WaitAll(gossipTasks.ToArray());
                             gossipTasks.Clear();
-                            AutoPeeringEventService._queuedEvents[0].ClearAsync().GetAwaiter();
+                            AutoPeeringEventService.QueuedEvents[0].ClearAsync().GetAwaiter();
                         }
 
                         long v = 1;
@@ -1096,8 +1096,7 @@ namespace zero.sync
 
                     if (zeroed > 0 && zeroed % 100 == 0)
                     {
-                        Console.WriteLine(
-                            $"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
+                        Console.WriteLine($"Estimated {TimeSpan.FromMilliseconds((_nodes.Count - zeroed) * (zeroed * 1000 / (sw.ElapsedMilliseconds + 1)))}, zeroed = {zeroed}/{_nodes.Count}");
                     }
                 }
                 catch(Exception e)

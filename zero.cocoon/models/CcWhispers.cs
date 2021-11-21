@@ -220,7 +220,7 @@ namespace zero.cocoon.models
                         break;
                                         
                     //set this message as seen if seen before
-                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)(Source)).IoNetSocket.RemoteAddress;
+                    var endpoint = ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)Source).IoNetSocket.RemoteAddress;
                     
                     if (!CcCollective.DupChecker.TryGetValue(req, out var dupEndpoints))
                     {
@@ -271,10 +271,12 @@ namespace zero.cocoon.models
                             if (source.IoNetSocket.RemoteAddress == endpoint || dupEndpoints != null && dupEndpoints.Contains(source.IoNetSocket.RemoteAddress.GetHashCode()))
                                 continue;
 
-                            if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, (int)(BufferOffset - read), read).FastPath().ConfigureAwait(Zc) <= 0)
+                            if (source.IsOperational && await source.IoNetSocket.SendAsync(Buffer, BufferOffset - read, read).FastPath().ConfigureAwait(Zc) <= 0)
                             {
                                 if(source.IsOperational)
                                     _logger.Trace($"Failed to forward new msg message to {drone.Description}");
+                                else
+                                    source.Zero(this);
                             }
                             else
                             {

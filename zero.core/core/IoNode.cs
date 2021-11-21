@@ -210,7 +210,7 @@ namespace zero.core.core
 
                                 return new ValueTask<bool>(true);
                             }
-                            catch when(@this.Zeroed() || newNeighbor.Zeroed()){ }
+                            catch when(@this.Zeroed() || newNeighbor.Zeroed()){ return new ValueTask<bool>(true); }
                             catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
                             {
                                 @this._logger?.Trace(e,$"Removing {newNeighbor.Description} from {@this.Description}");
@@ -319,11 +319,11 @@ namespace zero.core.core
                                 ? $"Neighbor metadata expected for key `{id}'"
                                 : $"Dropped {closedNeighbor?.Description} from {@this.Description}");
 
-                            if (closedNeighbor != null)
-                                closedNeighbor.Zero(@this);
+                            closedNeighbor?.Zero(@this);
 
                             return new ValueTask<bool>(true);
                         }
+                        catch when(@this.Zeroed()){ return new ValueTask<bool>(true); }
                         catch (NullReferenceException e)
                         {
                             @this._logger?.Trace(e, @this.Description);
