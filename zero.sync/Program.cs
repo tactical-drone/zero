@@ -72,9 +72,6 @@ namespace zero.sync
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 5051;
             
-#if DEBUG
-            portOffset = 1900;
-#endif
             IHost host = null;
             var grpc = Task.Factory.StartNew(() =>
             {
@@ -1093,7 +1090,7 @@ namespace zero.sync
                     s.Wait();
                     var task = Task.Run(() =>
                     {
-                        var t = n.ZeroAsync(new IoNanoprobe("Zero.Sync"));
+                        n.Zero(new IoNanoprobe("ZeroAsync.Sync"));
                         Interlocked.Increment(ref zeroed);
                     });
 
@@ -1129,8 +1126,8 @@ namespace zero.sync
 #pragma warning disable 4014
                 var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(Zc);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(Zc);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
                 tangleNodeTask.AsTask().Wait();
             }
             else
@@ -1144,8 +1141,8 @@ namespace zero.sync
 
 
 #pragma warning disable 4014
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("process was exited")).ConfigureAwait(Zc);
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.ZeroAsync(new IoNanoprobe("ctrl + c, process was killed")).ConfigureAwait(Zc);
+                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
+                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
 #pragma warning restore 4014
                 tangleNodeTask.AsTask().Wait();
             }

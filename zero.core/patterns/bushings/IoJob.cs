@@ -119,11 +119,8 @@ namespace zero.core.patterns.bushings
         /// </summary>
         /// <returns>This instance</returns>
 
-#if DEBUG
-        public virtual async ValueTask<IIoHeapItem> ConstructorAsync()
-#else
+
         public virtual ValueTask<IIoHeapItem> ConstructorAsync()
-#endif
         {
 #if DEBUG
             for (var i = 0; i < StateTransitionHistory.Length; i++)
@@ -137,7 +134,7 @@ namespace zero.core.patterns.bushings
 #pragma warning disable CS4014
                     r.ConstructorAsync();
 #pragma warning restore CS4014
-                    await _stateHeap.ReturnAsync(r).FastPath().ConfigureAwait(Zc);
+                    _stateHeap.Return(r);
                 }
 
                 StateTransitionHistory[i] = null;
@@ -145,7 +142,7 @@ namespace zero.core.patterns.bushings
 
             if (_stateMeta != null)
             {
-                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(Zc);
+                _stateHeap.Return(_stateMeta);
                 _stateMeta = null;
             }
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
@@ -164,11 +161,7 @@ namespace zero.core.patterns.bushings
             //    StateTransitionHistory[prevState] = null;
             //}
 
-#if DEBUG
-            return (IIoHeapItem)this;
-#else
-            return new ValueTask<IIoHeapItem>((IIoHeapItem)this);
-#endif
+            return new ValueTask<IIoHeapItem>(this);
         }
 
         /// <summary>
@@ -199,7 +192,7 @@ namespace zero.core.patterns.bushings
         {
 #if DEBUG
             if(_stateMeta != null)
-                await _stateHeap.ReturnAsync(_stateMeta).FastPath().ConfigureAwait(Zc);
+                _stateHeap.Return(_stateMeta);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
             await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
             {
@@ -208,7 +201,7 @@ namespace zero.core.patterns.bushings
             }, this).FastPath().ConfigureAwait(Zc);
 #endif
             if (PreviousJob != null)
-                await PreviousJob.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                PreviousJob.Zero(this);
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }

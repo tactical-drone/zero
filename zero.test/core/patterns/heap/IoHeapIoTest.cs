@@ -19,12 +19,11 @@ namespace zero.test.core.patterns.heap
             var spamTasks = new List<Task>();
             for (int i = 0; i < _capacity; i++)
             {
-                spamTasks.Add(Task.Factory.StartNew(async () =>
+                spamTasks.Add(Task.Factory.StartNew(() =>
                 {
                     for (int j = 0; j < _capacity; j++)
                     {
-                        await h.ReturnAsync(h.Take(3)).FastPath()
-                            .ConfigureAwait(Zc);
+                        h.Return(h.Take(3));
                     }
                 }, TaskCreationOptions.DenyChildAttach));
             }
@@ -39,7 +38,7 @@ namespace zero.test.core.patterns.heap
         }
 
         [Fact]
-        async Task ConstructionTest()
+        void ConstructionTest()
         {
             var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, this, true)
             {
@@ -54,7 +53,7 @@ namespace zero.test.core.patterns.heap
             Assert.Equal(2, item.TestVar2);
             Assert.Equal(3, item.TestVar3);
 
-            await h.ReturnAsync(item).FastPath().ConfigureAwait(Zc);
+            h.Return(item);
 
             Assert.Equal(1, h.TotalOps);
         }
@@ -71,16 +70,16 @@ namespace zero.test.core.patterns.heap
             var i1 = h.Take(0);
             var i2 = h.Take(0);
             var i3 = h.Take(0);
-            await h.ReturnAsync(i3, true);
-            await h.ReturnAsync(i2, true);
-            await h.ReturnAsync(i1, true);
+            h.Return(i3, true);
+            h.Return(i2, true);
+            h.Return(i1, true);
             
             Assert.Equal(0, h.ReferenceCount);
             Assert.Equal(0, h.Count);
 
-            await h.ReturnAsync(h.Take(5));
-            await h.ReturnAsync(h.Take(5));
-            await h.ReturnAsync(h.Take(5));
+            h.Return(h.Take(5));
+            h.Return(h.Take(5));
+            h.Return(h.Take(5));
 
             await h.ZeroManagedAsync((i, o) =>
             {
@@ -117,7 +116,11 @@ namespace zero.test.core.patterns.heap
 
     public class HeapItem : IoNanoprobe, IIoHeapItem
     {
-        public HeapItem(int testVar2, int testVar3)
+        public HeapItem():base()
+        {
+
+        }
+        public HeapItem(int testVar2, int testVar3):base()
         {
             TestVar2 = testVar2;
             TestVar3 = testVar3;

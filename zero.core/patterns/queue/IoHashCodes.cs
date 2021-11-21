@@ -136,7 +136,7 @@ namespace zero.core.patterns.queue
         }
         
         /// <summary>
-        /// Zero managed cleanup
+        /// ZeroAsync managed cleanup
         /// </summary>
         /// <param name="op">Optional callback to execute on all items in the bag</param>
         /// <param name="nanite">Callback context</param>

@@ -206,7 +206,7 @@ namespace zero.cocoon
         public override async ValueTask ZeroManagedAsync()
         {
             var id = Hub?.Router?.Designation?.IdString();
-            await DupSyncRoot.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+            DupSyncRoot.Zero(this);
             //Services.CcRecord.Endpoints.Clear();
             try
             {
@@ -865,7 +865,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) await drone.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                        if (drone != null) drone.Zero(this);
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -888,7 +888,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"|>{drone.Description}");
-                        await drone.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                        drone.Zero(this);
                     }
 
                     return false;

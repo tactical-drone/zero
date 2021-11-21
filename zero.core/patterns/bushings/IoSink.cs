@@ -50,7 +50,7 @@ namespace zero.core.patterns.bushings
         }
 
         /// <summary>
-        /// Zero handle
+        /// ZeroAsync handle
         /// </summary>
         public IIoZero IoZero { get; set; }
 

@@ -38,11 +38,12 @@ namespace zero.cocoon.models.batches
         /// </summary>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask ReturnToHeapAsync()
+        public void ReturnToHeapAsync()
         {
             if(_heapRef.Count / (double)_heapRef.MaxSize > 0.8)
                 LogManager.GetCurrentClassLogger().Warn($"{nameof(CcDiscoveryBatch)}: Heap is running lean, {_heapRef} ");
-            return _heapRef.ReturnAsync(this);
+
+            _heapRef.Return(this);
         }
 
         public IoHeap<CcDiscoveryBatch, CcDiscoveries> HeapRef => _heapRef;

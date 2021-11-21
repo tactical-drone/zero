@@ -484,7 +484,7 @@ namespace zero.tangle.models
                     //Async read the message from the message stream
                     if (Source.IsOperational)
                     {                                                
-                        await ((IoSocket)ioSocket).ReadAsync(ArraySegment, (int)BufferOffset, (int)BufferSize).AsTask().ContinueWith(async rx =>
+                        await ((IoSocket)ioSocket).ReadAsync(ArraySegment, (int)BufferOffset, (int)BufferSize).AsTask().ContinueWith(rx =>
                         {                                                                    
                             switch (rx.Status)
                             {
@@ -492,7 +492,7 @@ namespace zero.tangle.models
                                 case TaskStatus.Canceled:
                                 case TaskStatus.Faulted:
                                     State = rx.Status == TaskStatus.Canceled ? IoJobMeta.JobState.ProdCancel : IoJobMeta.JobState.ProduceErr;
-                                    await Source.ZeroAsync(this).ConfigureAwait(false);
+                                    Source.Zero(this);
                                     _logger.Error(rx.Exception?.InnerException, $"{TraceDescription} ReadAsync from stream returned with errors:");
                                     break;
                                 //Success
@@ -542,7 +542,7 @@ namespace zero.tangle.models
                     else
                     {
 #pragma warning disable 4014
-                        Source.ZeroAsync(this);
+                        Source.Zero(this);
 #pragma warning restore 4014
                     }
 

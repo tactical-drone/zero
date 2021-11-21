@@ -209,7 +209,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_failed_production_time = 1000;
+        public int parm_min_failed_production_time = 100;
 
         /// <summary>
         /// The time a source will wait for a consumer to release it before aborting in ms
@@ -259,13 +259,14 @@ namespace zero.core.patterns.bushings
             if(_previousJobFragment != null)
                 await _previousJobFragment.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
-            await JobHeap.ZeroManagedAsync(static async (sink, @this) =>
+            await JobHeap.ZeroManagedAsync(static (sink, @this) =>
             {
-                await sink.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
+                sink.Zero(@this);
+                return default;
             },this).FastPath().ConfigureAwait(Zc);
 
 
-            await Source.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+            Source.Zero(this);
 #if DEBUG
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
 #endif
@@ -397,16 +398,11 @@ namespace zero.core.patterns.bushings
                                 await ReturnJobToHeapAsync(nextJob, true).FastPath()
                                     .ConfigureAwait(Zc);
 
-                                //Are we in teardown?
-                                if (Zeroed() || nextJob.Zeroed() || Source.Zeroed())
-                                    return false;
+                                nextJob = null;
 
-                                //Is there a bug in the producer?
-                                if (nextJob.State == IoJobMeta.JobState.Producing)
-                                {
-                                    _logger.Warn($"{nameof(ProduceAsync)} - {Description}: ({nextJob.Description}): State remained {IoJobMeta.JobState.Producing}");
-                                    nextJob.State = IoJobMeta.JobState.Error;
-                                }
+                                //Are we in teardown?
+                                if (Zeroed() || Source.Zeroed())
+                                    return false;
 
                                 //Is the producer spinning? Slow it down
                                 if (_producerStopwatch.ElapsedMilliseconds < parm_min_failed_production_time)
@@ -428,7 +424,6 @@ namespace zero.core.patterns.bushings
                         return false;
                     }
                 }
-                
                 catch (Exception) when (Zeroed()) { }
                 catch (Exception e) when (!Zeroed())
                 {
@@ -441,8 +436,7 @@ namespace zero.core.patterns.bushings
                     if (nextJob != null)
                     {
                         if (!Zeroed() && !nextJob.Zeroed() && !Source.Zeroed())
-                            _logger.Error(
-                                $"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
+                            _logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                         //TODO Double check this hack
                         if (nextJob.State != IoJobMeta.JobState.Halted)
@@ -495,7 +489,7 @@ namespace zero.core.patterns.bushings
 
                     //TODO I don't think this is going to work
                     if(!job.PreviousJob.Syncing)
-                        await JobHeap.ReturnAsync((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(Zc);
+                        JobHeap.Return((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept);
                     else
                         await _previousJobFragment.EnqueueAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(Zc);
 
@@ -508,7 +502,7 @@ namespace zero.core.patterns.bushings
                 //}
 
                 if (freeCurrent || !SyncRecoveryModeEnabled)
-                    await JobHeap.ReturnAsync(job, job.FinalState != IoJobMeta.JobState.Accept).FastPath().ConfigureAwait(Zc); ;
+                    JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);
                 
             }
             catch when(Zeroed()){}

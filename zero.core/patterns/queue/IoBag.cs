@@ -49,7 +49,7 @@ namespace zero.core.patterns.queue
         private IoNanoprobe _zeroSentinel;
         
         /// <summary>
-        /// Zero status
+        /// ZeroAsync status
         /// </summary>
         public bool Zeroed => _zeroed > 0;
 
@@ -153,7 +153,7 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Zero managed cleanup
+        /// ZeroAsync managed cleanup
         /// </summary>
         /// <param name="op">Optional callback to execute on all items in the bag</param>
         /// <param name="nanite">Callback context</param>
@@ -182,9 +182,7 @@ namespace zero.core.patterns.queue
                         else if(zero)
                         {
                             if (!((IIoNanite)item)!.Zeroed())
-                                await ((IIoNanite)item).ZeroAsync((IIoNanite)nanite ?? _zeroSentinel)
-                                    .FastPath()
-                                    .ConfigureAwait(Zc);
+                                ((IIoNanite)item).Zero((IIoNanite)nanite ?? _zeroSentinel);
                         }                        
                     }
                     catch (Exception) when(Zeroed){}
@@ -209,7 +207,6 @@ namespace zero.core.patterns.queue
 
                 if (zero)
                 {
-                    await _zeroSentinel.ZeroAsync(_zeroSentinel).FastPath().ConfigureAwait(Zc);
                     _zeroSentinel = null;
                     _storage = null;
                 }                

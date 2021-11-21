@@ -86,7 +86,11 @@ namespace zero.tangle
                 var newNeighbor = await ConnectAsync(connectBackAddress).FastPath().ConfigureAwait(false);
                 if (newNeighbor!= null)
                 {
-                    await ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubAsync<object>(async (_,_) => await newNeighbor.ZeroAsync(this).ConfigureAwait(false)).FastPath().ConfigureAwait(false);
+                    await ((IoNetClient<TJob>) ioNeighbor.Source).ZeroSubAsync<object>(static (from, newNeighbor) =>
+                    {
+                        ((IIoNanite)newNeighbor).Zero(@from);
+                        return new ValueTask<bool>(true);
+                    }, newNeighbor).FastPath().ConfigureAwait(false);
 
                     if (newNeighbor.Source.IsOperational)
                         await newNeighbor.Source.ProduceAsync<object>((client,_, _, _) =>

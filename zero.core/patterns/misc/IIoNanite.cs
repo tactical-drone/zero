@@ -29,7 +29,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
-        ValueTask<bool> ZeroAsync(IIoNanite from);
+        void Zero(IIoNanite @from);
         
         /// <summary>
         /// A description of this object

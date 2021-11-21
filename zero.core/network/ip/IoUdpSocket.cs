@@ -349,6 +349,8 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
+            if (!IsConnected())
+                return 0;
 
 #if DEBUG
                 if (_sendSync.CurNrOfBlockers >= _sendArgs.MaxSize / 2)
@@ -383,20 +385,21 @@ namespace zero.core.network.ip
 
                 return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
             }
+            catch(ObjectDisposedException){}
             catch (Exception) when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e,
                     $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
-                await ZeroAsync(this).ConfigureAwait(Zc);
+                Zero(this);
             }
             finally
             {
                 if (args != default)
-                    await _sendArgs.ReturnAsync(args).FastPath().ConfigureAwait(Zc);
+                    _sendArgs.Return(args);
                 
                 if (tcs != default)
-                    await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(Zc);
+                    _tcsHeap.Return(tcs);
 
                 _sendSync.Release();
             }
@@ -447,6 +450,9 @@ namespace zero.core.network.ip
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
             IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
+            if (!IsConnected())
+                return 0;
+
             try
             {
                 Debug.Assert(remoteEp != null);
@@ -486,11 +492,12 @@ namespace zero.core.network.ip
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                         
                     }
+                    catch (ObjectDisposedException) { }
                     catch when(Zeroed()){}
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        await ZeroAsync(this).ConfigureAwait(Zc); //TODO ?
+                        Zero(this); //TODO ?
                     }
                     finally
                     {
@@ -504,11 +511,11 @@ namespace zero.core.network.ip
                                 args.Dispose();
                             }
 
-                            await _recvArgs.ReturnAsync(args, dispose).FastPath().ConfigureAwait(Zc);
+                            _recvArgs.Return(args, dispose);
                         }
 
                         if (tcs != null)
-                            await _tcsHeap.ReturnAsync(tcs).FastPath().ConfigureAwait(Zc);
+                            _tcsHeap.Return(tcs);
                     }
                 }
 
@@ -531,7 +538,7 @@ namespace zero.core.network.ip
             catch (Exception e) when(!Zeroed())
             {
                 _logger?.Error(e, $"Unable to read from socket: {Description}");
-                await ZeroAsync(this).ConfigureAwait(Zc); //TODO ?
+                Zero(this); //TODO ?
             }
             finally
             {
@@ -551,8 +558,9 @@ namespace zero.core.network.ip
         {
             try
             {
-                return NativeSocket is {IsBound: true, LocalEndPoint: { }};
+                return !Zeroed() && NativeSocket is {IsBound: true, LocalEndPoint: { }};
             }
+            catch(ObjectDisposedException){}
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {

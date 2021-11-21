@@ -65,7 +65,7 @@ namespace zero.core.network.ip
                 catch (Exception e)
                 {
                     @this._logger.Error(e, $"{@this.Description} Connection received handler returned with errors:");
-                    await newConnectionSocket.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
+                    newConnectionSocket.Zero(@this);
                 }
             }, ValueTuple.Create(this, nanite, connectionReceivedAction), bootstrapAsync).FastPath().ConfigureAwait(Zc);
         }

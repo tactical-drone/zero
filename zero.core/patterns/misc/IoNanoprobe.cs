@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.misc;
-using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.misc
 {
@@ -30,6 +29,7 @@ namespace zero.core.patterns.misc
         protected IoNanoprobe()
         {
             _zId = Interlocked.Increment(ref _uidSeed);
+            AsyncTasks = new CancellationTokenSource();
         }
 
         /// <summary>
@@ -38,8 +38,9 @@ namespace zero.core.patterns.misc
         /// <param name="reason">The teardown reason</param>
         public IoNanoprobe(string reason)
         {
-            Description = reason;
             _zId = Interlocked.Increment(ref _uidSeed);
+            AsyncTasks = new CancellationTokenSource();
+            Description = reason;
         }
         
         /// <summary>
@@ -49,6 +50,8 @@ namespace zero.core.patterns.misc
         /// <param name="concurrencyLevel">Maximum blockers allowed. Consumption: 128 bits per tick.</param>
         protected IoNanoprobe(string description, int concurrencyLevel)
         {
+            _zId = Interlocked.Increment(ref _uidSeed);
+            AsyncTasks = new CancellationTokenSource();
             Description = description ?? GetType().Name;
 
             _concurrencyLevel = concurrencyLevel;
@@ -56,13 +59,7 @@ namespace zero.core.patterns.misc
             _zeroHive = new LinkedList<IoZeroSub>();
             _zeroHiveMind = new LinkedList<IIoNanite>();
 
-            _zeroed = 0;
-            ZeroedFrom = default;
-            TearDownTime = default;
-            CascadeTime = default;
             Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _zId = Interlocked.Increment(ref _uidSeed);
-            AsyncTasks = new CancellationTokenSource();            
         }
 
         /// <summary>
@@ -73,7 +70,7 @@ namespace zero.core.patterns.misc
 #pragma warning disable 4014
             try
             {
-                ZeroAsync(false).AsTask().GetAwaiter();
+                Zero(false).AsTask().GetAwaiter();
             }
             catch (Exception e)
             {
@@ -192,13 +189,14 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            ZeroAsync(Sentinel).AsTask().GetAwaiter();
+            Zero(Sentinel);
         }
 
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public async ValueTask<bool> ZeroAsync(IIoNanite from)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Zero(IIoNanite @from)
         {
 #if DEBUG
             if (from == null)
@@ -206,15 +204,13 @@ namespace zero.core.patterns.misc
                 throw new NullReferenceException(nameof(from));
             }
 #endif
-            if (_zeroed > 0)
-                return true;
+            // Only once
+            if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+                return;
 
             ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
 
-            await ZeroAsync(true).FastPath().ConfigureAwait(Zc);
-
-            GC.SuppressFinalize(this);
-            return true;
+            ZeroAsync(static @this => @this.Zero(true), this, TaskCreationOptions.DenyChildAttach);
         }
 
         /// <summary>
@@ -306,7 +302,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Our dispose implementation
         /// </summary>
-        private async ValueTask ZeroAsync(bool disposing)
+        private async ValueTask Zero(bool disposing)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
@@ -345,7 +341,7 @@ namespace zero.core.patterns.misc
                     foreach (var zeroSub in _zeroHiveMind)
                     {
                         if (!zeroSub.Zeroed())
-                            await zeroSub.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                            zeroSub.Zero(this);
                     }
                 }
                 
@@ -437,7 +433,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public virtual ValueTask ZeroManagedAsync()
         {
-            //_nanoMutex.Zero();
+            //_nanoMutex.ZeroAsync();
             _zeroHive?.Clear();
             _zeroHiveMind?.Clear();
          
@@ -570,7 +566,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -582,9 +578,9 @@ namespace zero.core.patterns.misc
         /// <param name="methodName"></param>
         /// <param name="lineNumber"></param>
         /// <returns>A ValueTask</returns>
-        protected async ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
+        protected async ValueTask Zero<T>(Func<T,ValueTask> continuation, T state, CancellationToken asyncToken, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null,[CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            var nanite = state as IoNanoprobe;
+            var nanite = state as IoNanoprobe??this;
             try
             {
                 var zeroAsyncTask = Task.Factory.StartNew(static async nanite =>
@@ -640,7 +636,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -653,11 +649,11 @@ namespace zero.core.patterns.misc
         /// <returns>A ValueTask</returns>
         protected ValueTask ZeroAsync<T>(Func<T,ValueTask> continuation, T state, TaskCreationOptions options, TaskScheduler scheduler = null, bool unwrap = false, [CallerFilePath] string filePath = null, [CallerMemberName] string methodName = null, [CallerLineNumber] int lineNumber = default )
         {
-            return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Current, unwrap, filePath, methodName: methodName, lineNumber);
+            return Zero(continuation, state, AsyncTasks.Token, options, scheduler??TaskScheduler.Current, unwrap, filePath, methodName: methodName, lineNumber);
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>
@@ -672,7 +668,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                return ZeroAsync(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
+                return Zero(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
                     unwrap, filePath, methodName, lineNumber);
             }
             catch (Exception e) when(Zeroed()){ return new ValueTask(Task.FromException(e));}
@@ -684,7 +680,7 @@ namespace zero.core.patterns.misc
         }
 
         /// <summary>
-        /// Async execution options. <see cref="ZeroAsync"/> needs trust, but verify...
+        /// Async execution options. <see cref="Zero"/> needs trust, but verify...
         /// </summary>
         /// <param name="continuation">The continuation</param>
         /// <param name="state">user state</param>

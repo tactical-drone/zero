@@ -1,9 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 using Proto;
 using SimpleBase;
 using zero.cocoon.autopeer;
@@ -35,12 +35,12 @@ namespace zero.cocoon.models
             var conduitId = nameof(CcAdjunct);
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
-            var batchSize = 64;
-            var cc = 32;
+            var batchSize = 512;
+            var cc = 8;
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc, cc, 1, 1);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, 0);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,

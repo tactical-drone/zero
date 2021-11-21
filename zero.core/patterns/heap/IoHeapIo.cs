@@ -78,7 +78,7 @@ namespace zero.core.patterns.heap
                 if (next != null)
                 {
                     _logger.Error(e, $"Heap `{this}' item construction returned with errors:");
-                        await ReturnAsync(next).FastPath().ConfigureAwait(Zc);
+                        Return(next);
                 }                    
                 else
                 {
@@ -95,15 +95,15 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to return</param>
         /// <param name="zero">If the item is to be zeroed</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override async ValueTask ReturnAsync(TItem item, bool zero = false)
+        public override void Return(TItem item, bool zero = false)
         {
             if (item == null)
                 return;
 
-            await base.ReturnAsync(item, zero).FastPath().ConfigureAwait(Zc);
+            base.Return(item, zero);
 
             if (zero)
-                await item.ZeroAsync(new IoNanoprobe($"{GetType()}")).FastPath().ConfigureAwait(Zc);
+                item.Zero(new IoNanoprobe($"{GetType()}"));
         }
     }
 

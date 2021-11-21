@@ -14,7 +14,7 @@ namespace zero.core.patterns.queue
 {
 
     /// <summary>
-    /// Zero Queue
+    /// ZeroAsync Queue
     /// </summary>
     /// <typeparam name="T">The type of item queued</typeparam>
     public class IoQueue<T>: IEnumerator<IoQueue<T>.IoZNode>, IEnumerable<IoQueue<T>.IoZNode>
@@ -117,7 +117,7 @@ namespace zero.core.patterns.queue
                             else
                             {
                                 if(!((IIoNanite)cur.Value).Zeroed())
-                                    await ((IIoNanite)cur.Value).ZeroAsync((IIoNanite)nanite?? new IoNanoprobe($"{nameof(IoQueue<T>)}: {_description}")).FastPath().ConfigureAwait(Zc);
+                                    ((IIoNanite)cur.Value).Zero((IIoNanite)nanite?? new IoNanoprobe($"{nameof(IoQueue<T>)}: {_description}"));
                             }
                         }
                         catch(Exception e)
@@ -193,7 +193,7 @@ namespace zero.core.patterns.queue
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
-                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc); ;
+                    _nodeHeap.Return(node);
                     return null;
                 }
                 entered = true;
@@ -262,7 +262,7 @@ namespace zero.core.patterns.queue
 
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
-                    await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc);
+                    _nodeHeap.Return(node);
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncRoot}");
                     return null;
                 }
@@ -359,7 +359,7 @@ namespace zero.core.patterns.queue
                 if (dq != null)
                 {
                     var retVal = dq.Value;
-                    await _nodeHeap.ReturnAsync(dq).FastPath().ConfigureAwait(Zc);
+                    _nodeHeap.Return(dq);
                     return retVal;
                 }
             }
@@ -415,7 +415,7 @@ namespace zero.core.patterns.queue
                 _syncRoot.Release();
             }
 
-            await _nodeHeap.ReturnAsync(node).FastPath().ConfigureAwait(Zc);
+            _nodeHeap.Return(node);
 
             return true;
         }
@@ -478,7 +478,7 @@ namespace zero.core.patterns.queue
                     cur.Prev = null;
                     cur.Value = default;
                     cur.Next = null;
-                    await _nodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(Zc);
+                    _nodeHeap.Return(cur);
                     cur = tmp;
                 }
 
@@ -507,7 +507,7 @@ namespace zero.core.patterns.queue
                 var c = 0;
                 while (cur != crisper)
                 {
-                    await _nodeHeap.ReturnAsync(cur).FastPath().ConfigureAwait(Zc);
+                    _nodeHeap.Return(cur);
                     cur = cur.Next;
                     c++;
                 }

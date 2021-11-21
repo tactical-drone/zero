@@ -168,7 +168,7 @@ namespace zero.core.misc
                 finally
                 {
                     if (challenge != null && state.node == null && state.@this._valHeap != null)
-                        await state.@this._valHeap.ReturnAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
+                        state.@this._valHeap.Return(challenge);
                 }
 
                 return true;
@@ -233,7 +233,7 @@ namespace zero.core.misc
                         if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
                         {
                             await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                            await @this._valHeap.ReturnAsync(potential).FastPath().ConfigureAwait(@this.Zc);
+                            @this._valHeap.Return(potential);
                             return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
                         }
                     }
@@ -242,7 +242,7 @@ namespace zero.core.misc
                     if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
                     {
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                        await @this._valHeap.ReturnAsync(cur.Value).FastPath().ConfigureAwait(@this.Zc);
+                        @this._valHeap.Return(cur.Value);
                     }
 
                     cur = cur.Next;
@@ -267,7 +267,7 @@ namespace zero.core.misc
                     if (n.Value.TimestampMs.ElapsedMs() > _ttlMs)
                     {
                         await _lut.RemoveAsync(n).FastPath().ConfigureAwait(Zc);
-                        await _valHeap.ReturnAsync(n.Value).FastPath().ConfigureAwait(Zc);
+                        _valHeap.Return(n.Value);
                     }
                     n = t;
                 }
@@ -307,7 +307,7 @@ namespace zero.core.misc
         public async ValueTask<bool> RemoveAsync(IoQueue<IoChallenge>.IoZNode node)
         {
             await _lut.RemoveAsync(node).FastPath().ConfigureAwait(Zc);
-            await _valHeap.ReturnAsync(node.Value).FastPath().ConfigureAwait(Zc); ;
+            _valHeap.Return(node.Value);
 
             return true;
         }

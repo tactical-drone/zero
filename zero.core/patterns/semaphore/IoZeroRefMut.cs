@@ -58,7 +58,7 @@ namespace zero.core.patterns.semaphore
             return true;
         }
 
-        public void Zero()
+        public void ZeroAsync()
         {
             _semaphore = null;
         }

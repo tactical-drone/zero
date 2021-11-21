@@ -164,7 +164,7 @@ namespace zero.cocoon.models.test
                         }
                         else
                         {
-                            await @this.Source.ZeroAsync(@this).FastPath().ConfigureAwait(@this.Zc);
+                            @this.Source.Zero(@this);
                         }
 
                         if (@this.Zeroed())
@@ -188,7 +188,7 @@ namespace zero.cocoon.models.test
                         @this.State = IoJobMeta.JobState.ProduceErr;
 
                         if(@this.Source != null)
-                            await @this.Source.ZeroAsync(@this).ConfigureAwait(@this.Zc);
+                            @this.Source.Zero(@this);
 
                         return false;
                     }

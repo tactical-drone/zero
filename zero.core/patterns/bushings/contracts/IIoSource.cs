@@ -112,11 +112,6 @@ namespace zero.core.patterns.bushings.contracts
         int PrefetchSize { get; }
 
         /// <summary>
-        /// The number of concurrent sinks allowed
-        /// </summary>
-        int MaxAsyncSinks { get; }
-
-        /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
         int MaxAsyncSources { get; }

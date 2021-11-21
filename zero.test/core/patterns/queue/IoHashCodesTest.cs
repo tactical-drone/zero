@@ -48,7 +48,7 @@ namespace zero.test.core.patterns.queue
         public void Dispose()
         {
             _bag.ZeroManaged(true);
-            _bag = null;
+            _bag = default!;
         }
     }
 }

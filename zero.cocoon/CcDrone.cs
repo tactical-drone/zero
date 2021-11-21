@@ -47,9 +47,11 @@ namespace zero.cocoon
                     await Task.Delay(@this.parm_insane_checks_delay * 1000, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
                     if (!@this.Zeroed() && @this.Adjunct == null || @this.Adjunct?.Direction == CcAdjunct.Heading.Undefined || @this.Adjunct?.State < CcAdjunct.AdjunctState.Connected && @this.Adjunct?.Direction != CcAdjunct.Heading.Undefined && @this.Adjunct.IsDroneConnected)
                     {
-                        if(!@this.Zeroed() && @this.Adjunct == null)
+                        if (!@this.Zeroed() && @this.Adjunct == null)
+                        {
                             @this._logger.Debug($"! {@this.Description} - n = {@this.Adjunct}, d = {@this.Adjunct?.Direction}, s = {@this.Adjunct?.State} (wants {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}");
-                        await @this.ZeroAsync(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}")).FastPath().ConfigureAwait(@this.Zc);
+                        }
+                        @this.Zero(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}"));
                     }
                 }
             },this, TaskCreationOptions.DenyChildAttach);
@@ -287,7 +289,7 @@ namespace zero.cocoon
                         if (!Adjunct.CcCollective.DupChecker.TryAdd(v, dupEndpoints))
                         {
                             dupEndpoints.ZeroManaged();
-                            await Adjunct.CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
+                            Adjunct.CcCollective.DupHeap.Return(dupEndpoints);
 
                             //best effort
                             if (Adjunct.CcCollective.DupChecker.TryGetValue(v, out dupEndpoints))

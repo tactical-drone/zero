@@ -28,8 +28,8 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="concurrencyLevel"></param>
         /// <param name="maxAsyncSinks"></param>
         /// <param name="maxAsyncSources"></param>
-        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSinks = 0, int maxAsyncSources = 0) 
-            : base(description, prefetchSize, concurrencyLevel, maxAsyncSinks, maxAsyncSources)//TODO config
+        public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
+            : base(description, prefetchSize, concurrencyLevel, maxAsyncSources)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -39,19 +39,6 @@ namespace zero.core.models.protobuffer.sources
             //TODO tuning
 
             MessageQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
-    
-            var enableFairQ = false;
-            var enableDeadlockDetection = true;
-#if RELEASE
-            enableDeadlockDetection = false;
-#endif
-            
-            //TODO tuning
-            _queuePressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{GetType().Name}: {nameof(_queuePressure)}",
-                maxBlockers: concurrencyLevel, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false,  enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
-            
-            // _queueBackPressure = new IoZeroSemaphoreSlim(AsyncTasks.Token,  $"{GetType().Name}: {nameof(_queueBackPressure)}", 
-            //     maxBlockers: ioSource.ZeroConcurrencyLevel(), initialCount: 1, concurrencyLevel: 0, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
         }
 
         /// <summary>
@@ -63,16 +50,6 @@ namespace zero.core.models.protobuffer.sources
         /// Used to load the next value to be produced
         /// </summary>
         protected IoQueue<TBatch> MessageQueue;
-
-        /// <summary>
-        /// Sync used to access the Q
-        /// </summary>
-        private IoZeroSemaphoreSlim _queuePressure;
-
-        // /// <summary>
-        // /// Sync used to access the Q
-        // /// </summary>
-        // private IoZeroSemaphoreSlim _queueBackPressure;
 
         /// <summary>
         /// Keys this instance.
@@ -101,8 +78,6 @@ namespace zero.core.models.protobuffer.sources
 
 #if SAFE_RELEASE
             _logger = null;
-            _queuePressure = null;
-            //_queueBackPressure = null;
             MessageQueue = null;
 #endif
         }
@@ -114,9 +89,6 @@ namespace zero.core.models.protobuffer.sources
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-
-            _queuePressure.Zero();
-            //_queueBackPressure.Zero();
             await MessageQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
                 msgBatch.Dispose();
@@ -139,24 +111,16 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                // backPressure = _queueBackPressure.WaitAsync();
-                // if (!await backPressure.FastPath().ConfigureAwait(ZC))
-                //     return false;
-
                 var plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
-
-                _queuePressure.Release();
-                
                 return plugged;
             }
             catch (Exception e)
             {
                 if (!Zeroed())
-                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}, {_queuePressure}");
+                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}");
                 return false;
             }
         }
-
 
         /// <summary>
         /// Dequeue item
@@ -166,26 +130,12 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                if (!await _queuePressure.WaitAsync().FastPath().ConfigureAwait(Zc))
-                    return default;
-                
                 return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())
             {
                 _logger.Trace(e, $"{Description}");
-            }
-            finally
-            {
-                try
-                {
-                    //_queueBackPressure.Release();
-                }
-                catch
-                {
-                    // ignored
-                }
             }
 
             return default;

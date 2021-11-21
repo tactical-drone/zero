@@ -35,7 +35,7 @@ namespace zero.cocoon.models
 
             //_batchMsgHeap.ZeroManaged(batchMsg =>
             //{
-            //    batchMsg.Zero = null;
+            //    batchMsg.ZeroAsync = null;
             //    batchMsg.Message = null;
             //    batchMsg.RemoteEndPoint = null;
             //});
@@ -175,7 +175,7 @@ namespace zero.cocoon.models
                                 if (CcCollective.DupChecker.TryRemove(mId, out var del))
                                 {
                                     del.ZeroManaged();
-                                    await CcCollective.DupHeap.ReturnAsync(del).FastPath().ConfigureAwait(Zc);
+                                    CcCollective.DupHeap.Return(del);
                                 }
                             }
                         }
@@ -233,7 +233,7 @@ namespace zero.cocoon.models
                         if (!CcCollective.DupChecker.TryAdd(req, dupEndpoints))
                         {
                             dupEndpoints.ZeroManaged();
-                            await CcCollective.DupHeap.ReturnAsync(dupEndpoints).FastPath().ConfigureAwait(Zc);
+                            CcCollective.DupHeap.Return(dupEndpoints);
 
                             //best effort
                             if (CcCollective.DupChecker.TryGetValue(req, out dupEndpoints))

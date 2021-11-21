@@ -10,7 +10,7 @@ using zero.core.patterns.misc;
 namespace zero.core.patterns.semaphore.core
 {
     /// <summary>
-    /// Zero Semaphore with strong order guarantees
+    /// ZeroAsync Semaphore with strong order guarantees
     /// 
     /// Experimental auto capacity scaling (disabled by default), set max count manually instead for max performance.
     /// </summary>
@@ -579,12 +579,7 @@ namespace zero.core.patterns.semaphore.core
                     {
                         // ignored
                     }
-
-                    if (Thread.CurrentThread.Priority == ThreadPriority.Normal)
-                        Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                 }
-
-                Thread.CurrentThread.Priority = ThreadPriority.Highest;
 
                 //double the q
                 var prevZeroQ = _signalAwaiter;
@@ -643,8 +638,6 @@ namespace zero.core.patterns.semaphore.core
                 {
                     // ignored
                 }
-
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
             }
             
         }
@@ -754,15 +747,15 @@ namespace zero.core.patterns.semaphore.core
         /// </summary>
         /// <returns>The version number</returns>
         public ValueTask<bool> WaitAsync()
-        { 
-            //fast path
-            if (_zeroRef.ZeroEnter())
-                return new ValueTask<bool>(true);
-            
+        {
             //insane checks
             if (_zeroRef.ZeroWaitCount() >= _maxBlockers)
                 return new ValueTask<bool>(false);
 
+            //fast path
+            if (_zeroRef.ZeroEnter())
+                return new ValueTask<bool>(true);
+            
             //thread will attempt to block
             return new ValueTask<bool>(_zeroRef, 23);
         }

@@ -43,8 +43,8 @@ namespace zero.core.patterns.heap
             Context = context;
             _count = 0;
             _refCount = 0;
-            if(enablePerf)
-                _ioFpsCounter = new IoFpsCounter(5000, 10000);
+            //if(enablePerf)
+            //    _ioFpsCounter = new IoFpsCounter(5000, 10000);
             Make = default;
         }
 
@@ -126,12 +126,12 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Provides perf stats
         /// </summary>
-        public double OpsPerSecond => _ioFpsCounter.Fps();
+        public double OpsPerSecond => 0;
 
         /// <summary>
         /// Total ops this heap has performed
         /// </summary>
-        public double TotalOps => _ioFpsCounter.Total;
+        public double TotalOps => _opsCounter;
 
         /// <summary>
         /// zero unmanaged
@@ -217,7 +217,7 @@ namespace zero.core.patterns.heap
         /// <param name="item">The item to be returned to the heap</param>
         /// <param name="zero">Whether to destroy this object</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual async ValueTask ReturnAsync(TItem item, bool zero = false)
+        public virtual void Return(TItem item, bool zero = false)
         {
 #if DEBUG
              if (item == null)
@@ -225,8 +225,10 @@ namespace zero.core.patterns.heap
 #endif
             try
             {
-                if(_ioFpsCounter != default)
-                    await _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc);
+                //TODO counters
+                //if(_ioFpsCounter != default)
+                //    await _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc);
+                Interlocked.Increment(ref _opsCounter);
 
                 if (!zero)
                     _ioHeapBuf.Add(item);
@@ -258,7 +260,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Tracks performances
         /// </summary>
-        private readonly IoFpsCounter _ioFpsCounter;
+        private long _opsCounter;
 
         /// <summary>
         /// Returns the amount of space left in the buffer

@@ -23,53 +23,43 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSinks = 0, int maxAsyncSources = 0) : base(description, concurrencyLevel)
+        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSources = 0) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             
-            if (prefetchSize > concurrencyLevel * 2)
-                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(prefetchSize)} = {prefetchSize}, must be at least {nameof(concurrencyLevel)} = {concurrencyLevel*2}");
+            //if (prefetchSize > concurrencyLevel * 2)
+            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(prefetchSize)} = {prefetchSize}, must be at least {nameof(concurrencyLevel)} = {concurrencyLevel*2}");
 
-            if (maxAsyncSinks > concurrencyLevel)
-                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSinks)} = {maxAsyncSinks}");
+            //if (maxAsyncSinks > concurrencyLevel)
+            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSinks)} = {maxAsyncSinks}");
 
-            if (maxAsyncSources > concurrencyLevel)
-                throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
+            //if (maxAsyncSources > concurrencyLevel)
+            //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
 
             PrefetchSize = prefetchSize;
-            MaxAsyncSinks = maxAsyncSinks;
             MaxAsyncSources = maxAsyncSources;
+            AsyncEnabled = MaxAsyncSources > 0;
 
-            AsyncEnabled = MaxAsyncSinks > 0 || MaxAsyncSources > 0;
-
-            var enableFairQ = false;
-            var enableDeadlockDetection = true;
-#if RELEASE
-            enableDeadlockDetection = false;
-#endif
-
-            //todo GENERALIZE
             try
             {
-                _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}, {description}",
-                    maxBlockers: concurrencyLevel, maxAsyncWork: MaxAsyncSinks, enableAutoScale: false, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                _pressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_pressure)}: {description}",
+                    maxBlockers: concurrencyLevel + MaxAsyncSources, maxAsyncWork: MaxAsyncSources);
 
-                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}, {description}",
-                    maxBlockers: concurrencyLevel,
-                    initialCount: prefetchSize,
-                    maxAsyncWork: MaxAsyncSources, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                _backPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_backPressure)}: {description}",
+                    maxBlockers: concurrencyLevel + MaxAsyncSources,
+                    initialCount: prefetchSize + MaxAsyncSources,
+                    maxAsyncWork: 0);
 
-                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}, {description}"
-                    , maxBlockers: concurrencyLevel,
-                    initialCount: prefetchSize,
-                    maxAsyncWork: MaxAsyncSources, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
+                _prefetchPressure = new IoZeroSemaphoreSlim(AsyncTasks, $"{nameof(_prefetchPressure)}: {description}"
+                    , maxBlockers: concurrencyLevel + MaxAsyncSources,
+                    initialCount: prefetchSize + MaxAsyncSources,
+                    maxAsyncWork: 0);
             }
             catch (Exception e)
             {
                 _logger.Fatal(e, $"CRITICAL! Failed to configure semaphores! Aborting!");
                 throw;
             }
-
         }
 
         /// <summary>
@@ -152,11 +142,6 @@ namespace zero.core.patterns.bushings
         public int PrefetchSize { get; protected set; }
 
         /// <summary>
-        /// The number of concurrent sinks allowed
-        /// </summary>
-        public int MaxAsyncSinks { get; protected set; }
-
-        /// <summary>
         /// The number of concurrent sources allowed
         /// </summary>
         public int MaxAsyncSources { get; protected set; }
@@ -227,18 +212,18 @@ namespace zero.core.patterns.bushings
             foreach (var o in ObjectStorage)
             {
                 if (o.Value is IIoNanite ioNanite)
-                    await ioNanite.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                    ioNanite.Zero(this);
             }
             ObjectStorage.Clear();
 
             foreach (var ioConduit in IoConduits.Values)
-                await ioConduit.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                ioConduit.Zero(this);
             
             IoConduits.Clear();
 
             try
             {
-                await RecentlyProcessed.ZeroAsync(this).ConfigureAwait(Zc);
+                RecentlyProcessed.Zero(this);
             }
             catch { }
 
@@ -279,19 +264,19 @@ namespace zero.core.patterns.bushings
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
-                if (!ZeroAtomic(static async (nanite, parms, disposed) =>
+                if (!ZeroAtomic(static (nanite, parms, disposed) =>
                 {
                     var (@this, id, channelSource, jobMalloc, concurrencyLevel) = parms;
                     var newConduit = new IoConduit<TfJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
 
                     if (!@this.IoConduits.TryAdd(id, newConduit))
                     {
-                        await newConduit.ZeroAsync(new IoNanoprobe("lost race")).FastPath().ConfigureAwait(@this.Zc);
+                        newConduit.Zero(new IoNanoprobe("lost race"));
                         @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
-                        return false;
+                        return new ValueTask<bool>(false);
                     }
 
-                    return true;
+                    return new ValueTask<bool>(true);
                 }, ValueTuple.Create(this, id,channelSource, jobMalloc, concurrencyLevel)))
                 {
                     if (!Zeroed())

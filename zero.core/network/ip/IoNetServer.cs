@@ -177,7 +177,7 @@ namespace zero.core.network.ip
             {
                 if (!connected)
                 {
-                    await ioNetClient!.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                    ioNetClient!.Zero(this);
 
                     if (!Zeroed())
                         _logger.Error($"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]");

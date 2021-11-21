@@ -121,7 +121,7 @@ namespace zero.core.network.ip
                     }
                     catch (Exception e)
                     {
-                        await newSocket.ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                       newSocket.Zero(this);
                         _logger.Error(e, $"There was an error handling a new connection from {newSocket.RemoteNodeAddress} to `{newSocket.LocalNodeAddress}'");
                     }
                 }
@@ -218,6 +218,9 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint = null, int timeout = 0)
         {
+            if (!IsConnected())
+                return 0;
+
             try
             {
                 if (timeout == 0)
@@ -231,16 +234,17 @@ namespace zero.core.network.ip
                 var sent = NativeSocket.Send(buffer.Span.Slice(offset,length));                
                 return sent;
             }
+            catch (ObjectDisposedException) { }
             catch (SocketException e) when (!Zeroed())
             {
                 _logger.Debug($"{nameof(SendAsync)}: {e.Message} - {Description}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                Zero(this);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"{Description}: {nameof(SendAsync)} failed!");
-                await ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                Zero(this);
             }
 
             return 0;
@@ -261,6 +265,9 @@ namespace zero.core.network.ip
             IPEndPoint remoteEp = null,
             byte[] blacklist = null, int timeout = 0) //TODO can we go back to array buffers?
         {
+            if (!IsConnected())
+                return 0;
+
             try
             {
                 //fast path: no timeout
@@ -280,21 +287,22 @@ namespace zero.core.network.ip
                     return read;
                 }
             }
+            catch (ObjectDisposedException) { }
             catch (SocketException e) when (!Zeroed())
             {
                 _logger.Debug($"{nameof(ReadAsync)}: {e.Message} -  {Description}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                Zero(this);
             }
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed()) 
             {
                 _logger?.Error(e, $"{nameof(ReadAsync)}: [FAILED], {Description}, l = {length}, o = {offset}: {e.Message}");
-                await ZeroAsync(this).FastPath().ConfigureAwait(Zc);
+                Zero(this);
             }
             return 0;
         }
 
-        private byte[] _sentinelBuf = Array.Empty<byte>();
+        private readonly byte[] _sentinelBuf = Array.Empty<byte>();
         private uint _expensiveCheck = 0;
         /// <inheritdoc />
         /// <summary>
@@ -307,10 +315,9 @@ namespace zero.core.network.ip
             
             try
             {
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                NativeSocket.SendTimeout = 0;
-                return NativeSocket is { IsBound: true, Connected: true } && (_expensiveCheck++ % 100 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
+                return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
             }
+            catch(ObjectDisposedException){}
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {                
