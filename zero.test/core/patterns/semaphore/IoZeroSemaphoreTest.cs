@@ -30,7 +30,8 @@ namespace zero.test.core.patterns.semaphore
 #endif
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
 
-            var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
 
             var t = Task.Factory.StartNew(async () =>
             {
@@ -42,19 +43,17 @@ namespace zero.test.core.patterns.semaphore
                 }
             }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
 
-            Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
-
             var c = 0;
             long ave = 0;
             while (c++ < loopCount)
             {
+                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
                 var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - s;
                 ave += delta;
                 _output.WriteLine($"d = {delta}");
                 if (delta < targetSleep * targetSleep || c > 1)//gitlab glitches on c == 0
                     Assert.InRange(delta, targetSleep/2, targetSleep * targetSleep);
-                s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
 
             running = false;
