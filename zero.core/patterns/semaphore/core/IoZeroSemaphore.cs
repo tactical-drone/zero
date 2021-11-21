@@ -519,7 +519,10 @@ namespace zero.core.patterns.semaphore.core
                                     ((IIoZeroSemaphore) zeroRef).ZeroDecAsyncCount();
                                 }, _zeroRef);
                             else
+                            {
                                 _zeroRef.ZeroDecAsyncCount();
+                                callback(state);
+                            }
                         }
                         else
                         {

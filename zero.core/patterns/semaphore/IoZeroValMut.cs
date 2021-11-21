@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using zero.core.patterns.misc;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.semaphore
@@ -19,7 +20,7 @@ namespace zero.core.patterns.semaphore
 
         public int Capacity => throw new NotImplementedException();
 
-        public bool Zc = true;
+        public bool Zc = IoNanoprobe.ContinueOnCapturedContext;
 
         int IIoZeroSemaphore.ReadyCount => throw new NotImplementedException();
 

@@ -66,7 +66,7 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Config await
         /// </summary>
-        protected bool Zc = true;
+        protected bool Zc = IoNanoprobe.ContinueOnCapturedContext;
 
         /// <summary>
         /// Whether this object has been cleaned up
@@ -140,7 +140,7 @@ namespace zero.core.patterns.heap
         {
 #if SAFE_RELEASE
             _logger = null;
-            _ioHeapBuf = null;
+            _ioHeapBuf = default;
             Make = null;
 #endif
         }

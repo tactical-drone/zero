@@ -50,7 +50,7 @@ namespace zero.test.core.patterns.queue
         public void Dispose()
         {
             _bag.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
-            _bag = null;
+            _bag = default!;
         }
     }
 }

@@ -34,7 +34,7 @@ namespace zero.core.patterns.queue
         }
 
         private volatile int _zeroed;
-        private readonly bool Zc = true;
+        private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
         private T[] _storage;        
         private readonly int _capacity;
@@ -62,7 +62,6 @@ namespace zero.core.patterns.queue
         /// Current number of items in the bag
         /// </summary>
         public int Count => _count;
-
 
         /// <summary>
         /// Capacity
@@ -150,7 +149,7 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryPeek([MaybeNullWhen(false)] out T result)
         {                        
-            return (result = _storage[(_head - 1) % (int)_capacity]) != default;
+            return (result = _storage[(_head - 1) % _capacity]) != default;
         }
 
         /// <summary>
@@ -169,7 +168,6 @@ namespace zero.core.patterns.queue
                 if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
                 
-                //foreach (var item in _storage)
                 for(int i = 0; i < _capacity; i++)
                 {
                     var item = _storage[i];
@@ -227,8 +225,8 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
-            var idx = 0;
-            while ((_storage[idx = Interlocked.Increment(ref _iteratorIdx) % (int)_capacity] == default) && Interlocked.Decrement(ref _iteratorCount) > 0) {}
+            int idx;
+            while (_storage[idx = Interlocked.Increment(ref _iteratorIdx) % _capacity] == default && Interlocked.Decrement(ref _iteratorCount) > 0) {}
             return _storage[idx] != default;
         }
 
@@ -246,7 +244,7 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Reset iterator
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
             Interlocked.Exchange(ref _iteratorIdx, (_tail - 1) % (int)_capacity);

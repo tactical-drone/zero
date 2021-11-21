@@ -20,7 +20,7 @@ namespace zero.cocoon.events.services
 
         private const int EventBatchSize = 4000;
         private const int TotalBatches = 100;
-        private static bool Zc = false;
+        private static bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly ILogger<AutoPeeringEventService> _logger;
         public static IoQueue<AutoPeerEvent>[] _queuedEvents =
         {
@@ -29,7 +29,7 @@ namespace zero.cocoon.events.services
             new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
         };
 
-        private static volatile int _operational = 1;
+        private static volatile int _operational = 0;
         private static long _seq;
         private static volatile int _curIdx;
         public static bool Operational => _operational > 0;

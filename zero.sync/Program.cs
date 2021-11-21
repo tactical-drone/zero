@@ -34,7 +34,7 @@ namespace zero.sync
         private static volatile bool _running;
         private static volatile bool _verboseGossip;
         private static volatile bool _startAccounting;
-        private static bool Zc = true;
+        private static bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private static int _rampDelay = 300;
         private static int _rampTarget = 40;
         public static IHostBuilder CreateHostBuilder(string[] args) =>
@@ -70,7 +70,7 @@ namespace zero.sync
             //BagTest2();
 
             LogManager.LoadConfiguration("nlog.config");
-            var portOffset = 1900;
+            var portOffset = 5051;
             
 #if DEBUG
             portOffset = 1900;
@@ -84,7 +84,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 150;
+            var total = 2000;
             var maxDrones = 8;
             var maxAdjuncts = 16;
             var tasks = new ConcurrentBag<Task<CcCollective>>

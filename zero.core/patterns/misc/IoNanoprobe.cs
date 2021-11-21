@@ -93,6 +93,10 @@ namespace zero.core.patterns.misc
         /// </summary>
         private static long _uidSeed;
 
+        /// <summary>
+        /// Continue On Captured Context
+        /// </summary>
+        public static bool ContinueOnCapturedContext => true;
 
         /// <summary>
         /// Hive Teardown maximum elasticity allowed 
@@ -181,7 +185,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// config await
         /// </summary>
-        public bool Zc => true;
+        public bool Zc => ContinueOnCapturedContext;
         
         /// <summary>
         /// ZeroAsync pattern
@@ -411,7 +415,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Cancellation token source
         /// </summary>
-        public CancellationTokenSource AsyncTasks { get; protected set; }
+        public CancellationTokenSource AsyncTasks { get; private set; }
 
         /// <summary>
         /// Manages unmanaged objects

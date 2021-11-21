@@ -102,7 +102,7 @@ namespace zero.test.core.patterns.heap
 
 
         private int _localVar = 2;
-        private bool Zc = true;
+        private bool Zc = IoNanoprobe.ContinueOnCapturedContext;
        
 
 #if true

@@ -14,7 +14,7 @@ namespace zero.test.core.patterns.semaphore
         {
             _output = output;
         }
-        private bool Zc = true;
+        private bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly ITestOutputHelper _output;
 
         [Fact]

@@ -61,7 +61,7 @@ namespace zero.core.patterns.queue
 
         private readonly string _description; 
         private volatile int _zeroed;
-        private readonly bool Zc = true;
+        private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private IIoZeroSemaphore _syncRoot;
         private IIoZeroSemaphore _pressure;
         private IIoZeroSemaphore _backPressure;

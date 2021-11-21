@@ -389,7 +389,7 @@ namespace zero.core.core
 #if SAFE_RELEASE
             _logger = null;
             Neighbors = null;
-            NeighborTasks = null;
+            NeighborTasks = default;
             _netServer = null;
             _address = null;
             _whiteList = null;

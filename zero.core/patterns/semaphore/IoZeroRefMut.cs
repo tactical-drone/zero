@@ -19,7 +19,7 @@ namespace zero.core.patterns.semaphore
         
         private AsyncAutoResetEvent _semaphore;
         private readonly CancellationToken _cancellationToken;
-        private readonly bool Zc = true;
+        private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         
         public bool GetResult(short token)
         {

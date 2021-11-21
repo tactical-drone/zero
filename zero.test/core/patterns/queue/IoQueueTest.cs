@@ -20,7 +20,7 @@ namespace zero.test.core.patterns.queue{
             _output = output;
             _context = new Context();
         }
-        private bool Zc = true;
+        private bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly Context _context;
         private readonly ITestOutputHelper _output;
 
@@ -270,7 +270,7 @@ namespace zero.test.core.patterns.queue{
                 Tail = Q.EnqueueAsync(9).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             }
 
-            private bool Zc = true;
+            private bool Zc = IoNanoprobe.ContinueOnCapturedContext;
             public IoQueue<int> Q;
             public IoQueue<int>.IoZNode Head;
             public IoQueue<int>.IoZNode Middle;
