@@ -11,6 +11,8 @@ pool:
 
 variables:
   solution: './zero.sync/zero.sync.csproj'
+  core-solution: './zero.core/zero.core.csproj'
+  cocoon-solution: './zero.cocoon/zero.cocoon.csproj'
   test-solution: './zero.test/zero.test.csproj'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
@@ -26,7 +28,19 @@ steps:
 
 - task: NuGetCommand@2
   inputs:
+    restoreSolution: '$(core-solution)'
+
+- task: NuGetCommand@2
+  inputs:
+    restoreSolution: '$(cocoon-solution)'
+
+- task: NuGetCommand@2
+  inputs:
     restoreSolution: '$(solution)'
+
+- task: NuGetCommand@2
+  inputs:
+    restoreSolution: '$(test-solution)'
 
 - task: VSBuild@1
   inputs:
