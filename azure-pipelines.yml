@@ -10,7 +10,8 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  solution: '**/*.sln'
+  solution: './zero.sync/*.sln'
+  test-solution: './zero.test/*.sln'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
 
@@ -30,6 +31,12 @@ steps:
 - task: VSBuild@1
   inputs:
     solution: '$(solution)'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+- task: VSBuild@1
+  inputs:
+    solution: '$(test-solution)'
     platform: '$(buildPlatform)'
     configuration: '$(buildConfiguration)'
 
