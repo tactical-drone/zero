@@ -26,11 +26,6 @@ namespace zero.core.patterns.queue
             _capacity = capacity;
             _storage = new T[_capacity];
             _hotReload = hotReload;
-#if DEBUG
-            _zeroSentinel = new IoNanoprobe($"{nameof(IoBag<T>)}: {description}");
-#else
-            _zeroSentinel = new IoNanoprobe("");
-#endif
             Reset();
         }
 
@@ -47,7 +42,6 @@ namespace zero.core.patterns.queue
         
         private volatile int _iteratorIdx = - 1;
         private volatile int _iteratorCount;
-        private IoNanoprobe _zeroSentinel;
         private readonly bool _hotReload;
 
         /// <summary>
@@ -147,8 +141,6 @@ namespace zero.core.patterns.queue
 
             Interlocked.Decrement(ref _count);
 
-            if(latch >= _iteratorIdx)
-                Interlocked.Decrement(ref _iteratorCount);
             return true;
         }
 
@@ -193,7 +185,7 @@ namespace zero.core.patterns.queue
                         else if(zero)
                         {
                             if (!((IIoNanite)item)!.Zeroed())
-                                ((IIoNanite)item).Zero((IIoNanite)nanite ?? _zeroSentinel);
+                                ((IIoNanite)item).Zero((IIoNanite)nanite);
                         }                        
                     }
                     catch (Exception) when(Zeroed){}
@@ -218,7 +210,6 @@ namespace zero.core.patterns.queue
 
                 if (zero)
                 {
-                    _zeroSentinel = null;
                     _storage = null;
                 }                
             }
@@ -233,9 +224,15 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
-            int idx;
-            while (_storage[idx = Interlocked.Increment(ref _iteratorIdx) % _capacity] == default && Interlocked.Decrement(ref _iteratorCount) > 0) {}
-            return _storage[idx] != default;
+            if (Zeroed || _iteratorCount <= 0)
+                return false;
+
+            var idx = Interlocked.Increment(ref _iteratorIdx) % _capacity;
+
+            while (Interlocked.Decrement(ref _iteratorCount) > 0 && _storage[idx] == default)
+                idx = Interlocked.Increment(ref _iteratorIdx) % _capacity;
+            
+            return _iteratorCount >= 0 && _storage[idx] != default;
         }
 
         /// <summary>
@@ -255,8 +252,8 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Interlocked.Exchange(ref _iteratorIdx, (_tail - 1) % (int)_capacity);
-            Interlocked.Exchange(ref _iteratorCount, (int)_count);
+            Interlocked.Exchange(ref _iteratorIdx, (_tail - 1) % _capacity);
+            Interlocked.Exchange(ref _iteratorCount, _count);
         }
 
         /// <summary>

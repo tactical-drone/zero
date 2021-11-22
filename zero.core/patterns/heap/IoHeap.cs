@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
@@ -150,7 +149,7 @@ namespace zero.core.patterns.heap
         /// </summary>
         public async ValueTask ZeroManagedAsync<TC>(Func<TItem,TC,ValueTask> zeroAction = null, TC nanite = default)
         {
-            if (Interlocked.CompareExchange(ref _zeroed, 1, 0)!= 0)
+            if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0 )
                 return;
             
             if (zeroAction != null)
@@ -277,9 +276,9 @@ namespace zero.core.patterns.heap
         /// <summary>
         /// Clear
         /// </summary>
-        public async ValueTask ClearAsync()
+        public async ValueTask ClearAsync(bool zero = false)
         {
-            await _ioHeapBuf.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+            await _ioHeapBuf.ZeroManagedAsync<object>(zero: zero).FastPath().ConfigureAwait(Zc);
         }
 
         public override string ToString()

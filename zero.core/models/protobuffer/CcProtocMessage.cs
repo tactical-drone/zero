@@ -20,8 +20,6 @@ namespace zero.core.models.protobuffer
             : base(sinkDesc, jobDesc, source)
         {
 
-            //ProtocolMsgBatch = ArrayPool<ValueTuple<IIoZero, TModel, object, TModel>>.Shared.Rent(parm_max_msg_batch_size);
-
             DatumSize = 1492; //SET to MTU
             
             //Init buffers
@@ -43,7 +41,7 @@ namespace zero.core.models.protobuffer
                 
                 ReadOnlySequence = new ReadOnlySequence<byte>(Buffer!);
                 MemoryBuffer = new Memory<byte>(Buffer);
-                ByteStream = new MemoryStream(Buffer);
+                ByteStream = new MemoryStream(Buffer!);
                 CodedStream = new CodedInputStream(ByteStream);
             }
         }

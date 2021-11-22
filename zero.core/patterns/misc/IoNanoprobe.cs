@@ -147,6 +147,11 @@ namespace zero.core.patterns.misc
         public readonly long Uptime;
         
         /// <summary>
+        /// Are we zero primed?
+        /// </summary>
+        private volatile int _zeroPrimed;
+
+        /// <summary>
         /// Are we zeroed?
         /// </summary>
         private volatile int _zeroed;
@@ -203,25 +208,58 @@ namespace zero.core.patterns.misc
             Zero(Sentinel);
         }
 
+
+        private static long _zCount;
         /// <summary>
         /// ZeroAsync
         /// </summary>
         public void Zero(IIoNanite @from)
         {
-#if DEBUG
-            if (from == null)
-            {
-                throw new NullReferenceException(nameof(from));
-            }
-#endif
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
 
-            ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
+            if(from != null)
+                ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
 
-            //ZeroAsync(static @this => @this.Zero(true), this, TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter().GetResult();
-            Zero(true).GetAwaiter().GetResult();
+            //prime garbage
+            ZeroPrime();
+
+            ZeroAsync(@this=>@this.Zero(true),this, TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
+            
+            if (Interlocked.Increment(ref _zCount) % 100 == 0)
+            {
+                Console.WriteLine(".");
+            }
+        }
+
+
+        /// <summary>
+        /// Prime for zero
+        /// </summary>
+        public void ZeroPrime()
+        {
+            if (_zeroPrimed > 0 || Interlocked.CompareExchange(ref _zeroPrimed, 1, 0) != 0)
+                return;
+
+            try
+            {
+                if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
+                    AsyncTasks.Cancel(false);
+            }
+            catch (Exception e)
+            {
+                _logger.Trace(e);
+            }
+
+            if (_zeroHiveMind != null)
+            {
+                foreach (var zeroSub in _zeroHiveMind)
+                {
+                    if (!zeroSub.Zeroed())
+                        zeroSub.ZeroPrime();
+                }
+            }
         }
 
         /// <summary>
@@ -320,16 +358,6 @@ namespace zero.core.patterns.misc
             var desc = Description;
             CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            try
-            {
-                if (!(AsyncTasks?.IsCancellationRequested ?? true) && AsyncTasks.Token.CanBeCanceled)
-                    AsyncTasks.Cancel(true);
-            }
-            catch (Exception e)
-            {
-                _logger.Trace(e);
-            }
-
             //Dispose managed
             if (disposing)
             {
@@ -340,6 +368,9 @@ namespace zero.core.patterns.misc
                         if (!zeroSub.Value.Executed && !await zeroSub.Value.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
                             _logger.Error($"{zeroSub.Value.From} - zero sub {((IIoNanite)zeroSub.Value.Target)?.Description} on {Description} returned with errors!");
                     }
+
+                    var c = _zeroHive.ClearAsync();
+                    _zeroHive = null;
                 }
 
                 if (_zeroHiveMind != null)
@@ -349,9 +380,12 @@ namespace zero.core.patterns.misc
                         if (!zeroSub.Zeroed())
                             zeroSub.Zero(this);
                     }
+
+                    var c = _zeroHiveMind.ZeroManagedAsync<object>(zero: true);
+                    _zeroHiveMind = null;
                 }
                 
-                CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CascadeTime;
+                CascadeTime = CascadeTime.ElapsedMs();
                 TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 try
@@ -395,15 +429,14 @@ namespace zero.core.patterns.misc
             }
 #endif
 
-            TearDownTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - TearDownTime;
+            TearDownTime = TearDownTime.ElapsedMs();
             //if (Uptime.Elapsed.TotalSeconds > 10 && TeardownTime.ElapsedMilliseconds > 2000)
             //    _logger.Fatal($"{GetType().Name}:Z/{Description}> t = {TeardownTime.ElapsedMilliseconds/1000.0:0.0}, c = {CascadeTime.ElapsedMilliseconds/1000.0:0.0}");
 
             try
             {
-                if (Uptime.ElapsedMs() > 10 && CascadeTime > TearDownTime * 2 && TearDownTime > 0)
-                    _logger.Fatal(
-                        $"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms, count = {_zeroHive.Count}");
+                if (Uptime.ElapsedMs() > 10 && CascadeTime > TearDownTime * 7 && CascadeTime > 20000)
+                    _logger.Fatal($"{GetType().Name}:Z/{Description}> SLOW TEARDOWN!, c = {CascadeTime:0.0}ms, t = {TearDownTime:0.0}ms");
             }
             catch
             {
@@ -411,6 +444,7 @@ namespace zero.core.patterns.misc
             }
 
             GC.SuppressFinalize(this);
+            ZeroedFrom = null;
 #if DEBUG
             _logger.Trace($"Z<~ {desc}: serial: {SerialNr} - Resistence is futile...");
 #endif
@@ -426,9 +460,6 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void ZeroUnmanaged()
         {
-            //_nanoMutex = null;
-            _zeroHive = null;
-            _zeroHiveMind = null;
             AsyncTasks = null;
 #if DEBUG
             Interlocked.Increment(ref _extracted);
@@ -438,17 +469,12 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Manages managed objects
         /// </summary>
-        public virtual async ValueTask ZeroManagedAsync()
+        public virtual ValueTask ZeroManagedAsync()
         {
-            if(_zeroHive != null)
-                await _zeroHive.ClearAsync().FastPath().ConfigureAwait(Zc);
-
-            if(_zeroHiveMind != null)
-                await _zeroHiveMind.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
-         
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
+            return default;
         }
 
         /// <summary>
@@ -593,8 +619,7 @@ namespace zero.core.patterns.misc
             {
                 var zeroAsyncTask = Task.Factory.StartNew(static async nanite =>
                     {
-                        var (@this, action, state, fileName, methodName, lineNumber, scheduler) =
-                            (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int, TaskScheduler>)nanite;
+                        var (@this, action, state, fileName, methodName, lineNumber) = (ValueTuple<IoNanoprobe, Func<T, ValueTask>, T, string, string, int>)nanite;
 
                         var nanoprobe = state as IoNanoprobe;
                         try
@@ -620,8 +645,7 @@ namespace zero.core.patterns.misc
                         {
                             _logger.Error(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
                         }
-                    }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber, scheduler),
-                    asyncToken, options, scheduler ?? TaskScheduler.Current);
+                    }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
                 
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();

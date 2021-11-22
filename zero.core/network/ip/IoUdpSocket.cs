@@ -166,12 +166,12 @@ namespace zero.core.network.ip
 
             await _tcsHeap.ZeroManagedAsync<object>((o,_) =>
             {
-                o.Zero();
+                o.ZeroSem();
                 return default;
             }).FastPath().ConfigureAwait(Zc);
 
-            _sendSync.Zero();
-            _rcvSync.Zero();
+            _sendSync.ZeroSem();
+            _rcvSync.ZeroSem();
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }

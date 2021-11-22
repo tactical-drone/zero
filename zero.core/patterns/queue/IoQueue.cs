@@ -50,8 +50,7 @@ namespace zero.core.patterns.queue
                 _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
-            _enableBackPressure = enableBackPressure;
-            if (_enableBackPressure)
+            if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
                     maxBlockers: concurrencyLevel, concurrencyLevel: 0, initialCount: concurrencyLevel);
@@ -71,8 +70,7 @@ namespace zero.core.patterns.queue
         private volatile IoZNode _head;
         private volatile IoZNode _tail;
         private volatile int _count;
-        private readonly bool _enableBackPressure;
-        
+
         public int Count => _count;
         public IoZNode Head => _head;
         public IoZNode Tail => _tail;
@@ -87,17 +85,18 @@ namespace zero.core.patterns.queue
 
         public bool Modified => _modified;
 
-        public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _enableBackPressure && _backPressure.Zeroed();
+        public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
             try
             {
-                #if DEBUG
+#if DEBUG
                 if (zero && nanite != null && nanite is not IIoNanite)
-                    throw new ArgumentException($"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
-                #endif
-                
+                    throw new ArgumentException(
+                        $"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
+#endif
+
                 if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                     return true;
 
@@ -116,46 +115,55 @@ namespace zero.core.patterns.queue
                                 await op(cur.Value, nanite).FastPath().ConfigureAwait(Zc);
                             else
                             {
-                                if(!((IIoNanite)cur.Value).Zeroed())
-                                    ((IIoNanite)cur.Value).Zero((IIoNanite)nanite?? new IoNanoprobe($"{nameof(IoQueue<T>)}: {_description}"));
+                                if (!((IIoNanite)cur.Value).Zeroed())
+                                    ((IIoNanite)cur.Value).Zero((IIoNanite)nanite ??
+                                                                new IoNanoprobe(
+                                                                    $"{nameof(IoQueue<T>)}: {_description}"));
                             }
                         }
-                        catch(Exception e)
+                        catch (Exception e)
                         {
-                            LogManager.GetCurrentClassLogger().Trace($"{_description}: {op}, {cur.Value}, {nanite}, {e.Message}");
+                            LogManager.GetCurrentClassLogger()
+                                .Trace($"{_description}: {op}, {cur.Value}, {nanite}, {e.Message}");
                         }
 
                         cur = cur.Next;
                     }
                 }
 
-                _head = null;
-                _tail = null;
-                _iteratorIoZNode = null;
-
-                await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
-                _nodeHeap = null;
-
-                _asyncTasks.Dispose();
-                _asyncTasks = null;
-
-                _pressure?.Zero();
-                _backPressure?.Zero();
-
-                //unmanaged
-                _pressure = null;
-                _backPressure = null;
-
             }
             catch (Exception)
             {
                 return false;
             }
+            finally
+            {
+                if (zero)
+                {
+                    _head = null;
+                    _tail = null;
+                    _iteratorIoZNode = null;
 
-            _syncRoot.Zero();
-            _syncRoot = null;
+                    await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+                    _nodeHeap = null;
 
-            Dispose();
+                    _asyncTasks.Dispose();
+                    _asyncTasks = null;
+
+                    _pressure?.ZeroSem();
+                    _backPressure?.ZeroSem();
+
+                    //unmanaged
+                    _pressure = null;
+                    _backPressure = null;
+
+                    _syncRoot.ZeroSem();
+                    _syncRoot = null;
+
+                    Dispose();
+
+                }
+            }
 
             return true;
         }
@@ -175,7 +183,7 @@ namespace zero.core.patterns.queue
                     return null;
 
                 //wait on back pressure
-                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
+                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
                     _zeroed > 0)
                 {
                     if(_zeroed == 0 && !_backPressure.Zeroed())
@@ -245,7 +253,7 @@ namespace zero.core.patterns.queue
             try
             {
                 //wait on back pressure
-                if (_enableBackPressure && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
                     if (_zeroed == 0 && !_backPressure.Zeroed())
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -343,7 +351,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                if (_enableBackPressure && _backPressure.Release() == -1)
+                if (_backPressure != null && _backPressure.Release() == -1)
                 {
                     if(_zeroed == 0 && !_backPressure.Zeroed())
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}.{nameof(_backPressure.Release)}: back pressure release failure ~> {_backPressure}");

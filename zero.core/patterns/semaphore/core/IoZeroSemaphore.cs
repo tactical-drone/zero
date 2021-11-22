@@ -236,7 +236,7 @@ namespace zero.core.patterns.semaphore.core
             _asyncTokenReg = asyncTokenSource.Token.Register(s =>
             {
                 var (z, _, r) = (ValueTuple<IIoZeroSemaphore,CancellationTokenSource,CancellationTokenRegistration>)s;
-                z.Zero();
+                z.ZeroSem();
 #if NET6_0
                 r.Unregister();
 #endif
@@ -247,7 +247,7 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// zeroes out this semaphore
         /// </summary>
-        public void Zero()
+        public void ZeroSem()
         {
             if(Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
@@ -271,9 +271,9 @@ namespace zero.core.patterns.semaphore.core
             while (i < _signalAwaiter.Length)
             {
                 var waiter = Interlocked.CompareExchange(ref _signalAwaiter[i], null, _signalAwaiter[i]);
-                if(waiter != null)
+                if (waiter != null)
                 {
-                    object state = _signalAwaiterState[i];
+                    var state = _signalAwaiterState[i];
                     var executionState = _signalExecutionState[i];
                     var context = _signalCapturedContext[i];
 
@@ -283,14 +283,14 @@ namespace zero.core.patterns.semaphore.core
 
                     try
                     {
-                        //ZeroComply(waiter, state, executionState, context);
+                        ZeroComply(waiter, state, executionState, context);
                     }
                     catch
                     {
                         // ignored
                     }
                 }
-                
+
                 i++;
             }
 
@@ -304,6 +304,7 @@ namespace zero.core.patterns.semaphore.core
             _signalExecutionState = null;
             _signalCapturedContext = null;
 
+            _zeroRef = null;
         }
 
         /// <summary>
@@ -652,17 +653,16 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Release(int releaseCount = 1, bool bestEffort = false)
         {
-            Debug.Assert(_zeroRef != null);
+            //fail fast on cancellation token
+            if (_zeroRef == null || _zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
+            {                
+                return -1;
+            }
 
             //preconditions
             //if(releaseCount < 1 || releaseCount - _zeroRef.ZeroCount() > _maxBlockers)
             //    throw new SemaphoreFullException($"{Description}: Invalid {nameof(releaseCount)} = {releaseCount} < 0 or  {nameof(_curSignalCount)}({releaseCount + _curSignalCount}) > {nameof(_maxBlockers)} = {_maxBlockers}");
 
-            //fail fast on cancellation token
-            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
-            {                
-                return -1;
-            }
 
             //lock in return value
             var released = 0;
@@ -749,7 +749,7 @@ namespace zero.core.patterns.semaphore.core
         public ValueTask<bool> WaitAsync()
         {
             //insane checks
-            if (_zeroRef.ZeroWaitCount() >= _maxBlockers)
+            if (_zeroRef == null || _zeroRef.ZeroWaitCount() >= _maxBlockers)
                 return new ValueTask<bool>(false);
 
             //fast path

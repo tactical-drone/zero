@@ -16,7 +16,7 @@ namespace zero.core.patterns.semaphore
         public IoZeroSemaphoreSlim(CancellationTokenSource asyncTasks,
             string description = "IoZeroSemaphoreSlim", int maxBlockers = 1, int initialCount = 0,
             int maxAsyncWork = 0,
-            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}", maxBlockers)
+            bool enableAutoScale = false, bool enableFairQ = false, bool enableDeadlockDetection = false) : base($"{nameof(IoZeroSemaphoreSlim)}: {description}", maxBlockers)
         {
             _semaphore = new IoZeroSemaphore(description, maxBlockers, initialCount, maxAsyncWork, enableAutoScale: enableAutoScale, enableFairQ: enableFairQ, enableDeadlockDetection: enableDeadlockDetection);
             _semaphore.ZeroRef(ref _semaphore, asyncTasks);
@@ -30,10 +30,10 @@ namespace zero.core.patterns.semaphore
             _semaphore = null;
         }
 
-        public override ValueTask ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
-            _semaphore?.Zero();
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            _semaphore.ZeroSem();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -72,9 +72,9 @@ namespace zero.core.patterns.semaphore
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Zero()
+        public void ZeroSem()
         {
-            _semaphore?.Zero();
+            _semaphore.ZeroSem();
         }
 
         public int ReadyCount => _semaphore.ReadyCount;

@@ -254,6 +254,57 @@ namespace zero.test.core.patterns.queue{
             Assert.Null(_context.Q.Head);
             Assert.Null(_context.Q.Tail);
         }
+
+        [Fact]
+        public async Task Iterator()
+        {
+            
+            var capacity = 1000;
+
+            var q = new IoQueue<int>("test Q", capacity, capacity);
+
+            var c = 0;
+            foreach (var ioInt32 in q)
+                c++;
+
+            Assert.Equal(0, c);
+
+            var idx = 0;
+            var insert = new List<Task>();
+
+            for (var i = 0; i < capacity; i++)
+            {
+                insert.Add(Task.Factory.StartNew(() => q.EnqueueAsync(Interlocked.Increment(ref idx))));
+            }
+
+            Task.WhenAll(insert).GetAwaiter().GetResult();
+
+            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+            await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+
+            Assert.Equal(capacity - 3, q.Count);
+
+            c = 0;
+            foreach (var ioInt32 in q)
+            {
+                c++;
+            }
+
+            Assert.Equal(capacity - 3, c);
+
+            while (q.Count > 0)
+                await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+
+            Assert.Equal(0, q.Count);
+
+            c = 0;
+            foreach (var ioInt32 in q)
+                c++;
+
+            Assert.Equal(0, c);
+        }
+
         public class Context : IDisposable
         {
             public Context()

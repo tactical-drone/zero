@@ -190,8 +190,10 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
 #if DEBUG
-            if(_stateMeta != null)
+            if (_stateMeta != null)
                 _stateHeap.Return(_stateMeta);
             Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
             await _stateHeap.ZeroManagedAsync((ioHeapItem, _) =>
@@ -202,8 +204,6 @@ namespace zero.core.patterns.bushings
 #endif
             if (PreviousJob != null)
                 PreviousJob.Zero(this);
-
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
 
         /// <summary>

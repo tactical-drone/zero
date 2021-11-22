@@ -51,10 +51,10 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
             _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
-            _autoPeering.ZeroHiveAsync(this, true).AsTask().GetAwaiter().GetResult();
+            _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount: 1);
-            DupSyncRoot.ZeroHiveAsync(DupSyncRoot).AsTask().GetAwaiter().GetResult();
+            DupSyncRoot.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
             var handshakeRequest = new HandshakeRequest
@@ -205,19 +205,24 @@ namespace zero.cocoon
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
             var id = Hub?.Router?.Designation?.IdString();
             DupSyncRoot.Zero(this);
-            //Services.CcRecord.Endpoints.Clear();
-            try
-            {
-                //_autoPeeringTask?.Wait();
-            }
-            catch
-            {
-                // ignored
-            }
+            await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
 
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            Services?.CcRecord?.Endpoints?.Clear();
+
+            _autoPeering.Zero(this);
+
+            //try
+            //{
+            //    _autoPeeringTask.GetAwaiter().GetResult();
+            //}
+            //catch
+            //{
+            //    // ignored
+            //}
 
             try
             {
@@ -238,8 +243,6 @@ namespace zero.cocoon
             {
                 
             }
-
-            await DupHeap.ClearAsync().FastPath().ConfigureAwait(Zc);
         }
 
         private Logger _logger;
@@ -986,12 +989,20 @@ namespace zero.cocoon
                         if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
                             continue;
 
-                        await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
-                        //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                        if (!await Hub.Router.SendPingAsync(ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                        try
                         {
-                            if(!Hub.Router.Zeroed())
-                                _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                            await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
+                            //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
+                            if (!await Hub.Router.SendPingAsync(ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                            {
+                                if(!Hub.Router.Zeroed())
+                                    _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                            }
+                        }
+                        catch when(Zeroed()){}
+                        catch (Exception e)when (!Zeroed())
+                        {
+                            _logger.Error(e, $"{nameof(DeepScanAsync)}:");
                         }
                     }
                 }

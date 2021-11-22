@@ -199,10 +199,11 @@ namespace zero.core.network.ip
         /// </summary>
         public override void ZeroUnmanaged()
         {
-            if(!Proxy)
-                NativeSocket?.Dispose();
             base.ZeroUnmanaged();
 
+            if (!Proxy)
+                NativeSocket?.Dispose();
+            
 #if SAFE_RELEASE
             _logger = null;
             LocalNodeAddress = null;

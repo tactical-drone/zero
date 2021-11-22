@@ -87,7 +87,7 @@ namespace zero.core.misc
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            await _lut.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+            await _lut.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
 
             await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
         }

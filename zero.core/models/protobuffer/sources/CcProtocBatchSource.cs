@@ -93,7 +93,7 @@ namespace zero.core.models.protobuffer.sources
             {
                 msgBatch.Dispose();
                 return default;
-            },this).FastPath().ConfigureAwait(Zc);
+            },this, zero:true).FastPath().ConfigureAwait(Zc);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -96,17 +96,17 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The sink is being throttled against source
         /// </summary>
-        private IIoZeroSemaphore _pressure;
+        private IoZeroSemaphoreSlim _pressure;
         
         /// <summary>
         /// The source is being throttled by the sink 
         /// </summary>
-        private IIoZeroSemaphore _backPressure;
+        private IoZeroSemaphoreSlim _backPressure;
         
         /// <summary>
         /// The source is bing throttled on prefetch config
         /// </summary>
-        private IIoZeroSemaphore _prefetchPressure;
+        private IoZeroSemaphoreSlim _prefetchPressure;
         
         /// <summary>
         /// Enable prefetch throttling (only allow a certain amount of prefetch
@@ -205,9 +205,11 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            _pressure.Zero();
-            _backPressure.Zero();
-            _prefetchPressure.Zero();
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+            _pressure.Zero(this);
+            _backPressure.Zero(this);
+            _prefetchPressure.Zero(this);
 
             foreach (var o in ObjectStorage)
             {
@@ -226,8 +228,6 @@ namespace zero.core.patterns.bushings
                 RecentlyProcessed.Zero(this);
             }
             catch { }
-
-            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
 #if DEBUG
             _logger.Trace($"Closed {Description} from {ZeroedFrom}");

@@ -2,7 +2,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Filters;
 using NLog;
 
 namespace zero.core.patterns.misc
@@ -48,7 +47,7 @@ namespace zero.core.patterns.misc
         {
             try
             {
-                if (Interlocked.CompareExchange(ref _executed, 1, 0) != 0)
+                if (_executed > 0 ||  Interlocked.CompareExchange(ref _executed, 1, 0) != 0)
                     return new ValueTask<bool>(true);
 
                 return ZeroFunc((dynamic)_state)(@from, (dynamic)_state);

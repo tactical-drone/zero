@@ -113,5 +113,10 @@ namespace zero.core.patterns.misc
         /// Maintain zero context
         /// </summary>
         bool Zc { get; }
+
+        /// <summary>
+        /// Cancels all processing
+        /// </summary>
+        void ZeroPrime();
     }
 }

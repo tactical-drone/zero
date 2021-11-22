@@ -27,12 +27,12 @@ namespace zero.core.patterns.bushings
         /// <param name="source">The source of the work to be done</param>
         /// <param name="mallocJob">A callback to malloc individual consumer jobs from the heap</param>
         /// <param name="enableSync"></param>
-        /// <param name="sourceZeroCascade">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
+        /// <param name="cascadeOnSource">If the source zeroes out, so does this <see cref="IoZero{TJob}"/> instance</param>
         /// <param name="concurrencyLevel"></param>
         protected IoZero(string description, IoSource<TJob> source, Func<object, IIoNanite, IoSink<TJob>> mallocJob,
-            bool enableSync, bool sourceZeroCascade = false, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
+            bool enableSync, bool cascadeOnSource = true, int concurrencyLevel = 1) : base($"{nameof(IoSink<TJob>)}", concurrencyLevel < 0? source.ZeroConcurrencyLevel() : concurrencyLevel)
         {
-            ConfigureAsync(description, source, mallocJob, sourceZeroCascade).AsTask().GetAwaiter();
+            ConfigureAsync(description, source, mallocJob, cascadeOnSource).AsTask().GetAwaiter();
 
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -68,9 +68,9 @@ namespace zero.core.patterns.bushings
         /// <param name="description">A description of the source</param>
         /// <param name="source">An instance of the source</param>
         /// <param name="mallocMessage"></param>
-        /// <param name="sourceZeroCascade"></param>
+        /// <param name="cascade">Cascade to zero this if the source is zeroed</param>
         private async ValueTask ConfigureAsync(string description, IoSource<TJob> source,
-            Func<object, IIoNanite, IoSink<TJob>> mallocMessage, bool sourceZeroCascade = false)
+            Func<object, IIoNanite, IoSink<TJob>> mallocMessage, bool cascade = false)
         {
             _description = description;
             
@@ -78,7 +78,7 @@ namespace zero.core.patterns.bushings
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
             
-            if(sourceZeroCascade)
+            if(cascade)
                 await Source.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
 
             //TODO tuning
@@ -254,10 +254,13 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            await _queue.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+            Source.Zero(this);
 
-            if(_previousJobFragment != null)
-                await _previousJobFragment.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+            await _queue.ZeroManagedAsync(static (sink, @this) =>
+            {
+                sink.Zero(@this);
+                return default;
+            }, this,zero: true).FastPath().ConfigureAwait(Zc);
 
             await JobHeap.ZeroManagedAsync(static (sink, @this) =>
             {
@@ -265,8 +268,13 @@ namespace zero.core.patterns.bushings
                 return default;
             },this).FastPath().ConfigureAwait(Zc);
 
+            if (_previousJobFragment != null)
+                await _previousJobFragment.ZeroManagedAsync(static (sink, @this) =>
+                {
+                    sink.Zero(@this);
+                    return default;
+                }, this, zero: true).FastPath().ConfigureAwait(Zc);
 
-            Source.Zero(this);
 #if DEBUG
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
 #endif
@@ -528,31 +536,32 @@ namespace zero.core.patterns.bushings
             if (Zeroed() || Source.Zeroed())
                 return false;
 
+            IoSink<TJob> curJob;
             try
             {
                 //Wait for producer pressure
                 if (!await Source.WaitForPressureAsync().FastPath().ConfigureAwait(Zc))
                 {
                     //Was shutdown requested?
-                    if (Zeroed() || Source.Zeroed()) 
+                    if (Zeroed() || Source.Zeroed())
                         return false;
-                    
+
                     //wait...
-                    _logger.Trace($"{Description}: {nameof(Source.WaitForPressureAsync)} timed out waiting, willing to wait {parm_consumer_wait_for_producer_timeout}ms");
+                    _logger.Trace(
+                        $"{Description}: {nameof(Source.WaitForPressureAsync)} timed out waiting, willing to wait {parm_consumer_wait_for_producer_timeout}ms");
                     await Task.Delay(parm_consumer_wait_for_producer_timeout / 4, AsyncTasks.Token).ConfigureAwait(Zc);
 
                     //Try again
                     return false;
                 }
-                
+
                 //A job was produced. Dequeue it and process
-                var curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
                 if (curJob != null)
                 {
-                    curJob.State = IoJobMeta.JobState.Consuming;
                     try
                     {
-
+                        curJob.State = IoJobMeta.JobState.Consuming;
                         //sync previous failed job buffers
                         if (SyncRecoveryModeEnabled)
                             curJob.SyncPrevJob();
@@ -567,9 +576,8 @@ namespace zero.core.patterns.bushings
                             {
                                 //forward any jobs                                                                             
                                 await inlineCallback(curJob, nanite).FastPath().ConfigureAwait(Zc);
+                                curJob.State = IoJobMeta.JobState.Consumed;
                             }
-
-                            curJob.State = IoJobMeta.JobState.Consumed;
 
                             Source.BackPressureAsync();
 
@@ -579,31 +587,33 @@ namespace zero.core.patterns.bushings
                         }
                         else if (!Zeroed() && !curJob.Zeroed() && !Source.Zeroed())
                         {
-                            _logger.Error($"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
+                            _logger.Error(
+                                $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
                             curJob.State = IoJobMeta.JobState.Error;
                         }
                     }
-                    catch (Exception) when (Zeroed()) {}
+                    catch (Exception) when (Zeroed())
+                    {
+                    }
                     catch (Exception e) when (!Zeroed())
                     {
-                        _logger?.Error(e,$"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} returned with errors:");
+                        _logger?.Error(e,
+                            $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} returned with errors:");
                     }
                     finally
                     {
                         //Consume success?
-                        curJob.State = curJob.State < IoJobMeta.JobState.Error
-                            ? IoJobMeta.JobState.Accept
-                            : IoJobMeta.JobState.Reject;
+                        curJob.State = curJob.State is IoJobMeta.JobState.Consumed? IoJobMeta.JobState.Accept : IoJobMeta.JobState.Reject;
 
                         try
                         {
-
                             if (curJob.Id % parm_stats_mod_count == 0 && _lastStat.ElapsedDelta() > 10)
                             {
                                 lock (Environment.Version)
                                 {
                                     _lastStat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                                    _logger?.Info($"{Description} {JobHeap.OpsPerSecond:0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
+                                    _logger?.Info(
+                                        $"{Description} {JobHeap.OpsPerSecond:0.0} j/s, [{JobHeap.ReferenceCount} / {JobHeap.CacheSize()} / {JobHeap.ReferenceCount + JobHeap.CacheSize()} / {JobHeap.FreeCapacity()} / {JobHeap.MaxSize}]");
                                     curJob.Source.PrintCounters();
                                 }
                             }
@@ -621,7 +631,9 @@ namespace zero.core.patterns.bushings
 
                 return false;
             }
-            catch (Exception) when(Zeroed()){}
+            catch (Exception) when (Zeroed())
+            {
+            }
             catch (Exception e) when (!Zeroed())
             {
                 _logger?.Error(e, $"{GetType().Name}: Consumer {Description} dequeue returned with errors:");

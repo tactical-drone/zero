@@ -62,17 +62,7 @@ namespace zero.core.network.ip
 
 #if SAFE_RELEASE
             _logger = null;
-            IoNetSocket = null;
-            IoConduits = null;
 #endif
-        }
-
-        /// <summary>
-        /// zero unmanaged
-        /// </summary>
-        public override ValueTask ZeroManagedAsync()
-        {
-            return base.ZeroManagedAsync();
         }
     }
 }

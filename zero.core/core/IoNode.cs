@@ -30,7 +30,7 @@ namespace zero.core.core
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
             var q = IoMarketDataClient.Quality;//prime market data            
-            NeighborTasks = new IoBag<Task>($"{nameof(NeighborTasks)}", maxNeighbors);
+            NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel);
         }
 
         /// <summary>
@@ -110,7 +110,7 @@ namespace zero.core.core
         /// <summary>
         /// A set of all node tasks that are currently running
         /// </summary>
-        protected IoBag<Task> NeighborTasks;
+        protected IoQueue<Task> NeighborTasks;
 
         /// <summary>
         /// Starts the node's listener
@@ -255,11 +255,21 @@ namespace zero.core.core
             try
             {
                 //Start replication
-                await ZeroOptionAsync(static async state =>
+
+                IoQueue<Task>.IoZNode node  = default;
+                    
+                node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
+                    {
+                        var (@this, newNeighbor, cfgAwait) = state;
+                        await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
+                    }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.None).AsTask()).FastPath().ConfigureAwait(Zc);
+
+                await node.Value.ContinueWith(static async (_, state) =>
                 {
-                    var (newNeighbor, cfgAwait) = state;
-                    await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
-                }, ValueTuple.Create(newNeighbor, Zc), TaskCreationOptions.None).FastPath().ConfigureAwait(Zc);
+                    var (@this, node) = (ValueTuple<IoNode<TJob>, IoQueue<Task>.IoZNode>)state;
+                    await @this.NeighborTasks.RemoveAsync(node).FastPath().ConfigureAwait(@this.Zc);
+
+                }, (this, node));
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())
@@ -366,14 +376,19 @@ namespace zero.core.core
                 while (!Zeroed() && retry-- > 0)
                 {
                     await SpawnListenerAsync<object>(bootstrapAsync: bootstrapFunc).FastPath().ConfigureAwait(Zc);
-                    if(!Zeroed())
+                    if (!Zeroed())
                         _logger.Warn($"Listener restart... {Description}");
+                    else
+                        Zero(this);
                 }
 
-                _logger.Trace($"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");
+                _logger.Trace(
+                    $"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");
             }
-            catch when(Zeroed()){}
-            catch  (Exception e) when(!Zeroed())
+            catch when (Zeroed())
+            {
+            }
+            catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"Unimatrix Failed ~> {Description}");
             }
@@ -403,24 +418,28 @@ namespace zero.core.core
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            if (_netServer != null)
-                _netServer.Zero(this);
-
             foreach (var ioNeighbor in Neighbors.Values)
                 ioNeighbor.Zero(this);
 
             Neighbors.Clear();
 
+            if (_netServer != null)
+                _netServer.Zero(this);
+
             try
             {
-                await Task.WhenAll(NeighborTasks).ConfigureAwait(Zc); //TODO teardown
+                //await Task.WhenAll(NeighborTasks.Select(t=>t.Value)).ConfigureAwait(Zc); //TODO teardown
             }
             catch
             {
                 // ignored
             }
 
-            await NeighborTasks.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+            await NeighborTasks.ZeroManagedAsync(static (task, @this) =>
+            {
+                task.Dispose();
+                return default;
+            }, this).FastPath().ConfigureAwait(Zc);
 
             _logger.Info($"- {Description}");
         }

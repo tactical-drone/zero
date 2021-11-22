@@ -127,8 +127,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            IoNetSocket.Zero(this);
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            IoNetSocket.Zero(this);
         }
 
         /// <summary>

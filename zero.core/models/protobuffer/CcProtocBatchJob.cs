@@ -38,7 +38,7 @@ namespace zero.core.models.protobuffer
         /// <param name="originatingSource">This message is forwarded by <see cref="CcProtocBatchSource{TModel,TBatch}"/></param>
         /// <param name="concurrencyLevel"></param>
         public CcProtocBatchJob(IoSource<CcProtocBatchJob<TModel, TBatch>> originatingSource, int concurrencyLevel = 1)
-            : base("conduit", $"{nameof(CcProtocBatchJob<TModel, TBatch>)}", originatingSource, concurrencyLevel)
+            : base($"{nameof(CcProtocBatchJob<TModel, TBatch>)}", $"job: {nameof(CcProtocBatchJob<TModel, TBatch>)}", originatingSource, concurrencyLevel)
         {
             
         }

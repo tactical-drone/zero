@@ -212,8 +212,8 @@ namespace zero.core.network.ip
         /// </summary>
         public override async ValueTask ZeroManagedAsync()
         {
-            _connectionAttempts.Clear();
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+            _connectionAttempts.Clear();
         }
 
         /// <summary>

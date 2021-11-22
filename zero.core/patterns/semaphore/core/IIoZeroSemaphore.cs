@@ -12,7 +12,7 @@ namespace zero.core.patterns.semaphore.core
         int Release(int releaseCount = 1, bool bestEffort = false);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         ValueTask<bool> WaitAsync();
-        void Zero();
+        void ZeroSem();
         int ReadyCount { get; }
         int CurNrOfBlockers { get; }
         public int MaxAsyncWorkers { get; }

@@ -121,8 +121,8 @@ namespace zero.cocoon.events.services
             QueuedEvents = null;
             if (QueuedEvents == null)
                 return;
-            await q[0].ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
-            await q[1].ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+            await q[0].ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+            await q[1].ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
         }
     }
 }

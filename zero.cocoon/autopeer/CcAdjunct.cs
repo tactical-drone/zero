@@ -15,6 +15,7 @@ using Google.Protobuf;
 using NLog;
 using Proto;
 using SimpleBase;
+using StackExchange.Redis;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
@@ -44,10 +45,17 @@ namespace zero.cocoon.autopeer
                 node,
                 ioNetClient,
                 static (o, ioNetClient) => new CcDiscoveries("adjunct msgs", $"{((IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>)ioNetClient).Key}", (IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>>)ioNetClient),
-                false,
                 false
             )
         {
+            if (Source.Zeroed())
+            {
+                Zero(this);
+                return;
+            }
+                
+
+            
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
@@ -62,7 +70,10 @@ namespace zero.cocoon.autopeer
                 Services = services ?? item2;
                 RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", item3);
                 Key = MakeId(Designation, RemoteAddress);
+
+                //to prevent cascading into the hub we clone the source.
                 Source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint);
+                Source.ZeroHiveAsync(this).GetAwaiter().GetResult();
             }
             else
             {
@@ -584,14 +595,16 @@ namespace zero.cocoon.autopeer
         /// Zeroed?
         /// </summary>
         /// <returns>True if zeroed</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() || Source.Zeroed();
+            return base.Zeroed() || Source.Zeroed() || Hub.Zeroed() || CcCollective.Zeroed();
         }
 
         /// <summary>
         /// zero unmanaged
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void ZeroUnmanaged()
         {
             base.ZeroUnmanaged();
@@ -736,8 +749,7 @@ namespace zero.cocoon.autopeer
                         await assimilateAsync().FastPath().ConfigureAwait(@this.Zc);
                     }, ValueTuple.Create<CcAdjunct, Func<ValueTask>>(this, base.BlockOnReplicateAsync), TaskCreationOptions.None).FastPath().ConfigureAwait(Zc);
 
-                    while(!Zeroed())
-                        await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
+                    await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
                 }
                 else
                 {
@@ -838,7 +850,7 @@ namespace zero.cocoon.autopeer
             finally
             {
                 if (msgBatch != null) 
-                    msgBatch.ReturnToHeapAsync();
+                    msgBatch.ReturnToHeap();
             }
         }
         
@@ -1497,16 +1509,14 @@ namespace zero.cocoon.autopeer
         /// <returns>A task, true if successful, false otherwise</returns>
         private async ValueTask<bool> CollectAsync(IPEndPoint newRemoteEp, CcDesignation id, CcService services)
         {
-            if (newRemoteEp != null && newRemoteEp.Equals(NatAddress?.IpEndPoint))
+            if (Zeroed() || Hub.Zeroed() || newRemoteEp != null && newRemoteEp.Equals(NatAddress?.IpEndPoint))
             {
-                _logger.Fatal($"x {Description}");
+                _logger.Trace($"x {Description}");
                 return false;
             }
-            
-            CcAdjunct newAdjunct = null;
 
             //var source = new IoUdpClient<CcProtocMessage<Packet, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}",MessageService, newRemoteEp);
-            newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(id, services, newRemoteEp));
+            var newAdjunct = (CcAdjunct) Hub.MallocNeighbor(Hub, MessageService, Tuple.Create(id, services, newRemoteEp));
 
             if (!Zeroed() && Hub.ZeroAtomic(static (s, state, ___) =>
             {
@@ -2438,48 +2448,56 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public async ValueTask DetachPeerAsync()
         {
-            var severedDrone = Interlocked.CompareExchange(ref _drone, null, _drone);
-
-            if(severedDrone == null)
-                return;
-
-            var direction = Direction;
-
-            severedDrone.Zero(this);
-            
-            Interlocked.Exchange(ref _direction, 0);
-            AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();            
-            _peerRequestsRecvCount = _peerRequestsSentCount = 0;
-
-            await SendPeerDropAsync().FastPath().ConfigureAwait(Zc);
-
-            if (!Zeroed() && Node != null && direction == Heading.Ingress && CcCollective.IngressCount < CcCollective.parm_max_inbound)
+            try
             {
-                //back off for a while... Try to re-establish a link 
-                await ZeroAsync(static async @this =>
-                {
-                    await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-                    //send drop request
-                    
-                    await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-                    await @this.SendPingAsync().FastPath().ConfigureAwait(@this.Zc);
-                }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
-            }
+                var severedDrone = Interlocked.CompareExchange(ref _drone, null, _drone);
 
+                if(severedDrone == null)
+                    return;
 
-            //emit event
-            if (AutoPeeringEventService.Operational)
-                await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                var direction = Direction;
+
+                severedDrone.Zero(this);
+            
+                Interlocked.Exchange(ref _direction, 0);
+                AttachTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();            
+                _peerRequestsRecvCount = _peerRequestsSentCount = 0;
+
+                await SendPeerDropAsync().FastPath().ConfigureAwait(Zc);
+
+                if (!Zeroed() && Node != null && direction == Heading.Ingress && CcCollective.IngressCount < CcCollective.parm_max_inbound)
                 {
-                    EventType = AutoPeerEventType.RemoveDrone,
-                    Drone = new Drone
+                    //back off for a while... Try to re-establish a link 
+                    await ZeroAsync(static async @this =>
                     {
-                        CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
-                        Adjunct = Designation.IdString()
-                    }
-                }).FastPath().ConfigureAwait(Zc);
+                        await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                        //send drop request
+                    
+                        await Task.Delay(@this.parm_max_network_latency + @this._random.Next(@this.parm_max_network_latency), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                        await @this.SendPingAsync().FastPath().ConfigureAwait(@this.Zc);
+                    }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                }
 
-            SetState(AdjunctState.Verified);
+
+                //emit event
+                if (AutoPeeringEventService.Operational)
+                    await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                    {
+                        EventType = AutoPeerEventType.RemoveDrone,
+                        Drone = new Drone
+                        {
+                            CollectiveId = CcCollective.Hub.Router.Designation.IdString(),
+                            Adjunct = Designation.IdString()
+                        }
+                    }).FastPath().ConfigureAwait(Zc);
+
+                SetState(AdjunctState.Verified);
+            }
+            catch when(Zeroed()){}
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger.Error(e, $"{nameof(DetachPeerAsync)}: ");
+            }
         }
 
 

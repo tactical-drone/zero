@@ -302,8 +302,9 @@ namespace zero.core.network.ip
             return 0;
         }
 
-        private readonly byte[] _sentinelBuf = Array.Empty<byte>();
-        private uint _expensiveCheck = 0;
+        //private readonly byte[] _sentinelBuf = Array.Empty<byte>();
+        //private uint _expensiveCheck = 0;
+
         /// <inheritdoc />
         /// <summary>
         /// Connection status
