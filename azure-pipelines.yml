@@ -10,8 +10,8 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  solution: './zero.sync/*.sln'
-  test-solution: './zero.test/*.sln'
+  solution: './zero.sync/zero.sync.csproj'
+  test-solution: './zero.test/zero.test.csproj'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
 
