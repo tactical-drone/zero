@@ -69,6 +69,12 @@ steps:
     configuration: '$(buildConfiguration)'
     projects: '$(test-solution)'
 
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'test'
+    configuration: '$(buildConfiguration)'
+    projects: '$(test-solution)'
+
 - task: VSTest@2
   inputs:
     platform: '$(buildPlatform)'
