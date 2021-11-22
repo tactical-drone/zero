@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,7 +26,7 @@ namespace zero.test.core.patterns.queue
                 _bag.Add(i);
             }
 
-            Assert.True(_bag.Contains((int)_bag.Capacity / 2));
+            Assert.True(_bag.Contains(_bag.Capacity / 2));
 
             var sb = new StringBuilder();
             foreach (var i in _bag)
@@ -50,7 +49,7 @@ namespace zero.test.core.patterns.queue
         }
 
         [Fact]
-        public void Iterator()
+        public async Task Iterator()
         {
             var capacity = 100;
             
@@ -65,10 +64,16 @@ namespace zero.test.core.patterns.queue
 
             for (var i = 0; i < capacity; i++)
             {
-                insert.Add(Task.Factory.StartNew(() => _bag.Add(Interlocked.Increment(ref idx))));
+                insert.Add(Task.Factory.StartNew(static state =>
+                {
+                    var (@this, idx) = (ValueTuple<IoBagTest, int>)state!;
+                    @this._bag.Add(Interlocked.Increment(ref idx));
+                }, (this,idx), TaskCreationOptions.DenyChildAttach));
             }
 
-            Task.WhenAll(insert).GetAwaiter().GetResult();
+            await Task.WhenAll(insert);
+
+            Assert.Equal(capacity, _bag.Count);
 
             _bag.TryTake(out _);
             _bag.TryTake(out _);

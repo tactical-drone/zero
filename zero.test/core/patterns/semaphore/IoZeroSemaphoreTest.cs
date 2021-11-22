@@ -33,15 +33,16 @@ namespace zero.test.core.patterns.semaphore
 
             Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
 
-            var t = Task.Factory.StartNew(async () =>
+            var t = Task.Factory.StartNew(static async state =>
             {
+                var (running, m, targetSleep) = (ValueTuple<bool, IoZeroSemaphoreSlim, int>)state;
                 // ReSharper disable once AccessToModifiedClosure
                 while(running)
                 {
                     await Task.Delay(targetSleep);
                     m.Release();
                 }
-            }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
+            },(running,m,targetSleep), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
 
             var c = 0;
             long ave = 0;

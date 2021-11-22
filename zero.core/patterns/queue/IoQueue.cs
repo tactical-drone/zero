@@ -56,6 +56,8 @@ namespace zero.core.patterns.queue
                     maxBlockers: concurrencyLevel, concurrencyLevel: 0, initialCount: concurrencyLevel);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
+
+            Reset();
         }
 
         private readonly string _description; 
@@ -239,7 +241,6 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="item">The item to enqueue</param>
         /// <returns>The queued item node</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<IoZNode> PushBackAsync(T item)
         {
             if (_zeroed > 0 || item == null)
@@ -308,7 +309,6 @@ namespace zero.core.patterns.queue
         /// Blocking dequeue item
         /// </summary>
         /// <returns>The dequeued item</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<T> DequeueAsync()
         {
             IoZNode dq = null;
@@ -385,7 +385,6 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="node">The node to remove</param>
         /// <returns>True if the item was removed</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
             if (_zeroed > 0 || node == null)
@@ -428,20 +427,22 @@ namespace zero.core.patterns.queue
             return true;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
-            if (_count == 0)
+            if (_count == 0 || _iteratorIoZNode == null)
                 return false;
 
-            _iteratorIoZNode = _iteratorIoZNode == null ? _head : _iteratorIoZNode.Next;
+            _iteratorIoZNode = _iteratorIoZNode.Next;
             
             return _iteratorIoZNode != null;
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public void Reset()
         {
             _modified = false;
-            _iteratorIoZNode = null;
+            _iteratorIoZNode = new IoZNode {Next = _head};
         }
 
         private volatile IoZNode _iteratorIoZNode;
@@ -464,6 +465,7 @@ namespace zero.core.patterns.queue
 
         public IEnumerator<IoZNode> GetEnumerator()
         {
+            Reset();
             return this;
         }
 
