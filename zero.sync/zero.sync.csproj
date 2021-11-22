@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <None Include="..\.gitlab-ci.yml" Link=".gitlab-ci.yml" />
+    <None Include="..\azure-pipelines.yml" Link="azure-pipelines.yml" />
   </ItemGroup>
 
   <ItemGroup>

@@ -238,9 +238,9 @@ namespace zero.test.core.patterns.queue{
             var kops = rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start);
 
 #if DEBUG
-            Assert.InRange(kops, 225, int.MaxValue);
+            Assert.InRange(kops, 20, int.MaxValue);
 #else
-            Assert.InRange(kops, 4500, int.MaxValue);
+            Assert.InRange(kops, 1000, int.MaxValue);
 #endif
 
             Debug.WriteLine($"kops = {kops}");

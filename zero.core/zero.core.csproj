@@ -45,11 +45,7 @@
     </Reference>    
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\deps\tangle.net\Tangle.Net.Standard\Tangle.Net.Standard\Tangle.Net.Standard.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
+	<ItemGroup>
     <Folder Include="api\commands\" />
   </ItemGroup>
 

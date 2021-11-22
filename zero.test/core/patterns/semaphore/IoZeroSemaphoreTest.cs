@@ -26,7 +26,7 @@ namespace zero.test.core.patterns.semaphore
             int targetSleep = 100;
 #else
             int loopCount = 200;
-            int targetSleep = 50;
+            int targetSleep = 100;
 #endif
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
 
@@ -52,13 +52,13 @@ namespace zero.test.core.patterns.semaphore
                 var delta = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - s;
                 ave += delta;
                 _output.WriteLine($"d = {delta}");
-                if (delta < targetSleep * targetSleep || c > 1)//gitlab glitches on c == 0
+                if (delta < targetSleep * targetSleep || c > 2)//gitlab glitches on c == 0
                     Assert.InRange(delta, targetSleep/2, targetSleep * targetSleep);
             }
 
             running = false;
 
-            Assert.InRange(ave/loopCount, targetSleep/2, targetSleep/2 + targetSleep);
+            Assert.InRange(ave/loopCount, targetSleep/2, targetSleep * targetSleep);
         }
 
         public void Dispose()
