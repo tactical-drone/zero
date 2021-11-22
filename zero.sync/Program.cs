@@ -20,9 +20,7 @@ using zero.core.network.ip;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-using zero.tangle;
-using zero.tangle.entangled;
-using zero.tangle.models;
+
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace zero.sync
@@ -1113,40 +1111,40 @@ namespace zero.sync
             Console.WriteLine($"z = {_nodes?.Count(n => n.Zeroed())}/{total}");
         }
 
-        private static void Tangle(string listenerAddress)
-        {
+//        private static void Tangle(string listenerAddress)
+//        {
 
-            if (Entangled<string>.Optimized)
-            {
-                var tangleNode = new TangleNode<IoTangleMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress),
-                    (node, ioNetClient, extraData) =>
-                        new TanglePeer<byte[]>((TangleNode<IoTangleMessage<byte[]>, byte[]>)node, ioNetClient),
-                    TanglePeer<byte[]>.TcpReadAhead);
+//            if (Entangled<string>.Optimized)
+//            {
+//                var tangleNode = new TangleNode<IoTangleMessage<byte[]>, byte[]>(IoNodeAddress.Create(listenerAddress),
+//                    (node, ioNetClient, extraData) =>
+//                        new TanglePeer<byte[]>((TangleNode<IoTangleMessage<byte[]>, byte[]>)node, ioNetClient),
+//                    TanglePeer<byte[]>.TcpReadAhead);
 
-#pragma warning disable 4014
-                var tangleNodeTask = tangleNode.StartAsync();
+//#pragma warning disable 4014
+//                var tangleNodeTask = tangleNode.StartAsync();
 
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
-                tangleNodeTask.AsTask().Wait();
-            }
-            else
-            {
-                var tangleNode = new TangleNode<IoTangleMessage<string>, string>(IoNodeAddress.Create(listenerAddress),
-                    (node, ioNetClient, extraData) =>
-                        new TanglePeer<string>((TangleNode<IoTangleMessage<string>, string>)node, ioNetClient),
-                    TanglePeer<string>.TcpReadAhead);
+//                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
+//                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
+//                tangleNodeTask.AsTask().Wait();
+//            }
+//            else
+//            {
+//                var tangleNode = new TangleNode<IoTangleMessage<string>, string>(IoNodeAddress.Create(listenerAddress),
+//                    (node, ioNetClient, extraData) =>
+//                        new TanglePeer<string>((TangleNode<IoTangleMessage<string>, string>)node, ioNetClient),
+//                    TanglePeer<string>.TcpReadAhead);
 
-                var tangleNodeTask = tangleNode.StartAsync();
+//                var tangleNodeTask = tangleNode.StartAsync();
 
 
-#pragma warning disable 4014
-                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
-                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
-#pragma warning restore 4014
-                tangleNodeTask.AsTask().Wait();
-            }
-        }
+//#pragma warning disable 4014
+//                AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("process was exited"));
+//                Console.CancelKeyPress += (sender, eventArgs) => tangleNode.Zero(new IoNanoprobe("ctrl + c, process was killed"));
+//#pragma warning restore 4014
+//                tangleNodeTask.AsTask().Wait();
+//            }
+//        }
 
         private static Task<CcCollective> CoCoonAsync(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
             string fpcAddress, string extAddress, List<string> bootStrapAddress)

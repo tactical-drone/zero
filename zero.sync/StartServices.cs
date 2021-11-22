@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using zero.cocoon.events.services;
 
-
 namespace zero.sync
 {
     class StartServices
