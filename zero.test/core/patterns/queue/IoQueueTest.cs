@@ -179,7 +179,7 @@ namespace zero.test.core.patterns.queue{
             var rounds = 10;
             var mult = 10000;
 #else
-            var rounds = 10;
+            var rounds = 20;
             var mult = 1000;
 #endif
             //_context.Q.ClearAsync().AsTask().GetAwaiter().GetResult();
@@ -192,7 +192,7 @@ namespace zero.test.core.patterns.queue{
 #if DEBUG
                     var mult = 10000;
 #else
-                    var mult = 1000;
+                    var mult = 5000;
 #endif
 
                     var @this = (IoQueueTest)state!;
@@ -248,11 +248,11 @@ namespace zero.test.core.patterns.queue{
             Assert.InRange(kops, 100, int.MaxValue);
 #endif
 
-            Debug.WriteLine($"kops = {kops}");
+            _output.WriteLine($"kops = {kops}");
 
             while(_context.Q.Count > 0)
             {
-                await _context.Q.DequeueAsync();
+                await _context.Q.DequeueAsync().FastPath().ConfigureAwait(Zc);
             }
 
             Assert.Equal(0, _context.Q.Count);
