@@ -81,7 +81,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 250;
+            var total = 400;
             var maxDrones = 9;
             var maxAdjuncts = 18;
             var tasks = new ConcurrentBag<Task<CcCollective>>

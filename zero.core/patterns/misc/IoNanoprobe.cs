@@ -367,6 +367,7 @@ namespace zero.core.patterns.misc
                     {
                         if (!zeroSub.Value.Executed && !await zeroSub.Value.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
                             _logger.Error($"{zeroSub.Value.From} - zero sub {((IIoNanite)zeroSub.Value.Target)?.Description} on {Description} returned with errors!");
+                        await Task.Delay(_zeroHive.Count);
                     }
 
                     var c = _zeroHive.ClearAsync();
@@ -377,8 +378,10 @@ namespace zero.core.patterns.misc
                 {
                     foreach (var zeroSub in _zeroHiveMind)
                     {
-                        if (!zeroSub.Zeroed())
-                            zeroSub.Zero(this);
+                        if (zeroSub.Zeroed()) continue;
+
+                        zeroSub.Zero(this);
+                        await Task.Delay(_zeroHiveMind.Count);
                     }
 
                     var c = _zeroHiveMind.ZeroManagedAsync<object>(zero: true);

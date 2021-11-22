@@ -104,10 +104,13 @@ namespace zero.core.patterns.queue
                 {
                     Interlocked.Increment(ref _iteratorCount);
                     Interlocked.Increment(ref _count);
-                }                    
-                else
+                }
+                else if(!Zeroed)
+                {
                     throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+                }
             }
+            catch when (Zeroed){}
             catch (Exception e) when(!Zeroed)
             {
                 LogManager.GetCurrentClassLogger().Error(e);
