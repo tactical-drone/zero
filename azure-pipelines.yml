@@ -26,45 +26,49 @@ steps:
     version: '6.0.x'
 
 - task: DotNetCoreCLI@2
+  displayName: Nuget Restore '$(solution)'
   inputs:
     command: 'restore'
-    projects: '$(solution)'
-    title: "Nuget Restore '$(solution)'"
+    projects: '$(solution)'    
     
 - task: DotNetCoreCLI@2
+  displayName: build '$(core-solution)'
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
     projects: '$(core-solution)'
-    title: "build '$(core-solution)'"
+    
 
 - task: DotNetCoreCLI@2
+  displayName: build '$(cocoon-solution)'
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
-    projects: '$(cocoon-solution)'
-    title: "build '$(cocoon-solution)'"
+    projects: '$(cocoon-solution)'    
 
 - task: DotNetCoreCLI@2
+  displayName: build '$(cocoon-solution)'
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
     projects: '$(solution)'
-    title: "build '$(cocoon-solution)'"
+    
 
 - task: DotNetCoreCLI@2
+  displayName: build '$(test-solution)'
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
     projects: '$(test-solution)'
-    title: "build '$(test-solution)'"
+    
 
 - task: DotNetCoreCLI@2
+  displayName: test '$(test-solution)'
   inputs:
     command: 'test'
     arguments: '-c $(buildConfiguration) --collect "Code coverage"'
     projects: '$(test-solution)'
     testRunTitle: 'Unit Tests'
-    title: "test '$(test-solution)'"
+    
     publishTestResults: true
 
