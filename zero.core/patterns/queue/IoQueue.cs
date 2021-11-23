@@ -213,14 +213,12 @@ namespace zero.core.patterns.queue
                     _tail = node;
                 }
 
+                Interlocked.Increment(ref _count);
                 return retVal = node;
             }
             finally
             {
-                var success = _tail == retVal;
-
-                if (success)
-                    Interlocked.Increment(ref _count);
+                var success = Tail != null && _tail == retVal;
 
                 if (entered)
                     _syncRoot.Release();
@@ -281,15 +279,13 @@ namespace zero.core.patterns.queue
                     _head.Prev = node;
                     _head = node;
                 }
-                
+
+                Interlocked.Increment(ref _count);
                 return retVal = node;
             }
             finally
             {
                 var success = retVal != null;
-
-                if (success)
-                    Interlocked.Increment(ref _count);
 
                 if (entered)
                     _syncRoot.Release();
