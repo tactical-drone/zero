@@ -30,7 +30,7 @@ namespace zero.cocoon.events.services
 
         private static volatile int _operational = 1;
         private static long _seq;
-        private static volatile int _curIdx;
+        private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
 
         public static void ToggleActive()

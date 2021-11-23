@@ -395,14 +395,17 @@ namespace zero.core.patterns.misc
                 {
                     await ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
                 }
-                catch (Exception e)
-                {
 #if DEBUG
+                catch (Exception e) when(!Zeroed())
+                {
+
                     _logger.Error(e, $"[{this}] {nameof(ZeroManagedAsync)} returned with errors!");
-#endif
                 }
+#else
+                catch when (Zeroed()){}
+#endif
             }
-            
+
             //Dispose unmanaged
             try
             {
@@ -418,12 +421,14 @@ namespace zero.core.patterns.misc
             {
                 AsyncTasks?.Dispose();
             }
-            catch (Exception e)
-            {
 #if DEBUG
+            catch (Exception e) when(!Zeroed())
+            {
                 _logger.Error(e, $"ZeroAsync [Un]managed errors: {Description}");
-#endif
             }
+#else
+            catch when (Zeroed()) { }
+#endif
 
 #if DEBUG
             if (_extracted < 2 && disposing)
@@ -629,25 +634,19 @@ namespace zero.core.patterns.misc
                         {
                             await action(state).FastPath().ConfigureAwait(@this.Zc);
                         }
+                        catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
+                                                  nanoprobe == null && @this._zeroed == 0)
+                        {
+                            _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        }
+#if DEBUG
                         catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                    nanoprobe == null && @this._zeroed == 0)
                         {
-#if DEBUG
                             _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        }
 #endif
-                        }
-                        catch (NullReferenceException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
-                                                               nanoprobe == null && @this._zeroed == 0)
-                        {
-#if DEBUG
-                            _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-#endif
-                        }
-                        catch (Exception e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
-                                                   nanoprobe == null && @this._zeroed == 0)
-                        {
-                            _logger.Error(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-                        }
+                        
                     }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
                 
                 if (unwrap)

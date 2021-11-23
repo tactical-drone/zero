@@ -104,9 +104,6 @@ namespace zero.cocoon.models
         //private uint _poolSize = 50;
         //private long _maxReq = int.MinValue;
 
-
-        private long aveReg = 0;
-
         public override async ValueTask<IoJobMeta.JobState> ConsumeAsync()
         {
             var read = 0;

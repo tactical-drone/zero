@@ -729,7 +729,6 @@ namespace zero.sync
             //var mutex = new IoZeroRefMut(asyncTasks.Token);
 
             var releaseCount = 2;
-            var enableThrottle = true;
             var waiters = 3;
             var releasers = 3;
             var targetSleep = (long)0;
