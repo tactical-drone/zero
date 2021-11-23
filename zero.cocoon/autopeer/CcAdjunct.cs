@@ -1523,7 +1523,7 @@ namespace zero.cocoon.autopeer
                 var (@this, newAdjunct) = state;
                 try
                 {
-                    if (@this.Hub.Neighbors.Count + 1 > @this.CcCollective.MaxAdjuncts)
+                    if (@this.Hub.Neighbors.Count >= @this.CcCollective.MaxAdjuncts)
                     {
                         //drop something
                         var bad = @this.Hub.Neighbors.Values.Where(n =>
