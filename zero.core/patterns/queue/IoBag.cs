@@ -21,12 +21,12 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// Constructor
         /// </summary>
-        public IoBag(string description, int capacity, bool hotReload = false)
+        public IoBag(string description, int capacity, bool autoScale = false)
         {
             _description = description;
             _capacity = capacity;
             _storage = new T[_capacity];
-            _hotReload = hotReload;
+            _autoScale = autoScale;
             _curEnumerator = new IoBagEnumerator<T>(this);
         }
 
@@ -34,7 +34,7 @@ namespace zero.core.patterns.queue
         private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private readonly string _description;
         private T[] _storage;        
-        private int _capacity;
+        private volatile int _capacity;
         private volatile int _count;        
         public int Head => _head;
         private volatile int _head;
@@ -43,7 +43,7 @@ namespace zero.core.patterns.queue
 
         private IoBagEnumerator<T> _curEnumerator;
 
-        private readonly bool _hotReload;
+        private readonly bool _autoScale;
 
         /// <summary>
         /// ZeroAsync status
@@ -66,6 +66,11 @@ namespace zero.core.patterns.queue
         public int Capacity => _capacity;
 
         /// <summary>
+        /// Whether we are auto scaling
+        /// </summary>
+        public bool IsAutoScaling => _autoScale;
+
+        /// <summary>
         /// Bag item by index
         /// </summary>
         /// <param name="i">index</param>
@@ -80,16 +85,22 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(T item, bool deDup = false)
         {
-            if (_count == _capacity)
+            if (_count >= _capacity)
             {
-                if(!_hotReload)
+                if(!_autoScale)
                     throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
 
-                var tmp = _storage;
-                var tmpCapacity = _capacity;
-                _capacity *= 2;
-                _storage = new T[_capacity];
-                Array.Copy(tmp,0,_storage, 0, tmpCapacity);
+                lock (_storage)
+                {
+                    if (_count >= _capacity)
+                    {
+                        var tmp = _storage;
+                        var tmpCapacity = _capacity;
+                        Interlocked.Exchange(ref _capacity, _capacity * 2);
+                        _storage = new T[_capacity];
+                        Array.Copy(tmp, 0, _storage, 0, tmpCapacity);
+                    }
+                }
             }
             
             if(deDup)
@@ -134,6 +145,10 @@ namespace zero.core.patterns.queue
         public bool TryTake([MaybeNullWhen(false)] out T result)
         {
             result = default;
+
+            if (_count == 0)
+                return false;
+
             var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
             var target = _storage[latch];
             while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latch], default, target)) != target)

@@ -24,29 +24,29 @@ namespace zero.test.core.patterns.queue
         void InsertTest()
         {
 
-            var _bag = new IoBag<IoInt32>("test", 11, true);
+            var bag = new IoBag<IoInt32>("test", 11, true);
 
-            for (int i = 0; i < _bag.Capacity - 1; i++)
+            for (int i = 0; i < bag.Capacity - 1; i++)
             {
-                _bag.Add(i);
+                bag.Add(i);
             }
 
-            Assert.True(_bag.Contains(_bag.Capacity / 2));
+            Assert.True(bag.Contains(bag.Capacity / 2));
 
             var sb = new StringBuilder();
-            foreach (var i in _bag)
+            foreach (var i in bag)
             {
                 sb.Append($"{i}");
                 if (i == 7)
-                    _bag.Add(11);
+                    bag.Add(11);
 
                 if (i == 11)
                     break;
             }
 
-            foreach (var i in _bag)
+            foreach (var i in bag)
             {
-                _bag.TryTake(out var r);
+                bag.TryTake(out var r);
                 sb.Append($"{i}");
             }
 
@@ -105,6 +105,21 @@ namespace zero.test.core.patterns.queue
 
             Assert.Equal(0, c);
         }
+
+        [Fact]
+        void AutoScale()
+        {
+            var bag = new IoBag<IoInt32>("test", 1, true);
+
+            bag.Add(0);
+            bag.Add(1);
+            bag.Add(2);
+            bag.Add(3);
+            bag.Add(4);
+
+            Assert.Equal(8, bag.Capacity);
+        }
+
         public bool Zc => IoNanoprobe.ContinueOnCapturedContext;
     }
 }

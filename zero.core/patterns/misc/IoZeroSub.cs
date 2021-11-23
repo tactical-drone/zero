@@ -11,7 +11,7 @@ namespace zero.core.patterns.misc
         public object ZeroAction;
         public static readonly object ZeroSentinel = new();
         object _state = ZeroSentinel;
-        private int _executed;
+        private volatile int _executed;
         public object Target { get; private set; }
         public string From { get; }
         public bool Executed => _executed > 0;

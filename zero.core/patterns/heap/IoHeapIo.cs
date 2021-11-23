@@ -22,7 +22,8 @@ namespace zero.core.patterns.heap
         /// <param name="maxSize"></param>
         /// <param name="context"></param>
         /// <param name="enablePerf"></param>
-        public IoHeapIo(string description, int maxSize, TContext context = null, bool enablePerf = false) : base(description, maxSize, context, enablePerf)
+        /// <param name="autoScale"></param>
+        public IoHeapIo(string description, int maxSize, bool autoScale = false, TContext context = null) : base(description, maxSize, autoScale, context)
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
@@ -55,7 +56,7 @@ namespace zero.core.patterns.heap
                 //The constructor signals a flush by returning null
                 while (next == null)
                 {
-                    Interlocked.Increment(ref _count);
+                    Interlocked.Increment(ref CurrentCount);
                     _logger.Trace($"Flushing `{GetType()}'");
 
                     next = Take(context);
@@ -109,7 +110,7 @@ namespace zero.core.patterns.heap
 
     public class IoHeapIo<TItem>: IoHeapIo<TItem, IIoNanite> where TItem : class, IIoHeapItem, IIoNanite
     {
-        public IoHeapIo(string description, int maxSize, bool enablePerf = false) : base(description, maxSize, null, enablePerf)
+        public IoHeapIo(string description, int maxSize, bool autoScale = false) : base(description, maxSize, autoScale: autoScale)
         {
         }
     }

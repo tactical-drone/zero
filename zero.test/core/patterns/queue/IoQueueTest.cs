@@ -189,7 +189,7 @@ namespace zero.test.core.patterns.queue{
                 concurrentTasks.Add(Task.Factory.StartNew(static async state =>
                 {
 #if DEBUG
-                    var mult = 10000;
+                    var mult = 1000;
 #else
                     var mult = 10000;
 #endif
@@ -205,23 +205,21 @@ namespace zero.test.core.patterns.queue{
                             var i2 = @this._context.Q.EnqueueAsync(3);
                             var i4 = @this._context.Q.PushBackAsync(4);
 
-                            await eq2;
-                            await eq1;
-                            await i4;
-                            await i2;
-                            await i1;
+                            await eq2.ConfigureAwait(@this.Zc);
+                            await eq1.ConfigureAwait(@this.Zc);
+                            await i4.ConfigureAwait(@this.Zc);
+                            await i2.ConfigureAwait(@this.Zc);
+                            await i1.ConfigureAwait(@this.Zc);
 
-                            //await q.RemoveAsync(i1.Result);
-
-                            //await q.RemoveAsync(i2.Result);
+                            
                             var d2 = @this._context.Q.DequeueAsync();
                             var d4 = @this._context.Q.DequeueAsync();
                             var d5 = @this._context.Q.DequeueAsync();
                             await @this._context.Q.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
                             await @this._context.Q.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
-                            await d5;
-                            await d4;
-                            await d2;
+                            await d5.ConfigureAwait(@this.Zc);
+                            await d4.ConfigureAwait(@this.Zc);
+                            await d2.ConfigureAwait(@this.Zc);
                         }
                         catch (Exception e)
                         {
@@ -259,12 +257,13 @@ namespace zero.test.core.patterns.queue{
             Assert.Null(_context.Q.Tail);
         }
 
+        private volatile int _inserted;
         [Fact]
         public async Task Iterator()
         {
 
-            var threads = 20;
-            var itemsPerThread = 10;
+            var threads = 25;
+            var itemsPerThread = 10000;
             var capacity = threads * itemsPerThread;
 
             var q = new IoQueue<int>("test Q", capacity, threads);
@@ -278,17 +277,27 @@ namespace zero.test.core.patterns.queue{
             var idx = 0;
             var insert = new List<Task>();
 
+            
             for (var i = 0; i < threads; i++)
             {
                 insert.Add(Task.Factory.StartNew(static async state =>
                 {
-                    var (q, idx, itemsPerThread) = (ValueTuple<IoQueue<int>, int, int>)state!;
+                    var (@this, q, idx, itemsPerThread) = (ValueTuple<IoQueueTest,IoQueue<int>, int, int>)state!;
                     for (var i = 0; i < itemsPerThread; i++)
-                        await q.EnqueueAsync(Interlocked.Increment(ref idx));
-                }, (q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach));
+                    {
+                        if(i%2 == 0)
+                            await q.EnqueueAsync(Interlocked.Increment(ref idx));
+                        else
+                            await q.PushBackAsync(Interlocked.Increment(ref idx));
+                        Interlocked.Increment(ref @this._inserted);
+                    }
+                        
+                }, (this, q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach).Unwrap());
             }
 
             await Task.WhenAll(insert).ConfigureAwait(Zc);
+
+            Assert.Equal(capacity, _inserted);
 
             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
@@ -315,6 +324,25 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(0, c);
         }
+
+        [Fact]
+        async Task AutoScale()
+        {
+            var threads = 20;
+            var itemsPerThread = 10;
+            var capacity = threads * itemsPerThread;
+
+            var q = new IoQueue<int>("test Q", 1, threads, autoScale:true);
+
+            await q.EnqueueAsync(0);
+            await q.EnqueueAsync(1);
+            await q.EnqueueAsync(2);
+            await q.EnqueueAsync(3);
+            await q.EnqueueAsync(4);
+
+            Assert.Equal(8, q.Capacity);
+        }
+
 
         public class Context : IDisposable
         {

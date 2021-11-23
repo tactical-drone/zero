@@ -31,14 +31,21 @@ namespace zero.core.patterns.queue
         /// <summary>
         /// constructor
         /// </summary>
-        public IoQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true)
+        public IoQueue(string description, int capacity, int concurrencyLevel, bool enableBackPressure = false, bool disablePressure = true, bool autoScale = false)
         {
             _description = description;
 
-            _nodeHeap = new IoHeap<IoZNode>($"{nameof(_nodeHeap)}: {_description}", capacity){Make = static (o,s) => new IoZNode()};
-            
-            _syncRoot = new IoZeroSemaphore($"{nameof(_syncRoot)} {description}",
-                maxBlockers: concurrencyLevel, initialCount: 1);
+            string desc;
+
+#if DEBUG
+            desc = $"{nameof(_nodeHeap)}: {_description}";
+#else
+            desc = "";
+#endif
+
+
+            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Make = static (o,s) => new IoZNode()};
+            _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
 
             //_syncRoot = new IoZeroRefMut(_asyncTasks.Token);
@@ -73,6 +80,7 @@ namespace zero.core.patterns.queue
         private volatile IoZNode _tail;
         private volatile int _count;
 
+        public int Capacity => _nodeHeap.Capacity;
         public int Count => _count;
         public IoZNode Head => _head;
         public IoZNode Tail => _tail;
@@ -86,6 +94,7 @@ namespace zero.core.patterns.queue
 
         public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
+        public bool IsAutoScaling => _nodeHeap.IsAutoScaling;
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
             try
@@ -188,9 +197,11 @@ namespace zero.core.patterns.queue
                 }
                 
                 var node = _nodeHeap.Take();
-                if (node == null)
+                if(node == null)
+                {
                     throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
-
+                }
+                
                 node.Value = item;
                 node.Prev = null;
                 node.Next = null;

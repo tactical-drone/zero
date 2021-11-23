@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 using zero.core.patterns.heap;
@@ -11,21 +12,22 @@ namespace zero.test.core.patterns.heap
         [Fact]
         void SpamTest()
         {
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, this, true)
+            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, context:this)
             {
                 Make = (o, test) => new HeapItem(_localVar, (int)o)
             };
 
             var spamTasks = new List<Task>();
-            for (int i = 0; i < _capacity; i++)
+            for (var i = 0; i < _capacity; i++)
             {
-                spamTasks.Add(Task.Factory.StartNew(() =>
+                spamTasks.Add(Task.Factory.StartNew(static state =>
                 {
-                    for (int j = 0; j < _capacity; j++)
+                    var (@this,h) = (ValueTuple<IoHeapIoTest, IoHeapIo<HeapItem, IoHeapIoTest>>)state!;
+                    for (var j = 0; j < @this._capacity; j++)
                     {
                         h.Return(h.Take(3));
                     }
-                }, TaskCreationOptions.DenyChildAttach));
+                }, (this, h), TaskCreationOptions.DenyChildAttach));
             }
 
             Task.WhenAll(spamTasks).GetAwaiter().GetResult();
@@ -40,7 +42,7 @@ namespace zero.test.core.patterns.heap
         [Fact]
         void ConstructionTest()
         {
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, this, true)
+            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, true, this)
             {
                 Make = (o, test) => new HeapItem(_localVar, (int)o)
             };
@@ -62,7 +64,7 @@ namespace zero.test.core.patterns.heap
         async Task DestructionTest()
         {
             var capacity = 10;
-            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", capacity, this, true)
+            var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", capacity, true, this)
             {
                 Make = (o, test) => new HeapItem(_localVar, (int)o)
             };

@@ -652,7 +652,7 @@ namespace zero.cocoon.autopeer
                         }
                         else
                         {
-                            _logger.Trace($"ROUTER: cull failed,wanted = [{Designation?.PkString()}], got [{currentRoute.Designation.PkString()}, serial1 = {SerialNr} vs {currentRoute.SerialNr}], {Description}");
+                            _logger.Trace($"ROUTER: cull failed,wanted = [{Designation?.PkString()}], got [{currentRoute.Designation.PkString()}, serial1 = {Serial} vs {currentRoute.Serial}], {Description}");
                         }
                     }
 
