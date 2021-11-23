@@ -43,7 +43,7 @@ steps:
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
-    projects: '$(test- solution)'
+    projects: '$(test-solution)'
     
 - task: DotNetCoreCLI@2
   displayName: test '$(test-solution)'
