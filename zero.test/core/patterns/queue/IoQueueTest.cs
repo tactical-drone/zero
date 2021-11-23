@@ -288,7 +288,7 @@ namespace zero.test.core.patterns.queue{
                 }, (q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(insert).ConfigureAwait(false);
+            await Task.WhenAll(insert).ConfigureAwait(Zc);
 
             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);

@@ -1,54 +1,103 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
-using zero.core.misc;
+using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
 namespace zero.test.core.patterns.queue
 {
-    public class IoHashCodesTest : IDisposable
+    public class IoHashCodesTest
     {
-        private IoHashCodes _bag;
-
-        public IoHashCodesTest()
-        {
-            _bag = new IoHashCodes("test", 11, true);
-        }
+        private bool Zc => IoNanoprobe.ContinueOnCapturedContext;
 
         [Fact]
         void InsertTest()
         {
-            for (int i = 0; i < _bag.Capacity-1; i++)
+            var bag = new IoHashCodes("test", 11, true);
+
+            for (int i = 0; i < bag.Capacity-1; i++)
             {
-                _bag.Add(i);
+                bag.Add(i);
             }
 
-            Assert.True(_bag.Contains((int)_bag.Capacity / 2));
+            Assert.True(bag.Contains((int)bag.Capacity / 2));
 
             var sb = new StringBuilder();
-            foreach (var i in _bag)
+            foreach (var i in bag)
             {
                 sb.Append($"{i}");
                 if (i == 7)
-                    _bag.Add(11);
+                    bag.Add(11);
 
                 if (i == 11)
                     break;
             }
 
-            foreach (var i in _bag)
+            foreach (var i in bag)
             {
-                _bag.TryTake(out var r);
+                bag.TryTake(out var r);
                 sb.Append($"{i}");
             }
 
             Assert.Equal("112345678911112345678911", sb.ToString());
         }
 
-        public void Dispose()
+
+        [Fact]
+        public async Task Iterator()
         {
-            _bag.ZeroManaged(true);
-            _bag = default!;
+            var threads = 100;
+
+            var bag = new IoHashCodes("test", threads, true);
+
+            var c = 0;
+            foreach (var ioInt32 in bag)
+                c++;
+
+            Assert.Equal(0, c);
+
+            var idx = 0;
+            var insert = new List<Task>();
+            for (var i = 0; i < threads; i++)
+            {
+                insert.Add(Task.Factory.StartNew(static state =>
+                {
+                    var (@this, bag, idx) = (ValueTuple<IoHashCodesTest, IoHashCodes, int>)state!;
+                    bag.Add(Interlocked.Increment(ref idx));
+                }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
+            }
+
+            await Task.WhenAll(insert).ConfigureAwait(Zc);
+
+            Assert.Equal(threads, bag.Count);
+
+            bag.TryTake(out _);
+            bag.TryTake(out _);
+            bag.TryTake(out _);
+
+            Assert.Equal(threads - 3, bag.Count);
+
+            c = 0;
+            foreach (var ioInt32 in bag)
+            {
+                c++;
+            }
+
+            Assert.Equal(threads - 3, c);
+
+            while (bag.Count > 0)
+                bag.TryTake(out _);
+
+            Assert.Equal(0, bag.Count);
+
+            c = 0;
+            foreach (var ioInt32 in bag)
+                c++;
+
+            Assert.Equal(0, c);
         }
     }
 }

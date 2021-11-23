@@ -32,12 +32,16 @@ namespace zero.core.patterns.queue
         private readonly int _capacity;
         private volatile int _count;
         public int Head => _head;
-        private volatile int _head = 0;
+        private volatile int _head;
         public int Tail => _tail;
-        private volatile int _tail = 0;
-
-
+        private volatile int _tail;
         private IoHashCodeEnum _curEnumerator;
+        private volatile int _zeroed;
+
+        /// <summary>
+        /// ZeroAsync status
+        /// </summary>
+        public bool Zeroed => _zeroed > 0;
 
         /// <summary>
         /// Description
@@ -152,7 +156,10 @@ namespace zero.core.patterns.queue
         /// <param name="zero">Whether the bag is assumed to contain <see cref="IIoNanite"/>s and should only be zeroed out</param>
         /// <returns>True if successful, false if something went wrong</returns>
         public void ZeroManaged(bool zero = false)
-        {                       
+        {
+            if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+                return;
+
             _count = 0;
             
             if (!zero)                            

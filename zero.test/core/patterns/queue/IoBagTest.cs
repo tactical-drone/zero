@@ -6,24 +6,26 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 using zero.core.misc;
+using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
 namespace zero.test.core.patterns.queue
 {
-    public class IoBagTest :IDisposable
+    public class IoBagTest
     {
-        private IoBag<IoInt32> _bag;
         private readonly ITestOutputHelper _output;
 
         public IoBagTest(ITestOutputHelper output)
         {
-            _bag = new IoBag<IoInt32>("test", 11, true);
             _output = output;
         }
 
         [Fact]
         void InsertTest()
         {
+
+            var _bag = new IoBag<IoInt32>("test", 11, true);
+
             for (int i = 0; i < _bag.Capacity - 1; i++)
             {
                 _bag.Add(i);
@@ -55,9 +57,10 @@ namespace zero.test.core.patterns.queue
         public async Task Iterator()
         {
             var threads = 100;
+            var bag = new IoBag<IoInt32>("test", 100, true);
 
             var c = 0;
-            foreach (var ioInt32 in _bag)
+            foreach (var ioInt32 in bag)
                 c++;
             
             Assert.Equal(0, c);
@@ -68,46 +71,40 @@ namespace zero.test.core.patterns.queue
             {
                 insert.Add(Task.Factory.StartNew(static state =>
                 {
-                    var (@this, idx) = (ValueTuple<IoBagTest, int>)state!;
-                    @this._bag.Add(Interlocked.Increment(ref idx));
-                }, (this, idx), TaskCreationOptions.DenyChildAttach));
+                    var (@this,_bag, idx) = (ValueTuple<IoBagTest, IoBag<IoInt32>, int>)state!;
+                    _bag.Add(Interlocked.Increment(ref idx));
+                }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
-            
-            //await Task.WhenAll(insert).ConfigureAwait(Zc);
 
-            //Assert.Equal(capacity, _bag.Count);
+            await Task.WhenAll(insert).ConfigureAwait(Zc);
 
-            //_bag.TryTake(out _);
-            //_bag.TryTake(out _);
-            //_bag.TryTake(out _);
+            Assert.Equal(threads, bag.Count);
 
-            //Assert.Equal(capacity - 3, _bag.Count);
+            bag.TryTake(out _);
+            bag.TryTake(out _);
+            bag.TryTake(out _);
 
-            //c = 0;
-            //foreach (var ioInt32 in _bag)
-            //{
-            //    c++;
-            //}
+            Assert.Equal(threads - 3, bag.Count);
 
-            //Assert.Equal(capacity - 3, c);
+            c = 0;
+            foreach (var ioInt32 in bag)
+            {
+                c++;
+            }
 
-            //while (_bag.Count > 0)
-            //    _bag.TryTake(out _);
+            Assert.Equal(threads - 3, c);
 
-            //Assert.Equal(0, _bag.Count);
+            while (bag.Count > 0)
+                bag.TryTake(out _);
 
-            //c = 0;
-            //foreach (var ioInt32 in _bag)
-            //    c++;
+            Assert.Equal(0, bag.Count);
 
-            //Assert.Equal(0, c);
+            c = 0;
+            foreach (var ioInt32 in bag)
+                c++;
+
+            Assert.Equal(0, c);
         }
-        public bool Zc => true;
-
-        public void Dispose()
-        {
-            _bag.ZeroManagedAsync<object>().AsTask().GetAwaiter().GetResult();
-            _bag = default!;
-        }
+        public bool Zc => IoNanoprobe.ContinueOnCapturedContext;
     }
 }
