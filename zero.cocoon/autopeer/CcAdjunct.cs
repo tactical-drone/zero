@@ -1538,7 +1538,8 @@ namespace zero.cocoon.autopeer
                                 ((CcAdjunct)n).Direction == Heading.Undefined &&
                                 ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_max_network_latency * 2 &&
                                 ((CcAdjunct)n).State < AdjunctState.Peering &&
-                                ((CcAdjunct)n).TotalPats > @this.parm_min_pats_before_shuffle)
+                                ((CcAdjunct)n).TotalPats > @this.parm_min_pats_before_shuffle ||
+                                ((CcAdjunct)n).Proxy && ((CcAdjunct)n).LastPat.Elapsed() > @this.CcCollective.parm_mean_pat_delay)
                             .OrderByDescending(n => ((CcAdjunct)n).Priority)
                             .ThenByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
 

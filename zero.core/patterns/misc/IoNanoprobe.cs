@@ -223,9 +223,9 @@ namespace zero.core.patterns.misc
             Zero(@this => @this.Zero(true), this, default,TaskCreationOptions.DenyChildAttach);
 #pragma warning restore CS4014
 
-            if (Interlocked.Increment(ref _zCount) % 100 == 0)
+            if (Interlocked.Increment(ref _zCount) % 1000 == 0)
             {
-                Console.WriteLine(".");
+                Console.WriteLine("z");
             }
         }
 
@@ -381,7 +381,7 @@ namespace zero.core.patterns.misc
                         if (zeroSub.Zeroed()) continue;
 
                         zeroSub.Zero(this);
-                        await Task.Delay(50).ConfigureAwait(Zc);
+                        await Task.Delay(100).ConfigureAwait(Zc);
                     }
 
                     await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
@@ -637,18 +637,22 @@ namespace zero.core.patterns.misc
                         {
                             await action(state).FastPath().ConfigureAwait(@this.Zc);
                         }
-                        catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
-                                                  nanoprobe == null && @this._zeroed == 0)
-                        {
-                            _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
-                        }
 #if DEBUG
                         catch (TaskCanceledException e) when ( nanoprobe != null && !nanoprobe.Zeroed() ||
                                                    nanoprobe == null && @this._zeroed == 0)
                         {
                             _logger.Trace(e,$"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
                         }
+#else
+                        catch (TaskCanceledException) { }
 #endif
+
+                        catch (Exception e) when (nanoprobe != null && !nanoprobe.Zeroed() ||
+                                                  nanoprobe == null && @this._zeroed == 0)
+                        {
+                            _logger.Error(e, $"{Path.GetFileName(fileName)}:{methodName}() line {lineNumber} - [{@this.Description}]: {nameof(ZeroAsync)}");
+                        }
+
                         
                     }, ValueTuple.Create(this, continuation, state, filePath, methodName, lineNumber), asyncToken, options, TaskScheduler.Default);
                 
