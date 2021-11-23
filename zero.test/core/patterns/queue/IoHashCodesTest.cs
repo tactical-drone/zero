@@ -18,7 +18,7 @@ namespace zero.test.core.patterns.queue
         [Fact]
         void InsertTest()
         {
-            for (int i = 1; i < _bag.Capacity; i++)
+            for (int i = 0; i < _bag.Capacity-1; i++)
             {
                 _bag.Add(i);
             }
@@ -42,7 +42,7 @@ namespace zero.test.core.patterns.queue
                 sb.Append($"{i}");
             }
 
-            Assert.Equal("12345678910111234567891011", sb.ToString());
+            Assert.Equal("112345678911112345678911", sb.ToString());
         }
 
         public void Dispose()

@@ -480,13 +480,12 @@ namespace zero.sync
                             var ave = sum / _nodes.Count;
                             long aveDelta = 0;
                             var std = 0;
-                            var i = 0;
+                            
                             foreach (var ccCollective in _nodes)
                             {
                                 var delta = ccCollective.EventCount - ave;
                                 aveDelta += Math.Abs(delta);
 
-                                //Console.Write($"[{i++}]({delta}), ");
                                 Console.Write($"{delta}, ");
                             }
 

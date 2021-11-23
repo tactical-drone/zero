@@ -24,6 +24,7 @@ namespace zero.core.patterns.queue
             _description = description;
             _capacity = capacity;
             _storage = new int[_capacity];
+            _curEnumerator = new IoHashCodeEnum(this);
         }
         
         private readonly string _description;
@@ -35,9 +36,9 @@ namespace zero.core.patterns.queue
         public int Tail => _tail;
         private volatile int _tail = 0;
 
-        private volatile int _iteratorIdx = -1;
-        private volatile int _iteratorCount;        
-        
+
+        private IoHashCodeEnum _curEnumerator;
+
         /// <summary>
         /// Description
         /// </summary>
@@ -73,6 +74,10 @@ namespace zero.core.patterns.queue
             if (_count == _capacity)
                 throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
 
+            //We don't allow zero hashes
+            if (item == 0)
+                item++;
+
             if (unique)
             {
                 if (Contains(item))
@@ -91,7 +96,7 @@ namespace zero.core.patterns.queue
 
                 if (latched == default)
                 {
-                    Interlocked.Increment(ref _iteratorCount);
+                    _curEnumerator.IncIteratorCount();
                     Interlocked.Increment(ref _count);
                 }
                 else
@@ -126,8 +131,6 @@ namespace zero.core.patterns.queue
 
             Interlocked.Decrement(ref _count);
 
-            if (latch >= _iteratorIdx)
-                Interlocked.Decrement(ref _iteratorCount);
             return true;
         }
 
@@ -176,7 +179,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<int> GetEnumerator()
         {
-            return new IoHashCodeEnum(this);
+            _curEnumerator = (IoHashCodeEnum)_curEnumerator.Reuse(this, b => new IoHashCodeEnum((IoHashCodes)b));
+            _curEnumerator.Reset();
+            return _curEnumerator;
         }
 
         /// <summary>
@@ -187,14 +192,6 @@ namespace zero.core.patterns.queue
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
-        }
-
-        /// <summary>
-        /// Not used
-        /// </summary>
-        public void Dispose()
-        {
-
         }
     }
 }

@@ -1,29 +1,23 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace zero.core.patterns.queue.enumerator
 {
-    public  class IoHashCodeEnum:IEnumerator<int>
+    public  class IoHashCodeEnum:IoEnumBase<int>
     {
-        private IoHashCodes _c;
+        private IoHashCodes _c => (IoHashCodes)Collection;
         private volatile int _iteratorIdx = -1;
         private volatile int _iteratorCount;
-        private int _disposed;
 
-        public IoHashCodeEnum(IoHashCodes codes)
+        public IoHashCodeEnum(IoHashCodes codes):base(codes)
         {
-            _c = codes;
-            Interlocked.Exchange(ref _iteratorIdx, (_c.Tail - 1) % _c.Capacity);
-            Interlocked.Exchange(ref _iteratorCount, _c.Count);
+            Reset();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
+        public override bool MoveNext()
         {
-            if (_disposed > 0)
+            if (Disposed > 0)
                 return false;
 
             int idx;
@@ -31,21 +25,27 @@ namespace zero.core.patterns.queue.enumerator
             return _c[idx] != default;
         }
 
-        public void Reset()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public sealed override void Reset()
         {
-            throw new NotImplementedException();
+            Interlocked.Exchange(ref _iteratorIdx, (_c.Tail - 1) % _c.Capacity);
+            Interlocked.Exchange(ref _iteratorCount, _c.Count);
         }
 
-        public int Current => _c[_iteratorIdx % _c.Capacity];
+        public override int Current => _c[_iteratorIdx % _c.Capacity];
 
-        object IEnumerator.Current => Current;
-
-        public void Dispose()
+        public override void Dispose()
         {
-            if (_disposed > 0 || Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+            if (Disposed > 0 || Interlocked.CompareExchange(ref Disposed, 1, 0) != 0)
                 return;
 
-            _c = null;
+            Collection = null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IncIteratorCount()
+        {
+            Interlocked.Increment(ref _iteratorCount);
         }
     }
 }

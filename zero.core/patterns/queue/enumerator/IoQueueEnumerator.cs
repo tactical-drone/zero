@@ -1,27 +1,23 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace zero.core.patterns.queue.enumerator
 {
-    public class IoQueueEnumerator<T> : IEnumerator<IoQueue<T>.IoZNode>
+    public class IoQueueEnumerator<T> : IoEnumBase<IoQueue<T>.IoZNode>
     {
-        private IoQueue<T> _q;
+        private IoQueue<T> _q => (IoQueue<T>)Collection;
         private volatile IoQueue<T>.IoZNode _iteratorIoZNode;
-        private volatile int _disposed;
 
-        public IoQueueEnumerator(IoQueue<T> queue)
+        public IoQueueEnumerator(IoQueue<T> queue):base(queue)
         {
-            _q = queue;
-            _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = _q.Head };
+            Reset();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
+        public override bool MoveNext()
         {
-            if (_disposed > 0)
+            if (Disposed > 0)
                 return false;
 
             if (_q.Count == 0 || _iteratorIoZNode == null)
@@ -29,27 +25,26 @@ namespace zero.core.patterns.queue.enumerator
 
             _iteratorIoZNode = _iteratorIoZNode.Next;
 
-            return _iteratorIoZNode != null && _disposed == 0;
+            return _iteratorIoZNode != null && Disposed == 0;
         }
 
-        public void Reset()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public sealed override void Reset()
         {
-            throw new NotImplementedException();
+            _iteratorIoZNode = new IoQueue<T>.IoZNode { Next = _q.Head };
         }
 
-        public IoQueue<T>.IoZNode Current => _iteratorIoZNode;
-
-        object IEnumerator.Current => Current;
+        public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;
 
         public bool Modified;
 
-        public void Dispose()
+        public override void Dispose()
         {
-            if(_disposed > 0 || Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+            if(Disposed > 0 || Interlocked.CompareExchange(ref Disposed, 1, 0) != 0)
                 return;
             
             _iteratorIoZNode = null;
-            _q = null;
+            Collection = null;
         }
     }
 }

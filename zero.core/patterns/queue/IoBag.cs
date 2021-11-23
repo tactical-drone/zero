@@ -27,6 +27,7 @@ namespace zero.core.patterns.queue
             _capacity = capacity;
             _storage = new T[_capacity];
             _hotReload = hotReload;
+            _curEnumerator = new IoBagEnumerator<T>(this);
         }
 
         private volatile int _zeroed;
@@ -39,9 +40,9 @@ namespace zero.core.patterns.queue
         private volatile int _head;
         public int Tail => _tail;
         private volatile int _tail;
-        
-        private volatile int _iteratorIdx = - 1;
-        private volatile int _iteratorCount;
+
+        private IoBagEnumerator<T> _curEnumerator;
+
         private readonly bool _hotReload;
 
         /// <summary>
@@ -109,7 +110,7 @@ namespace zero.core.patterns.queue
 
                 if (latched == default)
                 {
-                    Interlocked.Increment(ref _iteratorCount);
+                    _curEnumerator.IncIteratorCount();
                     Interlocked.Increment(ref _count);
                 }
                 else if(!Zeroed)
@@ -246,7 +247,9 @@ namespace zero.core.patterns.queue
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<T> GetEnumerator()
         {
-            return new IoBagEnumerator<T>(this);
+            _curEnumerator = (IoBagEnumerator<T>)_curEnumerator.Reuse(this, b => new IoBagEnumerator<T>((IoBag<T>)b));
+            _curEnumerator.Reset();
+            return _curEnumerator;
         }
 
         /// <summary>

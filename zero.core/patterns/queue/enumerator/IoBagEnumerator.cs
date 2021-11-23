@@ -1,54 +1,61 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace zero.core.patterns.queue.enumerator
 {
-    public class IoBagEnumerator<T>: IEnumerator<T> where T : class
+    public class IoBagEnumerator<T>: IoEnumBase<T> where T : class
     {
-        private IoBag<T> _b;
+        private IoBag<T> Bag => (IoBag<T>)Collection;
         private int _iteratorIdx = -1;
         private int _iteratorCount;
-        private int _disposed;
+        
 
-        public IoBagEnumerator(IoBag<T> bag)
+        public IoBagEnumerator(IoBag<T> bag):base(bag)
         {
-            _b = bag;
-            Interlocked.Exchange(ref _iteratorIdx, (_b.Tail - 1) % _b.Capacity);
-            Interlocked.Exchange(ref _iteratorCount, _b.Count);
+            Reset();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
+        public IoBagEnumerator<T> Reuse(IoBag<T> bag)
         {
-            if (_disposed > 0 || _b.Zeroed || _iteratorCount <= 0)
+            return Interlocked.CompareExchange(ref Disposed, 0, 1) != 1 ? new IoBagEnumerator<T>(bag) : this;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool MoveNext()
+        {
+            if (Disposed > 0 || Bag.Zeroed || _iteratorCount <= 0)
                 return false;
 
-            var idx = Interlocked.Increment(ref _iteratorIdx) % _b.Capacity;
+            var idx = Interlocked.Increment(ref _iteratorIdx) % Bag.Capacity;
 
-            while (Interlocked.Decrement(ref _iteratorCount) > 0 && _b[idx] == default)
-                idx = Interlocked.Increment(ref _iteratorIdx) % _b.Capacity;
+            while (Interlocked.Decrement(ref _iteratorCount) > 0 && Bag[idx] == default)
+                idx = Interlocked.Increment(ref _iteratorIdx) % Bag.Capacity;
 
-            return _iteratorCount >= 0 && _b[idx] != default && _disposed == 0;
+            return _iteratorCount >= 0 && Bag[idx] != default && Disposed == 0;
         }
 
-        public void Reset()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public sealed override void Reset()
         {
-            throw new NotImplementedException();
+            Interlocked.Exchange(ref _iteratorIdx, (Bag.Tail - 1) % Bag.Capacity);
+            Interlocked.Exchange(ref _iteratorCount, Bag.Count);
         }
 
-        public T Current => _b[_iteratorIdx % _b.Capacity];
+        public override T Current => Bag[_iteratorIdx % Bag.Capacity];
 
-        object IEnumerator.Current => Current;
-
-        public void Dispose()
+        public override void Dispose()
         {
-            if (_disposed > 0 || Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+            if (Disposed > 0 || Interlocked.CompareExchange(ref Disposed, 1, 0) != 0)
                 return;
 
-            _b = null;
+            Collection = null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IncIteratorCount()
+        {
+            Interlocked.Increment(ref _iteratorCount);
         }
     }
 }

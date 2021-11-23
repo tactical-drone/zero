@@ -283,7 +283,7 @@ namespace zero.test.core.patterns.queue{
                 insert.Add(Task.Factory.StartNew(static async state =>
                 {
                     var (q, idx, itemsPerThread) = (ValueTuple<IoQueue<int>, int, int>)state!;
-                    while( itemsPerThread -- > 0 )
+                    for (var i = 0; i < itemsPerThread; i++)
                         await q.EnqueueAsync(Interlocked.Increment(ref idx));
                 }, (q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach));
             }
@@ -340,7 +340,7 @@ namespace zero.test.core.patterns.queue{
 
             public void Dispose()
             {
-                Q.ZeroManagedAsync<object>(zero:true);
+                Q.ZeroManagedAsync<object>(zero:true).GetAwaiter();
                 Q = default!;
             }
         }
