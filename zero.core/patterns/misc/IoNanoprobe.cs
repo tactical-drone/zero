@@ -655,11 +655,11 @@ namespace zero.core.patterns.misc
                 if (unwrap)
                     await zeroAsyncTask.Unwrap();
                 
-                await zeroAsyncTask;
+                await zeroAsyncTask.ConfigureAwait(Zc);
             }
             catch (TaskCanceledException e) when (!nanite.Zeroed())
             {
-                _logger.Error(e, Description);
+                _logger.Trace(e, Description);
             }
             catch(TaskCanceledException) when (nanite.Zeroed()){}
             catch(Exception) when (nanite.Zeroed()){}
