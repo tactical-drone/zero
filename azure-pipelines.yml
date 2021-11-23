@@ -32,36 +32,19 @@ steps:
     projects: '$(solution)'    
     
 - task: DotNetCoreCLI@2
-  displayName: build '$(core-solution)'
-  inputs:
-    command: 'build'
-    configuration: '$(buildConfiguration)'
-    projects: '$(core-solution)'
-    
-
-- task: DotNetCoreCLI@2
-  displayName: build '$(cocoon-solution)'
-  inputs:
-    command: 'build'
-    configuration: '$(buildConfiguration)'
-    projects: '$(cocoon-solution)'    
-
-- task: DotNetCoreCLI@2
-  displayName: build '$(cocoon-solution)'
+  displayName: build '$(solution)'
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
     projects: '$(solution)'
-    
 
 - task: DotNetCoreCLI@2
   displayName: build '$(test-solution)'
   inputs:
     command: 'build'
     configuration: '$(buildConfiguration)'
-    projects: '$(test-solution)'
+    projects: '$(test- solution)'
     
-
 - task: DotNetCoreCLI@2
   displayName: test '$(test-solution)'
   inputs:
