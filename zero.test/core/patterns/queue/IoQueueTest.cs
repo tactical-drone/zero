@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +7,7 @@ using Xunit;
 using Xunit.Abstractions;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
+
 
 namespace zero.test.core.patterns.queue{
 
@@ -173,26 +173,25 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         async Task SpamTest()
         {
-            var _concurrentTasks = new List<Task>();
-
+            var concurrentTasks = new List<Task>();
 #if DEBUG
             var rounds = 10;
-            var mult = 10000;
-#else
-            var rounds = 20;
             var mult = 1000;
+#else
+            var rounds = 25;
+            var mult = 10000;
 #endif
-            //_context.Q.ClearAsync().AsTask().GetAwaiter().GetResult();
+
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             for (var i = 0; i < rounds; i++)
             {
-                _concurrentTasks.Add(Task.Factory.StartNew(static async state =>
+                concurrentTasks.Add(Task.Factory.StartNew(static async state =>
                 {
 #if DEBUG
                     var mult = 10000;
 #else
-                    var mult = 5000;
+                    var mult = 10000;
 #endif
 
                     var @this = (IoQueueTest)state!;
@@ -218,8 +217,8 @@ namespace zero.test.core.patterns.queue{
                             var d2 = @this._context.Q.DequeueAsync();
                             var d4 = @this._context.Q.DequeueAsync();
                             var d5 = @this._context.Q.DequeueAsync();
-                            await @this._context.Q.DequeueAsync();
-                            await @this._context.Q.DequeueAsync();
+                            await @this._context.Q.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
+                            await @this._context.Q.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
                             await d5;
                             await d4;
                             await d2;
@@ -232,7 +231,7 @@ namespace zero.test.core.patterns.queue{
                     @this._output.WriteLine($"({@this._context.Q.Count})");
                 },this, TaskCreationOptions.DenyChildAttach).Unwrap());
             }
-            await Task.WhenAll(_concurrentTasks);
+            await Task.WhenAll(concurrentTasks);
 
             _output.WriteLine($"count = {_context.Q.Count}, Head = {_context.Q?.Tail?.Value}, tail = {_context.Q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
 
@@ -263,10 +262,12 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         public async Task Iterator()
         {
-            
-            var capacity = 1000;
 
-            var q = new IoQueue<int>("test Q", capacity, capacity);
+            var threads = 20;
+            var itemsPerThread = 10;
+            var capacity = threads * itemsPerThread;
+
+            var q = new IoQueue<int>("test Q", capacity, threads);
 
             var c = 0;
             foreach (var ioInt32 in q)
@@ -277,16 +278,17 @@ namespace zero.test.core.patterns.queue{
             var idx = 0;
             var insert = new List<Task>();
 
-            for (var i = 0; i < capacity; i++)
+            for (var i = 0; i < threads; i++)
             {
-                insert.Add(Task.Factory.StartNew(static state =>
+                insert.Add(Task.Factory.StartNew(static async state =>
                 {
-                    var (q, idx) = (ValueTuple<IoQueue<int>, int>)state!;
-                    return q.EnqueueAsync(Interlocked.Increment(ref idx));
-                },(q, idx), TaskCreationOptions.DenyChildAttach));
+                    var (q, idx, itemsPerThread) = (ValueTuple<IoQueue<int>, int, int>)state!;
+                    while( itemsPerThread -- > 0 )
+                        await q.EnqueueAsync(Interlocked.Increment(ref idx));
+                }, (q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(insert);
+            await Task.WhenAll(insert).ConfigureAwait(false);
 
             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
             await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
@@ -318,7 +320,7 @@ namespace zero.test.core.patterns.queue{
         {
             public Context()
             {
-                Q = new IoQueue<int>("test Q", 2000000000, 1000);
+                Q = new IoQueue<int>("test Q", 2000, 1000);
                 Q.EnqueueAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
                 Q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
                 Head = Q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
@@ -338,7 +340,8 @@ namespace zero.test.core.patterns.queue{
 
             public void Dispose()
             {
-                Q.Dispose();
+                Q.ZeroManagedAsync<object>(zero:true);
+                Q = default!;
             }
         }
 

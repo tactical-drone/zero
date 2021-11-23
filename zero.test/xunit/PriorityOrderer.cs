@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
 
-
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
 namespace zero.test.xunit
 {
     public class PriorityOrderer : ITestCaseOrderer

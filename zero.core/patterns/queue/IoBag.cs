@@ -8,13 +8,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue.enumerator;
 
 namespace zero.core.patterns.queue
 {
     /// <summary>
     /// A lighter concurrent bag implementation
     /// </summary>
-    public class IoBag<T>:IEnumerator<T>, IEnumerable<T>
+    public class IoBag<T>:IEnumerable<T>
     where T:class
     {
         /// <summary>
@@ -26,7 +27,6 @@ namespace zero.core.patterns.queue
             _capacity = capacity;
             _storage = new T[_capacity];
             _hotReload = hotReload;
-            Reset();
         }
 
         private volatile int _zeroed;
@@ -35,10 +35,10 @@ namespace zero.core.patterns.queue
         private T[] _storage;        
         private int _capacity;
         private volatile int _count;        
-        private int Head => _head % _capacity;
-        private volatile int _head = 0;
-        private int Tail => _tail % _capacity;
-        private volatile int _tail = 0;
+        public int Head => _head;
+        private volatile int _head;
+        public int Tail => _tail;
+        private volatile int _tail;
         
         private volatile int _iteratorIdx = - 1;
         private volatile int _iteratorCount;
@@ -63,7 +63,14 @@ namespace zero.core.patterns.queue
         /// Capacity
         /// </summary>
         public int Capacity => _capacity;
-        
+
+        /// <summary>
+        /// Bag item by index
+        /// </summary>
+        /// <param name="i">index</param>
+        /// <returns>Object stored at index</returns>
+        public T this[int i] => _storage[i];
+
         /// <summary>
         /// Add item to the bag
         /// </summary>
@@ -141,6 +148,7 @@ namespace zero.core.patterns.queue
                 return false;
             }
 
+            _storage[latch] = default;
 
             Interlocked.Decrement(ref _count);
 
@@ -221,24 +229,6 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Move to next item
-        /// </summary>
-        /// <returns>True if the iterator could be advanced by 1</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
-        {
-            if (Zeroed || _iteratorCount <= 0)
-                return false;
-
-            var idx = Interlocked.Increment(ref _iteratorIdx) % _capacity;
-
-            while (Interlocked.Decrement(ref _iteratorCount) > 0 && _storage[idx] == default)
-                idx = Interlocked.Increment(ref _iteratorIdx) % _capacity;
-            
-            return _iteratorCount >= 0 && _storage[idx] != default;
-        }
-
-        /// <summary>
         /// Contains
         /// </summary>
         /// <param name="item"></param>
@@ -250,34 +240,13 @@ namespace zero.core.patterns.queue
         }
 
         /// <summary>
-        /// Reset iterator
-        /// </summary>
-        [MethodImpl(MethodImplOptions.Synchronized | MethodImplOptions.AggressiveInlining)]
-        public void Reset()
-        {
-            Interlocked.Exchange(ref _iteratorIdx, (_tail - 1) % _capacity);
-            Interlocked.Exchange(ref _iteratorCount, _count);
-        }
-
-        /// <summary>
-        /// Return the current element in the iterator
-        /// </summary>
-        public T Current => _storage[_iteratorIdx % _capacity];
-
-        /// <summary>
-        /// Return the current element in the iterator
-        /// </summary>
-        object IEnumerator.Current => Current;
-
-        /// <summary>
         /// Returns the bag enumerator
         /// </summary>
         /// <returns>The bag enumerator</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerator<T> GetEnumerator()
         {
-            Reset();
-            return this;
+            return new IoBagEnumerator<T>(this);
         }
 
         /// <summary>
@@ -288,14 +257,6 @@ namespace zero.core.patterns.queue
         IEnumerator IEnumerable.GetEnumerator()
         {            
             return GetEnumerator();
-        }
-
-        /// <summary>
-        /// Not used
-        /// </summary>
-        public void Dispose()
-        {
-            
         }
     }
 }

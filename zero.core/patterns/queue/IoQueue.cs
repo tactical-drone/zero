@@ -8,16 +8,16 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue.enumerator;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.patterns.queue
 {
-
     /// <summary>
     /// ZeroAsync Queue
     /// </summary>
     /// <typeparam name="T">The type of item queued</typeparam>
-    public class IoQueue<T>: IEnumerator<IoQueue<T>.IoZNode>, IEnumerable<IoQueue<T>.IoZNode>
+    public class IoQueue<T>:  IEnumerable<IoQueue<T>.IoZNode>
     {
         /// <summary>
         /// A node
@@ -57,7 +57,7 @@ namespace zero.core.patterns.queue
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 
-            Reset();
+            _curEnumerator = new IoQueueEnumerator<T>(this);
         }
 
         private readonly string _description; 
@@ -80,12 +80,9 @@ namespace zero.core.patterns.queue
         public IoHeap<IoZNode> NodeHeap => _nodeHeap;
         public IIoZeroSemaphore Pressure => _backPressure;
 
-        /// <summary>
-        /// Whether the collection has been modified
-        /// </summary>
-        private volatile bool _modified;
+        private IoQueueEnumerator<T> _curEnumerator;
 
-        public bool Modified => _modified;
+        public bool Modified => _curEnumerator.Modified;
 
         public bool Zeroed => _zeroed > 0 || _syncRoot.Zeroed() || _pressure != null && _pressure.Zeroed() || _backPressure != null && _backPressure.Zeroed();
 
@@ -110,7 +107,7 @@ namespace zero.core.patterns.queue
                     var cur = Head;
                     while (cur != null)
                     {
-                        _modified = true;
+                        _curEnumerator.Modified = true;
                         try
                         {
                             if (!zero)
@@ -144,11 +141,11 @@ namespace zero.core.patterns.queue
                 {
                     _head = null;
                     _tail = null;
-                    _iteratorIoZNode = null;
 
                     await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
                     _nodeHeap = null;
 
+                    _asyncTasks.Cancel();
                     _asyncTasks.Dispose();
                     _asyncTasks = null;
 
@@ -161,9 +158,6 @@ namespace zero.core.patterns.queue
 
                     _syncRoot.ZeroSem();
                     _syncRoot = null;
-
-                    Dispose();
-
                 }
             }
 
@@ -188,7 +182,7 @@ namespace zero.core.patterns.queue
                 if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
                     _zeroed > 0)
                 {
-                    if(_zeroed == 0 && !_backPressure.Zeroed())
+                    if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
                     return null;
                 }
@@ -256,7 +250,7 @@ namespace zero.core.patterns.queue
                 //wait on back pressure
                 if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
-                    if (_zeroed == 0 && !_backPressure.Zeroed())
+                    if (_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(PushBackAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
                     return null;
                 }
@@ -332,7 +326,7 @@ namespace zero.core.patterns.queue
                 if (_count == 0)
                     return default;
 
-                _modified = true;
+                _curEnumerator.Modified = true;
 
                 dq = _head;
                 _head = _head.Next;
@@ -394,7 +388,7 @@ namespace zero.core.patterns.queue
             {
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return false;
-                _modified = true;
+                _curEnumerator.Modified = true;
 
                 if (node.Prev != null)
                 {
@@ -428,47 +422,12 @@ namespace zero.core.patterns.queue
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
-        {
-            if (_count == 0 || _iteratorIoZNode == null)
-                return false;
-
-            _iteratorIoZNode = _iteratorIoZNode.Next;
-            
-            return _iteratorIoZNode != null;
-        }
-
-        [MethodImpl(MethodImplOptions.Synchronized)]
-        public void Reset()
-        {
-            _modified = false;
-            _iteratorIoZNode = new IoZNode {Next = _head};
-        }
-
-        private volatile IoZNode _iteratorIoZNode;
-        public IoZNode Current => _iteratorIoZNode;
-
-        object IEnumerator.Current => Current;
-
-        public void Dispose()
-        {
-            //TODO why does this execute?
-            //_backPressure = null;
-            //_asyncTasks = null;
-            //_tail = null;
-            //_iteratorIoZNode = null;
-            //_nodeHeap = null;
-            //_pressure = null;
-            //_syncRoot = null;
-            //_head = null;
-        }
-
         public IEnumerator<IoZNode> GetEnumerator()
         {
-            Reset();
-            return this;
+            return _curEnumerator = new IoQueueEnumerator<T>(this);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
@@ -505,7 +464,6 @@ namespace zero.core.patterns.queue
         /// Clip the queue
         /// </summary>
         /// <param name="crisper">The new head pointer</param>
-        /// <param name="count">The number of elements clipped</param>
         public async ValueTask ClipAsync(IoZNode crisper)
         {
             try
@@ -531,6 +489,12 @@ namespace zero.core.patterns.queue
             {
                 _syncRoot.Release();
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Reset()
+        {
+            _curEnumerator = new IoQueueEnumerator<T>(this);
         }
     }
 }

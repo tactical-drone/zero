@@ -79,7 +79,7 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 400;
+            var total = 350;
             var maxDrones = 9;
             var maxAdjuncts = 18;
             var tasks = new ConcurrentBag<Task<CcCollective>>
@@ -554,7 +554,7 @@ namespace zero.sync
         private static Task QueueTestAsync() //TODO make unit tests
         {
 
-            IoQueue<int> q = new IoQueue<int>("test", 2000000000, 100);
+            IoQueue<int> q = new IoQueue<int>("test", 2000000, 100);
             var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
             q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();

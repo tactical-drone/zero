@@ -25,7 +25,7 @@ namespace zero.test.core.patterns.semaphore
             int loopCount = 10;
             int targetSleep = 100;
 #else
-            int loopCount = 200;
+            int loopCount = 20;
             int targetSleep = 100;
 #endif
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
@@ -35,7 +35,7 @@ namespace zero.test.core.patterns.semaphore
 
             var t = Task.Factory.StartNew(static async state =>
             {
-                var (running, m, targetSleep) = (ValueTuple<bool, IoZeroSemaphoreSlim, int>)state;
+                var (running, m, targetSleep) = (ValueTuple<bool, IoZeroSemaphoreSlim, int>)state!;
                 // ReSharper disable once AccessToModifiedClosure
                 while(running)
                 {
