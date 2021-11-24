@@ -43,7 +43,6 @@ namespace zero.core.patterns.queue
             desc = "";
 #endif
 
-
             _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Make = static (o,s) => new IoZNode()};
             _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
@@ -53,14 +52,14 @@ namespace zero.core.patterns.queue
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: concurrencyLevel, concurrencyLevel: 0, initialCount: 0);
+                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: 0);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
             if (enableBackPressure)
             {
                 _backPressure = new IoZeroSemaphore($"qbp {description}",
-                    maxBlockers: concurrencyLevel, concurrencyLevel: 0, initialCount: concurrencyLevel);
+                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: 1);
                 _backPressure.ZeroRef(ref _backPressure, _asyncTasks);
             }
 
@@ -188,7 +187,8 @@ namespace zero.core.patterns.queue
                     return null;
 
                 //wait on back pressure
-                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
+                if (_backPressure != null && 
+                    !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
                     _zeroed > 0)
                 {
                     if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))

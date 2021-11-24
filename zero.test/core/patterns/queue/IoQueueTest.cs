@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
+using zero.core.misc;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
@@ -242,7 +243,7 @@ namespace zero.test.core.patterns.queue{
 #if DEBUG
             Assert.InRange(kops, 20, int.MaxValue);
 #else
-            Assert.InRange(kops, 3000, int.MaxValue);
+            Assert.InRange(kops, 1500, int.MaxValue);
 #endif
 
             _output.WriteLine($"kops = {kops}");
@@ -328,11 +329,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         async Task AutoScale()
         {
-            var threads = 20;
-            var itemsPerThread = 10;
-            var capacity = threads * itemsPerThread;
-
-            var q = new IoQueue<int>("test Q", 1, threads, autoScale:true);
+            var q = new IoQueue<int>("test Q", 1, 1, autoScale:true);
 
             await q.EnqueueAsync(0);
             await q.EnqueueAsync(1);
@@ -342,6 +339,202 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(8, q.Capacity);
         }
+
+        private IoQueue<IoInt32> _queuePressure;
+        private Task _queueNoBlockingTask;
+        private CancellationTokenSource _blockCancellationSignal;
+
+        [Fact]
+        async Task NoQueuePressure()
+        {
+            _blockCancellationSignal = new CancellationTokenSource();
+            _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2);
+
+            await _queuePressure.EnqueueAsync(0);
+
+            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(Zc);
+
+            Assert.NotNull(item);
+
+            _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
+            {
+                var @this = (IoQueueTest)state!;
+
+                var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
+                Assert.Null(item);
+            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+
+            var enqueueTask = _queueNoBlockingTask.ContinueWith((_,@this) => ((IoQueueTest)@this!)._blockCancellationSignal.Cancel(), this);
+
+            
+            var dequeue = Task.Factory.StartNew(static async state =>
+            {
+                var @this = (IoQueueTest)state!;
+
+                try
+                {
+                    //Wait for up to 2 seconds for results
+                    await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this.Zc);
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                Assert.True(@this._queueNoBlockingTask.IsCompletedSuccessfully);
+            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+
+            await dequeue.ConfigureAwait(Zc);
+            await enqueueTask.ConfigureAwait(Zc);
+            Assert.True(dequeue.IsCompletedSuccessfully);
+            Assert.True(enqueueTask.IsCompletedSuccessfully);
+        }
+
+        [Fact]
+        async Task QueuePressure()
+        {
+            _blockCancellationSignal = new CancellationTokenSource();
+            _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, disablePressure:false);
+
+            await _queuePressure.EnqueueAsync(0);
+
+            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(Zc);
+
+            Assert.NotNull(item);
+
+            _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
+            {
+                var @this = (IoQueueTest)state!;
+                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
+                Assert.InRange(s.ElapsedMs(), 100, 2000);
+                Assert.NotNull(item);
+
+            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+                
+            var dequeTask = _queueNoBlockingTask.ContinueWith((_, @this) =>
+            {
+                ((IoQueueTest)@this!)._blockCancellationSignal.Cancel();
+                if (_.Exception != null)
+                {
+                    throw _.Exception;
+                }
+                //Assert.True(_.IsCompletedSuccessfully);
+            }, this);
+
+
+            var insertTask = Task.Factory.StartNew(static async state =>
+            {
+                var @this = (IoQueueTest)state!;
+
+                try
+                {
+                    await Task.Delay(100, @this._blockCancellationSignal.Token).ConfigureAwait(@this.Zc);
+                    await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this.Zc);
+                    //Wait for up to 2 seconds for results
+                    await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this.Zc);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+
+            await insertTask.ConfigureAwait(Zc);
+            Assert.True(insertTask.IsCompletedSuccessfully);
+            await dequeTask.ConfigureAwait(Zc);
+            Assert.True(dequeTask.IsCompletedSuccessfully);
+        }
+
+        [Fact]
+        async Task QueueBackPressure()
+        {
+            _blockCancellationSignal = new CancellationTokenSource();
+            _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure:true);
+
+            await _queuePressure.EnqueueAsync(0);
+
+            var item = await _queuePressure.DequeueAsync().FastPath().ConfigureAwait(Zc);
+
+            Assert.NotNull(item);
+
+            _queueNoBlockingTask = Task.Factory.StartNew(static async state =>
+            {
+                var @this = (IoQueueTest)state!;
+                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
+                Assert.InRange(s.ElapsedMs(), 100, 2000);
+                Assert.NotNull(item);
+
+                await Task.Delay(100).ConfigureAwait(@this.Zc);
+
+                s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this.Zc);
+                Assert.InRange(s.ElapsedMs(), 0, 500);
+                Assert.NotNull(item);
+
+            }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
+
+            var dequeTask = _queueNoBlockingTask.ContinueWith((task, @this) =>
+            {
+                ((IoQueueTest)@this!)._blockCancellationSignal.Cancel();
+                if (task.Exception != null)
+                {
+                    throw task.Exception;
+                }
+                //Assert.True(_.IsCompletedSuccessfully);
+            }, this);
+
+
+            var insertTask = Task.Factory.StartNew(static async state =>
+            {
+                var @this = (IoQueueTest)state!;
+                await Task.Delay(100, @this._blockCancellationSignal.Token).ConfigureAwait(@this.Zc);
+                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this.Zc);
+                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this.Zc);
+                var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                //blocking
+                await @this._queuePressure.EnqueueAsync(1).FastPath().ConfigureAwait(@this.Zc);
+                Assert.InRange(s.ElapsedMs(), 100, 10000);
+                //Wait for up to 2 seconds for results
+                await Task.Delay(2000, @this._blockCancellationSignal.Token).ConfigureAwait(@this.Zc);
+            }, this, TaskCreationOptions.DenyChildAttach).Unwrap().ContinueWith(task =>
+            {
+                if (task.Exception != null)
+                {
+                    throw task.Exception;
+                }
+            });
+
+            await insertTask.ConfigureAwait(Zc);
+            Assert.True(insertTask.IsCompletedSuccessfully);
+            await dequeTask.ConfigureAwait(Zc);
+            Assert.True(dequeTask.IsCompletedSuccessfully);
+        }
+
+        [Fact]
+        async Task BlockingQueue()
+        {
+            var q = new IoQueue<int>("test Q", 1, 1, enableBackPressure:true, autoScale: true);
+
+            await q.EnqueueAsync(0);
+            await q.EnqueueAsync(1);
+            await q.EnqueueAsync(2);
+            await q.EnqueueAsync(3);
+            await q.EnqueueAsync(4);
+
+            Assert.Equal(8, q.Capacity);
+
+            Task.Factory.StartNew(state =>
+            {
+                var @this = (IoQueueTest)state;
+
+            }, this);
+
+        }
+
+
+
 
 
         public class Context : IDisposable

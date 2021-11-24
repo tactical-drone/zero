@@ -22,7 +22,7 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="description">A description of this semaphore</param>
         /// <param name="maxBlockers">The maximum number of blockers this semaphore has capacity for</param>
         /// <param name="initialCount">The initial number of requests that will be non blocking</param>
-        /// <param name="concurrencyLevel">The maximum "not-inline" or concurrent workers that this semaphore allows before blocking.</param>
+        /// <param name="asyncWorkerCount">The maximum "not-inline" or concurrent workers that this semaphore executes.</param>
         /// <param name="enableAutoScale">Experimental/dev: Cope with real time concurrency demand changes at the cost of undefined behavior in high GC pressured environments. DISABLE if CPU usage and memory snowballs and set <see cref="maxBlockers"/> more accurately instead. Scaling down is not supported</param>
         /// <param name="enableFairQ">Enable fair queueing at the cost of performance. If not, sometimes <see cref="OnCompleted"/> might jump the queue to save queue performance and resources. Some continuations are effectively not queued in <see cref="OnCompleted"/> when set to true</param>
         /// <param name="enableDeadlockDetection">When <see cref="enableAutoScale"/> is enabled checks for deadlocks within a thread and throws when found</param>
@@ -30,7 +30,7 @@ namespace zero.core.patterns.semaphore.core
             string description, 
             int maxBlockers = 1, 
             int initialCount = 0,
-            int concurrencyLevel = 0,
+            int asyncWorkerCount = 0,
             bool enableAutoScale = false, bool enableFairQ = true, bool enableDeadlockDetection = false) : this()
         {
             _description = description;
@@ -45,7 +45,7 @@ namespace zero.core.patterns.semaphore.core
 
             _maxBlockers = maxBlockers;
             _useMemoryBarrier = enableFairQ;
-            _maxAsyncWorkers = concurrencyLevel;
+            _maxAsyncWorkers = asyncWorkerCount;
             RunContinuationsAsynchronously = _maxAsyncWorkers > 0;
             _curSignalCount = initialCount;
             _zeroRef = null;

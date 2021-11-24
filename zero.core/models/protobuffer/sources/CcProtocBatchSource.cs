@@ -26,7 +26,6 @@ namespace zero.core.models.protobuffer.sources
         /// <param name="batchSize">Batch size</param>
         /// <param name="prefetchSize">Initial job prefetch from source</param>
         /// <param name="concurrencyLevel"></param>
-        /// <param name="maxAsyncSinks"></param>
         /// <param name="maxAsyncSources"></param>
         public CcProtocBatchSource(string description, IIoSource ioSource, int batchSize, int prefetchSize, int concurrencyLevel, int maxAsyncSources = 0) 
             : base(description, prefetchSize, concurrencyLevel, maxAsyncSources)//TODO config
