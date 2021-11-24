@@ -179,7 +179,7 @@ namespace zero.test.core.patterns.queue{
             var mult = 1000;
 #else
             var rounds = 25;
-            var mult = 20000;
+            var mult = 40000;
 #endif
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -191,7 +191,7 @@ namespace zero.test.core.patterns.queue{
 #if DEBUG
                     var mult = 1000;
 #else
-                    var mult = 10000;
+                    var mult = 40000;
 #endif
 
                     var @this = (IoQueueTest)state!;
@@ -242,7 +242,7 @@ namespace zero.test.core.patterns.queue{
 #if DEBUG
             Assert.InRange(kops, 20, int.MaxValue);
 #else
-            Assert.InRange(kops, 1000, int.MaxValue);
+            Assert.InRange(kops, 3000, int.MaxValue);
 #endif
 
             _output.WriteLine($"kops = {kops}");
