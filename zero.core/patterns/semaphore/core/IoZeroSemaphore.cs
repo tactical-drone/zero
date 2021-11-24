@@ -184,12 +184,12 @@ namespace zero.core.patterns.semaphore.core
         /// <summary>
         /// A pointer to the head of the Q
         /// </summary>
-        private volatile int _head;
+        private long _head;
 
         /// <summary>
         /// A pointer to the tail of the Q
         /// </summary>
-        private volatile int _tail;
+        private long _tail;
 
         /// <summary>
         /// Whether this semaphore has been cleared out
@@ -764,25 +764,25 @@ namespace zero.core.patterns.semaphore.core
         /// returns the next tail
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroNextTail()
+        long IIoZeroSemaphore.ZeroNextTail()
         {
             return Interlocked.Increment(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroNextHead()
+        long IIoZeroSemaphore.ZeroNextHead()
         {
             return Interlocked.Increment(ref _head);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroPrevTail()
+        long IIoZeroSemaphore.ZeroPrevTail()
         {
             return Interlocked.Decrement(ref _tail);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroPrevHead()
+        long IIoZeroSemaphore.ZeroPrevHead()
         {
             return Interlocked.Decrement(ref _head);
         }
@@ -865,13 +865,13 @@ namespace zero.core.patterns.semaphore.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroHead()
+        long IIoZeroSemaphore.ZeroHead()
         {
             return _head % _maxBlockers;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int IIoZeroSemaphore.ZeroTail()
+        long IIoZeroSemaphore.ZeroTail()
         {
             return _tail % _maxBlockers;
         }

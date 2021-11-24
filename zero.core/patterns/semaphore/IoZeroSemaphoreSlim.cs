@@ -108,32 +108,32 @@ namespace zero.core.patterns.semaphore
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroHead()
+        long IIoZeroSemaphore.ZeroHead()
         {
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroTail()
+        long IIoZeroSemaphore.ZeroTail()
         {
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroNextTail()
+        long IIoZeroSemaphore.ZeroNextTail()
         {
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroNextHead()
+        long IIoZeroSemaphore.ZeroNextHead()
         {
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroPrevTail()
+        long IIoZeroSemaphore.ZeroPrevTail()
         {
             throw new NotImplementedException();
         }
 
-        int IIoZeroSemaphore.ZeroPrevHead()
+        long IIoZeroSemaphore.ZeroPrevHead()
         {
             throw new NotImplementedException();
         }

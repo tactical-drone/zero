@@ -120,6 +120,38 @@ namespace zero.test.core.patterns.queue
             Assert.Equal(8, bag.Capacity);
         }
 
+        [Fact]
+        void ZeroSupport()
+        {
+            var bag = new IoBag<IoInt32>("test", 1, true);
+
+            bag.Add(0);
+            bag.Add(1);
+            var idx = bag.Add(2);
+            bag.Add(3);
+            bag.Add(4);
+
+            bag[idx] = default;
+
+            Assert.Equal(5, bag.Count);
+
+            var sb = new StringBuilder();
+            foreach (var i in bag)
+            {
+                sb.Append($"{i}");
+            }
+            foreach (var i in bag)
+            {
+                sb.Append($"{i}");
+            }
+
+
+            Assert.Equal(5, bag.Count);
+
+            Assert.Equal("01340134", sb.ToString());
+
+        }
+
         public bool Zc => IoNanoprobe.ContinueOnCapturedContext;
     }
 }

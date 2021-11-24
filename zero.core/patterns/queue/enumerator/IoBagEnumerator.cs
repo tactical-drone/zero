@@ -6,8 +6,8 @@ namespace zero.core.patterns.queue.enumerator
     public class IoBagEnumerator<T>: IoEnumBase<T> where T : class
     {
         private IoBag<T> Bag => (IoBag<T>)Collection;
-        private int _iteratorIdx = -1;
-        private int _iteratorCount;
+        private long _iteratorIdx = -1;
+        private long _iteratorCount;
         
 
         public IoBagEnumerator(IoBag<T> bag):base(bag)
@@ -29,10 +29,10 @@ namespace zero.core.patterns.queue.enumerator
 
             var idx = Interlocked.Increment(ref _iteratorIdx) % Bag.Capacity;
 
-            while (Interlocked.Decrement(ref _iteratorCount) > 0 && Bag[idx] == default)
+            while (Interlocked.Decrement(ref _iteratorCount) > 0 && Bag[(int)idx] == default)
                 idx = Interlocked.Increment(ref _iteratorIdx) % Bag.Capacity;
 
-            return _iteratorCount >= 0 && Bag[idx] != default && Disposed == 0;
+            return _iteratorCount >= 0 && Bag[(int)idx] != default && Disposed == 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -42,7 +42,7 @@ namespace zero.core.patterns.queue.enumerator
             Interlocked.Exchange(ref _iteratorCount, Bag.Count);
         }
 
-        public override T Current => Bag[_iteratorIdx % Bag.Capacity];
+        public override T Current => Bag[(int)(_iteratorIdx % Bag.Capacity)];
 
         public override void Dispose()
         {

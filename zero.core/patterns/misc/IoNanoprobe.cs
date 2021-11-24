@@ -337,10 +337,19 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return (default, false);
 
-            _zeroHiveMind.Add(target);
+            var idx = _zeroHiveMind.Add(target);
 
             if (twoWay) //zero
                 await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
+            else
+            {
+                await ZeroSubAsync((_, @this) =>
+                {
+                    @this._zeroHiveMind[idx] = null;
+                    return new ValueTask<bool>(true);
+                }, this).FastPath().ConfigureAwait(Zc);
+            }
+                
 
             return (target, true);
         }

@@ -36,10 +36,10 @@ namespace zero.core.patterns.queue
         private T[] _storage;        
         private volatile int _capacity;
         private volatile int _count;        
-        public int Head => _head;
-        private volatile int _head;
-        public int Tail => _tail;
-        private volatile int _tail;
+        public long Head => _head;
+        private long _head;
+        public long Tail => _tail;
+        private long _tail;
 
         private IoBagEnumerator<T> _curEnumerator;
 
@@ -75,7 +75,11 @@ namespace zero.core.patterns.queue
         /// </summary>
         /// <param name="i">index</param>
         /// <returns>Object stored at index</returns>
-        public T this[int i] => _storage[i];
+        public T this[int i]
+        {
+            get => _storage[i];
+            set => _storage[i] = value;
+        }
 
         /// <summary>
         /// Add item to the bag
@@ -83,7 +87,7 @@ namespace zero.core.patterns.queue
         /// <param name="item">The item to be added</param>
         /// <exception cref="OutOfMemoryException">Thrown if we are internally OOM</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(T item, bool deDup = false)
+        public int Add(T item, bool deDup = false)
         {
             if (_count >= _capacity)
             {
@@ -106,7 +110,7 @@ namespace zero.core.patterns.queue
             if(deDup)
             {
                 if (Contains(item))
-                    return;
+                    return -1;
             }
 
             try
@@ -123,6 +127,7 @@ namespace zero.core.patterns.queue
                 {
                     _curEnumerator.IncIteratorCount();
                     Interlocked.Increment(ref _count);
+                    return (int)latch;
                 }
                 else if(!Zeroed)
                 {
@@ -134,6 +139,8 @@ namespace zero.core.patterns.queue
             {
                 LogManager.GetCurrentClassLogger().Error(e);
             }
+
+            return -1;
         }
         
         /// <summary>
@@ -148,14 +155,22 @@ namespace zero.core.patterns.queue
 
             if (_count == 0)
                 return false;
+            uint i;
 
-            var latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
-            var target = _storage[latch];
-            while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latch], default, target)) != target)
+            var origHead = _head;
+            var latch = Interlocked.Increment(ref _tail) - 1;
+            var latchMod = latch % _capacity;
+            var target = _storage[latchMod];
+            while (_count > 0 && (result = Interlocked.CompareExchange(ref _storage[latchMod], default, target)) != target && latch < origHead)
             {
-                Interlocked.Decrement(ref _tail);
-                latch = (Interlocked.Increment(ref _tail) - 1) % _capacity;
-                target = _storage[latch];
+                //skip over empty slots
+                if (target != null)
+                    Interlocked.Decrement(ref _tail);
+
+                origHead = _head;
+                latch = Interlocked.Increment(ref _tail) - 1;
+                latchMod = latch % _capacity;
+                target = _storage[latchMod];
             }
 
             if (result != target || result == default)
@@ -164,7 +179,7 @@ namespace zero.core.patterns.queue
                 return false;
             }
 
-            _storage[latch] = default;
+            _storage[latchMod] = default;
 
             Interlocked.Decrement(ref _count);
 

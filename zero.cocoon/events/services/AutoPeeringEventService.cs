@@ -33,9 +33,11 @@ namespace zero.cocoon.events.services
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
 
-        public static void ToggleActive()
+        public static async Task ToggleActive()
         {
             _operational = _operational > 0 ? 0 : 1;
+            if (!Operational)
+                await QueuedEvents[_curIdx % 2].ClearAsync().FastPath().ConfigureAwait(Zc);
         }
 
         public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)

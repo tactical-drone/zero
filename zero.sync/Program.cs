@@ -506,16 +506,20 @@ namespace zero.sync
 
                 if (line.StartsWith("stream"))
                 {
-                    AutoPeeringEventService.ToggleActive();
+                    AutoPeeringEventService.ToggleActive().GetAwaiter().GetResult();
                     Console.WriteLine($"event stream = {(AutoPeeringEventService.Operational? "On":"Off")}");
                 }
 
                 if (line.StartsWith("zero"))
                 {
-                    ZeroAsync(total).AsTask().GetAwaiter();
+                    ZeroAsync(total).AsTask().ContinueWith(_ =>
+                    {
+                        Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
+                        _nodes.Clear();
+                        _nodes = null;
+                    }).ConfigureAwait(Zc);
                 }
             };
-            Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
             
 
             _running = false;
@@ -532,7 +536,7 @@ namespace zero.sync
             reportingTask = null;
             tasks.Clear();
             tasks = null;
-            _nodes.Clear();
+            _nodes?.Clear();
             _nodes = null;
 
             var s = host.StopAsync();

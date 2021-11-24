@@ -30,17 +30,17 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroAddCount(int value);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroHead();
+        internal long ZeroHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroTail();
+        internal long ZeroTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroNextTail();
+        internal long ZeroNextTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroNextHead();
+        internal long ZeroNextHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroPrevTail();
+        internal long ZeroPrevTail();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int ZeroPrevHead();
+        internal long ZeroPrevHead();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int ZeroIncWait();
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
