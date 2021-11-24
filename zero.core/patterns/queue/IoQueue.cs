@@ -52,7 +52,7 @@ namespace zero.core.patterns.queue
             if (!disablePressure)
             {
                 _pressure = new IoZeroSemaphore($"qp {description}",
-                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0, initialCount: 0);
+                    maxBlockers: concurrencyLevel, asyncWorkerCount: 0);
                 _pressure.ZeroRef(ref _pressure, _asyncTasks);
             }
             
@@ -229,13 +229,15 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                var success = Tail != null && _tail == retVal;
+                var success = _tail != null && _tail == retVal;
 
                 if (entered)
                     _syncRoot.Release();
 
                 if (success)
                     _pressure?.Release();
+                else
+                    _backPressure?.Release();
             }
         }
 
@@ -303,6 +305,9 @@ namespace zero.core.patterns.queue
 
                 if(success)
                     _pressure?.Release();
+                else
+                    _backPressure?.Release();
+                
             }
         }
 

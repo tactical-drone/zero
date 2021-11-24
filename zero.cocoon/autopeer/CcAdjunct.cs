@@ -2170,7 +2170,7 @@ namespace zero.cocoon.autopeer
             {
                 if (!Assimilating)
                 {
-                    _logger.Error($"{nameof(SendDiscoveryRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
+                    _logger.Debug($"{nameof(SendDiscoveryRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                     return false;
                 }
 
@@ -2241,7 +2241,7 @@ namespace zero.cocoon.autopeer
                 if (!Assimilating || IsDroneConnected)
                 {
                     if (Collected)
-                        _logger.Warn(
+                        _logger.Debug(
                             $"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}");
                     return false;
                 }
