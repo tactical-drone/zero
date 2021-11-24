@@ -1047,5 +1047,20 @@ namespace zero.cocoon
             Interlocked.Exchange(ref _eventCounter, 0);
         }
 
+        public void ClearDupBuf()
+        {
+            if (DupChecker.Count > DupHeap.MaxSize * 4 / 5)
+            {
+                foreach (var mId in DupChecker.Keys)
+                {
+                    if (DupChecker.TryRemove(mId, out var del))
+                    {
+                        del.ZeroManaged();
+                        DupHeap.Return(del);
+                    }
+                }
+            }
+        }
+
     }
 }

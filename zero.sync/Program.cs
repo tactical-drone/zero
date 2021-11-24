@@ -378,6 +378,7 @@ namespace zero.sync
                             _running = false;
                             _startAccounting = false;
                             Task.WaitAll(gossipTasks.ToArray());
+                            tasks.ToList().ForEach(t=>t.Result.ClearDupBuf());
                             gossipTasks.Clear();
                             AutoPeeringEventService.QueuedEvents[0].ClearAsync().GetAwaiter();
                         }

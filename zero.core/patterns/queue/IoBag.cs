@@ -155,7 +155,6 @@ namespace zero.core.patterns.queue
 
             if (_count == 0)
                 return false;
-            uint i;
 
             var origHead = _head;
             var latch = Interlocked.Increment(ref _tail) - 1;
@@ -166,6 +165,8 @@ namespace zero.core.patterns.queue
                 //skip over empty slots
                 if (target != null)
                     Interlocked.Decrement(ref _tail);
+                else
+                    Interlocked.Decrement(ref _count);
 
                 origHead = _head;
                 latch = Interlocked.Increment(ref _tail) - 1;
