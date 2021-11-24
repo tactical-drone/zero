@@ -340,9 +340,9 @@ namespace zero.test.core.patterns.queue{
             Assert.Equal(8, q.Capacity);
         }
 
-        private IoQueue<IoInt32> _queuePressure;
-        private Task _queueNoBlockingTask;
-        private CancellationTokenSource _blockCancellationSignal;
+        private IoQueue<IoInt32> _queuePressure = null!;
+        private Task _queueNoBlockingTask = null!;
+        private CancellationTokenSource _blockCancellationSignal = null!;
 
         [Fact]
         async Task NoQueuePressure()
@@ -511,31 +511,6 @@ namespace zero.test.core.patterns.queue{
             await dequeTask.ConfigureAwait(Zc);
             Assert.True(dequeTask.IsCompletedSuccessfully);
         }
-
-        [Fact]
-        async Task BlockingQueue()
-        {
-            var q = new IoQueue<int>("test Q", 1, 1, enableBackPressure:true, autoScale: true);
-
-            await q.EnqueueAsync(0);
-            await q.EnqueueAsync(1);
-            await q.EnqueueAsync(2);
-            await q.EnqueueAsync(3);
-            await q.EnqueueAsync(4);
-
-            Assert.Equal(8, q.Capacity);
-
-            Task.Factory.StartNew(state =>
-            {
-                var @this = (IoQueueTest)state;
-
-            }, this);
-
-        }
-
-
-
-
 
         public class Context : IDisposable
         {
