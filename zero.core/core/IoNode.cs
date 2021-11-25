@@ -155,7 +155,7 @@ namespace zero.core.core
                     return;
                 }
 
-                if (@this.ZeroAtomic(static async (_, state, _) =>
+                if (@this.ZeroAtomic(static (_, state, _) =>
                 {
                     var (@this, newNeighbor) = state;
                     try
@@ -172,7 +172,7 @@ namespace zero.core.core
                                     if (existingNeighbor.Source.IsOperational)
                                     {
                                         @this._logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                        return false;
+                                        return new ValueTask<bool>(false);
                                     }
                                     else //else drop existing
                                     {
@@ -187,37 +187,8 @@ namespace zero.core.core
                                 }
                             }
                         }
-                        
-                        //Add new neighbor                        
-                        //We use this locally captured variable as newNeighbor.Id disappears on zero
-                        var id = newNeighbor.Key;
-                        // Remove from lists if closed
-                        return await newNeighbor.ZeroSubAsync(static (from, state) =>
-                        {
-                            var (@this, id, newNeighbor) = state;
-                            //DisconnectedEvent?.Invoke(this, newNeighbor);
-                            try
-                            {
-                                if (@this.Neighbors.TryRemove(id, out var zeroNeighbor))
-                                {
-                                    zeroNeighbor.Zero(@this);
-                                    @this._logger.Trace($"Removed {zeroNeighbor?.Description}");
-                                }
-                                else
-                                {
-                                    @this._logger.Trace($"Cannot remove neighbor {id} not found!");
-                                }
 
-                                return new ValueTask<bool>(true);
-                            }
-                            catch when(@this.Zeroed() || newNeighbor.Zeroed()){ return new ValueTask<bool>(true); }
-                            catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
-                            {
-                                @this._logger?.Trace(e,$"Removing {newNeighbor.Description} from {@this.Description}");
-                            }
-
-                            return new ValueTask<bool>(false);
-                        }, (@this, id, newNeighbor)).FastPath().ConfigureAwait(@this.Zc) != null;                        
+                        return new ValueTask<bool>(true);                        
                     }
                     catch when (@this.Zeroed() || newNeighbor.Zeroed()){}
                     catch (Exception e)when (!@this.Zeroed() && !newNeighbor.Zeroed())
@@ -225,7 +196,7 @@ namespace zero.core.core
                         @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
                     }
 
-                    return false;
+                    return new ValueTask<bool>(false);
                 }
                 ,ValueTuple.Create(@this, newNeighbor)))
                 {
@@ -309,49 +280,16 @@ namespace zero.core.core
                     }
 
                     //Existing and not broken neighbor?
-                    if(@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedMs() > @this.parm_zombie_connect_time_threshold && existingNeighbor.Source.IsOperational)
+                    if(@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedMs() > @this.parm_zombie_connect_time_threshold && (existingNeighbor.Source?.IsOperational??false))
                     {
                         return new ValueTask<bool>(false);
                     }
                     
                     //Existing broken neighbor...
-                    if (existingNeighbor != null) existingNeighbor.Zero(@this);
+                    existingNeighbor?.Zero(@this);
                     return new ValueTask<bool>(true);
                 }, ValueTuple.Create(this,newNeighbor)))
                 {
-                    await newNeighbor.ZeroSubAsync(static (from, state ) =>
-                    {
-                        var (@this, id, newNeighbor) = state;
-                        try
-                        {
-                            IoNeighbor<TJob> closedNeighbor = null;
-                            @this._logger.Trace(!(@this.Neighbors?.TryRemove(id, out closedNeighbor) ?? true)
-                                ? $"Neighbor metadata expected for key `{id}'"
-                                : $"Dropped {closedNeighbor?.Description} from {@this.Description}");
-
-                            closedNeighbor?.Zero(@this);
-
-                            return new ValueTask<bool>(true);
-                        }
-                        catch when(@this.Zeroed()){ return new ValueTask<bool>(true); }
-                        catch (NullReferenceException e)
-                        {
-                            @this._logger?.Trace(e, @this.Description);
-                        }
-                        catch (Exception e)
-                        {
-                            @this._logger.Fatal(e, $"Failed to remove {newNeighbor.Description} from {@this.Description}");
-                        }
-
-                        return new ValueTask<bool>(false);
-                    }, ValueTuple.Create(this, id, newNeighbor)).FastPath().ConfigureAwait(Zc);
-
-                    //TODO
-                    newNeighbor.parm_producer_start_retry_time = 60000;
-                    newNeighbor.parm_consumer_wait_for_producer_timeout = 60000;
-
-                    //ConnectedEvent?.Invoke(this, newNeighbor);
-
                     return newNeighbor;
                 }
                 else
@@ -423,8 +361,7 @@ namespace zero.core.core
 
             Neighbors.Clear();
 
-            if (_netServer != null)
-                _netServer.Zero(this);
+            _netServer?.Zero(this);
 
             try
             {
@@ -440,8 +377,6 @@ namespace zero.core.core
                 task.Dispose();
                 return default;
             }, this).FastPath().ConfigureAwait(Zc);
-
-            _logger.Info($"- {Description}");
         }
 
         public bool WhiteList(IoNodeAddress address)

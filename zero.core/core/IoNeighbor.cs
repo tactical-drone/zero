@@ -62,11 +62,30 @@ namespace zero.core.core
         }
 
         /// <summary>
-        /// 
+        /// Zero Managed 
         /// </summary>
-        public override ValueTask ZeroManagedAsync()
+        public override async ValueTask ZeroManagedAsync()
         {
-            return base.ZeroManagedAsync();
+            await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
+
+            //DisconnectedEvent?.Invoke(this, newNeighbor);
+            try
+            {
+                if (Node.Neighbors.TryRemove(Key, out var zeroNeighbor))
+                {
+                    zeroNeighbor.Zero(this);
+                    _logger.Trace($"Removed {zeroNeighbor?.Description}");
+                }
+                else
+                {
+                    _logger.Trace($"Cannot remove neighbor {Key} not found!");
+                }
+            }
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
+            {
+                _logger?.Trace(e, $"Removing {Description} from {Description}");
+            }
         }
     }
 }

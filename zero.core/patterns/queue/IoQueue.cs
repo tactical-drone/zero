@@ -199,7 +199,7 @@ namespace zero.core.patterns.queue
                 var node = _nodeHeap.Take();
                 if(node == null)
                 {
-                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}");
+                    throw new OutOfMemoryException($"{_description} - ({_nodeHeap.Count} + {_nodeHeap.ReferenceCount})/{_nodeHeap.MaxSize}, count = {_count}, \n {Environment.StackTrace}");
                 }
                 
                 node.Value = item;

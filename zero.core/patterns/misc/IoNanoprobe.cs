@@ -390,7 +390,9 @@ namespace zero.core.patterns.misc
                         if (zeroSub.Zeroed()) continue;
 
                         zeroSub.Zero(this);
-                        await Task.Delay(100).ConfigureAwait(Zc);
+
+                        //throttle teardown so it floods in breadth
+                        await Task.Delay(16).ConfigureAwait(Zc);
                     }
 
                     await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
@@ -719,7 +721,7 @@ namespace zero.core.patterns.misc
                 return Zero(continuation, state, AsyncTasks.Token, options, scheduler ?? TaskScheduler.Default,
                     unwrap, filePath, methodName, lineNumber);
             }
-            catch (Exception e) when(Zeroed()){ return new ValueTask(Task.FromException(e));}
+            catch (Exception) when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"{Description}, c = {continuation}, s = {state}, {Path.GetFileName(filePath)}:{methodName} line {lineNumber}");

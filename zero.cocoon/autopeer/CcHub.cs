@@ -29,7 +29,7 @@ namespace zero.cocoon.autopeer
             Func<IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>>,
                 IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>, object,
                 IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>> mallocNeighbor, int prefetch,
-            int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts + 1)//TODO config
+            int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts * 2)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
             CcCollective = ccCollective;

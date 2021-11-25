@@ -37,7 +37,7 @@ namespace zero.cocoon
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
             IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
-            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, 16) //TODO config
+            : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, 16 * 2) //TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
             _gossipAddress = gossipAddress;
@@ -153,7 +153,7 @@ namespace zero.cocoon
                         if (c == 0)
                         {
                             foreach (var adjunct in @this._autoPeering.Neighbors.Values.Where(n =>
-                                    ((CcAdjunct)n).State is > CcAdjunct.AdjunctState.Verified) //quick slot
+                                    ((CcAdjunct)n).State >= CcAdjunct.AdjunctState.Verified) //quick slot
                                 .OrderBy(n => ((CcAdjunct)n).Priority)
                                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                             {

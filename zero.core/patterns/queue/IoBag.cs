@@ -80,7 +80,28 @@ namespace zero.core.patterns.queue
             get => _storage[i];
             set => _storage[i] = value;
         }
-
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool Scale()
+        {
+            if(!IsAutoScaling)
+                return false;
+            
+            lock (_storage)
+            {
+                if (_count >= _capacity)
+                {
+                    
+                    var tmpCapacity = _capacity;
+                    Interlocked.Exchange(ref _capacity, _capacity * 2);
+                    var newCapacity = new T[_capacity];
+                    Array.Copy(_storage, 0, newCapacity, 0, tmpCapacity);
+                    _storage = newCapacity;
+                    return true;
+                }
+                return false;
+            }
+        }
         /// <summary>
         /// Add item to the bag
         /// </summary>
@@ -94,17 +115,7 @@ namespace zero.core.patterns.queue
                 if(!_autoScale)
                     throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
 
-                lock (_storage)
-                {
-                    if (_count >= _capacity)
-                    {
-                        var tmp = _storage;
-                        var tmpCapacity = _capacity;
-                        Interlocked.Exchange(ref _capacity, _capacity * 2);
-                        _storage = new T[_capacity];
-                        Array.Copy(tmp, 0, _storage, 0, tmpCapacity);
-                    }
-                }
+                Scale();
             }
             
             if(deDup)
@@ -117,9 +128,10 @@ namespace zero.core.patterns.queue
             {
                 var latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
                 T latched = default;
-                while (_count < _capacity && (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
-                {                    
-                    Interlocked.Decrement(ref _head);                    
+                while (_count < _capacity &&
+                       (latched = Interlocked.CompareExchange(ref _storage[latch], item, default)) != default)
+                {
+                    Interlocked.Decrement(ref _head);
                     latch = (Interlocked.Increment(ref _head) - 1) % _capacity;
                 }
 
@@ -129,10 +141,24 @@ namespace zero.core.patterns.queue
                     Interlocked.Increment(ref _count);
                     return (int)latch;
                 }
-                else if(!Zeroed)
+
+                Interlocked.Decrement(ref _head);
+
+                if (IsAutoScaling)
                 {
-                    throw new OutOfMemoryException($"{_description}: Ran out of storage space, count = {_count}/{_capacity}");
+                    Scale();
+                    return Add(item, deDup);
                 }
+
+                if (!Zeroed)
+                {
+                    throw new OutOfMemoryException(
+                        $"{_description}: Ran out of storage space, count = {_count}/{_capacity}:\n {Environment.StackTrace}");
+                }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                Add(item, deDup);
             }
             catch when (Zeroed){}
             catch (Exception e) when(!Zeroed)
