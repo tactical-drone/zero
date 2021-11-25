@@ -1,5 +1,6 @@
 ﻿using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.bushings.contracts
 {
@@ -24,7 +25,7 @@ namespace zero.core.patterns.bushings.contracts
         /// A previous incomplete job that needs to be processed with this job
         /// </summary>
         IIoJob PreviousJob { get; }
-        
+
         /// <summary>
         /// The source of these jobs
         /// </summary>

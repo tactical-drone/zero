@@ -3,7 +3,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Text;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
 using SimpleBase;

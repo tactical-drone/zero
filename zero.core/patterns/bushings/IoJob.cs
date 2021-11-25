@@ -7,6 +7,7 @@ using zero.core.conf;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.bushings
 {
@@ -406,6 +407,6 @@ namespace zero.core.patterns.bushings
                     State = IoJobMeta.JobState.Halted;
                 }                
             }
-        }        
+        }
     }
 }

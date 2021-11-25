@@ -501,19 +501,22 @@ namespace zero.core.patterns.bushings
                     //TODO I don't think this is going to work
                     if (!job.PreviousJob.Syncing)
                     {
-                        if (job.PrevJobQHook?.Value != null)
+                        var prevJob = ((IoSink<TJob>)job.PreviousJob);
+                        if (prevJob.PrevJobQHook?.Value != null)
                         {
-                            await _previousJobFragment.RemoveAsync(job.PrevJobQHook).FastPath().ConfigureAwait(Zc);
-                            job.PrevJobQHook.Next = null;
-                            job.PrevJobQHook.Prev = null;
-                            job.PrevJobQHook.Value = default;
+                            await _previousJobFragment.RemoveAsync(prevJob.PrevJobQHook).FastPath().ConfigureAwait(Zc);
+                            prevJob.PrevJobQHook.Next = null;
+                            prevJob.PrevJobQHook.Prev = null;
+                            prevJob.PrevJobQHook.Value = default;
                         }
-                            
-
-                        JobHeap.Return((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept);
+                         
+                        JobHeap.Return(prevJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept);
                     }
                     else
-                        await _previousJobFragment.EnqueueAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(Zc);
+                    {
+                        await _previousJobFragment.PushBackAsync((IoSink<TJob>)job.PreviousJob).FastPath().ConfigureAwait(Zc);
+                    }
+                        
 
                     job.PreviousJob = null;
                 }
