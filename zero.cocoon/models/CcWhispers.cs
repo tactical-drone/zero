@@ -275,6 +275,7 @@ namespace zero.cocoon.models
                         continue;
                     }
 
+                    IoZero.IncEventCounter();
                     CcCollective.IncEventCounter();
                     foreach (var drone in CcCollective.WhisperingDrones)
                     {

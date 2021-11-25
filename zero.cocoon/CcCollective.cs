@@ -94,8 +94,8 @@ namespace zero.cocoon
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
 
-            _dupPoolFPSTarget = 1000 * 2;  
-            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolFPSTarget)
+            _dupPoolFpsTarget = 1000 * 2;  
+            DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolFpsTarget)
             {
                 Make = static (o, s) => new IoHashCodes(null, s.parm_max_drone * 2, true),
                 Prep = (popped, endpoint) =>
@@ -267,10 +267,11 @@ namespace zero.cocoon
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
-        private int _dupPoolFPSTarget;
-        public int DupPoolFPSTarget => _dupPoolFPSTarget;
+        private readonly int _dupPoolFpsTarget;
+        public int DupPoolFPSTarget => _dupPoolFpsTarget;
+
         private long _eventCounter;
-        public long EventCount => _eventCounter;
+        public long EventCount => Interlocked.Read(ref _eventCounter);
 
         /// <summary>
         /// Bootstrap

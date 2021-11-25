@@ -426,7 +426,7 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
-                _nodeHeap?.Return(node);
+                _nodeHeap.Return(node);
             }
 
             return true;

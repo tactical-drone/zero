@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -146,6 +147,12 @@ namespace zero.core.patterns.bushings
         /// source can marshal fragments into the next production
         /// </summary>
         private volatile IoQueue<IoSink<TJob>> _previousJobFragment;
+
+        private long _eventCounter;
+        /// <summary>
+        /// An event counter
+        /// </summary>
+        public long EventCount => Interlocked.Read(ref _eventCounter);
 
         /// <summary>
         /// Maximum amount of producers that can be buffered before we stop production of new jobs
@@ -731,6 +738,19 @@ namespace zero.core.patterns.bushings
             _logger.Trace($"{GetType().Name}: Processing for {Description} stopped");
 #endif
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IncEventCounter()
+        {
+            Interlocked.Increment(ref _eventCounter);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ZeroEventCounter()
+        {
+            Interlocked.Exchange(ref _eventCounter, 0);
+        }
+
 
         /// <summary>
         /// Subscribe to this source, one at a time.
