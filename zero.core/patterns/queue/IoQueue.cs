@@ -393,11 +393,11 @@ namespace zero.core.patterns.queue
         /// <returns>True if the item was removed</returns>
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
-            if (_zeroed > 0 || node == null)
-                return false;
-
             try
             {
+                if (_zeroed > 0 || node == null)
+                    return false;
+
                 if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                     return false;
                 _curEnumerator.Modified = true;
@@ -426,9 +426,8 @@ namespace zero.core.patterns.queue
             finally
             {
                 _syncRoot.Release();
+                _nodeHeap?.Return(node);
             }
-
-            _nodeHeap.Return(node);
 
             return true;
         }

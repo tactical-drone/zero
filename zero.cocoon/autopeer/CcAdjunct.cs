@@ -1138,7 +1138,7 @@ namespace zero.cocoon.autopeer
             if (!Assimilating || request.Timestamp.ElapsedMs() > parm_max_network_latency * 2)
             {
                 if(Proxy)
-                    _logger.Error($"{nameof(PeeringDrop)}: Ignoring {request.Timestamp.ElapsedDelta()}s old/invalid request, {Description}");
+                    _logger.Error($"{nameof(PeeringDrop)}: Ignoring {request.Timestamp.ElapsedMsToSec()}s old/invalid request, {Description}");
                 return;
             }
             

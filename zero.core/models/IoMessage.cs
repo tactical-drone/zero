@@ -157,13 +157,15 @@ namespace zero.core.models
             try
             {
                 var bytesLeft = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
-                BufferOffset-=bytesLeft;
-                BytesRead += bytesLeft;
+                Interlocked.Add(ref BufferOffset, -bytesLeft);
+                
+                Interlocked.Add(ref BytesRead, bytesLeft);
 
-                p.MemoryBuffer.Slice(DatumProvisionLengthMax + p.BytesRead - bytesLeft).CopyTo(MemoryBuffer[BufferOffset..]);
+                p.MemoryBuffer[(DatumProvisionLengthMax + p.BytesRead - bytesLeft)..].CopyTo(MemoryBuffer[BufferOffset..]);
                 
                 p.State = IoJobMeta.JobState.Consumed;
                 p.State = IoJobMeta.JobState.Accept;
+                p.Syncing = false;
 
                 _logger.Warn($"{Description}: >>> {bytesLeft} bytes <<<");
             }

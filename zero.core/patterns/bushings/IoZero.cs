@@ -55,11 +55,11 @@ namespace zero.core.patterns.bushings
             //Configure cancellations
             //AsyncTasks.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
-            parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next((int) (parm_stats_mod_count/2), parm_stats_mod_count);
+            parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next(parm_stats_mod_count/2, parm_stats_mod_count);
 
             //TODO tuning
             if (SyncRecoveryModeEnabled)
-                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", 5, ZeroConcurrencyLevel());
+                _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", ZeroConcurrencyLevel()*3, ZeroConcurrencyLevel());
         }
 
         /// <summary>
@@ -338,6 +338,7 @@ namespace zero.core.patterns.bushings
                                 //if( prevJobFragment.Id == nextJob.Id + 1)
                                 nextJob.PreviousJob = prevJobFragment;
                                 //_logger.Fatal($"{GetHashCode()}:{nextJob.GetHashCode()}: {nextJob.Id}");
+                                nextJob.PrevJobQHook = await _previousJobFragment.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc);
                             }
 
                             _producerStopwatch.Restart();
@@ -370,10 +371,6 @@ namespace zero.core.patterns.bushings
                             }, this).FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Produced && !Zeroed())
                             {
                                 _producerStopwatch.Stop();
-
-                                if (SyncRecoveryModeEnabled)
-                                    await _previousJobFragment.EnqueueAsync(nextJob).FastPath()
-                                        .ConfigureAwait(Zc);
 
                                 //signal back pressure
                                 if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
@@ -486,7 +483,7 @@ namespace zero.core.patterns.bushings
                     return;
 #endif
 
-                if (SyncRecoveryModeEnabled && job.PreviousJob != null)
+                if (!freeCurrent && SyncRecoveryModeEnabled && job.PreviousJob != null)
                 {
 #if DEBUG
                     //if (((IoSink<TJob>)job.PreviousJob).State != IoJobMeta.JobState.Finished)
@@ -494,24 +491,41 @@ namespace zero.core.patterns.bushings
                     //    _logger.Warn($"{GetType().Name}: PreviousJob fragment state = {((IoSink<TJob>)job.PreviousJob).State}");
                     //}
 #endif
-
                     //TODO I don't think this is going to work
-                    if(!job.PreviousJob.Syncing)
+                    if (!job.PreviousJob.Syncing)
+                    {
+                        if (job.PrevJobQHook?.Value != null)
+                        {
+                            await _previousJobFragment.RemoveAsync(job.PrevJobQHook).FastPath().ConfigureAwait(Zc);
+                            job.PrevJobQHook.Next = null;
+                            job.PrevJobQHook.Prev = null;
+                            job.PrevJobQHook.Value = default;
+                        }
+                            
+
                         JobHeap.Return((IoSink<TJob>)job.PreviousJob, job.PreviousJob.FinalState != IoJobMeta.JobState.Accept);
+                    }
                     else
                         await _previousJobFragment.EnqueueAsync((IoSink<TJob>) job.PreviousJob).FastPath().ConfigureAwait(Zc);
 
                     job.PreviousJob = null;
-                    return;
+                }
+                else
+                {
+                    if (job.PrevJobQHook?.Value != null)
+                    {
+                        await _previousJobFragment.RemoveAsync(job.PrevJobQHook).FastPath().ConfigureAwait(Zc);
+                        job.PrevJobQHook.Next = null;
+                        job.PrevJobQHook.Prev = null;
+                        job.PrevJobQHook.Value = default;
+                    }
+                    
+                    JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);
                 }
                 //else if (!parent && job.CurrentState.Previous.CurrentState == IoJobMeta.CurrentState.Accept)
                 //{
                 //    _logger.Fatal($"{GetHashCode()}:{job.GetHashCode()}: {job.Id}<<");
                 //}
-
-                if (freeCurrent || !SyncRecoveryModeEnabled)
-                    JobHeap.Return(job, job.FinalState != IoJobMeta.JobState.Accept);
-                
             }
             catch when(Zeroed()){}
             catch (Exception e) when(!Zeroed())

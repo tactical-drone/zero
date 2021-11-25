@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Proto;
@@ -172,7 +173,7 @@ namespace zero.cocoon.models
                     Packet packet = null;
                     long curPos = 0;
                     var read = 0;
-                    var currentOffset = BufferOffset;
+                    
                     //deserialize
                     try
                     {
@@ -213,14 +214,19 @@ namespace zero.cocoon.models
                         }
                         catch
                         {
-                            //try
+                            try
                             {
-                                ByteStream.Seek(currentOffset, SeekOrigin.Begin);
+                                ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
                                 curPos = ByteStream.Position;
 
                                 packet = Packet.Parser.ParseFrom(CodedStream);
-                                read = (int)(CodedStream.Position - curPos);
+                                read = (int)(ByteStream.Position - curPos);
                             }
+                            catch
+                            {
+                                // ignored
+                            }
+
                             //catch
                             {
                                 //if (!__enableZeroCopyDebug)
@@ -283,7 +289,7 @@ namespace zero.cocoon.models
                     }
                     finally
                     {
-                        BufferOffset += read;
+                        Interlocked.Add(ref BufferOffset, read);
                     }
 
                     if (read == 0)
@@ -364,7 +370,7 @@ namespace zero.cocoon.models
                 {
                     if (State != IoJobMeta.JobState.Consumed)
                     {
-                        if (PreviousJob!= null && PreviousJob.Syncing)
+                        if (PreviousJob is { Syncing: true })
                         {
                             State = IoJobMeta.JobState.ConsumeErr;
                         }

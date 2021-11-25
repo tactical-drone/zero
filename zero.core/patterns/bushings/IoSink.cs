@@ -1,6 +1,8 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings.contracts;
+using zero.core.patterns.heap;
+using zero.core.patterns.queue;
 
 namespace zero.core.patterns.bushings
 {
@@ -55,11 +57,26 @@ namespace zero.core.patterns.bushings
         public IIoZero IoZero { get; set; }
 
         /// <summary>
+        /// Q handler
+        /// </summary>
+        public IoQueue<IoSink<TJob>>.IoZNode PrevJobQHook { get; set; }
+
+        /// <summary>
+        /// Heap constructor
+        /// </summary>
+        /// <returns></returns>
+        public override ValueTask<IIoHeapItem> ConstructorAsync()
+        {
+            IoZero = null;
+            PrevJobQHook = null;
+            return base.ConstructorAsync();
+        }
+
+        /// <summary>
         /// Consumes the job
         /// </summary>
         /// <returns>The state of the consumption</returns>
         public abstract ValueTask<IoJobMeta.JobState> ConsumeAsync();
-
 
         /// <summary>
         /// zero unmanaged

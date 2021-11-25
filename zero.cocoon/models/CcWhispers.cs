@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -112,13 +113,14 @@ namespace zero.cocoon.models
                 //fail fast
                 if (BytesRead == 0 || Zeroed())
                 {
-                    return State = IoJobMeta.JobState.ConInvalid;
+                    return State = IoJobMeta.JobState.ConInlined;
                 }
 
                 var round = 0;
+
                 while (BytesLeftToProcess > 0 && State == IoJobMeta.JobState.Consuming)
                 {
-                    CcWhisperMsg whispers = null;                    
+                    CcWhisperMsg whispers;                    
                         
                     //deserialize
                     try
@@ -128,22 +130,40 @@ namespace zero.cocoon.models
                             break;
 
                         read = whispers.CalculateSize();
-                        BufferOffset += read;                        
+                        Interlocked.Add(ref BufferOffset, read);
                     }
                     catch (Exception e)
                     {
-                        if (!Zeroed() && !MessageService.Zeroed())
-                            _logger.Debug(e,
-                                $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(BufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
-                        
-                        //try again                     
-                        Interlocked.Increment(ref BufferOffset);
+
+                        try
+                        {
+                            ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
+                            CcWhisperMsg.Parser.ParseFrom(CodedStream);
+                            read = (int)(ByteStream.Position - ByteStream.Position);
+
+                            if (!Zeroed() && !MessageService.Zeroed())
+                                _logger.Debug(e,
+                                    $"Parse failed on round {round}: r = {read}/{BytesRead}/{BytesLeftToProcess}, d = {DatumCount}, b={MemoryBuffer.Slice((int)(BufferOffset - 2), 32).ToArray().HashSig()}, {Description}");
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                        finally
+                        {
+                            //try again                     
+                            Interlocked.Add(ref BufferOffset, read);
+                        }
+
+                        if (read == 0)
+                            break;
+
                         continue;
                     }
 
                     if (read == 0)
                     {
-                        continue;
+                        break;
                     }
 
                     //Sanity check the data
