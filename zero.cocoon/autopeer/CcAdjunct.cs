@@ -260,7 +260,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        public long Priority => PeerRequestsRecvCount - PeerRequestsSentCount;
+        public long Priority => PeerRequestsRecvCount;
 
         //uptime
         private long _attachTimestamp;
@@ -1456,11 +1456,6 @@ namespace zero.cocoon.autopeer
                 return;
             }
 
-            //if (discoveryRequest.TimestampMs.ElapsedMs() > parm_max_network_latency * 2)
-            //{
-            //    return;
-            //}
-
             var count = 0;
 
             _logger.Trace(
@@ -1471,9 +1466,9 @@ namespace zero.cocoon.autopeer
 
             foreach (var responsePeer in response.Peers)
             {
-                //take only one
-                if (Hub.Neighbors.Count > CcCollective.MaxAdjuncts && count > parm_min_spare_bays)
-                    break;
+                ////take only one
+                //if (Hub.Neighbors.Count > CcCollective.MaxAdjuncts && count > parm_min_spare_bays)
+                //    break;
 
                 //Any services attached?
                 if (responsePeer.Services?.Map == null || responsePeer.Services.Map.Count == 0)
@@ -1517,19 +1512,20 @@ namespace zero.cocoon.autopeer
                 if (services == null || services.CcRecord.Endpoints.Count == 0)
                     continue;
 
-                await ZeroAsync(static async state =>
-                {
-                    var (@this, newRemoteEp, id, services) = state;
-                    await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                await Router.SendPingAsync(dest:services.CcRecord.Endpoints[CcService.Keys.peering]).FastPath().ConfigureAwait(false);
+//                await ZeroAsync(static async state =>
+//                {
+//                    var (@this, newRemoteEp, id, services) = state;
+//                    await Task.Delay(@this._random.Next(@this.parm_max_network_latency) + @this.parm_max_network_latency, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
 
-                    if (!await @this.CollectAsync(newRemoteEp, id, services).FastPath().ConfigureAwait(@this.Zc))
-                    {
-#if DEBUG
-                        @this._logger.Trace($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
-#endif
-                    }
+//                    if (!await @this.CollectAsync(newRemoteEp, id, services).FastPath().ConfigureAwait(@this.Zc))
+//                    {
+//#if DEBUG
+//                        @this._logger.Trace($"{@this.Description}: Collecting {newRemoteEp.Address} failed!");
+//#endif
+//                    }
                         
-                }, ValueTuple.Create(this,newRemoteEp, id, services), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+//                }, ValueTuple.Create(this,newRemoteEp, id, services), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                 
                 count++;
             }
@@ -1583,10 +1579,10 @@ namespace zero.cocoon.autopeer
                         if (badList.Any())
                         {
                             var dropped = badList.FirstOrDefault();
-                            if (dropped != default) 
+                            if (dropped != default && ((CcAdjunct)dropped).State < AdjunctState.Verified) 
                             {
                                 ((CcAdjunct)dropped).Zero(new IoNanoprobe("got collected"));
-                                @this._logger.Debug($"~ {dropped.Description}");
+                                @this._logger.Debug($"@ {dropped.Description}");
                             }
                         }
                         else //try harder 
@@ -1757,6 +1753,10 @@ namespace zero.cocoon.autopeer
                 _logger.Error($"<\\- {nameof(Ping)}: [WARN] Dropped stale, age = {ping.Timestamp.ElapsedMs()}ms");
                 return;
             }
+
+            //Drop if we are saturated
+            if(!Proxy && Hub.Neighbors.Count > CcCollective.MaxAdjuncts && _random.Next(1000000) > 1000000/2)
+                return;
 
             Pong pong;
             if (_serviceMapLocal == null)

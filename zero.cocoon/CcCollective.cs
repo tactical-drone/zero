@@ -192,6 +192,7 @@ namespace zero.cocoon
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             DupHeap = null;
+            DupChecker = null;
             _logger = null;
             _autoPeering = null;
             _autoPeeringTask = default;
@@ -210,19 +211,20 @@ namespace zero.cocoon
             var id = Hub?.Router?.Designation?.IdString();
             DupSyncRoot.Zero(this);
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
+            DupChecker.Clear();
 
             Services?.CcRecord?.Endpoints?.Clear();
 
             _autoPeering.Zero(this);
 
-            //try
-            //{
-            //    _autoPeeringTask.GetAwaiter().GetResult();
-            //}
-            //catch
-            //{
-            //    // ignored
-            //}
+            try
+            {
+                _autoPeeringTask.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
@@ -265,7 +267,7 @@ namespace zero.cocoon
 
         readonly Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
-        public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; } = new();
+        public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; private set; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
         private readonly int _dupPoolFpsTarget;
         public int DupPoolFPSTarget => _dupPoolFpsTarget;
@@ -345,7 +347,7 @@ namespace zero.cocoon
         /// <summary>
         /// The autopeering task handler
         /// </summary>
-        private ValueTask _autoPeeringTask;
+        private Task _autoPeeringTask;
 
         /// <summary>
         /// Max inbound neighbors
@@ -429,8 +431,9 @@ namespace zero.cocoon
             {
                 while (!@this.Zeroed())
                 {
-                    @this._autoPeeringTask = @this._autoPeering.StartAsync(@this.DeepScanAsync);
-                    await @this._autoPeeringTask;
+                    @this._autoPeeringTask = @this._autoPeering.StartAsync(@this.DeepScanAsync).AsTask();
+                    await @this._autoPeeringTask.ConfigureAwait(@this.Zc);
+                    @this._logger.Warn($"Restarting hub... {@this.Description}");
                 }
             }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 

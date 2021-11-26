@@ -100,7 +100,7 @@ namespace zero.sync
                 //if(1234 + portOffset + i == 1900 )
                 //    continue;
 
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList()));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList()));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }
@@ -407,11 +407,12 @@ namespace zero.sync
                                         continue;
                                     }
 
-                                    foreach (var task in tasks)
+                                    foreach (var t in tasks)
                                     {
                                         if (!_startAccounting)
                                             break;
-                                        if (!await task.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath()
+
+                                        if (!await t.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath()
                                                 .ConfigureAwait(Zc))
                                         {
                                             if (_verboseGossip)
@@ -518,6 +519,8 @@ namespace zero.sync
                         Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                         _nodes.Clear();
                         _nodes = null;
+                        tasks.Clear();
+                        tasks = null;
                     }).ConfigureAwait(Zc);
                 }
             };

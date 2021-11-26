@@ -263,8 +263,8 @@ namespace zero.test.core.patterns.queue{
         public async Task Iterator()
         {
 
-            var threads = 25;
-            var itemsPerThread = 10000;
+            var threads = 20;
+            var itemsPerThread = 100000;
             var capacity = threads * itemsPerThread;
 
             var q = new IoQueue<int>("test Q", capacity, threads);
