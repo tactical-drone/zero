@@ -36,7 +36,8 @@ namespace zero.cocoon
     public class CcCollective : IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>
     {
         public CcCollective(CcDesignation ccDesignation, IoNodeAddress gossipAddress, IoNodeAddress peerAddress,
-            IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch, int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel)
+            IoNodeAddress fpcAddress, IoNodeAddress extAddress, List<IoNodeAddress> bootstrap, int udpPrefetch,
+            int tcpPrefetch, int udpConcurrencyLevel, int tpcConcurrencyLevel, bool zeroDrone)
             : base(gossipAddress, static (node, ioNetClient, extraData) => new CcDrone((CcCollective)node, (CcAdjunct)extraData, ioNetClient), tcpPrefetch, tpcConcurrencyLevel, 16 * 2) //TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -46,6 +47,14 @@ namespace zero.cocoon
             ExtAddress = extAddress; //this must be the external or NAT address.
             CcId = ccDesignation;
 
+            _zeroDrone = zeroDrone;
+            if (_zeroDrone)
+            {
+                _zeroDrone = true;
+                parm_max_drone = 0;
+                parm_max_adjunct = 1024;
+            }
+
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
@@ -53,7 +62,7 @@ namespace zero.cocoon
             _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
-            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: parm_max_drone * tpcConcurrencyLevel, initialCount: 1);
+            DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tpcConcurrencyLevel,1), initialCount: 1);
             DupSyncRoot.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
@@ -97,7 +106,7 @@ namespace zero.cocoon
             _dupPoolFpsTarget = 1000 * 2;  
             DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolFpsTarget)
             {
-                Make = static (o, s) => new IoHashCodes(null, s.parm_max_drone * 2, true),
+                Make = static (o, s) => new IoHashCodes(null, s.MaxDrones * 2, true),
                 Prep = (popped, endpoint) =>
                 {
                     popped.Add(endpoint.GetHashCode());
@@ -166,7 +175,7 @@ namespace zero.cocoon
                             }
                         }
 
-                        if (@this.Neighbors.Count <= parm_max_drone / 2 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay && !Zeroed())
+                        if (@this.Neighbors.Count <= MaxDrones / 2 && secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay && !Zeroed())
                         {
                             //bootstrap if alone
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(Zc);
@@ -369,7 +378,14 @@ namespace zero.cocoon
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_drone = 9;
-        
+
+        /// <summary>
+        /// Max adjuncts
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_adjunct = 9 * 2;
+
         /// <summary>
         /// Protocol version
         /// </summary>
@@ -405,13 +421,12 @@ namespace zero.cocoon
         /// <summary>
         /// Maximum clients allowed
         /// </summary>
-        public int MaxDrones => parm_max_outbound + parm_max_inbound;
-
+        public int MaxDrones => parm_max_drone;
 
         /// <summary>
         /// Maximum number of allowed drones
         /// </summary>
-        public int MaxAdjuncts => MaxDrones * parm_client_to_neighbor_ratio;
+        public int MaxAdjuncts => parm_max_adjunct;
 
         /// <summary>
         /// The node id
@@ -910,6 +925,8 @@ namespace zero.cocoon
 
         private int _currentOutboundConnectionAttempts;
         private readonly Poisson _poisson = new(_lambda, new Random((int)DateTimeOffset.UtcNow.Ticks));
+        private readonly bool _zeroDrone;
+        public bool ZeroDrone => _zeroDrone;
 
         /// <summary>
         /// Boots the node

@@ -85,14 +85,14 @@ namespace zero.sync
             var tasks = new ConcurrentBag<Task<CcCollective>>
             {
                 CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{1234}",
-                    $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{1234}", new[] {$"udp://127.0.0.1:{1233}"}.ToList()),
+                    $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{1234}", new[] {$"udp://127.0.0.1:{1233}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList(), true),
                 CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15670 + portOffset}",
                     $"udp://127.0.0.1:{1235 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}",
                     $"udp://127.0.0.1:{1235 + portOffset}",
                     new[]
                     {
                         $"udp://127.0.0.1:{1234}"
-                    }.ToList())
+                    }.ToList(), true)
             };
 
             for (var i = 2; i < total; i++)
@@ -1153,7 +1153,7 @@ namespace zero.sync
 //        }
 
         private static Task<CcCollective> CoCoonAsync(CcDesignation ccDesignation, string gossipAddress, string peerAddress,
-            string fpcAddress, string extAddress, List<string> bootStrapAddress)
+            string fpcAddress, string extAddress, List<string> bootStrapAddress, bool zeroDrone = false)
         {
 
             var cocoon = new CcCollective(ccDesignation,
@@ -1162,7 +1162,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                2, 2, 1, 1);
+                2, 2, 1, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

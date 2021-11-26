@@ -1165,10 +1165,10 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(PeeringRequest request, object extraData, Packet packet)
         {
             //Drop old requests
-            if (request.Timestamp.ElapsedMs() > parm_max_network_latency * 2)
+            if (request.Timestamp.ElapsedMs() > parm_max_network_latency * 2 || CcCollective.ZeroDrone)
             {
-                _logger.Trace(
-                    $"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.ElapsedDelta()}");
+                if(!CcCollective.ZeroDrone)
+                    _logger.Trace($"{nameof(PeeringRequest)}: Dropped!, {(Verified ? "verified" : "un-verified")}, age = {request.Timestamp.ElapsedDelta()}");
                 return;
             }
 
@@ -1701,6 +1701,10 @@ namespace zero.cocoon.autopeer
                     Services = ((CcAdjunct) ioNeighbor).ServiceMap,
                     Ip = ((CcAdjunct) ioNeighbor).RemoteAddress.Ip
                 });
+
+                if(CcCollective.ZeroDrone)
+                    ((CcAdjunct)ioNeighbor)._peerRequestsRecvCount = 0;
+
                 count++;
             }
 
@@ -2228,9 +2232,9 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilating || IsDroneConnected)
+                if (!Assimilating || IsDroneConnected || CcCollective.ZeroDrone)
                 {
-                    if (Collected)
+                    if (Collected && !CcCollective.ZeroDrone)
                         _logger.Debug(
                             $"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}");
                     return false;
