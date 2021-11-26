@@ -379,15 +379,15 @@ namespace zero.core.patterns.bushings
                             {
                                 _producerStopwatch.Stop();
 
-                                //signal back pressure
-                                if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
-                                    nextJob.Source.PrefetchPressure();
-
                                 //Enqueue the job for the consumer
                                 nextJob.State = IoJobMeta.JobState.Queued;
 
                                 if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null)
                                     return false;
+
+                                //signal back pressure
+                                if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
+                                    nextJob.Source.PrefetchPressure();
 
                                 //Pass control over to the consumer
                                 nextJob = null;
