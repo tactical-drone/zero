@@ -132,12 +132,11 @@ namespace zero.cocoon
             {
                 while (!@this.Zeroed())
                 {
-
                     try
                     {
-                        if(@this.Neighbors.Count < 1) 
+                        await Task.Delay(@this.parm_mean_pat_delay_s * 100, @this.AsyncTasks.Token).ConfigureAwait(false);
+                        if (@this.Neighbors.Count < 1) 
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(@this.Zc);
-                        await Task.Delay(10000);
                     }
                     catch (Exception e)
                     {
@@ -153,7 +152,7 @@ namespace zero.cocoon
             while (!@this.Zeroed())
             {
                 //periodically
-                await Task.Delay((_random.Next(@this.parm_mean_pat_delay / 5) + @this.parm_mean_pat_delay / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(Zc);
+                await Task.Delay((_random.Next(@this.parm_mean_pat_delay_s / 5) + @this.parm_mean_pat_delay_s / 4) * 1000, @this.AsyncTasks.Token).ConfigureAwait(Zc);
                 
                 if (@this.Zeroed())
                     break;
@@ -165,7 +164,7 @@ namespace zero.cocoon
 
                     //Attempt to peer with standbys
                     if (totalConnections < @this.MaxDrones * scanRatio &&
-                        secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay / 4) //delta q
+                        secondsSinceEnsured.Elapsed() >= @this.parm_mean_pat_delay_s / 4) //delta q
                     {
                         @this._logger.Trace($"Scanning {@this._autoPeering.Neighbors.Values.Count}, {@this.Description}");
 
@@ -176,7 +175,7 @@ namespace zero.cocoon
                             .OrderBy(n => ((CcAdjunct)n).Priority)
                             .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                         {
-                            await ((CcAdjunct)adjunct).SendPingAsync().FastPath().ConfigureAwait(Zc);
+                            await ((CcAdjunct)adjunct).SendPingAsync("SYN").FastPath().ConfigureAwait(Zc);
                             c++;
                         }
 
@@ -197,13 +196,13 @@ namespace zero.cocoon
                         //    }
                         //}
 
-                        if (@this.Neighbors.Count < MaxDrones / 2 && !Zeroed())
-                        {
-                            //bootstrap if alone
-                            await @this.DeepScanAsync().FastPath().ConfigureAwait(Zc);
-                        }
+                        //if (@this.Neighbors.Count < MaxDrones / 2 && !Zeroed())
+                        //{
+                        //    //bootstrap if alone
+                        //    await @this.DeepScanAsync().FastPath().ConfigureAwait(Zc);
+                        //}
 
-                        if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay)
+                        if (secondsSinceEnsured.Elapsed() > @this.parm_mean_pat_delay_s)
                             secondsSinceEnsured = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     }
                 }
@@ -432,13 +431,12 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_mean_pat_delay = 60 * 10;
 
-
-        /// <summary>
-        /// Client to neighbor ratio
-        /// </summary>
-        [IoParameter] public int parm_client_to_neighbor_ratio = 2;
+#if DEBUG
+        public int parm_mean_pat_delay_s = 60 * 1;
+#else
+        public int parm_mean_pat_delay_s = 60 * 10;
+#endif
 
         /// <summary>
         /// Maximum clients allowed
@@ -491,7 +489,7 @@ namespace zero.cocoon
                 }
                 else
                 {
-                    @this._logger.Debug($">|{drone.Description}");
+                    @this._logger.Debug($"+|{drone.Description}");
                 }
 
                 return false;
@@ -899,7 +897,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency * 2).FastPath().ConfigureAwait(Zc);
+                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) drone.Zero(this);
@@ -924,7 +922,7 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        _logger.Debug($"|>{drone.Description}");
+                        _logger.Debug($"+|{drone.Description}");
                         drone.Zero(this);
                     }
 
@@ -946,7 +944,7 @@ namespace zero.cocoon
         private static readonly int _maxAsyncConnectionAttempts = 2;
 
         private int _currentOutboundConnectionAttempts;
-        private readonly Poisson _poisson = new(_lambda, new Random((int)DateTimeOffset.UtcNow.Ticks));
+        private readonly Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
         private readonly bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 
@@ -992,65 +990,114 @@ namespace zero.cocoon
         /// <returns></returns>
         public async ValueTask DeepScanAsync()
         {
-            if(Zeroed() || Hub == null || Hub?.Router == null)
-                return;
-
-            var c = 0;
-            var foundVector = false;
-            foreach (var vector in Hub.Neighbors.Values.TakeWhile(n=>((CcAdjunct)n).Assimilating))
+            try
             {
-                var adjunct = (CcAdjunct)vector;
+                if(Zeroed() || Hub?.Router == null)
+                    return;
 
-                //Only probe when we are running lean
-                if (adjunct.CcCollective.Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
-                    break;
-            
-                //probe
-                if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                var c = 0;
+                var foundVector = false;
+                foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating))
                 {
-                    if(!Zeroed())
-                        _logger.Trace( $"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
-                }
-                else
-                {
-                    _logger.Debug($"?> {Description}");
-                    foundVector = true;
-                }
-                
-                await Task.Delay(++c * ((CcAdjunct)vector).parm_max_network_latency*2, AsyncTasks.Token).ConfigureAwait(Zc);
-            }
-            
-            if(foundVector)
-                return;
-            
-            _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
-            if (BootstrapAddress != null)
-            {
-                c = 0;
-                foreach (var ioNodeAddress in BootstrapAddress)
-                {
-                    if (!ioNodeAddress.Equals(_peerAddress))
+                    var adjunct = (CcAdjunct)vector;
+
+                    //Only probe when we are running lean
+                    if (adjunct.CcCollective.Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
+                        break;
+
+
+                    ////probe
+                    //if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                    //{
+                    //    if (!Zeroed())
+                    //        _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                    //}
+                    //else
+                    //{
+                    //    _logger.Debug($"R> {Description}");
+                    //    foundVector = true;
+                    //}
+
+                    if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
                     {
-                        if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
-                            continue;
+                        if (!Zeroed())
+                            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                    }
+                    else
+                    {
+                        _logger.Debug($"R> {adjunct.Description}");
+                        foundVector = true;
+                    }
 
-                        try
+                    //if (adjunct.Probed) 
+                    //{
+                    //    //probe
+                    //    if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                    //    {
+                    //        if (!Zeroed())
+                    //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                    //    }
+                    //    else
+                    //    {
+                    //        _logger.Debug($"R> {adjunct.Description}");
+                    //        foundVector = true;
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    //probe
+                    //    if (!await adjunct.SendPingAsync("SYN!").FastPath().ConfigureAwait(Zc))
+                    //    {
+                    //        if (!Zeroed())
+                    //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                    //    }
+                    //    else
+                    //    {
+                    //        _logger.Debug($"P> {adjunct.Description}");
+                    //        foundVector = true;
+                    //    }
+                    //}
+
+                    await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms, AsyncTasks.Token).ConfigureAwait(Zc);
+                }
+            
+                if(foundVector)
+                    return;
+            
+                _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
+                if (BootstrapAddress != null)
+                {
+                    c = 0;
+                    foreach (var ioNodeAddress in BootstrapAddress)
+                    {
+                        if (!ioNodeAddress.Equals(_peerAddress))
                         {
-                            await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
-                            //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                            if (!await Hub.Router.SendPingAsync(ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                            if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
+                                continue;
+
+                            try
                             {
-                                if(!Hub.Router.Zeroed())
-                                    _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                                await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
+                                //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
+                                if (!await Hub.Router.SendPingAsync("SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                                {
+                                    if(!Hub.Router.Zeroed())
+                                        _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
+                                }
                             }
-                        }
-                        catch when(Zeroed()){}
-                        catch (Exception e)when (!Zeroed())
-                        {
-                            _logger.Error(e, $"{nameof(DeepScanAsync)}: {Description}");
+                            catch when(Zeroed()){}
+                            catch (Exception e)when (!Zeroed())
+                            {
+                                _logger.Error(e, $"{nameof(DeepScanAsync)}: {Description}");
+                            }
                         }
                     }
                 }
+            }
+            catch when(Zeroed()){}
+            catch (Exception e) when(Zeroed())
+            {
+                _logger.Error(e,$"{nameof(DeepScanAsync)}:");
             }
         }
 

@@ -217,7 +217,7 @@ namespace zero.core.network.ip
             //Init connection tracking
             try
             {
-                _logger.Trace($"Waiting for a new connection to {LocalNodeAddress}...");
+                //_logger.Trace($"Waiting for a new connection to {LocalNodeAddress}...");
 
                 try
                 {
@@ -448,8 +448,7 @@ namespace zero.core.network.ip
         /// <param name="blacklist"></param>
         /// <param name="timeout">Timeout after ms</param>
         /// <returns></returns>a
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length,
-            IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
             if (!IsConnected())
                 return 0;
@@ -488,7 +487,7 @@ namespace zero.core.network.ip
                         //remoteEp.Address = new IPAddress(((IPEndPoint)args.RemoteEndPoint)?.Address.GetAddressBytes() ?? Array.Empty<byte>());
                         remoteEp.Address = ((IPEndPoint)args.RemoteEndPoint)!.Address;
                         remoteEp.Port = ((IPEndPoint)args.RemoteEndPoint)!.Port;
-                        remoteEp = (IPEndPoint)args.RemoteEndPoint;
+                        //remoteEp = (IPEndPoint)args.RemoteEndPoint;
 
                         return args.SocketError == SocketError.Success ? args.BytesTransferred : 0;
                         

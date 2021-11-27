@@ -22,17 +22,6 @@ namespace zero.core.network.ip
             _performDns = lookup;
             Init(url);
             IpEndPoint = new IPEndPoint(IPAddress.Parse(Ip),Port);
-            Key = IpEndPoint.ToString();
-        }
-
-        /// <summary>
-        /// One shot ctor
-        /// </summary>
-        public IoNodeAddress(IPEndPoint endPoint)
-        {
-            IpEndPoint = endPoint;
-            Url = IpEndPoint.ToString();
-            Key = IpEndPoint.ToString();
         }
 
         /// <summary>
@@ -43,7 +32,6 @@ namespace zero.core.network.ip
         private IoNodeAddress(string url, IPEndPoint endpoint):this(url)
         {
             IpEndPoint = endpoint;
-            Key = IpEndPoint.ToString();
         }
 
         /// <summary>
@@ -54,8 +42,7 @@ namespace zero.core.network.ip
         [DataMember]
         public string Url { get; set; }
 
-        [DataMember]
-        public string Key { get; }
+        [DataMember] public string Key => $"{ProtocolDesc}{IpEndPoint}";
 
         [DataMember]
         public IPAddress ResolvedIpAddress { get; protected set; }
@@ -224,7 +211,7 @@ namespace zero.core.network.ip
                     var protoIdx = Url.IndexOf(':') + 3;
                     var portIdx = Url.LastIndexOf(':') + 1;
 
-                    ProtocolDesc = Url.Substring(0, protoIdx + 3);
+                    ProtocolDesc = Url.Substring(0, protoIdx);
                     Port = int.Parse(Url.Substring(portIdx, Url.Length - portIdx));
                     Ip = Url.Substring(protoIdx, Url.Length - protoIdx - Url.Length + portIdx - 1);
                     IpPort = $"{Ip}:{Port}";

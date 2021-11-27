@@ -38,7 +38,7 @@ namespace zero.cocoon
             Adjunct = adjunct;
 
             //Testing
-            var rand = new Random((int) DateTimeOffset.Now.Ticks);
+            var rand = new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
 
             var t = ZeroAsync(static async @this  =>
             {

@@ -95,7 +95,7 @@ namespace zero.core.network.ip
             // Accept incoming connections
             while (!Zeroed())
             {
-                _logger.Trace($"Waiting for a new connection to `{LocalNodeAddress}...'");
+                //_logger.Trace($"Waiting for a new connection to `{LocalNodeAddress}...'");
 
                 try
                 {

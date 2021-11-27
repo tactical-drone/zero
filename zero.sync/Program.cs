@@ -82,18 +82,19 @@ namespace zero.sync
             var total = 350;
             var maxDrones = 9;
             var maxAdjuncts = 18;
+            var boot = true;
 
             var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14667}", $"udp://127.0.0.1:{1234}",
                 $"tcp://127.0.0.1:{11667}", $"udp://127.0.0.1:{1234}",
-                new[] { $"udp://127.0.0.1:{1233}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList(), true);
+                new[] { $"udp://127.0.0.1:{1235}" }.ToList(), boot);
 
             var t2 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15670 + portOffset}",
-                $"udp://127.0.0.1:{1235 + portOffset}", $"tcp://127.0.0.1:{11667 + portOffset}",
-                $"udp://127.0.0.1:{1235 + portOffset}",
+                $"udp://127.0.0.1:{1235}", $"tcp://127.0.0.1:{11667 + portOffset}",
+                $"udp://127.0.0.1:{1235}",
                 new[]
                 {
                     $"udp://127.0.0.1:{1234}"
-                }.ToList(), true);
+                }.ToList(), boot);
 
             var tasks = new ConcurrentBag<Task<CcCollective>>
             {
@@ -110,7 +111,8 @@ namespace zero.sync
                 //    continue;
 
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList()));
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235 + portOffset}" }.ToList()));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235}" }.ToList()));
+                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
             }

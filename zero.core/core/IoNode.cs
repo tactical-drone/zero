@@ -95,7 +95,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_zombie_connect_time_threshold = 5;
+        protected int parm_zombie_connect_time_threshold_s = 5;
 
         /// <summary>
         /// TCP read ahead
@@ -232,7 +232,17 @@ namespace zero.core.core
                 node = await NeighborTasks.EnqueueAsync(ZeroOptionAsync(static async state =>
                     {
                         var (@this, newNeighbor, cfgAwait) = state;
-                        await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
+
+                        try
+                        {
+                            while(!newNeighbor.Zeroed())
+                                await newNeighbor.BlockOnReplicateAsync().FastPath().ConfigureAwait(cfgAwait);
+                        }
+                        catch (Exception e)
+                        {
+                            @this._logger.Error(e, $"{nameof(newNeighbor.BlockOnReplicateAsync)}: [FAILED]... restarting...");
+                        }
+
                     }, ValueTuple.Create(this, newNeighbor, Zc), TaskCreationOptions.None).AsTask()).FastPath().ConfigureAwait(Zc);
 
                 await node.Value.ContinueWith(static async (_, state) =>
@@ -260,42 +270,66 @@ namespace zero.core.core
         public async ValueTask<IoNeighbor<TJob>> ConnectAsync(IoNodeAddress remoteAddress, object extraData = null,
             bool retry = false, int timeout = 0)
         {
-            var newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath().ConfigureAwait(Zc);
-
-            if (newClient != null)
+            IoNetClient<TJob> newClient = null;
+            IoNeighbor<TJob> newNeighbor = null;
+            try
             {
-                var newNeighbor = MallocNeighbor(this, newClient, extraData);
+                //drop connects on listener races
+                if (Neighbors.ContainsKey(remoteAddress.Key))
+                    return null;
 
-                //We capture a local variable here as newNeighbor.Id disappears on zero
-                var id = newNeighbor.Key;
-                
-                if (ZeroAtomic(static (_,state,_) =>
-                {
-                    var (@this, newNeighbor) = state;
-                    //New neighbor?
-                    if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
-                    {
-                        //ZeroOnCascade(newNeighbor);
-                        return new ValueTask<bool>(true);
-                    }
+                newClient = await _netServer.ConnectAsync(remoteAddress, timeout: timeout).FastPath()
+                    .ConfigureAwait(Zc);
 
-                    //Existing and not broken neighbor?
-                    if(@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) && existingNeighbor.Uptime.ElapsedMs() > @this.parm_zombie_connect_time_threshold && (existingNeighbor.Source?.IsOperational??false))
-                    {
-                        return new ValueTask<bool>(false);
-                    }
-                    
-                    //Existing broken neighbor...
-                    existingNeighbor?.Zero(@this);
-                    return new ValueTask<bool>(true);
-                }, ValueTuple.Create(this,newNeighbor)))
+                if (newClient != null)
                 {
-                    return newNeighbor;
+                    //drop connects on listener races
+                    if (Neighbors.ContainsKey(remoteAddress.Key))
+                        return null;
+
+                    newNeighbor = MallocNeighbor(this, newClient, extraData);
+
+                    if (ZeroAtomic(static (_, state, _) =>
+                        {
+                            var (@this, newNeighbor) = state;
+                            //New neighbor?
+                            if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                            {
+                                //ZeroOnCascade(newNeighbor);
+                                return new ValueTask<bool>(true);
+                            }
+
+                            //Existing and not broken neighbor?
+                            if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
+                                existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
+                                (existingNeighbor.Source?.IsOperational ?? false))
+                            {
+                                return new ValueTask<bool>(false);
+                            }
+
+                            //Existing broken neighbor...
+                            existingNeighbor?.Zero(@this);
+                            return new ValueTask<bool>(true);
+                        }, ValueTuple.Create(this, newNeighbor)))
+                    {
+                        return newNeighbor;
+                    }
+                    else
+                    {
+                        _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
+                        newNeighbor.Zero(this);
+                    }
                 }
-                else
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e,$"{nameof(ConnectAsync)}:");
+            }
+            finally
+            {
+                if (newClient != null && newNeighbor == null)
                 {
-                    _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
-                    newNeighbor.Zero(this);
+                    newClient.Zero(this);
                 }
             }
 

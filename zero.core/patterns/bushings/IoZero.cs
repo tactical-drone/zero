@@ -198,7 +198,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_conduit_spin_up_wait_time = 0;
+        public int parm_conduit_spin_up_wait_time = 250;
 
         [IoParameter]
         // ReSharper disable once InconsistentNaming
@@ -671,8 +671,9 @@ namespace zero.core.patterns.bushings
         /// </summary>
         public virtual async ValueTask BlockOnReplicateAsync()
         {
+            var desc = Description;
 #if DEBUG
-            _logger.Trace($"{GetType().Name}: Assimulating {Description}");
+            _logger.Trace($"{GetType().Name}: Assimulating {desc}");
 #endif
 
             //Producer
@@ -738,7 +739,7 @@ namespace zero.core.patterns.bushings
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);
 
 #if DEBUG
-            _logger.Trace($"{GetType().Name}: Processing for {Description} stopped");
+            _logger?.Trace($"{GetType().Name}: Processing for {desc} stopped");
 #endif
         }
 
