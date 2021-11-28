@@ -701,6 +701,22 @@ namespace zero.cocoon.autopeer
                     await @this.Router.SendPingAsync("SYN", @this.RemoteAddress).FastPath().ConfigureAwait(@this.Zc);
                 }, this, TaskCreationOptions.DenyChildAttach);
 
+                //await ZeroAsync(static async @this =>
+                //{
+                //    await Task.Delay(@this.parm_min_uptime_ms, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                //    if (AutoPeeringEventService.Operational)
+                //        await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
+                //        {
+                //            EventType = AutoPeerEventType.RemoveAdjunct,
+                //            Adjunct = new Adjunct
+                //            {
+                //                Id = @this.Designation.IdString(),
+                //                CollectiveId = @this.Router.Designation.IdString()
+                //            }
+                //        }).FastPath().ConfigureAwait(@this.Zc);
+
+                //}, this, TaskCreationOptions.DenyChildAttach);
+
                 if (AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
@@ -708,7 +724,7 @@ namespace zero.cocoon.autopeer
                         Adjunct = new Adjunct
                         {
                             Id = Designation.IdString(),
-                            CollectiveId = CcCollective.Hub.Router.Designation.IdString()
+                            CollectiveId = Router.Designation.IdString()
                         }
                     }).FastPath().ConfigureAwait(Zc);
             }
@@ -2028,7 +2044,7 @@ namespace zero.cocoon.autopeer
             if (!pingRequest)
             {
 #if DEBUG
-                if (Collected)
+                if (Collected && !Proxy)
                 {
                     _logger.Error($"<\\- {nameof(Pong)} {packet.Data.Memory.PayloadSig()}: SEC! {pong.ReqHash.Memory.HashSig()}, hash = {MemoryMarshal.Read<long>(packet.Data.ToByteArray())}, d = {_pingRequest.Count}, pats = {TotalPats},  " +
                                   $"PK={Designation.PkString()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span)} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {extraData}, {Description}");

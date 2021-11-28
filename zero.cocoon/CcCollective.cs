@@ -138,6 +138,7 @@ namespace zero.cocoon
                         if (@this.Neighbors.Count < 1) 
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(@this.Zc);
                     }
+                    catch when(@this.Zeroed()){}
                     catch (Exception e)
                     {
                         @this._logger.Error(e, "Error while scanning DMZ!");
@@ -820,10 +821,12 @@ namespace zero.cocoon
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint}: {Description}");
 
-            var id = CcAdjunct.MakeId(CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray()), "");
-            if ((direction == CcAdjunct.Heading.Ingress) && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
+            var designation = CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray());
+            var id = CcAdjunct.MakeId(designation, "");
+            if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
             {
-                _logger.Error($"Neighbor {id} not found, dropping {direction} connection to {remoteEp}");
+                //TODO: this code path is jammed
+                _logger.Error($"Neighbor [{designation.IdString()}] not found, dropping {direction} connection to {remoteEp}");
                 return false;
             }
             
