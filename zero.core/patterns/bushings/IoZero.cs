@@ -166,7 +166,7 @@ namespace zero.core.patterns.bushings
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_min_uptime = 2;
+        public int parm_min_uptime_ms = 2000;
 
         /// <summary>
         /// Debug output rate

@@ -187,16 +187,16 @@ namespace zero.core.network.ip
                 RemoteNodeAddress = IoNodeAddress.CreateFromEndpoint("tcp", (IPEndPoint)NativeSocket.RemoteEndPoint);
 
                 NativeSocket.Blocking = true;
-                
-                _logger.Trace($"Connected to `{RemoteNodeAddress}': ({Description})");
+
+                _logger.Trace($"Connected to {RemoteNodeAddress}, {Description}");
                 return true;
             }
+            catch (TaskCanceledException){}
             catch (SocketException e)
             {
-                _logger.Trace(e,$"Failed connecting to `{RemoteNodeAddress}': ({Description})");
-                return false;
+                _logger.Trace(e, $"Failed connecting to `{RemoteNodeAddress}': ({Description})");
             }
-            catch when(Zeroed()){}
+            catch when (Zeroed()) {}
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e, $"Connecting to `{remoteAddress}' failed: {Description}");

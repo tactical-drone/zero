@@ -69,22 +69,17 @@ namespace zero.core.core
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             //DisconnectedEvent?.Invoke(this, newNeighbor);
-            try
+            
+            if (Node.Neighbors.TryRemove(Key, out var zeroNeighbor))
             {
-                if (Node.Neighbors.TryRemove(Key, out var zeroNeighbor))
-                {
-                    zeroNeighbor.Zero(this);
-                    _logger.Trace($"Removed {zeroNeighbor?.Description}");
-                }
-                else
-                {
-                    _logger.Trace($"Cannot remove neighbor {Key} not found!");
-                }
+                zeroNeighbor.Zero(this);
+                _logger.Trace($"Removed {zeroNeighbor?.Description}");
             }
-            catch when (Zeroed()) { }
-            catch (Exception e) when (!Zeroed())
+            else
             {
-                _logger?.Trace(e, $"Removing {Description} from {Description}");
+#if DEBUG
+                _logger.Trace($"Cannot remove neighbor {Key} not found! {Description}");
+#endif
             }
         }
     }
