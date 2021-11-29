@@ -3,8 +3,6 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using System.Transactions;
-using Cassandra;
 using NLog;
 using zero.core.conf;
 using zero.core.patterns.bushings.contracts;

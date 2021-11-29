@@ -29,12 +29,9 @@
   </ItemGroup>
 
   <ItemGroup>    
-    <PackageReference Include="CassandraCSharpDriver" Version="3.17.1-alpha" />    
-    <PackageReference Include="Google.Protobuf" Version="3.19.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
-	<PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />    
-    <PackageReference Include="NLog" Version="5.0.0-preview.3" />        
-    <PackageReference Include="System.Text.Json" Version="6.0.0" />    
+	  <PackageReference Include="Microsoft.CSharp" Version="4.0.1" />
+    <PackageReference Include="NLog" Version="5.0.0-preview.3" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />        
   </ItemGroup>
 
   <ItemGroup>    

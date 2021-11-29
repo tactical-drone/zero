@@ -1,7 +1,6 @@
 ﻿//#define LOSS
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -9,14 +8,12 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 #endif
 using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
 using Proto;
 using SimpleBase;
-using StackExchange.Redis;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;

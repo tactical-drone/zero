@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using NLog;
 
-namespace zero.core.data.market
+namespace zero.core.feat.data.market
 {
     /// <summary>
     /// Fetches market data from crypto compare

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using zero.core.api.commands;
+using zero.core.feat.api.commands;
 
 namespace zero.tangle.api.commands
 {

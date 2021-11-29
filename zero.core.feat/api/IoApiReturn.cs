@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 
-namespace zero.core.api
+namespace zero.core.feat.api
 {
     public class IoApiReturn //: IActionResult
     {

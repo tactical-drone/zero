@@ -1,4 +1,4 @@
-﻿namespace zero.core.data.market
+﻿namespace zero.core.feat.data.market
 {
     /// <summary>
     /// The model for crypto compare market data

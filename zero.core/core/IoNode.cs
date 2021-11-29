@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
-using zero.core.data.market;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.bushings.contracts;
@@ -29,7 +28,6 @@ namespace zero.core.core
             MallocNeighbor = mallocNeighbor;
             _preFetch = prefetch;
             _logger = LogManager.GetCurrentClassLogger();
-            var q = IoMarketDataClient.Quality;//prime market data            
             NeighborTasks = new IoQueue<Task>($"{nameof(NeighborTasks)}", maxNeighbors, concurrencyLevel);
         }
 

@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using NLog;
 using Proto;
 using zero.core.conf;
 using zero.core.misc;

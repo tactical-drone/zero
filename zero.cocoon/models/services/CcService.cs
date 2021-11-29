@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Text;
-using zero.core.network.ip;
-
-namespace zero.cocoon.models.services
+﻿namespace zero.cocoon.models.services
 {
     /// <summary>
     /// A service description

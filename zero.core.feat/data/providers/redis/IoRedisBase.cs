@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NLog;
-using zero.core.network.ip;
 using StackExchange.Redis;
-using zero.core.conf;
+using zero.core.network.ip;
 using zero.core.patterns.misc;
 
-namespace zero.core.data.providers.redis
+namespace zero.core.feat.data.providers.redis
 {
     /// <summary>
     /// Redis data source common functionality

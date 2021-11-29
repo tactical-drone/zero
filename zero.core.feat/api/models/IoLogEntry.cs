@@ -1,4 +1,4 @@
-﻿namespace zero.core.api.models
+﻿namespace zero.core.feat.api.models
 {
     public class IoLogEntry
     {

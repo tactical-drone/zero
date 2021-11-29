@@ -1,5 +1,5 @@
 ﻿using System.Threading;
-using zero.core.data.providers.cassandra;
+using zero.core.feat.data.providers.cassandra;
 
 namespace zero.tangle.data.cassandra.tangle.luts
 {    

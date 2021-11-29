@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 using zero.core.data.contracts;
-using zero.core.data.providers.redis;
+using zero.core.feat.data.providers.redis;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.interop.utils;

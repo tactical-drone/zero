@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using NLog;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.tangle.models.sources;

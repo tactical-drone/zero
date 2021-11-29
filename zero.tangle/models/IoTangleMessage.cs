@@ -6,14 +6,12 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NLog;
 using zero.core.conf;
 using zero.core.misc;
 using zero.core.models;
 using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
-using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.interop.entangled.common.model;
 using zero.interop.entangled.interfaces;
@@ -21,7 +19,6 @@ using zero.interop.entangled.native;
 using zero.tangle.api.controllers.generic;
 using zero.tangle.entangled;
 using zero.tangle.models.sources;
-using Logger = NLog.Logger;
 
 namespace zero.tangle.models
 {

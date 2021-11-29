@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using NLog;
 
-namespace zero.core.api.commands
+namespace zero.core.feat.api.commands
 {
     [SuppressMessage("ReSharper", "ObjectCreationAsStatement")]
     [SuppressMessage("ReSharper", "InconsistentNaming")]

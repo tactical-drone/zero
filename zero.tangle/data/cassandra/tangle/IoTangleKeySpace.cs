@@ -1,5 +1,5 @@
 ﻿using Cassandra.Mapping;
-using zero.core.data.providers.cassandra;
+using zero.core.feat.data.providers.cassandra;
 using zero.tangle.data.cassandra.tangle.luts;
 using zero.tangle.models;
 
