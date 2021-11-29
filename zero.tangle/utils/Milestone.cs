@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using MathNet.Numerics.Distributions;
 using NLog;
 using zero.core.misc;
-using zero.interop.utils;
 using zero.tangle.data.cassandra.tangle;
 using zero.tangle.data.cassandra.tangle.luts;
 using zero.tangle.entangled;
