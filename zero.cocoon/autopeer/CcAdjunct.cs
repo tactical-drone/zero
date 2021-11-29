@@ -1293,11 +1293,14 @@ namespace zero.cocoon.autopeer
             if (peeringResponse.Status)
             {
                 AdjunctState oldState;
+
+                var stateIsValid = (oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 4)) == AdjunctState.Verified;
                 
-                if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung:parm_max_network_latency_ms * 4)) != AdjunctState.Verified && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
+                peeringResponse.Status &= stateIsValid;
+
+                if (!stateIsValid && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
                 {
                     _logger.Trace($"{Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
-                    peeringResponse.Status = false;
                 }
             }
 
@@ -1365,9 +1368,8 @@ namespace zero.cocoon.autopeer
                     break;
                 }
                 //at least probe
-                case false when Hub.Neighbors.Count <= CcCollective.MaxAdjuncts:
+                case false when CcCollective.Neighbors.Count < CcCollective.MaxDrones:
                 {
-
                     AdjunctState oldState;
                     if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
                     {
@@ -1381,16 +1383,6 @@ namespace zero.cocoon.autopeer
                             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         }
                     }
-                    
-                    //if (_probed)
-                    //{
-                    //    await ZeroAsync(static async @this =>
-                    //    {
-                    //        if (!await @this.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(@this.Zc))
-                    //            @this._logger.Debug($"{nameof(PeeringResponse)} - {@this.Description}: {nameof(SendDiscoveryRequestAsync)} did not execute...");
-
-                    //    }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
-                    //}
 
                     break;
                 }
@@ -1843,8 +1835,8 @@ namespace zero.cocoon.autopeer
             }
 
             //Drop if we are saturated
-            //if(!Proxy && Hub.Neighbors.Count > CcCollective.MaxAdjuncts && _random.Next(1000000) > 1000000/2)
-            //    return;
+            if(!Proxy && Hub.Neighbors.Count > CcCollective.MaxAdjuncts && _random.Next(1000000) > 1000000/2)
+                return;
 
             Pong pong;
             if (_serviceMapLocal == null)
@@ -2378,12 +2370,18 @@ namespace zero.cocoon.autopeer
             }
 
             AdjunctState oldState;
-            
-            if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 4)) != AdjunctState.Verified && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
+
+            var stateIsValid = (oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified,
+                overrideHung: parm_max_network_latency_ms * 4)) == AdjunctState.Verified;
+
+
+            if ( !stateIsValid && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
             {
                 _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
-                return false;
             }
+
+            if (!stateIsValid)
+                return false;
 
             //oneshot
             await ZeroAsync(async (@this) =>
