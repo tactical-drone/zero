@@ -56,8 +56,6 @@ namespace zero.core.patterns.bushings
             //Configure cancellations
             //AsyncTasks.Token.Register(() => ObservableRouter.Connect().Dispose());         
 
-            parm_stats_mod_count += new Random((int) DateTime.Now.Ticks).Next(parm_stats_mod_count/2, parm_stats_mod_count);
-
             //TODO tuning
             if (SyncRecoveryModeEnabled)
                 _previousJobFragment = new IoQueue<IoSink<TJob>>($"{description}", ZeroConcurrencyLevel()*3, ZeroConcurrencyLevel());
@@ -159,7 +157,7 @@ namespace zero.core.patterns.bushings
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_q_size = 256; //TODO
+        public int parm_max_q_size = 500; //TODO
 
         /// <summary>
         /// Minimum useful uptime in seconds
