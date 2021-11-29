@@ -19,7 +19,7 @@ namespace zero.core.misc
     /// </summary>
     /// <typeparam name="T">The payload matched</typeparam>
     public class IoZeroMatcher<T> : IoNanoprobe
-    where T:IEnumerable<byte>, IEquatable<ByteString>
+    where T:class, IEnumerable<byte>, IEquatable<ByteString>
     {
         public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
         {
@@ -112,7 +112,10 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
         {
-            IoQueue<IoChallenge>.IoZNode node = new IoQueue<IoChallenge>.IoZNode();
+            if (body == null)
+                return default;
+
+            var node = new IoQueue<IoChallenge>.IoZNode();
             var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
             ZeroAtomic(static async (_, state, __) =>
             {
@@ -352,7 +355,7 @@ namespace zero.core.misc
             /// <summary>
             /// The payload
             /// </summary>
-            public T Payload;
+            public volatile T Payload;
             
             /// <summary>
             /// The computed hash

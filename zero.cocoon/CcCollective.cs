@@ -332,7 +332,7 @@ namespace zero.cocoon
         /// Timeout for handshake messages
         /// </summary>
         [IoParameter]
-        public int parm_handshake_timeout = 5000;
+        public int parm_handshake_timeout = 500;
         
         /// <summary>
         /// Timeout for handshake messages
@@ -483,9 +483,13 @@ namespace zero.cocoon
                 //Handshake
                 if (await @this.HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.Zc))
                 {
+                    await Task.Delay(@this.parm_handshake_timeout * 2, @this.AsyncTasks.Token);
+
+                    if (drone.Zeroed())
+                        return false;
+
                     //ACCEPT
                     @this._logger.Info($"+ {drone.Description}");
-                    
                     return true;
                 }
                 else
@@ -821,22 +825,39 @@ namespace zero.cocoon
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint}: {Description}");
 
-            var designation = CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray());
-            var id = CcAdjunct.MakeId(designation, "");
-            if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
+            var adjunct = drone.Adjunct;
+
+            if (adjunct == null)
             {
-                //TODO: this code path is jammed
-                _logger.Error($"Neighbor [{designation.IdString()}] not found, dropping {direction} connection to {remoteEp}");
-                return false;
+                var designation = CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray());
+                var id = CcAdjunct.MakeId(designation, "");
+
+                if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
+                {
+                    //TODO: this code path is jammed
+                    _logger.Error($"Neighbor [{designation.IdString()}] not found, dropping {direction} connection to {remoteEp}");
+                    return false;
+                }
+
+                adjunct = drone.Adjunct;
+
+                CcAdjunct.AdjunctState oldState;
+                //if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung:adjunct.parm_max_network_latency_ms * 2)) !=
+                var delta = adjunct.CurrentState.EnterTime.ElapsedMs();
+                if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering)) != CcAdjunct.AdjunctState.Peering && delta > adjunct.parm_max_network_latency_ms * 2)
+                {
+                    _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {oldState}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
+                    return false;
+                }
             }
-            
-            if (drone.Adjunct.Assimilating && !drone.Adjunct.IsDroneAttached)
+
+            if (adjunct.Assimilating && !adjunct.IsDroneAttached)
             {
                 var attached = await drone.AttachViaAdjunctAsync(direction).FastPath().ConfigureAwait(Zc);
 
-                var capped = !ZeroAtomic(static (n, o, d) =>
+                var capped = attached && !ZeroAtomic(static (n, o, d) =>
                 {
-                    var (@this, id, direction, packet, drone, remoteEp) = o;
+                    var (@this, direction) = o;
                                                             
                     if (direction == CcAdjunct.Heading.Ingress)
                     {
@@ -862,18 +883,20 @@ namespace zero.cocoon
                             return new ValueTask<bool>(false);
                         }
                     }
-                }, (this, id, direction, packet, drone, remoteEp)) && attached;
+                }, (this, direction));
 
                 if(capped)
                 {
                     await drone.DetachNeighborAsync().FastPath().ConfigureAwait(Zc);
+                    adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
                 }
 
                 return !capped;
             }
             else
             {
-                _logger.Trace($"{direction} handshake [LOST] {id} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.ElapsedMs()}");
+                adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
+                _logger.Trace($"{direction} handshake [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.ElapsedMs()}");
                 return false;
             }
         }
@@ -889,10 +912,10 @@ namespace zero.cocoon
                     !Zeroed() && 
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
-                    adjunct.State == CcAdjunct.AdjunctState.Peering &&
+                    adjunct.State == CcAdjunct.AdjunctState.Connecting &&
                     EgressCount < parm_max_outbound &&
                     //TODO add distance calc
-                    adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)&&
+                    adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip) &&
                     _currentOutboundConnectionAttempts < _maxAsyncConnectionAttempts
                 )
             {
@@ -911,13 +934,17 @@ namespace zero.cocoon
                     //Race for a connection
                     if (await HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(Zc))
                     {
-                        _logger.Info($"+ {drone.Description}");
-
                         //Start processing
                         await ZeroAsync(static async state =>
                         {
                             var (@this, drone) = state;
-                            await @this.BlockOnAssimilateAsync(drone).FastPath().ConfigureAwait(@this.Zc);
+                            await Task.Delay(@this.parm_handshake_timeout * 2, @this.AsyncTasks.Token);
+                            
+                            if (!drone.Zeroed())
+                            {
+                                @this._logger.Info($"+ {drone.Description}");
+                                await @this.BlockOnAssimilateAsync(drone).FastPath().ConfigureAwait(@this.Zc);
+                            }
                         }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                         
                         
@@ -938,6 +965,25 @@ namespace zero.cocoon
             }
             else
             {
+                
+                //Console.WriteLine("--------------------");
+                //Console.WriteLine(!Zeroed()?"[OK]": "ZEROED");
+                //Console.WriteLine(adjunct.Assimilating ? "[OK]" : "not Assimilating");
+                //Console.WriteLine(!adjunct.IsDroneConnected ? "[OK]" : "not IsDroneConnected");
+                //if (adjunct.State != CcAdjunct.AdjunctState.Connecting)
+                //{
+                //    Console.WriteLine(adjunct.State);
+                //    adjunct.PrintStateHistory();
+                //}
+                //else
+                //{
+                //    Console.WriteLine("[OK]");
+                //}
+                //Console.WriteLine(EgressCount < parm_max_outbound ? "[OK]" : "EgressCount");
+                //Console.WriteLine(adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip) ? "[OK]" : "gossip service missing");
+                //Console.WriteLine(_currentOutboundConnectionAttempts < _maxAsyncConnectionAttempts ? "[OK]" : "_maxAsyncConnectionAttempts");
+                //Console.WriteLine("--------------------");
+
                 _logger.Trace($"{nameof(ConnectToDroneAsync)}: Connect skipped: {adjunct.Description}");
                 return false;
             }

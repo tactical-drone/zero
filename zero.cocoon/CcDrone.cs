@@ -209,19 +209,22 @@ namespace zero.cocoon
             {
                 //Raced?
                 if (Adjunct.IsDroneAttached)
+                {
                     return false;
+                }
+                    
 
                 //Attach the other way
                 var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(Zc);
 
                 if (attached)
                 {
-                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to neighbor {Adjunct.Description}");
+                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: {direction} attach to adjunct {Adjunct.Description}");
                     _assimulated = true;
                 }
                 else
                 {
-                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to neighbor {Adjunct.Description}, {Adjunct.MetaDesc}");
+                    _logger.Trace($"{nameof(AttachViaAdjunctAsync)}: [RACE LOST]{direction} attach to adjunct {Adjunct.Description}, {Adjunct.MetaDesc}");
                 }
 
                 return attached;

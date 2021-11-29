@@ -184,20 +184,9 @@ namespace zero.core.patterns.bushings
         /// <param name="cmp"></param>
         /// <param name="prevState"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int CompareAndEnterState(int state, int cmp, IoStateTransition<TState> prevState)
+        public int CompareAndEnterState(IoStateTransition<TState> prevState, int state, int cmp)
         {
-            if (Interlocked.CompareExchange(ref prevState._value, state, cmp) != cmp)
-                return -1;
-
-            EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _previous = prevState;
-            if (_previous != null)
-            {
-                _previous._next = this;
-                return cmp;
-            }
-
-            return cmp;
+            return Interlocked.CompareExchange(ref prevState._value, state, cmp);
         }
 
         /// <summary>
