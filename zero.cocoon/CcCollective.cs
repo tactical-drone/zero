@@ -889,7 +889,7 @@ namespace zero.cocoon
                     !Zeroed() && 
                     adjunct.Assimilating &&
                     !adjunct.IsDroneConnected &&
-                    //adjunct.State <= CcAdjunct.AdjunctState.Standby &&
+                    adjunct.State == CcAdjunct.AdjunctState.Peering &&
                     EgressCount < parm_max_outbound &&
                     //TODO add distance calc
                     adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip)&&
@@ -944,7 +944,7 @@ namespace zero.cocoon
         }
 
         private static readonly double _lambda = 20;
-        private static readonly int _maxAsyncConnectionAttempts = 2;
+        private static readonly int _maxAsyncConnectionAttempts = 16;
 
         private int _currentOutboundConnectionAttempts;
         private readonly Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
@@ -1021,15 +1021,18 @@ namespace zero.cocoon
                     //    foundVector = true;
                     //}
 
-                    if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                    if (adjunct.Probed)
                     {
-                        if (!Zeroed())
-                            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
-                    }
-                    else
-                    {
-                        _logger.Debug($"R> {adjunct.Description}");
-                        foundVector = true;
+                        if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                        {
+                            if (!Zeroed())
+                                _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                        }
+                        else
+                        {
+                            _logger.Debug($"R> {adjunct.Description}");
+                            foundVector = true;
+                        }
                     }
 
                     //if (adjunct.Probed) 
