@@ -2716,6 +2716,11 @@ namespace zero.cocoon.autopeer
                 
             }
 #else
+            if (overrideHung > 0)
+            {
+                compare = compare && _currState.EnterTime.ElapsedMs() < overrideHung;
+            }
+            
             if (compare)
             {
                 return (AdjunctState)_currState.CompareAndEnterState(_currState, (int)state, (int)cmp);
