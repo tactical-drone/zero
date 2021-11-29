@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -339,6 +340,9 @@ namespace zero.core.patterns.misc
 
             var idx = _zeroHiveMind.Add(target);
 
+            if (idx == -1)
+                throw new ApplicationException($"BUG: {nameof(idx)} has to be > -1");
+
             if (twoWay) //zero
                 await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
             else
@@ -349,8 +353,7 @@ namespace zero.core.patterns.misc
                     return new ValueTask<bool>(true);
                 }, this).FastPath().ConfigureAwait(Zc);
             }
-                
-
+            
             return (target, true);
         }
 

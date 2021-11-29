@@ -352,8 +352,8 @@ namespace zero.core.core
                         Zero(this);
                 }
 
-                _logger.Trace(
-                    $"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");
+                if(!Zeroed())
+                    _logger.Trace($"{Description}: {(_listenerTask.IsCompletedSuccessfully ? "clean" : "dirty")} exit ({_listenerTask}), retries left = {retry}");
             }
             catch when (Zeroed())
             {

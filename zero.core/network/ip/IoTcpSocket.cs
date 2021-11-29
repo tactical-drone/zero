@@ -173,15 +173,21 @@ namespace zero.core.network.ip
                     await ZeroAsync(static async state =>
                     {
                         var (@this, result, timeout) = state;
-                        await Task.Delay(timeout + 15, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+
+                        try
+                        {
+                            await Task.Delay(timeout + 15, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
 
                         if (!@this.IsConnected())
                         {
                             result.AsyncWaitHandle.Close();
                             result.AsyncWaitHandle.Dispose();
                         }
-                            
-
                     }, ValueTuple.Create(this, result, timeout), TaskCreationOptions.DenyChildAttach);
                 }
 
