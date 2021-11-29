@@ -2508,7 +2508,6 @@ namespace zero.cocoon.autopeer
         /// <param name="direction"></param>
         public async ValueTask<bool> AttachPeerAsync(CcDrone ccDrone, Heading direction)
         {
-            AdjunctState oldState;
             try
             {
                 //raced?

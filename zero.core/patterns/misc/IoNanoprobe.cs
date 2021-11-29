@@ -218,10 +218,14 @@ namespace zero.core.patterns.misc
                 ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
 
             //prime garbage
-            ZeroPrimeAsync();
+            
 
 #pragma warning disable CS4014
-            Zero(@this => @this.Zero(true), this, default,TaskCreationOptions.DenyChildAttach);
+            Zero(static async @this =>
+            {
+                await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(@this.Zc);
+                @this.Zero(true);
+            }, this, default,TaskCreationOptions.DenyChildAttach);
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 1000 == 0)
