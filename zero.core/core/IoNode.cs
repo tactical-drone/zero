@@ -138,13 +138,20 @@ namespace zero.core.core
                 //superclass specific mutations
                 try
                 {
-                    if (acceptConnection != null &&
-                        !await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc)) //TODO ?
+                    if (acceptConnection != null)
                     {
-                        @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                        newNeighbor.Zero(@this);
-                        return;
+                        //async accept...
+                        await @this.ZeroAsync(  async state =>
+                        {
+                            var (@this, newNeighbor, acceptConnection, nanite, ioNetClient) = state;
+                            if (!await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc))
+                            {
+                                @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
+                                newNeighbor.Zero(@this);
+                            }
+                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(@this.Zc);
                     }
+                    
                 }
                 catch (Exception e)
                 {

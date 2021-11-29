@@ -836,7 +836,6 @@ namespace zero.cocoon.autopeer
                         //Attempt the connection, race to win
                         if (!await @this.CcCollective.ConnectToDroneAsync(@this).FastPath().ConfigureAwait(@this.Zc))
                         {
-                            @this.SetState(AdjunctState.Verified);
                             @this._logger.Trace($"{@this.Description}: Leashing adjunct failed!");
                         }
                         else //Track some connection perf stats
@@ -1294,8 +1293,8 @@ namespace zero.cocoon.autopeer
             if (peeringResponse.Status)
             {
                 AdjunctState oldState;
-                var delta = _currState.EnterTime.ElapsedMs();
-                if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung:parm_max_network_latency_ms * 2)) != AdjunctState.Verified && delta > parm_max_network_latency_ms * 2)
+                
+                if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung:parm_max_network_latency_ms * 4)) != AdjunctState.Verified && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
                 {
                     _logger.Trace($"{Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
                     peeringResponse.Status = false;
@@ -2379,8 +2378,8 @@ namespace zero.cocoon.autopeer
             }
 
             AdjunctState oldState;
-            var delta = _currState.EnterTime.ElapsedMs();
-            if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 2)) != AdjunctState.Verified && delta > parm_max_network_latency_ms * 2)
+            
+            if ((oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 4)) != AdjunctState.Verified && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
             {
                 _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
                 return false;
@@ -2590,7 +2589,7 @@ namespace zero.cocoon.autopeer
         {
             var latch = _drone;
             CcDrone severedDrone;
-            if((severedDrone = Interlocked.CompareExchange(ref _drone, null, latch)) != latch)
+            if(latch == null || (severedDrone = Interlocked.CompareExchange(ref _drone, null, latch)) != latch)
                 return;
 
             try

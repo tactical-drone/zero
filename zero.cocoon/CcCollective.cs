@@ -486,7 +486,11 @@ namespace zero.cocoon
                     await Task.Delay(@this.parm_handshake_timeout * 2, @this.AsyncTasks.Token);
 
                     if (drone.Zeroed())
+                    {
+                        @this._logger.Debug($"+|{drone.Description}");
                         return false;
+                    }
+                        
 
                     //ACCEPT
                     @this._logger.Info($"+ {drone.Description}");
@@ -495,6 +499,7 @@ namespace zero.cocoon
                 else
                 {
                     @this._logger.Debug($"+|{drone.Description}");
+                    ((CcDrone)drone).Adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
                 }
 
                 return false;
@@ -844,7 +849,7 @@ namespace zero.cocoon
                 CcAdjunct.AdjunctState oldState;
                 //if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung:adjunct.parm_max_network_latency_ms * 2)) !=
                 var delta = adjunct.CurrentState.EnterTime.ElapsedMs();
-                if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering)) != CcAdjunct.AdjunctState.Peering && delta > adjunct.parm_max_network_latency_ms * 2)
+                if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4)) != CcAdjunct.AdjunctState.Peering && delta > adjunct.parm_max_network_latency_ms * 4)
                 {
                     _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {oldState}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
                     return false;
@@ -888,14 +893,12 @@ namespace zero.cocoon
                 if(capped)
                 {
                     await drone.DetachNeighborAsync().FastPath().ConfigureAwait(Zc);
-                    adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
                 }
 
                 return !capped;
             }
             else
             {
-                adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
                 _logger.Trace($"{direction} handshake [LOST] {CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray())} - {remoteEp}: s = {drone.Adjunct.State}, a = {drone.Adjunct.Assimilating}, p = {drone.Adjunct.IsDroneConnected}, pa = {drone.Adjunct.IsDroneAttached}, ut = {drone.Adjunct.Uptime.ElapsedMs()}");
                 return false;
             }
@@ -945,6 +948,10 @@ namespace zero.cocoon
                                 @this._logger.Info($"+ {drone.Description}");
                                 await @this.BlockOnAssimilateAsync(drone).FastPath().ConfigureAwait(@this.Zc);
                             }
+                            else
+                            {
+                                @this._logger.Debug($"+|{drone.Description}");
+                            }
                         }, ValueTuple.Create(this, drone), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
                         
                         
@@ -953,6 +960,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
+                        ((CcDrone)drone).Adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
                         drone.Zero(this);
                     }
 

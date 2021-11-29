@@ -107,7 +107,7 @@ namespace zero.core.patterns.misc
         /// Return the hive mind
         /// </summary>
         /// <returns>The hive</returns>
-        IoBag<IIoNanite> ZeroHiveMind();
+        IoQueue<IIoNanite> ZeroHiveMind();
 
         /// <summary>
         /// Maintain zero context
@@ -117,6 +117,6 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Cancels all processing
         /// </summary>
-        void ZeroPrime();
+        ValueTask ZeroPrimeAsync();
     }
 }

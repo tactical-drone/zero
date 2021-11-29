@@ -59,10 +59,10 @@ namespace zero.core.patterns.misc
 
 #if DEBUG
             _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 4, concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoBag<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 4, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 4, concurrencyLevel, autoScale:true);
 #else
             _zeroHive = new IoQueue<IoZeroSub>("", 4, concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoBag<IIoNanite>("", 4, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"", 4, concurrencyLevel, autoScale: true);
 #endif
 
             Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -173,7 +173,7 @@ namespace zero.core.patterns.misc
         /// All subscriptions
         /// </summary>
         //private IoQueue<IIoNanite> _zeroHiveMind;
-        private IoBag<IIoNanite> _zeroHiveMind;
+        private IoQueue<IIoNanite> _zeroHiveMind;
 
         /// <summary>
         /// Max number of blockers
@@ -218,7 +218,7 @@ namespace zero.core.patterns.misc
                 ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
 
             //prime garbage
-            ZeroPrime();
+            ZeroPrimeAsync();
 
 #pragma warning disable CS4014
             Zero(@this => @this.Zero(true), this, default,TaskCreationOptions.DenyChildAttach);
@@ -234,7 +234,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Prime for zero
         /// </summary>
-        public void ZeroPrime()
+        public async ValueTask ZeroPrimeAsync()
         {
             if (_zeroPrimed > 0 || Interlocked.CompareExchange(ref _zeroPrimed, 1, 0) != 0)
                 return;
@@ -251,10 +251,11 @@ namespace zero.core.patterns.misc
 
             if (_zeroHiveMind != null)
             {
-                foreach (var zeroSub in _zeroHiveMind)
+                IIoNanite nanite;
+                while ((nanite = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                 {
-                    if (!zeroSub.Zeroed())
-                        zeroSub.ZeroPrime();
+                    if (!nanite.Zeroed())
+                        await nanite.ZeroPrimeAsync().FastPath().ConfigureAwait(Zc);
                 }
             }
         }
@@ -338,10 +339,10 @@ namespace zero.core.patterns.misc
             if (_zeroed > 0)
                 return (default, false);
 
-            var idx = _zeroHiveMind.Add(target);
+            var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath().ConfigureAwait(Zc);
 
-            if (idx == -1)
-                throw new ApplicationException($"BUG: {nameof(idx)} has to be > -1");
+            if (zNode == null)
+                throw new ApplicationException($"BUG: {nameof(zNode)} has to be > -1");
 
             if (twoWay) //zero
                 await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
@@ -349,7 +350,7 @@ namespace zero.core.patterns.misc
             {
                 await ZeroSubAsync((_, @this) =>
                 {
-                    @this._zeroHiveMind[idx] = null;
+                    @this._zeroHiveMind.RemoveAsync(zNode).FastPath().ConfigureAwait(Zc);
                     return new ValueTask<bool>(true);
                 }, this).FastPath().ConfigureAwait(Zc);
             }
@@ -376,10 +377,11 @@ namespace zero.core.patterns.misc
             {
                 if (_zeroHive != null)
                 {
-                    foreach (var zeroSub in _zeroHive)
+                    IoZeroSub zeroSub;
+                    while((zeroSub = await _zeroHive.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                     {
-                        if (!zeroSub.Value.Executed && !await zeroSub.Value.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
-                            _logger.Error($"{zeroSub.Value.From} - zero sub {((IIoNanite)zeroSub.Value.Target)?.Description} on {Description} returned with errors!");
+                        if (!zeroSub.Executed && !await zeroSub.ExecuteAsync(this).FastPath().ConfigureAwait(Zc))
+                            _logger.Error($"{zeroSub.From} - zero sub {((IIoNanite)zeroSub.Target)?.Description} on {Description} returned with errors!");
                     }
 
                     await _zeroHive.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
@@ -388,7 +390,9 @@ namespace zero.core.patterns.misc
 
                 if (_zeroHiveMind != null)
                 {
-                    foreach (var zeroSub in _zeroHiveMind)
+
+                    IIoNanite zeroSub;
+                    while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                     {
                         if (zeroSub.Zeroed()) continue;
 
@@ -789,7 +793,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         /// <returns>The hive</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IoBag<IIoNanite> ZeroHiveMind()
+        public IoQueue<IIoNanite> ZeroHiveMind()
         {
             return _zeroHiveMind;
         }
