@@ -13,9 +13,9 @@ namespace zero.core.patterns.semaphore
     /// <typeparam name="T">The result type, can be anything</typeparam>
     public sealed class IoManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
     {
-        public IoManualResetValueTaskSource(bool inline = false)
+        public IoManualResetValueTaskSource(bool asyncInline = false)
         {
-            _core.RunContinuationsAsynchronously = inline;            
+            _core.RunContinuationsAsynchronously = asyncInline;            
         }
         private ManualResetValueTaskSourceCore<T> _core; // mutable struct; do not make this readonly
                

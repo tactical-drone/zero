@@ -17,8 +17,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="api\**" />
     <Compile Remove="com\**" />
+    <EmbeddedResource Remove="api\**" />
     <EmbeddedResource Remove="com\**" />
+    <None Remove="api\**" />
     <None Remove="com\**" />
   </ItemGroup>
 
@@ -41,7 +44,6 @@
   </ItemGroup>
 
 	<ItemGroup>
-    <Folder Include="api\commands\" />
     <Folder Include="patterns\cmdline\" />
   </ItemGroup>
 

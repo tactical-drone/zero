@@ -406,9 +406,10 @@ namespace zero.core.core
 
             await NeighborTasks.ZeroManagedAsync(static (task, @this) =>
             {
-                task.Dispose();
+                if(task.Status != TaskStatus.Running)
+                    task.Dispose();
                 return default;
-            }, this).FastPath().ConfigureAwait(Zc);
+            }, this, zero:true).FastPath().ConfigureAwait(Zc);
         }
 
         public bool WhiteList(IoNodeAddress address)

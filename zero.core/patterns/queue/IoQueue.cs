@@ -128,7 +128,9 @@ namespace zero.core.patterns.queue
                                                                     $"{nameof(IoQueue<T>)}: {_description}"));
                             }
                         }
-                        catch (Exception e)
+                        catch (InvalidCastException){}
+                        catch when(Zeroed){}
+                        catch (Exception e)when(!Zeroed)
                         {
                             LogManager.GetCurrentClassLogger()
                                 .Trace($"{_description}: {op}, {cur.Value}, {nanite}, {e.Message}");

@@ -92,9 +92,7 @@ namespace zero.cocoon.autopeer
                 _routingTable = new ConcurrentDictionary<string, CcAdjunct>();
             }
 
-            parm_virality_ms = parm_max_network_latency_ms;
-            _viral = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_virality_ms * 2;
-            _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_virality_ms * 2;
+            _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 2;
         }
 
         /// <summary>
@@ -198,7 +196,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// return extra information about the state
         /// </summary>
-        public string MetaDesc => $"{(Zeroed()?"Zeroed!!!,":"")} d={Direction}, s={State}, v={Verified}, a={Assimilating}, da={IsDroneAttached}, cc={IsDroneConnected}, g={IsGossiping}, arb={IsArbitrating}, s={MessageService.IsOperational}";
+        public string MetaDesc => $"{(Zeroed()?"Zeroed!!!,":"")} d={Direction}, s={State}, v={Verified}, a={Assimilating}, da={IsDroneAttached}, cc={IsDroneConnected}, g={IsGossiping}, arb={IsArbitrating}, s={MessageService?.IsOperational}";
 
         /// <summary>
         /// Random number generator
@@ -563,18 +561,6 @@ namespace zero.cocoon.autopeer
         public uint parm_protocol_version = 0;
 
         /// <summary>
-        /// How viral the collective is
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_virality_ms = 1000;
-
-        /// <summary>
-        /// Maintains viral checkpoints
-        /// </summary>
-        private long _viral;
-
-        /// <summary>
         /// The service map
         /// </summary>
         private ServiceMap _serviceMap;
@@ -829,7 +815,7 @@ namespace zero.cocoon.autopeer
                 {
                     if (existingNeighbor.Source?.IsOperational??false)
                     {
-                        _logger.Warn($"Drone already operational, dropping {existingNeighbor.Description}");
+                        _logger.Trace($"Drone already operational, dropping {existingNeighbor.Description}");
                         return false;
                     }
                     existingNeighbor.Zero(new IoNanoprobe($"Dropped because stale from {existingNeighbor.Description}"));
@@ -2136,9 +2122,8 @@ namespace zero.cocoon.autopeer
             if(Zeroed() || !Collected || IsDroneAttached)
                 return;
 
-            //if(Volatile.Read(ref _viral).ElapsedMs() > parm_virality_ms)
+            try
             {
-                Interlocked.Exchange(ref _viral, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 if (_probed || !passive &&
                     !CcCollective.ZeroDrone && Direction == Heading.Undefined &&
                     CcCollective.EgressCount < CcCollective.parm_max_outbound &&
@@ -2151,7 +2136,7 @@ namespace zero.cocoon.autopeer
                     else
                     {
 #if DEBUG
-                        _logger.Trace($"-/> {nameof(SeduceAsync)}: Sent [[{desc}]] Peer REQUEST), {Description}");
+                    _logger.Trace($"-/> {nameof(SeduceAsync)}: Sent [[{desc}]] Peer REQUEST), {Description}");
 #endif
                     }
                 }
@@ -2161,7 +2146,7 @@ namespace zero.cocoon.autopeer
                 {
                     var proxy = address == null ? this : Router;
                     //delta trigger
-                    if (!await proxy.SendPingAsync(desc, address).FastPath().ConfigureAwait(Zc))
+                    if (proxy != null && !await proxy.SendPingAsync(desc, address).FastPath().ConfigureAwait(Zc))
                         _logger.Trace($"<\\- {nameof(SendPingAsync)}({desc}): [FAILED] Send Peer HUP");
                     else
                     {
@@ -2169,6 +2154,12 @@ namespace zero.cocoon.autopeer
                         Interlocked.Increment(ref _peerRequestsSentCount);
                     }
                 }
+                
+            }
+            catch when(Zeroed()){}
+            catch (Exception e)when(!Zeroed())
+            {
+                _logger.Error(e,$"SeduceAsync: ");
             }
         }
 

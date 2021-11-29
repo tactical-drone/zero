@@ -535,7 +535,7 @@ namespace zero.sync
                         Console.WriteLine($"z = {_nodes.Count(n => n.Zeroed())}/{total}");
                         _nodes.Clear();
                         _nodes = null;
-                        tasks.Clear();
+                        tasks?.Clear();
                         tasks = null;
                     }).ConfigureAwait(Zc);
                 }
@@ -544,17 +544,8 @@ namespace zero.sync
 
             _running = false;
             
-            try
-            {                
-                if (reportingTask.Status == TaskStatus.Running)
-                    reportingTask.Dispose();
-                if (task.Status == TaskStatus.Running)
-                    task.Dispose();
-            }
-            catch { }
-
             reportingTask = null;
-            tasks.Clear();
+            tasks?.Clear();
             tasks = null;
             _nodes?.Clear();
             _nodes = null;

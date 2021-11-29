@@ -4,9 +4,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
+using zero.core.patterns.semaphore;
 using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.core.network.ip
@@ -163,7 +165,8 @@ namespace zero.core.network.ip
             _sw.Restart();
             try
             {
-                var result = NativeSocket.ConnectAsync(remoteAddress.IpEndPoint);
+                var sig = new IoManualResetValueTaskSource<bool>();
+                var result = NativeSocket.BeginConnect(remoteAddress.IpEndPoint, ar => { ((IoManualResetValueTaskSource<bool>)ar.AsyncState).SetResult(ar.IsCompleted); }, sig);
 
                 if (timeout > 0)
                 {
@@ -173,12 +176,19 @@ namespace zero.core.network.ip
                         await Task.Delay(timeout + 15, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
 
                         if (!@this.IsConnected())
-                            result.Dispose();
+                        {
+                            result.AsyncWaitHandle.Close();
+                            result.AsyncWaitHandle.Dispose();
+                        }
+                            
 
                     }, ValueTuple.Create(this, result, timeout), TaskCreationOptions.DenyChildAttach);
                 }
 
-                await result.ConfigureAwait(Zc);
+                await sig.WaitAsync().FastPath().ConfigureAwait(false);
+
+                result.AsyncWaitHandle.Close();
+                result.AsyncWaitHandle.Dispose();
 
                 if (!IsConnected())
                     return false;

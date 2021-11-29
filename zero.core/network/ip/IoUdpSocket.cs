@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using zero.core.patterns.semaphore;
 using zero.core.patterns.semaphore.core;
 
 namespace zero.core.network.ip
@@ -88,17 +89,6 @@ namespace zero.core.network.ip
                 },
                 Context = this
             };
-
-            _tcsHeap = new IoHeap<IIoZeroSemaphore, IoUdpSocket>($"{nameof(_tcsHeap)}: {Description}", concurrencyLevel)
-            {
-                Make = static (o, s) =>
-                {
-                    IIoZeroSemaphore tcs = new IoZeroSemaphore("tcs", 1, 0, 0);
-                    tcs.ZeroRef(ref tcs, s.AsyncTasks);
-                    return tcs;
-                }, 
-                Context = this
-            };
         }
 
         /// <summary>
@@ -112,7 +102,6 @@ namespace zero.core.network.ip
             _logger = null;
             _recvArgs = null;
             _sendArgs = null;
-            _tcsHeap = null;
             RemoteNodeAddress = null;
             _sendSync = null;
             _rcvSync = null;
@@ -164,11 +153,6 @@ namespace zero.core.network.ip
                 return default;
             },this).FastPath().ConfigureAwait(Zc);
 
-            await _tcsHeap.ZeroManagedAsync<object>((o,_) =>
-            {
-                o.ZeroSem();
-                return default;
-            }).FastPath().ConfigureAwait(Zc);
 
             _sendSync.ZeroSem();
             _rcvSync.ZeroSem();
@@ -361,7 +345,6 @@ namespace zero.core.network.ip
                 Debug.Assert(endPoint != null);
 #endif
             SocketAsyncEventArgs args = default;
-            IIoZeroSemaphore tcs = default;
             try
             {
                 if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(Zc))
@@ -371,9 +354,7 @@ namespace zero.core.network.ip
                 if (args == null)
                     throw new OutOfMemoryException(nameof(_sendArgs));
 
-                tcs = _tcsHeap.Take();
-                if (tcs == null)
-                    throw new OutOfMemoryException(nameof(_tcsHeap));
+                var tcs = new IoManualResetValueTaskSource<bool>();
 
                 var buf = Unsafe.As<ReadOnlyMemory<byte>, Memory<byte>>(ref buffer).Slice(offset, length);
                 args.SetBuffer(buf);
@@ -398,9 +379,6 @@ namespace zero.core.network.ip
             {
                 if (args != default)
                     _sendArgs.Return(args);
-                
-                if (tcs != default)
-                    _tcsHeap.Return(tcs);
 
                 _sendSync.Release();
             }
@@ -418,17 +396,13 @@ namespace zero.core.network.ip
         /// </summary>
         private IoHeap<SocketAsyncEventArgs, IoUdpSocket> _sendArgs;
 
-        /// <summary>
-        /// task completion source
-        /// </summary>
-        private IoHeap<IIoZeroSemaphore, IoUdpSocket> _tcsHeap;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SignalAsync(object sender, SocketAsyncEventArgs eventArgs)
         {
             try
             {
-                ((IIoZeroSemaphore)eventArgs.UserToken)!.Release();
+                ((IoManualResetValueTaskSource<bool>)eventArgs.UserToken).SetResult(eventArgs.SocketError == SocketError.Success);
             }
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
@@ -463,7 +437,7 @@ namespace zero.core.network.ip
                 if (timeout == 0)
                 {
                     var args = _recvArgs.Take();
-                    var tcs = _tcsHeap.Take();
+                    var tcs = new IoManualResetValueTaskSource<bool>();
                     try
                     {
                         //var args = new SocketAsyncEventArgs();
@@ -471,9 +445,6 @@ namespace zero.core.network.ip
 
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
-
-                        if (tcs == null)
-                            throw new OutOfMemoryException(nameof(_tcsHeap));
 
                         args.SetBuffer(buffer.Slice(offset, length));
                         args.UserToken = tcs;
@@ -513,9 +484,6 @@ namespace zero.core.network.ip
 
                             _recvArgs.Return(args, dispose);
                         }
-
-                        if (tcs != null)
-                            _tcsHeap.Return(tcs);
                     }
                 }
 
