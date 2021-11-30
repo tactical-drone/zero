@@ -1750,7 +1750,8 @@ namespace zero.cocoon.autopeer
             //     .OrderByDescending(n => (int) ((CcNeighbor) n).Priority).ToList();
             var certified = Hub.Neighbors.Values.Where(
                     n => n != this && ((CcAdjunct) n).Assimilating)
-                .OrderByDescending(n => (int) ((CcAdjunct) n).Priority)
+                .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected? 0 : 1)
+                .ThenByDescending(n => (int) ((CcAdjunct) n).Priority)
                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
             foreach (var ioNeighbor in certified.Take((int)parm_max_discovery_peers))
             {
