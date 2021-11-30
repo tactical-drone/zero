@@ -29,29 +29,51 @@ steps:
   displayName: Nuget Restore '$(solution)'
   inputs:
     command: 'restore'
-    projects: '$(solution)'    
+    projects: '$(solution)'
+    
+- task: DotNetCoreCLI@2
+  displayName: debug build '$(solution)'
+  inputs:
+    command: 'build'
+    arguments: -c Debug
+    projects: '$(solution)'
     
 - task: DotNetCoreCLI@2
   displayName: build '$(solution)'
   inputs:
     command: 'build'
-    configuration: '$(buildConfiguration)'
+    arguments: -c $(buildConfiguration)
     projects: '$(solution)'
+
+- task: DotNetCoreCLI@2
+  displayName: debug build '$(test-solution)'
+  inputs:
+    command: 'build'
+    arguments: -c Debug
+    projects: '$(test-solution)'
 
 - task: DotNetCoreCLI@2
   displayName: build '$(test-solution)'
   inputs:
     command: 'build'
-    configuration: '$(buildConfiguration)'
+    arguments: -c $(buildConfiguration)    
     projects: '$(test-solution)'
     
+- task: DotNetCoreCLI@2
+  displayName: debug test '$(test-solution)'
+  inputs:
+    command: 'test'
+    arguments: '-c Debug --collect "Code coverage"'
+    projects: '$(test-solution)'
+    testRunTitle: 'Unit Tests'    
+    publishTestResults: true
+
 - task: DotNetCoreCLI@2
   displayName: test '$(test-solution)'
   inputs:
     command: 'test'
     arguments: '-c $(buildConfiguration) --collect "Code coverage"'
     projects: '$(test-solution)'
-    testRunTitle: 'Unit Tests'
-    
+    testRunTitle: 'Unit Tests'    
     publishTestResults: true
 

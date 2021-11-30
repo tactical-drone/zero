@@ -360,7 +360,7 @@ namespace zero.core.patterns.bushings
                     return;
                 }
 
-                newState.ConstructorAsync(_stateMeta, (IoJobMeta.JobState)value!).FastPath().ConfigureAwait(Zc);
+                newState.ConstructorAsync(_stateMeta, (int)value).FastPath().ConfigureAwait(Zc);
 
                 _stateMeta = newState;
                 StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();

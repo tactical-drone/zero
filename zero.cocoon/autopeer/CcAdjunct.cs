@@ -2674,7 +2674,7 @@ namespace zero.cocoon.autopeer
             try
             {
                 //TODO Make HEAP
-                var nextState = new IoStateTransition<AdjunctState>(state);
+                var nextState = new IoStateTransition<AdjunctState>((int)state);
                 AdjunctState matched;
 
                 //force hung states
