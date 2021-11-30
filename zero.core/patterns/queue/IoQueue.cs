@@ -66,6 +66,7 @@ namespace zero.core.patterns.queue
             _curEnumerator = new IoQueueEnumerator<T>(this);
         }
 
+        #region memory
         private readonly string _description; 
         private volatile int _zeroed;
         private readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
@@ -78,6 +79,7 @@ namespace zero.core.patterns.queue
         private volatile IoZNode _head;
         private volatile IoZNode _tail;
         private volatile int _count;
+        #endregion
 
         public int Capacity => _nodeHeap.Capacity;
         public int Count => _count;
@@ -96,6 +98,9 @@ namespace zero.core.patterns.queue
         public bool IsAutoScaling => _nodeHeap.IsAutoScaling;
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
+            if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+                return true;
+
             try
             {
 #if DEBUG
@@ -104,42 +109,29 @@ namespace zero.core.patterns.queue
                         $"{_description}: {nameof(nanite)} must be of type {typeof(IIoNanite)}");
 #endif
 
-                if (Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
-                    return true;
-
-                if (!_asyncTasks.IsCancellationRequested)
-                    _asyncTasks.Cancel();
-
-                if (op != null)
+                var cur = Head;
+                while (cur != null)
                 {
-                    var cur = Head;
-                    while (cur != null)
+                    _curEnumerator.Modified = true;
+                    try
                     {
-                        _curEnumerator.Modified = true;
-                        try
+                        if (op != null)
+                            await op(cur.Value, nanite).FastPath().ConfigureAwait(Zc);
+                        if (cur.Value is IIoNanite ioNanite)
                         {
-                            if (!zero)
-                                await op(cur.Value, nanite).FastPath().ConfigureAwait(Zc);
-                            else
-                            {
-                                if (!((IIoNanite)cur.Value).Zeroed())
-                                    ((IIoNanite)cur.Value).Zero((IIoNanite)nanite ??
-                                                                new IoNanoprobe(
-                                                                    $"{nameof(IoQueue<T>)}: {_description}"));
-                            }
+                            if (!ioNanite.Zeroed())
+                                ioNanite.Zero(nanite as IIoNanite);
                         }
-                        catch (InvalidCastException){}
-                        catch when(Zeroed){}
-                        catch (Exception e)when(!Zeroed)
-                        {
-                            LogManager.GetCurrentClassLogger()
-                                .Trace($"{_description}: {op}, {cur.Value}, {nanite}, {e.Message}");
-                        }
-
-                        cur = cur.Next;
                     }
-                }
+                    catch when(Zeroed){}
+                    catch (Exception e)when(!Zeroed)
+                    {
+                        LogManager.GetCurrentClassLogger()
+                            .Trace($"{_description}: {op}, {cur.Value}, {nanite}, {e.Message}");
+                    }
 
+                    cur = cur.Next;
+                }
             }
             catch (Exception)
             {
@@ -149,11 +141,14 @@ namespace zero.core.patterns.queue
             {
                 if (zero)
                 {
-                    _head = null;
-                    _tail = null;
-
+                    await ClearAsync().FastPath().ConfigureAwait(Zc); //TODO perf: can these two steps be combined?
                     await _nodeHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+
+                    if (!_asyncTasks.IsCancellationRequested)
+                        _asyncTasks.Cancel();
+
                     _nodeHeap = null;
+                    _count = 0;
 
                     _asyncTasks.Cancel();
                     _asyncTasks.Dispose();

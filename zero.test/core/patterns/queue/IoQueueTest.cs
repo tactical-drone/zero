@@ -314,10 +314,13 @@ namespace zero.test.core.patterns.queue{
 
             Assert.Equal(capacity - 3, c);
 
-            while (q.Count > 0)
-                await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+            //while (q.Count > 0)
+            //    await q.DequeueAsync().FastPath().ConfigureAwait(Zc);
+            await q.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
 
             Assert.Equal(0, q.Count);
+            Assert.Null(q.Head);
+            Assert.Null(q.Tail);
 
             c = 0;
             foreach (var ioInt32 in q)

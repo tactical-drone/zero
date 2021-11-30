@@ -15,13 +15,6 @@ namespace zero.core.patterns.bushings
 
     {
         /// <summary>
-        /// Empty ctor
-        /// </summary>
-        protected IoSink()
-        {
-            
-        } 
-        /// <summary>
         /// Constructor
         /// </summary>
         protected IoSink(string sinkDesc, string jobDesc, IoSource<TJob> source, int concurrencyLevel = 1) : base(jobDesc, source, concurrencyLevel)

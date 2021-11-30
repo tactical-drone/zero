@@ -274,11 +274,13 @@ namespace zero.core.patterns.bushings
             },this).FastPath().ConfigureAwait(Zc);
 
             if (_previousJobFragment != null)
+            {
                 await _previousJobFragment.ZeroManagedAsync(static (sink, @this) =>
                 {
                     sink.Zero(@this);
                     return default;
                 }, this, zero: true).FastPath().ConfigureAwait(Zc);
+            }
 
 #if DEBUG
             _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");

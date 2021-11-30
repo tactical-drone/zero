@@ -6,6 +6,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 #if DEBUG
 using System.Runtime.InteropServices;
+using System.Text;
 #endif
 using System.Security.Cryptography;
 using System.Threading;
@@ -52,8 +53,6 @@ namespace zero.cocoon.autopeer
                 Zero(this);
                 return;
             }
-                
-
             
             _logger = LogManager.GetCurrentClassLogger();
 
@@ -94,6 +93,11 @@ namespace zero.cocoon.autopeer
             }
 
             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 2;
+            var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
+
+#if DEBUG
+            StateTransitionHistory = new IoQueue<IoStateTransition<IoJobMeta.JobState>>($"{nameof(StateTransitionHistory)}: {_description}", nrOfStates, ZeroConcurrencyLevel(), autoScale:true);
+#endif
         }
 
         /// <summary>
@@ -163,7 +167,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         private volatile IoStateTransition<AdjunctState> _currState = new()
         {
-            FinalState = (int)AdjunctState.FinalState
+            FinalState = AdjunctState.FinalState
         };
 
         /// <summary>
@@ -627,7 +631,9 @@ namespace zero.cocoon.autopeer
             _pingRequest = null;
             _drone = null;
             _protocolConduit = null;
+#if DEBUG
             StateTransitionHistory = null;
+#endif
             _peerRequest = null;
             _discoveryRequest = null;
             _produceTaskPool = null;
@@ -718,14 +724,14 @@ namespace zero.cocoon.autopeer
                 _logger.Info($"~> {Description}, from: {ZeroedFrom?.Description}");
             }
 
-            SetState(AdjunctState.ZeroState);
+            ResetState(AdjunctState.ZeroState);
             
             _pingRequest.Zero(this);
             _peerRequest.Zero(this);
             _discoveryRequest.Zero(this);
             
 #if DEBUG
-            Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);
+            await StateTransitionHistory.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
 #endif
         }
 
@@ -1298,10 +1304,10 @@ namespace zero.cocoon.autopeer
                 
                 peeringResponse.Status &= stateIsValid;
 
-                if (!stateIsValid && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
-                {
-                    _logger.Trace($"{Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
-                }
+                //if (!stateIsValid)
+                //{
+                //    _logger.Trace($"{Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} -  [RACE OK!]");
+                //}
             }
 
             if ((sent= await SendMessageAsync(peeringResponse.ToByteString(),
@@ -2115,7 +2121,7 @@ namespace zero.cocoon.autopeer
         /// <returns>A valuable task</returns>
         private async ValueTask SeduceAsync(string desc, bool passive = true, IoNodeAddress address = null, bool ignoreZeroDrone = false)
         {
-            if(Zeroed() || !Collected || IsDroneAttached || _currState.Value > (int)AdjunctState.Connecting)
+            if(Zeroed() || !Collected || IsDroneAttached || _currState.Value > AdjunctState.Connecting)
                 return;
 
             try
@@ -2374,14 +2380,14 @@ namespace zero.cocoon.autopeer
             var stateIsValid = (oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified,
                 overrideHung: parm_max_network_latency_ms * 4)) == AdjunctState.Verified;
 
-
-            if ( !stateIsValid && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms * 4)
-            {
-                _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
-            }
-
             if (!stateIsValid)
+            {
                 return false;
+            }
+            //else
+            //{
+            //    _logger.Warn($"{nameof(SendPeerRequestAsync)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Verified)} - [RACE OK!] ");
+            //}
 
             //oneshot
             await ZeroAsync(async (@this) =>
@@ -2636,7 +2642,7 @@ namespace zero.cocoon.autopeer
                 Interlocked.Exchange(ref _direction, 0);
                 _peerRequestsRecvCount = _peerRequestsSentCount = 0;
                 severedDrone?.Zero(this);
-                SetState(AdjunctState.Verified);
+                ResetState(AdjunctState.Verified);
                 await SendPeerDropAsync().FastPath().ConfigureAwait(Zc);
             }
         }
@@ -2646,19 +2652,17 @@ namespace zero.cocoon.autopeer
         /// The state transition history, sourced from <see  cref="IoZero{TJob}"/>
         /// </summary>
 #if DEBUG
-        public IoStateTransition<AdjunctState>[] StateTransitionHistory =
-            new IoStateTransition<AdjunctState>[Enum.GetNames(typeof(AdjunctState))
-                .Length]; //TODO what should this size be?
+        public IoQueue<IoStateTransition<IoJobMeta.JobState>> StateTransitionHistory;
 #else
-        public IoStateTransition<IoJobMeta.JobState>[] StateTransitionHistory;
+        //public IoQueue<IoStateTransition<IoJobMeta.JobState>> StateTransitionHistory;
 #endif
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public AdjunctState SetState(AdjunctState state)
+        public AdjunctState ResetState(AdjunctState state)
         {
 #if DEBUG
-            Array.Clear(StateTransitionHistory, 0, StateTransitionHistory.Length);   
+            StateTransitionHistory.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
 #endif
             return CompareAndEnterState(state, default, compare: false);
         }
@@ -2669,8 +2673,9 @@ namespace zero.cocoon.autopeer
 #if DEBUG
             try
             {
-                var nextState = new IoStateTransition<AdjunctState>((int)state);
-                var matched = AdjunctState.Sentinel;
+                //TODO Make HEAP
+                var nextState = new IoStateTransition<AdjunctState>(state);
+                AdjunctState matched;
 
                 //force hung states
                 if (overrideHung > 0)
@@ -2681,29 +2686,13 @@ namespace zero.cocoon.autopeer
 
                 if (compare)
                 {
-                    if ((matched = (AdjunctState)nextState.CompareAndEnterState(_currState, (int)state, (int)cmp)) != cmp)
+                    if ((matched = _currState.Value) != cmp)
                         return matched;
                 }
                 else
                     matched = cmp;
 
-                var prevState = _currState;
-                _currState.Exit(nextState);
-
-                if (prevState != null)
-                {
-                    if (StateTransitionHistory[prevState.Value] != null)
-                    {
-                        //var c = StateTransitionHistory[prevState.Value];
-
-                        //while (c.Repeat != null)
-                        //    c = c.Repeat;
-
-                        //c.Repeat = prevState;
-                    }
-                    else
-                        StateTransitionHistory[prevState.Value] = prevState;
-                }
+                _currState = _currState.Exit(nextState);
 
                 return matched;
             }
@@ -2719,7 +2708,7 @@ namespace zero.cocoon.autopeer
             
             if (compare)
             {
-                return (AdjunctState)_currState.CompareAndEnterState(_currState, (int)state, (int)cmp);
+                return _currState.CompareAndEnterState((int)state, (int)cmp);
             }
             else
             {
@@ -2732,23 +2721,25 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Print state history
         /// </summary>
-        public void PrintStateHistory()
+#if DEBUG
+        public async ValueTask PrintStateHistory()
+#else
+        public ValueTask PrintStateHistory()
+#endif
         {
-#if  DEBUG
-            IoStateTransition<AdjunctState> c = null;
+#if DEBUG
+            IoStateTransition<IoJobMeta.JobState> ioStateTransition;
+            var sb = new StringBuilder();
 
-            foreach (var t in StateTransitionHistory)
+            while ((ioStateTransition = await StateTransitionHistory.DequeueAsync())!= null)
             {
-                if ((c = t) != null)
-                    break;
+                sb.AppendLine($"{ioStateTransition.Value} ~>");
             }
 
-            var i = 0;
-            while (c != null)
-            {
-                Console.WriteLine($"{i++} ~> {(AdjunctState)c.Value}");
-                c = c.Next;
-            }
+            if(sb.Length > 0)
+                LogManager.GetCurrentClassLogger().Info(sb.ToString().Substring(0, sb.Length-3));
+#else
+            return default;
 #endif
         }
 
@@ -2759,7 +2750,7 @@ namespace zero.cocoon.autopeer
         /// </summary>
         public AdjunctState State
         {
-            get => (AdjunctState)_currState.Value;
+            get => _currState.Value;
 //            set
 //            {
 //#if DEBUG

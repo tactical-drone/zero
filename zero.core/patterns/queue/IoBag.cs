@@ -235,28 +235,29 @@ namespace zero.core.patterns.queue
         /// <exception cref="ArgumentException">When zero is true but <see cref="nanite"/> is not of type <see cref="IIoNanite"/></exception>
         public async ValueTask<bool> ZeroManagedAsync<TC>(Func<T,TC, ValueTask> op = null, TC nanite = default, bool zero = false)
         {
+            if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
+                return true;
+
             try
             {
-                if (zero && Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
-                    return true;
-                
-                for(int i = 0; i < _capacity; i++)
+                for(var i = 0; i < _capacity; i++)
                 {
                     var item = _storage[i];
                     try
                     {
-                        //TODO is this a good idea?
                         if(item == default)
                             continue;
                         
-                        if (!zero && op != null)
+                        if (op != null)
                             await op(item, nanite).FastPath().ConfigureAwait(Zc);
-                        else if(zero)
+
+                        if (item is IIoNanite ioNanite)
                         {
-                            if (!((IIoNanite)item)!.Zeroed())
-                                ((IIoNanite)item).Zero((IIoNanite)nanite);
+                            if (!ioNanite.Zeroed())
+                                ioNanite.Zero((IIoNanite)nanite);
                         }                        
                     }
+                    catch (InvalidCastException){}
                     catch (Exception) when(Zeroed){}
                     catch (Exception e) when (!Zeroed)
                     {

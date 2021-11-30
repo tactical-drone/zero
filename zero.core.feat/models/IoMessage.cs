@@ -35,11 +35,6 @@ namespace zero.core.models
         }
 
         /// <summary>
-        /// Empty
-        /// </summary>
-        public IoMessage(){}
-
-        /// <summary>
         /// buffer owner
         /// </summary>
         public IMemoryOwner<byte> MemoryOwner;

@@ -499,7 +499,7 @@ namespace zero.cocoon
                 else
                 {
                     @this._logger.Debug($"+|{drone.Description}");
-                    ((CcDrone)drone).Adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
+                    ((CcDrone)drone).Adjunct?.ResetState(CcAdjunct.AdjunctState.Verified);
                 }
 
                 return false;
@@ -846,17 +846,14 @@ namespace zero.cocoon
 
                 adjunct = drone.Adjunct;
 
-                CcAdjunct.AdjunctState oldState;
                 //if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung:adjunct.parm_max_network_latency_ms * 2)) !=
-                var delta = adjunct.CurrentState.EnterTime.ElapsedMs();
-                var stateIsValid = (oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4)) == CcAdjunct.AdjunctState.Peering;
-                if ( !stateIsValid && delta > adjunct.parm_max_network_latency_ms * 4)
+                //var stateIsValid = (oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4)) == CcAdjunct.AdjunctState.Peering;
+                var stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Peering;
+                if ( !stateIsValid)
                 {
-                    _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {oldState}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
-                }
-
-                if(!stateIsValid)
+                    //_logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {oldState}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
                     return false;
+                }
             }
 
             if (adjunct.Assimilating && !adjunct.IsDroneAttached)
@@ -963,7 +960,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        ((CcDrone)drone).Adjunct?.SetState(CcAdjunct.AdjunctState.Verified);
+                        ((CcDrone)drone).Adjunct?.ResetState(CcAdjunct.AdjunctState.Verified);
                         drone.Zero(this);
                     }
 

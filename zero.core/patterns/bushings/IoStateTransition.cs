@@ -3,7 +3,10 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
+using zero.core.patterns.queue;
+using zero.core.patterns.queue.variant;
 
 namespace zero.core.patterns.bushings
 {
@@ -11,79 +14,29 @@ namespace zero.core.patterns.bushings
     /// Represents a state transition while processing work on a concurrent process
     /// </summary>
     /// <typeparam name="TState">The state enum</typeparam>
-    public class IoStateTransition<TState> : IIoHeapItem
-        where TState : struct, Enum {
-        public IoStateTransition(int initState = 0)
+    public class IoStateTransition<TState> : IoIntQueue.IoZNode,  IIoHeapItem
+        where TState : struct, Enum 
+    {
+        public IoStateTransition(int initState = default)
         {
-            var list = Enum.GetValues(typeof(TState));
-
             ConstructorAsync().AsTask().GetAwaiter().GetResult();
-            _value = initState;
+            base.Value = initState;
         }
 
         //Release all memory held
         public void ZeroManaged()
         {
-            _previous = null;
-            _next = null;
-            
-            if (Repeat != null)
-                Repeat.ZeroManaged();
-            else
-                _repeat = null;
-
+            base.Prev = null;
+            base.Next = null;
             FinalState = default;
         }
+
+        #region Core
         
-
-        /// <summary>
-        /// A null state
-        /// </summary>
-        public static IoStateTransition<TState> NullState = new();
-
-        volatile IoStateTransition<TState> _previous;
-        /// <summary>
-        /// The previous state
-        /// </summary>
-        public IoStateTransition<TState> Previous => _previous;
-
-
-        private volatile IoStateTransition<TState> _next;
-        /// <summary>
-        /// The next state
-        /// </summary>
-        public IoStateTransition<TState> Next
-        {
-            get => _next;
-            set => _next = value;
-        }
-
-        private volatile IoStateTransition<TState> _repeat;
-        /// <summary>
-        /// A repeat state
-        /// </summary>
-        public IoStateTransition<TState> Repeat
-        {
-            get => _repeat;
-            set => _repeat = value;
-        }
-
-        private volatile int _value;
-
         /// <summary>
         /// The represented state
         /// </summary>
-        public int Value => _value;
-
-        /// <summary>
-        /// The represented state
-        /// </summary>
-        protected int UndefinedState => NullState._value;
-
-        /// <summary>
-        /// The represented state
-        /// </summary>
-        public int FinalState;
+        public TState FinalState;
 
         /// <summary>
         /// Timestamped when this state was entered
@@ -94,11 +47,16 @@ namespace zero.core.patterns.bushings
         /// Timestamped when this state was exited
         /// </summary>
         public long ExitTime;
+        #endregion
+
+        public new IoStateTransition<TState> Next => (IoStateTransition<TState>)base.Next;
+        public new IoStateTransition<TState> Prev => (IoStateTransition<TState>)base.Prev;
+        public new TState Value => (TState)Enum.ToObject(typeof(TState), base.Value);
 
         /// <summary>
-        /// The absolute time it took to mechanically transition from the previous state to this state. <see cref="EnterTime"/> - <see cref="Previous"/>.<see cref="EnterTime"/>
+        /// The absolute time it took to mechanically transition from the previous state to this state. <see cref="EnterTime"/> - <see cref="IoQueue{T}.IoZNode.Prev"/>. <see cref="EnterTime"/>
         /// </summary>
-        public long Lambda => EnterTime - Previous?.EnterTime ?? 0;
+        public long Lambda => EnterTime - ((IoStateTransition<TState>)Prev)?.EnterTime??0;
 
         /// <summary>
         /// The time it took between entering this state and exiting it
@@ -108,21 +66,20 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The absolute time this job took so far
         /// </summary>
-        public long Delta => Previous == null ? Mu : Previous.Delta + Mu;
+        public long Delta => Prev == null ? Mu : ((IoStateTransition<TState>)Prev).Delta + Mu;
 
         /// <summary>
         /// Prepares this item for use after popped from the heap
         /// </summary>
         /// <returns>The instance</returns>
-        public ValueTask<IIoHeapItem> ConstructorAsync(IoStateTransition<TState> prev, int value = 0)
+        public ValueTask<IIoHeapItem> ConstructorAsync(IoStateTransition<TState> prev, int initState = default)
         {
             ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _next = null;
-            _previous = prev;
-            if(_previous != null)
-                _previous.Next = this;
-            _repeat = null;
-            _value = value;
+            base.Next = null;
+            base.Prev = prev;
+            if(base.Prev != null)
+                base.Prev.Next = this;
+            base.Value = initState;
             return new ValueTask<IIoHeapItem>(this);
         }
 
@@ -133,10 +90,9 @@ namespace zero.core.patterns.bushings
         public ValueTask<IIoHeapItem> ConstructorAsync()
         {
             ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _next = null;
-            _previous = null;
-            _repeat = null;
-            _value = 0;
+            base.Next = null;
+            base.Prev = null;
+            base.Value = default;
             return new ValueTask<IIoHeapItem>(this);
         }
 
@@ -144,13 +100,12 @@ namespace zero.core.patterns.bushings
         /// default constructor
         /// </summary>
         /// <returns></returns>
-        public ValueTask<IIoHeapItem> ConstructorAsync(int value)
+        public ValueTask<IIoHeapItem> ConstructorAsync(int initState)
         {
             ExitTime = EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _next = null;
-            _previous = null;
-            _repeat = null;
-            _value = value;
+            base.Next = null;
+            base.Prev = null;
+            base.Value = initState;
             return new ValueTask<IIoHeapItem>(this);
         }
 
@@ -174,19 +129,7 @@ namespace zero.core.patterns.bushings
         /// <returns>PreviousJob -> Current -> Next</returns>
         public override string ToString()
         {
-            return $"{Previous?.Value}/> {Value} />{Next?.Value}";
-        }
-
-        /// <summary>
-        /// Enter a state
-        /// </summary>
-        /// <param name="state"></param>
-        /// <param name="cmp"></param>
-        /// <param name="prevState"></param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int CompareAndEnterState(IoStateTransition<TState> prevState, int state, int cmp)
-        {
-            return Interlocked.CompareExchange(ref prevState._value, state, cmp);
+            return $"{Enum.GetName(typeof(TState), Prev.Value)} ~> [{Enum.GetName(typeof(TState),Value)}] ~> {Enum.GetName(typeof(TState), Next.Value)}";
         }
 
         /// <summary>
@@ -197,11 +140,11 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Set the state
         /// </summary>
-        /// <param name="value">The </param>
+        /// <param name="newState">The </param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Set(int value)
+        public void Set(int newState)
         {
-            _value = value;
+            base.Value = newState;
         }
 
         /// <summary>
@@ -211,15 +154,33 @@ namespace zero.core.patterns.bushings
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IoStateTransition<TState> Exit(IoStateTransition<TState> nextState)
         {
-            if (Value == FinalState)
+            if (Value.Equals(FinalState))
                 throw new ApplicationException($"Cannot transition from `{FinalState}' to `{nextState}'");
 
             ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _next = nextState;
-            if(nextState != null)
-                nextState._previous = this;
+            //Next = nextState;
+            //if(nextState != null)
+            //    nextState.Prev = this;
 
             return nextState;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IoStateTransition<TState> GetStartState()
+        {
+            var c = this;
+            while (c.Prev != null)
+            {
+                c = c.Prev;
+            }
+
+            return c;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public TState CompareAndEnterState(int state, int cmp)
+        {
+            return (TState)Enum.ToObject(typeof(TState), Interlocked.CompareExchange(ref base.Value, state, cmp));
         }
     }
 }
