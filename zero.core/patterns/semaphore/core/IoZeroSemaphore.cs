@@ -521,8 +521,10 @@ namespace zero.core.patterns.semaphore.core
                                 }, _zeroRef);
                             else
                             {
+                                //This should never happen
                                 _zeroRef.ZeroDecAsyncCount();
-                                callback(state);
+                                //callback(state);
+                                return false;
                             }
                         }
                         else

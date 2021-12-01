@@ -40,7 +40,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, 0);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, cc/2);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,
@@ -60,6 +60,7 @@ namespace zero.cocoon.models
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
             _currentBatch = null;
+            _batchHeap = null;
 #endif
         }
 
@@ -309,7 +310,7 @@ namespace zero.cocoon.models
                     var packetMsgRaw = packet.Data.Memory.AsArray();
                     if (packet.Signature != null && !packet.Signature.IsEmpty)
                     {
-                        verified = CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
+                        verified = CcDesignation.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
                                 0, packet.Signature.Memory.AsArray(), 0);
                     }
 

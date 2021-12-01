@@ -17,7 +17,7 @@ namespace zero.core.patterns.bushings
     public class IoStateTransition<TState> : IoIntQueue.IoZNode,  IIoHeapItem
         where TState : struct, Enum 
     {
-        public IoStateTransition(int initState = default)
+        public IoStateTransition(int initState = 0)
         {
             ConstructorAsync().AsTask().GetAwaiter().GetResult();
             base.Value = initState;
@@ -50,7 +50,12 @@ namespace zero.core.patterns.bushings
         #endregion
 
         public new IoStateTransition<TState> Next => (IoStateTransition<TState>)base.Next;
-        public new IoStateTransition<TState> Prev => (IoStateTransition<TState>)base.Prev;
+        public new IoStateTransition<TState> Prev
+        {
+            get => (IoStateTransition<TState>)base.Prev;
+            private set => base.Prev = value;
+        }
+
         public new TState Value => (TState)Enum.ToObject(typeof(TState), base.Value);
 
         /// <summary>
@@ -158,9 +163,9 @@ namespace zero.core.patterns.bushings
                 throw new ApplicationException($"Cannot transition from `{FinalState}' to `{nextState}'");
 
             ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            //Next = nextState;
-            //if(nextState != null)
-            //    nextState.Prev = this;
+            base.Next = nextState;
+            if(nextState != null)
+                nextState.Prev = this;
 
             return nextState;
         }

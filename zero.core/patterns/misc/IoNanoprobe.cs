@@ -394,7 +394,6 @@ namespace zero.core.patterns.misc
 
                 if (_zeroHiveMind != null)
                 {
-
                     IIoNanite zeroSub;
                     while ((zeroSub = await _zeroHiveMind.DequeueAsync().FastPath().ConfigureAwait(Zc)) != null)
                     {

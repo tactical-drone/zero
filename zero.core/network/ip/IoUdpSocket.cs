@@ -407,7 +407,14 @@ namespace zero.core.network.ip
             catch(Exception) when(Zeroed()){}
             catch(Exception e) when (!Zeroed())
             {
-                _logger.Fatal(e,$"{Description}: udp signal callback failed!");
+                try
+                {
+                    _logger?.Fatal(e,$"{Description}: udp signal callback failed!");
+                }
+                catch
+                {
+                    // ignored
+                }
                 // ignored
             }
         }

@@ -173,8 +173,8 @@ namespace zero.core.core
                             {
                                 try
                                 {
-                                    //Only drop incoming if the existing one is working
-                                    if (existingNeighbor.Source.IsOperational)
+                                    ////Only drop incoming if the existing one is working and originating
+                                    if (existingNeighbor.Source.IsOperational && existingNeighbor.Source.IsOriginating)
                                     {
                                         @this._logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                         return new ValueTask<bool>(false);

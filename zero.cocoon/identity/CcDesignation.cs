@@ -26,7 +26,7 @@ namespace zero.cocoon.identity
         public byte[] PublicKey { get; set; }
         private byte[] SecretKey { get; set; }
 
-        private static string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
+        private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
@@ -79,7 +79,7 @@ namespace zero.cocoon.identity
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
+        public static bool Verify(byte[] msg, int offset, int len, byte[] pubKey, int keyOffset, byte[] signature, int sigOffset)
         {
             return Ed25519.Verify(signature, sigOffset, pubKey, keyOffset, msg, offset, len);
         }

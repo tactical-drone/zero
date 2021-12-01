@@ -94,6 +94,14 @@ namespace zero.core.patterns.bushings.contracts
         bool IsOperational { get; }
 
         /// <summary>
+        /// Gets a value indicating whether this source is originating or terminating
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is Egress; Ingress otherwise, <c>false</c>.
+        /// </value>
+        bool IsOriginating { get; }
+
+        /// <summary>
         /// Gets a value indicating whether this <see cref="IoSource{TJob}"/> is synced.
         /// </summary>
         /// <value>

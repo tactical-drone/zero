@@ -28,7 +28,7 @@ namespace zero.cocoon
         /// <param name="ioNetClient">The peer transport carrier</param>
         /// <param name="concurrencyLevel"></param>
         public CcDrone(IoNode<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> node, CcAdjunct adjunct,
-            IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient, int concurrencyLevel = 1)
+            IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> ioNetClient)
             : base(node, ioNetClient, static (o,s) => new CcWhispers("gossip rx", $"{((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)s).IoNetSocket.RemoteNodeAddress}", ((IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)s)), true)
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -52,10 +52,12 @@ namespace zero.cocoon
                         }
                         @this.Zero(new IoNanoprobe($"Invalid state after {@this.parm_insane_checks_delay_s}: s = {@this.Adjunct?.State}, wants = {CcAdjunct.AdjunctState.Connected}), {@this.Adjunct?.MetaDesc}"));
                     }
+
+                    if (@this.Adjunct != null) @this.Adjunct.WasAttached = true;
                 }
             },this, TaskCreationOptions.DenyChildAttach);
 
-            m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb)) };
+            _m = new CcWhisperMsg() { Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(_vb)) };
         }
 
         /// <summary>
@@ -253,8 +255,8 @@ namespace zero.cocoon
         /// A test mode
         /// </summary>
         /// 
-        byte[] vb = new byte[8];
-        CcWhisperMsg m;
+        private readonly byte[] _vb = new byte[8];
+        private readonly CcWhisperMsg _m;
         public async ValueTask EmitTestGossipMsgAsync(long v)
         {
             try
@@ -274,11 +276,11 @@ namespace zero.cocoon
                 //if (Adjunct?.Direction == CcAdjunct.Heading.IsEgress)
                 {
                     
-                    Write(vb.AsSpan(), ref v);
+                    Write(_vb.AsSpan(), ref v);
 
                     //var m = new CcWhisperMsg() {Data = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(vb))};
 
-                    var buf = m.ToByteArray();
+                    var buf = _m.ToByteArray();
 
                     if (!Zeroed())
                     {

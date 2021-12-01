@@ -11,7 +11,7 @@ namespace zero.test.core.patterns.queue
 {
     public class IoHashCodesTest
     {
-        private bool Zc => IoNanoprobe.ContinueOnCapturedContext;
+        private static bool Zc => IoNanoprobe.ContinueOnCapturedContext;
 
         [Fact]
         void InsertTest()

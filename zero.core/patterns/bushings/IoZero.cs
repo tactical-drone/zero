@@ -733,7 +733,7 @@ namespace zero.core.patterns.bushings
                     if (!await consumeTaskPool[^1].FastPath())
                         break;
                 }
-            }, this, TaskCreationOptions.DenyChildAttach); //TODO tuning
+            }, this, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness); //TODO tuning
 
             //Wait for tear down                
             await Task.WhenAll(_producerTask.AsTask(), _consumerTask.AsTask()).ConfigureAwait(Zc);

@@ -4,7 +4,6 @@ using NLog;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.misc;
-using zero.core.models;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
@@ -42,6 +41,7 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructor for incoming connections used by the listener
         /// </summary>
+        /// <param name="description">A description</param>
         /// <param name="netSocket">The new socket that comes from the listener</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
@@ -49,16 +49,19 @@ namespace zero.core.network.ip
         {
             IoNetSocket = netSocket;
             _logger = LogManager.GetCurrentClassLogger();
+            IsOriginating = false;
         }
 
         /// <summary>
         /// Constructor for connecting
         /// </summary>
+        /// <param name="description">A description</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
         protected IoNetClient(string description, int prefetchSize, int concurrencyLevel) : base(description, prefetchSize, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
+            IsOriginating = true;
         }
 
         /// <summary>
@@ -87,8 +90,8 @@ namespace zero.core.network.ip
         /// A description of this client. Currently the remote address
         /// </summary>
         public override string Description => IoNetSocket?.Description??"N/A";
-        
 
+        public new bool IsOriginating { get; }
         /// <summary>
         /// Abstracted dotnet udp and tcp socket
         /// </summary>

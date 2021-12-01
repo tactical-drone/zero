@@ -114,7 +114,7 @@ namespace zero.core.network.ip
                     //    break;
                     //}
 
-                    _logger.Trace($"New connection from `tcp://{newSocket.RemoteNodeAddress}' to `{LocalNodeAddress}' ({Description})");
+                    _logger.Trace($"Connection Received: from = `{newSocket.RemoteNodeAddress}', ({Description})");
 
                     try
                     {

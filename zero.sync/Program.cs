@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog;
+using NLog.Filters;
 using NLog.Web;
 using zero.cocoon;
 using zero.cocoon.autopeer;
@@ -28,11 +29,11 @@ namespace zero.sync
     class Program
     {
 
-        private static ConcurrentBag<CcCollective> _nodes = new ConcurrentBag<CcCollective>();
+        private static ConcurrentBag<CcCollective> _nodes = new();
         private static volatile bool _running;
         private static volatile bool _verboseGossip;
         private static volatile bool _startAccounting;
-        private static bool Zc = IoNanoprobe.ContinueOnCapturedContext;
+        private static readonly bool Zc = IoNanoprobe.ContinueOnCapturedContext;
         private static int _rampDelay = 300;
         private static int _rampTarget = 40;
         public static IHostBuilder CreateHostBuilder(string[] args) =>
@@ -111,6 +112,7 @@ namespace zero.sync
                 //    continue;
 
                 tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1235}", $"udp://127.0.0.1:{1234}" }.ToList()));
+                //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1235}" }.ToList()));
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
                 if (tasks.Count % 10 == 0)
@@ -146,6 +148,7 @@ namespace zero.sync
                         if(injectionCount > 40)
                             injectionCount--;
                     }
+                    await Task.Delay(100).ConfigureAwait(Zc);
 
                     c++;
                 }
@@ -347,6 +350,28 @@ namespace zero.sync
                     c = ThreadPool.CompletedWorkItemCount;
                 }
 
+                if (line.StartsWith("logf"))
+                {
+                    try
+                    {
+                        var line1 = line;
+                        var res = line1.Split(' ')[1];
+                        if (!string.IsNullOrEmpty(res))
+                        {
+                            LogManager.Configuration.LoggingRules.Last().Filters.Add(new WhenMethodFilter(logEvent =>
+                            {
+                                var res = logEvent.Message.Contains(line1.Split(' ')[1]);
+
+                                return res
+                                    ? FilterResult.Log
+                                    : FilterResult.Ignore;
+                            }));
+                            LogManager.Configuration = LogManager.Configuration;
+                        }
+                    }
+                    catch { }
+                }
+
                 if (line.StartsWith("log "))
                 {
                     try
@@ -396,7 +421,7 @@ namespace zero.sync
                             Task.WaitAll(gossipTasks.ToArray());
                             tasks.ToList().ForEach(t=>t.Result.ClearDupBuf());
                             gossipTasks.Clear();
-                            AutoPeeringEventService.QueuedEvents[0].ClearAsync().GetAwaiter();
+                            AutoPeeringEventService.QueuedEvents[0].ClearAsync().AsTask().GetAwaiter().GetResult();
                         }
 
                         long v = 1;
@@ -428,7 +453,7 @@ namespace zero.sync
                                         if (!_startAccounting)
                                             break;
 
-                                        if (!await t.Result.BootAsync(Interlocked.Increment(ref v), tasks.Count).FastPath()
+                                        if (!await (((CcCollective)t.AsyncState)!).BootAsync(Interlocked.Increment(ref v)).FastPath()
                                                 .ConfigureAwait(Zc))
                                         {
                                             if (_verboseGossip)
@@ -568,7 +593,7 @@ namespace zero.sync
         private static Task QueueTestAsync() //TODO make unit tests
         {
 
-            IoQueue<int> q = new IoQueue<int>("test", 2000000, 100);
+            IoQueue<int> q = new("test", 2000000, 100);
             var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
             q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
@@ -737,7 +762,7 @@ namespace zero.sync
         /// </summary>
         private static void SemTest() //TODO make unit tests
         {
-            CancellationTokenSource asyncTasks = new CancellationTokenSource();
+            var asyncTasks = new CancellationTokenSource();
 
             var capacity = 3;
             var mutex = new IoZeroSemaphoreSlim(asyncTasks, "zero slim", maxBlockers: capacity, initialCount: 0, maxAsyncWork: 0, enableAutoScale: false, enableFairQ: false, enableDeadlockDetection: true);
@@ -1022,76 +1047,12 @@ namespace zero.sync
             Console.ReadLine();
         }
 
-        private static void BagTest() //TODO make unit tests
-        {
-            var bag = new IoBag<IoInt32>("test", 11, true);
-
-            for (int i = 1; i < bag.Capacity; i++)
-            {
-                bag.Add(i);
-            }
-
-            Debug.Assert(bag.Contains((int)bag.Capacity / 2));
-
-
-            foreach (var i in bag)
-            {
-                Console.Write($"{i}, ");
-                if (i == 7)
-                    bag.Add(11);
-
-                if (i == 11)
-                    break;
-            }
-
-            Console.Write($"\n");
-            foreach (var i in bag)
-            {
-                bag.TryTake(out var r);
-                Console.Write($"{r}, ");
-            }
-
-            Console.ReadLine();
-        }
-
-        private static void BagTest2() //TODO make unit tests
-        {
-            var bag = new IoHashCodes("test", 11, true);
-
-            for (int i = 1; i < bag.Capacity; i++)
-            {
-                bag.Add(i);
-            }
-
-            Debug.Assert(bag.Contains((int)bag.Capacity / 2));
-
-
-            foreach (var i in bag)
-            {
-                Console.Write($"{i}, ");
-                if (i == 7)
-                    bag.Add(11);
-
-                if (i == 11)
-                    break;
-            }
-
-            Console.Write($"\n");
-            foreach (var i in bag)
-            {
-                bag.TryTake(out var r);
-                Console.Write($"{r}, ");
-            }
-
-            Console.ReadLine();
-        }
-
         private static async ValueTask ZeroAsync(int total)
         {
             _running = false;
             await AutoPeeringEventService.ClearAsync().FastPath().ConfigureAwait(Zc);
             Console.WriteLine("#");
-            SemaphoreSlim s = new SemaphoreSlim(10);
+            SemaphoreSlim s = new (10);
             int zeroed = 0;
             var sw = Stopwatch.StartNew();
 
@@ -1173,12 +1134,10 @@ namespace zero.sync
 
             _nodes.Add(cocoon);
 
-#pragma warning disable 4014
-
             var t = new Task<CcCollective>(static cocoon =>
             {
-                ((CcCollective)cocoon).EmitAsync();
-                ((CcCollective)cocoon).StartAsync();
+                ((CcCollective)cocoon).EmitAsync().AsTask().GetAwaiter().GetResult();
+                ((CcCollective)cocoon).StartAsync().AsTask().GetAwaiter().GetResult();
                 return (CcCollective)cocoon;
             }, cocoon, TaskCreationOptions.DenyChildAttach);
             return t;

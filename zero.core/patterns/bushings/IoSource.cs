@@ -137,6 +137,14 @@ namespace zero.core.patterns.bushings
         public abstract bool IsOperational { get; }
 
         /// <summary>
+        /// Gets a value indicating whether this source is originating or terminating
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is Egress; Ingress otherwise, <c>false</c>.
+        /// </value>
+        public bool IsOriginating { get; }= false;
+
+        /// <summary>
         /// Initial productions, typically larger than 0 for sources
         /// </summary>
         public int PrefetchSize { get; protected set; }

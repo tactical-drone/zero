@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -135,7 +136,7 @@ namespace zero.cocoon
                     try
                     {
                         await Task.Delay(@this.parm_mean_pat_delay_s * 100, @this.AsyncTasks.Token).ConfigureAwait(false);
-                        if (@this.Neighbors.Count < 1) 
+                        if (@this.Neighbors.Count < @this.parm_max_outbound) 
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(@this.Zc);
                     }
                     catch when(@this.Zeroed()){}
@@ -476,33 +477,41 @@ namespace zero.cocoon
             //start node listener
             await base.SpawnListenerAsync(static async (drone,@this) =>
             {
+                var success = false;
                 //limit connects
-                if (@this.Zeroed() || @this.IngressCount >= @this.parm_max_inbound)
-                    return false;
-
-                //Handshake
-                if (await @this.HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.Zc))
+                try
                 {
-                    await Task.Delay(@this.parm_handshake_timeout * 2, @this.AsyncTasks.Token);
+                    if (@this.Zeroed() || @this.IngressCount >= @this.parm_max_inbound)
+                        return false;
 
-                    if (drone.Zeroed())
+                    //Handshake
+                    if (await @this.HandshakeAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.Zc))
+                    {
+                        await Task.Delay(@this.parm_handshake_timeout * 2, @this.AsyncTasks.Token);
+
+                        if (drone.Zeroed())
+                        {
+                            @this._logger.Debug($"+|{drone.Description}");
+                            return false;
+                        }
+                    
+                        //ACCEPT
+                        @this._logger.Info($"+ {drone.Description}");
+                        return success = true;
+                    }
+                    else
                     {
                         @this._logger.Debug($"+|{drone.Description}");
-                        return false;
                     }
-                        
-
-                    //ACCEPT
-                    @this._logger.Info($"+ {drone.Description}");
-                    return true;
+                    return false;
                 }
-                else
+                finally
                 {
-                    @this._logger.Debug($"+|{drone.Description}");
-                    ((CcDrone)drone).Adjunct?.ResetState(CcAdjunct.AdjunctState.Verified);
+                    if (!success)
+                    {
+                        //await @this.Hub.Router.SendPeerDropAsync().FastPath().ConfigureAwait(@this.Zc);
+                    }
                 }
-
-                return false;
             },this, bootstrapAsync).ConfigureAwait(Zc);
         }
 
@@ -526,7 +535,7 @@ namespace zero.cocoon
 
             var protocolRaw = responsePacket.ToByteArray();
 
-            var sent = 0;
+            int sent;
             if ((sent = await drone.IoSource.IoNetSocket.SendAsync(protocolRaw, 0, protocolRaw.Length, timeout: timeout).FastPath().ConfigureAwait(Zc)) == protocolRaw.Length)
             {
                 _logger.Trace($"~/> {type}({sent}): {drone.IoSource.IoNetSocket.LocalAddress} ~> {drone.IoSource.IoNetSocket.RemoteAddress} ({Enum.GetName(typeof(CcDiscoveries.MessageTypes), responsePacket.Type)})");
@@ -606,7 +615,7 @@ namespace zero.cocoon
                         //verify the signature
                         if (packet.Signature != null || packet.Signature!.Length != 0)
                         {
-                            verified = CcId.Verify(packetData, 0,
+                            verified = CcDesignation.Verify(packetData, 0,
                                 packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
                                 packet!.Signature!.Memory.AsArray(), 0);
                         }
@@ -737,7 +746,7 @@ namespace zero.cocoon
                         //verify signature
                         if (packet.Signature != null || packet.Signature!.Length != 0)
                         {
-                            verified = CcId.Verify(packetData, 0,
+                            verified = CcDesignation.Verify(packetData, 0,
                                 packetData.Length, packet.PublicKey.Memory.AsArray(), 0,
                                 packet.Signature.Memory.AsArray(), 0);
                         }
@@ -846,12 +855,10 @@ namespace zero.cocoon
 
                 adjunct = drone.Adjunct;
 
-                //if ((oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung:adjunct.parm_max_network_latency_ms * 2)) !=
-                //var stateIsValid = (oldState = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4)) == CcAdjunct.AdjunctState.Peering;
                 var stateIsValid = adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Peering;
                 if ( !stateIsValid)
                 {
-                    //_logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {oldState}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
+                    _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
                     return false;
                 }
             }
@@ -960,7 +967,6 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        ((CcDrone)drone).Adjunct?.ResetState(CcAdjunct.AdjunctState.Verified);
                         drone.Zero(this);
                     }
 
@@ -1008,7 +1014,7 @@ namespace zero.cocoon
         /// <summary>
         /// Boots the node
         /// </summary>
-        public async ValueTask<bool> BootAsync(long v = 0, int total = 1)
+        public async ValueTask<bool> BootAsync(long v = 0)
         {
             Interlocked.Exchange(ref Testing, 1);
             //foreach (var ioNeighbor in WhisperingDrones)
@@ -1052,7 +1058,6 @@ namespace zero.cocoon
                 if(Zeroed() || Hub?.Router == null)
                     return;
 
-                var c = 0;
                 var foundVector = false;
                 foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating))
                 {
@@ -1062,16 +1067,9 @@ namespace zero.cocoon
                     if (adjunct.CcCollective.Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
                         break;
 
-
-                    ////probe
-                    //if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                    //if (await adjunct.SeduceAsync("SYN-SE", passive: false).FastPath().ConfigureAwait(Zc))
                     //{
-                    //    if (!Zeroed())
-                    //        _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
-                    //}
-                    //else
-                    //{
-                    //    _logger.Debug($"R> {Description}");
+                    //    _logger.Debug($"SE> {adjunct.Description}");
                     //    foundVector = true;
                     //}
 
@@ -1084,7 +1082,7 @@ namespace zero.cocoon
                         }
                         else
                         {
-                            _logger.Debug($"R> {adjunct.Description}");
+                            _logger.Debug($"SE> {adjunct.Description}");
                             foundVector = true;
                         }
                     }
@@ -1127,19 +1125,19 @@ namespace zero.cocoon
                 _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
                 if (BootstrapAddress != null)
                 {
-                    c = 0;
+                    var c = 0;
                     foreach (var ioNodeAddress in BootstrapAddress)
                     {
                         if (!ioNodeAddress.Equals(_peerAddress))
                         {
-                            if(Hub.Neighbors.Values.Count(a=>a.Key.Contains(ioNodeAddress.Key)) > 0)
+                            if(Hub.Neighbors.Values.Any(a => a.Key.Contains(ioNodeAddress.Key)))
                                 continue;
 
                             try
                             {
                                 await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
                                 //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                                if (!await Hub.Router.SendPingAsync("SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                                if (!await Hub.Router.SendPingAsync("DMZ-SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
                                 {
                                     if(!Hub.Router.Zeroed())
                                         _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
