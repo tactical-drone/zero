@@ -185,6 +185,7 @@ namespace zero.core.network.ip
 
                         if (!@this.IsConnected())
                         {
+                            @this.Zero(@this);
                             result.AsyncWaitHandle.Close();
                             result.AsyncWaitHandle.Dispose();
                         }

@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using MathNet.Numerics.Financial;
+using MathNet.Numerics.Random;
 using NLog;
 using Proto;
 using SimpleBase;
@@ -48,9 +49,10 @@ namespace zero.cocoon.autopeer
                 false
             )
         {
+            _random = new CryptoRandomSource(true);
+
             if (Source.Zeroed())
             {
-                Zero(this);
                 return;
             }
             
@@ -206,7 +208,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Random number generator
         /// </summary>
-        private readonly Random _random = new(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode());
+        private readonly Random _random;
 
         /// <summary>
         /// Discovery services
@@ -268,7 +270,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Gathers counter intelligence at a acceptable rates
         /// </summary>
-        //private long _triggerTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 100000;
+        private long _triggerTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 100000;
 
         /// <summary>
         /// Node broadcast priority. 
@@ -506,7 +508,7 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_max_network_latency_ms = 3000;
+        public int parm_max_network_latency_ms = 2000;
 #else
         public int parm_max_network_latency_ms = 1000;
 #endif
@@ -823,7 +825,7 @@ namespace zero.cocoon.autopeer
                         AdjunctState oldState;
                         if ((oldState = @this.CompareAndEnterState(AdjunctState.Connecting, AdjunctState.Peering)) != AdjunctState.Peering)
                         {
-                            @this._logger.Fatal($"{nameof(ConnectAsync)} - {@this.Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
+                            @this._logger.Trace($"{nameof(ConnectAsync)} - {@this.Description}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Peering)}");
                             return;
                         }
                         
@@ -1238,8 +1240,6 @@ namespace zero.cocoon.autopeer
                     }
                 }).FastPath().ConfigureAwait(Zc);
 
-            _logger.Debug($"# {Description}");
-            
             //fail fast
             int sent;
             if (!Assimilating || CcCollective.ZeroDrone)
@@ -1286,7 +1286,7 @@ namespace zero.cocoon.autopeer
 
             if (peeringResponse.Status)
             {
-                var stateIsValid = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 4) == AdjunctState.Verified;
+                var stateIsValid = _currState.Value != AdjunctState.Connected && CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 2) == AdjunctState.Verified;
                 
                 peeringResponse.Status &= stateIsValid;
 
@@ -1302,7 +1302,10 @@ namespace zero.cocoon.autopeer
                 var response = $"{(peeringResponse.Status ? "accept" : "reject")}";
                 _logger.Trace($"-/> {nameof(PeeringResponse)}({sent}): Sent {response}, {Description}");
 
-                if(AutoPeeringEventService.Operational)
+                if(peeringResponse.Status)
+                    _logger.Debug($"# {Description}");
+
+                if (AutoPeeringEventService.Operational)
                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                     {
                         EventType = AutoPeerEventType.SendProtoMsg,
@@ -1339,6 +1342,10 @@ namespace zero.cocoon.autopeer
             }
 
             var peerRequest = await _peerRequest.ResponseAsync(extraData.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
+
+            if(!peerRequest)
+                peerRequest = await Router._peerRequest.ResponseAsync(extraData.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
+
             if (!peerRequest)
             {
                 if (Collected)
@@ -1368,7 +1375,7 @@ namespace zero.cocoon.autopeer
                 {
                     AdjunctState oldState;
                     if (_currState.Value != AdjunctState.Unverified &&
-                        !(_currState.Value == AdjunctState.Verified && (_currState == null || _currState.Prev?.Value != AdjunctState.Unverified)) &&
+                        !(_currState.Value == AdjunctState.Verified && _currState is not { Prev.Value: AdjunctState.Unverified }) &&
                         (oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
                     {
                         _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Peering)}");
@@ -1800,28 +1807,28 @@ namespace zero.cocoon.autopeer
         private async ValueTask ProcessAsync(Ping ping, object extraData, Packet packet)
         {
             //syn trigger
-            //static async ValueTask CheckSynTriggerAsync(CcAdjunct @this, long delay, IoNodeAddress ioNodeAddress)
-            //{
-            //    if (delay < @this.parm_max_network_latency_ms) 
-            //    {
-            //        if (@this.Direction == Heading.Undefined && @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
-            //            @this.Hub?.Router != null)
-            //        {
-            //            if (!await @this.SendPingAsync("SYN-FLD", ioNodeAddress).FastPath().ConfigureAwait(@this.Zc))
-            //            {
-            //                @this._logger.Trace($"<\\- {nameof(SendPingAsync)}(SYN-FLD): [FAILED] {@this.Description}");
-            //            }
-            //            else
-            //            {
-            //                Interlocked.Add(ref @this._triggerTime, -@this.parm_max_network_latency_ms * 2);
-            //            }
-            //        }
-            //    }
-            //    else
-            //    {
-            //        Interlocked.Exchange(ref @this._triggerTime, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-            //    }
-            //}
+            static async ValueTask CheckSynTriggerAsync(CcAdjunct @this, long delay, IoNodeAddress ioNodeAddress)
+            {
+                if (delay < @this.parm_max_network_latency_ms)
+                {
+                    if (@this.Direction == Heading.Undefined && @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
+                        @this.Hub?.Router != null)
+                    {
+                        if (!await @this.SendPingAsync("SYN-FLD", ioNodeAddress).FastPath().ConfigureAwait(@this.Zc))
+                        {
+                            @this._logger.Trace($"<\\- {nameof(SendPingAsync)}(SYN-FLD): [FAILED] {@this.Description}");
+                        }
+                        else
+                        {
+                            Interlocked.Add(ref @this._triggerTime, -@this.parm_max_network_latency_ms * 2);
+                        }
+                    }
+                }
+                else
+                {
+                    Interlocked.Exchange(ref @this._triggerTime, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                }
+            }
 
             var remoteEp = (IPEndPoint) extraData;
             
@@ -1855,16 +1862,16 @@ namespace zero.cocoon.autopeer
                 };
             }
 
-            //long triggerDelta;
-            //if (CcCollective.ZeroDrone)
-            //{
-            //    //Interlocked.Exchange(ref _triggerTime, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-            //    triggerDelta = parm_max_network_latency_ms;
-            //}
-            //else
-            //{
-            //    //triggerDelta = Volatile.Read(ref _triggerTime).ElapsedMs();
-            //}
+            long triggerDelta;
+            if (CcCollective.ZeroDrone)
+            {
+                //Interlocked.Exchange(ref _triggerTime, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                triggerDelta = parm_max_network_latency_ms;
+            }
+            else
+            {
+                triggerDelta = Volatile.Read(ref _triggerTime).ElapsedMs();
+            }
 
             var toAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
             //PROCESS DMZ-SYN
@@ -1897,8 +1904,8 @@ namespace zero.cocoon.autopeer
                         .FastPath().ConfigureAwait(Zc) > 0)
                 {
                     //ensure ingress delta trigger
-                    //if(!CcCollective.ZeroDrone)
-                    //    await CheckSynTriggerAsync(this, triggerDelta, toAddress).FastPath().ConfigureAwait(Zc);
+                    if(!CcCollective.ZeroDrone)
+                        await CheckSynTriggerAsync(this, triggerDelta, toAddress).FastPath().ConfigureAwait(Zc);
 
 #if DEBUG
                     _logger.Debug($"-/> {nameof(Pong)}({sent})[{pong.ToByteString().Memory.PayloadSig()} ~ {pong.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
@@ -2366,10 +2373,10 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         public async ValueTask<bool> SendPeerRequestAsync()
         {
-            if (IsDroneConnected || CcCollective.ZeroDrone)
+            if (IsDroneConnected || CcCollective.ZeroDrone || _currState.Value == AdjunctState.Connected)
             {
                 if (Collected && !CcCollective.ZeroDrone)
-                    _logger.Debug($"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}");
+                    _logger.Warn($"{nameof(SendPeerRequestAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}");
                 return false;
             }
 
@@ -2378,7 +2385,7 @@ namespace zero.cocoon.autopeer
                 AdjunctState oldState;
 
                 var stateIsValid = (oldState = CompareAndEnterState(AdjunctState.Peering, AdjunctState.Verified,
-                    overrideHung: parm_max_network_latency_ms * 4)) == AdjunctState.Verified;
+                    overrideHung: parm_max_network_latency_ms * 2)) == AdjunctState.Verified;
 
                 if (!stateIsValid)
                 {

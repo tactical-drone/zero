@@ -402,7 +402,7 @@ namespace zero.core.patterns.misc
                         zeroSub.Zero(this);
 
                         //throttle teardown so it floods in breadth
-                        await Task.Delay(16).ConfigureAwait(Zc);
+                        await Task.Delay(32).ConfigureAwait(Zc);
                     }
 
                     await _zeroHiveMind.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);

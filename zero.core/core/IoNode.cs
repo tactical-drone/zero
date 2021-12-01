@@ -136,20 +136,22 @@ namespace zero.core.core
                 var newNeighbor = @this.MallocNeighbor(@this, ioNetClient, null);
 
                 //superclass specific mutations
+                Task acceptTask = null;
                 try
                 {
                     if (acceptConnection != null)
                     {
                         //async accept...
-                        await @this.ZeroAsync(  async state =>
+                        acceptTask = @this.ZeroAsync(  async state =>
                         {
                             var (@this, newNeighbor, acceptConnection, nanite, ioNetClient) = state;
                             if (!await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
                                 newNeighbor.Zero(@this);
+                                return;
                             }
-                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(@this.Zc);
+                        }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
                     }
                     
                 }
@@ -160,62 +162,89 @@ namespace zero.core.core
                     return;
                 }
 
-                if (@this.ZeroAtomic(static (_, state, _) =>
+                if (acceptTask != null)
                 {
-                    var (@this, newNeighbor) = state;
-                    try
+                    await acceptTask.ContinueWith(static async (task,s) =>
                     {
-                        // Does this neighbor already exist?
-                        if (!@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                        var (@this, newNeighbor) = (ValueTuple<IoNode<TJob>, IoNeighbor<TJob>>)s;
+                        if (task.IsFaulted || task.IsCanceled)
                         {
-                            //Drop incoming //TODO? Drop existing? No because of race.
-                            if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
-                            {
-                                try
-                                {
-                                    ////Only drop incoming if the existing one is working and originating
-                                    if (existingNeighbor.Source.IsOperational && existingNeighbor.Source.IsOriginating)
-                                    {
-                                        @this._logger.Trace($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                        return new ValueTask<bool>(false);
-                                    }
-                                    else //else drop existing
-                                    {
-                                        @this._logger.Debug($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} [DC]");
-                                        existingNeighbor.Zero(new IoNanoprobe("Replaced, source dead!"));
-                                    }
-                                }
-                                catch when (@this.Zeroed() || existingNeighbor.Zeroed()) { }
-                                catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
-                                {
-                                    @this._logger?.Trace(e, $"existingNeighbor {existingNeighbor.Description} from {@this.Description}, had errors");
-                                }
-                            }
+                            LogManager.GetCurrentClassLogger().Error(task.Exception);
                         }
 
-                        return new ValueTask<bool>(true);                        
-                    }
-                    catch when (@this.Zeroed() || newNeighbor.Zeroed()){}
-                    catch (Exception e)when (!@this.Zeroed() && !newNeighbor.Zeroed())
-                    {
-                        @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
-                    }
+                        if (task.IsCompletedSuccessfully)
+                        {
+                            if (@this.ZeroAtomic(static (_, state, _) =>
+                            {
+                                var (@this, newNeighbor) = state;
+                                try
+                                {
+                                    var success = false;
+                                    // Does this neighbor already exist?
+                                    while (!(success = @this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor)))
+                                    {
+                                        //Drop incoming //TODO? Drop existing? No because of race.
+                                        if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor))
+                                        {
+                                            try
+                                            {
+                                                ////Only drop incoming if the existing one is working and originating
+                                                if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
+                                                {
+                                                    @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                                    return new ValueTask<bool>(false);
+                                                }
+                                                else if (!newNeighbor.Source.IsOperational)
+                                                {
+                                                    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
+                                                    return new ValueTask<bool>(false);
+                                                }
+                                                else  //else drop existing
+                                                {
+                                                    @this._logger.Warn($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
 
-                    return new ValueTask<bool>(false);
-                }
-                ,ValueTuple.Create(@this, newNeighbor)))
-                {
-                    //Start processing
-                    await @this.ZeroAsync(static async state =>
-                    {
-                        var (@this, newNeighbor) = state;
-                        await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
-                    }, ValueTuple.Create(@this, newNeighbor), TaskCreationOptions.DenyChildAttach).FastPath()
-                    .ConfigureAwait(@this.Zc);
-                }
-                else
-                {
-                    newNeighbor.Zero(@this);
+                                                    //We remove the key here or async race conditions with the listener...
+                                                    @this.Neighbors.Remove(newNeighbor.Key, out _);
+                                                    existingNeighbor.Zero(new IoNanoprobe("Replaced zombie connection!"));
+                                                    continue;
+                                                }
+                                            }
+                                            catch when (@this.Zeroed() || existingNeighbor.Zeroed()) { }
+                                            catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
+                                            {
+                                                @this._logger.Trace(e, $"existingNeighbor {existingNeighbor.Description} from {@this.Description}, had errors");
+                                            }
+
+                                            break;
+                                        }
+                                    }
+
+                                    return new ValueTask<bool>(success);
+                                }
+                                catch when (@this.Zeroed() || newNeighbor.Zeroed()) { }
+                                catch (Exception e) when (!@this.Zeroed() && !newNeighbor.Zeroed())
+                                {
+                                    @this._logger.Error(e, $"Adding new node failed! {@this.Description}");
+                                }
+
+                                return new ValueTask<bool>(false);
+                            }
+                        , ValueTuple.Create(@this, newNeighbor)))
+                            {
+                                //Start processing
+                                await @this.ZeroAsync(static async state =>
+                                {
+                                    var (@this, newNeighbor) = state;
+                                    await @this.BlockOnAssimilateAsync(newNeighbor).FastPath().ConfigureAwait(@this.Zc);
+                                }, ValueTuple.Create(@this, newNeighbor), TaskCreationOptions.DenyChildAttach).FastPath()
+                                .ConfigureAwait(@this.Zc);
+                            }
+                            else
+                            {
+                                newNeighbor.Zero(@this);
+                            }
+                        }
+                    }, (@this, newNeighbor)).ConfigureAwait(@this.Zc);
                 }
             }, ValueTuple.Create(this, nanite, acceptConnection), bootstrapAsync);
 
