@@ -53,7 +53,7 @@ namespace zero.cocoon
             {
                 _zeroDrone = true;
                 parm_max_drone = 0;
-                parm_max_adjunct = 1024;
+                parm_max_adjunct = 64;
             }
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
@@ -435,7 +435,7 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 1;
+        public int parm_mean_pat_delay_s = 60 * 2;
 #else
         public int parm_mean_pat_delay_s = 60 * 10;
 #endif

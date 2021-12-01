@@ -34,6 +34,20 @@ namespace zero.core.misc
                 Make = static (o,s) => new IoChallenge()
             };
 
+            //_nodeHeap = new IoHeap<IoQueue<IoChallenge>.IoZNode>($"{nameof(_valHeap)}: {description}", _capacity)
+            //{
+            //    Make = static (o, s) => new IoQueue<IoChallenge>.IoZNode()
+            //};
+
+            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity)
+            {
+                Make = static (o, s) => new ChallengeAsyncResponse(),
+                Prep = (response, o) =>
+                {
+                    response.Node = null;
+                }
+            };
+
             _logger = LogManager.GetCurrentClassLogger();
         }
 
@@ -58,11 +72,15 @@ namespace zero.core.misc
         /// </summary>
         private readonly long _ttlMs;
 
-
         /// <summary>
         /// The heap
         /// </summary>
         private IoHeap<IoChallenge> _valHeap;
+
+        /// <summary>
+        /// The challenges heap
+        /// </summary>
+        private IoHeap<ChallengeAsyncResponse> _carHeap;
 
         /// <summary>
         /// zero unmanaged
@@ -71,11 +89,13 @@ namespace zero.core.misc
         {
             base.ZeroUnmanaged();
             _valHeap.ZeroUnmanaged();
+            _carHeap.ZeroUnmanaged();
 
 #if SAFE_RELEASE
             _lut = null;
             _valHeap = null;
             _logger = null;
+            _carHeap = null;
 #endif
         }
 
@@ -90,15 +110,17 @@ namespace zero.core.misc
             await _lut.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
 
             await _valHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
+
+            await _carHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(Zc);
         }
 
 
         internal class ChallengeAsyncResponse
         {
-            public IoZeroMatcher<T> @this;
-            public string key;
-            public T body;
-            public IoQueue<IoChallenge>.IoZNode node;
+            public IoZeroMatcher<T> This;
+            public string Key;
+            public T Body;
+            public IoQueue<IoChallenge>.IoZNode Node;
         }
 
 
@@ -115,69 +137,86 @@ namespace zero.core.misc
             if (body == null)
                 return default;
 
-            var node = new IoQueue<IoChallenge>.IoZNode();
-            var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
-            ZeroAtomic(static async (_, state, __) =>
-            {
-                IoChallenge challenge = null;
-                try
-                {
-                    if ((challenge = state.@this._valHeap.Take()) == null)
-                    {
-                        try
-                        {
-                            await state.@this.PurgeAsync().FastPath().ConfigureAwait(state.@this.Zc);
-                        }
-                        catch (Exception e)
-                        {
-                            state.@this._logger.Error(e, $" Purge failed: {state.@this.Description}");
-                            // ignored
-                        }
+            //var node = new IoQueue<IoChallenge>.IoZNode();
+            //var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
 
-                        challenge = state.@this._valHeap.Take();
-                        
-                        if (challenge == null)
+            ChallengeAsyncResponse state = null;
+            try
+            {
+                state = _carHeap.Take();
+                state.This = this;
+                state.Key = key;
+                state.Body = body;
+
+                if (state == null)
+                    throw new OutOfMemoryException($"{nameof(_carHeap)}, {Description}");
+
+                ZeroAtomic(static async (_, state, __) =>
+                {
+                    IoChallenge challenge = null;
+                    try
+                    {
+                        if ((challenge = state.This._valHeap.Take()) == null)
                         {
-                            var c = state.@this._lut.Head;
-                            long ave = 0;
-                            var aveCounter = 0;
-                            while(c != null)
+                            try
                             {
-                                ave += c.Value.TimestampMs.ElapsedMs();
-                                aveCounter++;
-                                c = c.Next;
+                                await state.This.PurgeAsync().FastPath().ConfigureAwait(state.This.Zc);
+                            }
+                            catch (Exception e)
+                            {
+                                state.This._logger.Error(e, $" Purge failed: {state.This.Description}");
+                                // ignored
                             }
 
-                            if (aveCounter == 0)
-                                aveCounter = 1;
+                            challenge = state.This._valHeap.Take();
+                        
+                            if (challenge == null)
+                            {
+                                var c = state.This._lut.Head;
+                                long ave = 0;
+                                var aveCounter = 0;
+                                while(c != null)
+                                {
+                                    ave += c.Value.TimestampMs.ElapsedMs();
+                                    aveCounter++;
+                                    c = c.Next;
+                                }
 
-                            throw new OutOfMemoryException($"{state.@this.Description}: {nameof(_valHeap)} - heapSize = {state.@this._valHeap.Count}, ref = {state.@this._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {state.@this._ttlMs}ms, (c = {aveCounter})");
-                        }
+                                if (aveCounter == 0)
+                                    aveCounter = 1;
+
+                                throw new OutOfMemoryException($"{state.This.Description}: {nameof(_valHeap)} - heapSize = {state.This._valHeap.Count}, ref = {state.This._valHeap.ReferenceCount}, ave Ttl = {ave/aveCounter}ms / {state.This._ttlMs}ms, (c = {aveCounter})");
+                            }
                             
+                        }
+
+                        challenge.Payload = state.Body;
+                        challenge.Key = state.Key;
+                        challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        challenge.Hash = 0;
+                        state.Node = await state.This._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(state.This.Zc);
+                    }
+                    catch when (state.This.Zeroed()) { }
+                    catch (Exception e) when (!state.This.Zeroed())
+                    {
+                        state.This._logger.Fatal(e);
+                        // ignored
+                    }
+                    finally
+                    {
+                        if (challenge != null && state.Node == null && state.This._valHeap != null)
+                            state.This._valHeap.Return(challenge);
                     }
 
-                    challenge.Payload = state.body;
-                    challenge.Key = state.key;
-                    challenge.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    challenge.Hash = 0;
-                    state.node = await state.@this._lut.EnqueueAsync(challenge).FastPath().ConfigureAwait(state.@this.Zc);
-                }
-                catch when (state.@this.Zeroed()) { }
-                catch (Exception e) when (!state.@this.Zeroed())
-                {
-                    state.@this._logger.Fatal(e);
-                    // ignored
-                }
-                finally
-                {
-                    if (challenge != null && state.node == null && state.@this._valHeap != null)
-                        state.@this._valHeap.Return(challenge);
-                }
+                    return true;
+                }, state);
+            }
+            finally
+            {
+                _carHeap.Return(state);
+            }
 
-                return true;
-            }, state);
-
-            return new ValueTask<IoQueue<IoChallenge>.IoZNode>(state.node);
+            return new ValueTask<IoQueue<IoChallenge>.IoZNode>(state.Node);
         }
         
         [ThreadStatic]
