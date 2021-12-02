@@ -129,6 +129,7 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="listeningAddress">Address to listen on</param>
         /// <param name="acceptConnectionHandler">The callback that handles a new connection</param>
+        /// <param name="nanite"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns>True on success, false otherwise</returns>
         public virtual ValueTask BlockOnListenAsync<T>(IoNodeAddress listeningAddress,
@@ -159,7 +160,7 @@ namespace zero.core.network.ip
             {
                 return new ValueTask(Task.FromException(e));                
             }
-            catch (Exception e)
+            catch (Exception e) when(!Zeroed())
             {
                 _logger.Error(e, $"Unable to bind socket at {listeningAddress}: {Description}");
                 return new ValueTask(Task.FromException(e));

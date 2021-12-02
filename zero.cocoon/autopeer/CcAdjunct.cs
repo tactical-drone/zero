@@ -1387,7 +1387,7 @@ namespace zero.cocoon.autopeer
                         !(_currState.Value == AdjunctState.Verified && _currState is not { Prev.Value: AdjunctState.Unverified }) &&
                         (oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Peering)) != AdjunctState.Peering)
                     {
-                        if(oldState != AdjunctState.Connected)
+                        if(oldState != AdjunctState.Connected && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
                             _logger.Warn($"{nameof(PeeringResponse)} - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Peering)}");
                     }
                     else

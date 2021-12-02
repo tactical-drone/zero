@@ -856,9 +856,9 @@ namespace zero.cocoon
                 adjunct = drone.Adjunct;
 
                 var stateIsValid = adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Peering;
-                if ( !stateIsValid)
+                if (!stateIsValid)
                 {
-                    if(adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected)
+                    if(adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CurrentState.EnterTime.ElapsedMs() > adjunct.parm_max_network_latency_ms * 4)
                         _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
                     return false;
                 }

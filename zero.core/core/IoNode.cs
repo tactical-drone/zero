@@ -194,20 +194,20 @@ namespace zero.core.core
                                                     @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                                     return new ValueTask<bool>(false);
                                                 }
-                                                else if (!newNeighbor.Source.IsOperational)
-                                                {
-                                                    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
-                                                    return new ValueTask<bool>(false);
-                                                }
-                                                else  //else drop existing
+                                                else //if (!existingNeighbor.Source.IsOperational)
                                                 {
                                                     @this._logger.Warn($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
 
                                                     //We remove the key here or async race conditions with the listener...
-                                                    @this.Neighbors.Remove(newNeighbor.Key, out _);
+                                                    @this.Neighbors.Remove(existingNeighbor.Key, out _);
                                                     existingNeighbor.Zero(new IoNanoprobe("Replaced zombie connection!"));
                                                     continue;
                                                 }
+                                                //else  //else drop existing
+                                                //{
+                                                //    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
+                                                //    return new ValueTask<bool>(false);
+                                                //}
                                             }
                                             catch when (@this.Zeroed() || existingNeighbor.Zeroed()) { }
                                             catch (Exception e) when (!@this.Zeroed() && !existingNeighbor.Zeroed())
