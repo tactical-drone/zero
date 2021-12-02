@@ -1023,7 +1023,7 @@ namespace zero.cocoon.autopeer
                                                     {
                                                         if (!routed)
                                                         {
-                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).RemoteAddress.EndpointIpPort == discoveryBatch.RemoteEndPoint);
+                                                            currentRoute = (CcAdjunct)@this.Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).Collected && ((CcAdjunct)n).RemoteAddress.EndpointIpPort == discoveryBatch.RemoteEndPoint);
                                                             if (currentRoute != null)
                                                             { 
                                                                 //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
@@ -1046,21 +1046,21 @@ namespace zero.cocoon.autopeer
                                                         else
                                                         {
                                                             //validate
-                                                            for (var j = 2; j < 4; j++)
-                                                            {
-                                                                for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
-                                                                {
-                                                                    if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
-                                                                    {
-                                                                        @this._logger.Warn($"{nameof(@this.Router)}[{i}]: Dropped current stale route {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()[..10]} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10]}: {currentRoute.Description}");
-                                                                        currentRoute.Zero(@this);
-                                                                        currentRoute = null;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                                if(currentRoute == null)
-                                                                    break;
-                                                            }
+                                                            //for (var j = 2; j < 4; j++)
+                                                            //{
+                                                            //    for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
+                                                            //    {
+                                                            //        if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                            //        {
+                                                            //            @this._logger.Warn($"{nameof(@this.Router)}[{i}]: Dropped current stale route {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()[..10]} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10]}: {currentRoute.Description}");
+                                                            //            currentRoute.Zero(@this);
+                                                            //            currentRoute = null;
+                                                            //            break;
+                                                            //        }
+                                                            //    }
+                                                            //    if(currentRoute == null)
+                                                            //        break;
+                                                            //}
                                                         }
                                                     }
                                                     catch when(@this.Zeroed()){}

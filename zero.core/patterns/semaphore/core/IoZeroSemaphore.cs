@@ -521,12 +521,10 @@ namespace zero.core.patterns.semaphore.core
                                         ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount();
                                     }, _zeroRef);
                             }
-                            else//this should never enter
+                            else
                             {
-                                //This should never happen
                                 _zeroRef.ZeroDecAsyncCount();
-                                //callback(state);
-                                throw new ZeroSemaphoreFullException($"{nameof(ZeroComply)}: Bug; Max Async workers reached, semaphore is full!, {Description}");
+                                callback(state);
                             }
                         }
                         else
