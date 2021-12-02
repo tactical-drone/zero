@@ -684,7 +684,7 @@ namespace zero.cocoon.autopeer
                 await ZeroAsync(static async @this =>
                 {
                     await Task.Delay(@this.parm_max_network_latency_ms * 2, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
-                    await @this.Router.SendPingAsync("SYN", @this.RemoteAddress).FastPath().ConfigureAwait(@this.Zc);
+                    await @this.Router.SendPingAsync("SYN-BRG", @this.RemoteAddress).FastPath().ConfigureAwait(@this.Zc);
                 }, this, TaskCreationOptions.DenyChildAttach);
 
                 //await ZeroAsync(static async @this =>
@@ -733,7 +733,7 @@ namespace zero.cocoon.autopeer
             try
             {
                 //send PAT
-                if (!await SendPingAsync("SYN").FastPath().ConfigureAwait(Zc))
+                if (!await SendPingAsync("SYN-PAT").FastPath().ConfigureAwait(Zc))
                 {
                     if (Collected)
                         _logger.Error($"-/> {nameof(SendPingAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
@@ -821,7 +821,8 @@ namespace zero.cocoon.autopeer
                 {
                     try
                     {
-                        await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms * 2), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                        await Task.Delay(@this._random.Next(@this.parm_max_network_latency_ms / 16 + 1), @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
+                        //await Task.Yield();
 
                         var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         AdjunctState oldState;
@@ -1276,10 +1277,10 @@ namespace zero.cocoon.autopeer
                 //DMZ-syn
                 //We syn here (Instead of in process ping) to force the other party to do some work (prepare to connect) before we do work (verify).
                 if ((CcCollective.Hub.Neighbors.Count <= CcCollective.MaxDrones || CcCollective.ZeroDrone) && !await Router
-                        .SendPingAsync("SYN", remote, CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString())
+                        .SendPingAsync("ACK-SYN-ACK", remote, CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString())
                         .FastPath().ConfigureAwait(Zc))
                 {
-                    _logger.Trace($"Failed to send SYN to {remote}! {Description}");
+                    _logger.Trace($"Failed to send ACK-SYN-ACK to {remote}! {Description}");
                 }
                 
                 return;
@@ -2421,7 +2422,9 @@ namespace zero.cocoon.autopeer
             {
                 try
                 {
-                    await Task.Delay(parm_max_network_latency_ms * 2, AsyncTasks.Token).ConfigureAwait(Zc);
+                    //TODO prod:
+                    await Task.Delay(parm_max_network_latency_ms / 16 + 1, AsyncTasks.Token).ConfigureAwait(Zc);
+                    //await Task.Yield();
 
                     var peerRequest = new PeeringRequest
                     {
@@ -2622,14 +2625,15 @@ namespace zero.cocoon.autopeer
                     //back off for a while... Try to re-establish a link 
                     await ZeroAsync(static async @this =>
                     {
-                        var backOff = @this.parm_max_network_latency_ms / 2 +
-                                      @this._random.Next(@this.parm_max_network_latency_ms * 2);
+                        //var backOff = @this.parm_max_network_latency_ms / 2 +
+                        //              @this._random.Next(@this.parm_max_network_latency_ms * 2);
+                        var backOff = @this.parm_max_network_latency_ms / 2 + @this._random.Next(@this.parm_max_network_latency_ms);
                         //var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         await Task.Delay(backOff, @this.AsyncTasks.Token).ConfigureAwait(@this.Zc);
 
                         if (@this.State == AdjunctState.Verified)
                         {
-                            await @this.SendPingAsync("SYN").FastPath().ConfigureAwait(@this.Zc);
+                            await @this.SendPingAsync("SYN-BRG").FastPath().ConfigureAwait(@this.Zc);
                         }
                     }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
                 }

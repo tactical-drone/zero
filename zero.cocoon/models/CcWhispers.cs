@@ -13,6 +13,7 @@ using zero.cocoon.models.batches;
 using zero.core.feat.models.protobuffer;
 using zero.core.misc;
 using zero.core.network.ip;
+using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
@@ -20,7 +21,7 @@ namespace zero.cocoon.models
 {
     public class CcWhispers : CcProtocMessage<CcWhisperMsg, CcGossipBatch>
     {
-        public CcWhispers(string sinkDesc, string jobDesc, IoNetClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
+        public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
         {
             
         }

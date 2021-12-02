@@ -28,7 +28,7 @@ namespace zero.cocoon.events.services
             new IoQueue<AutoPeerEvent>($"{nameof(AutoPeeringEventService)}", EventBatchSize * TotalBatches, 2000)
         };
 
-        private static volatile int _operational = 1;
+        private static volatile int _operational = 0;
         private static long _seq;
         private static volatile int _curIdx = 0;
         public static bool Operational => _operational > 0;
@@ -37,7 +37,10 @@ namespace zero.cocoon.events.services
         {
             _operational = _operational > 0 ? 0 : 1;
             if (!Operational)
+            {
                 await QueuedEvents[_curIdx % 2].ClearAsync().FastPath().ConfigureAwait(Zc);
+                await QueuedEvents[(_curIdx + 1) % 2].ClearAsync().FastPath().ConfigureAwait(Zc);
+            }
         }
 
         public override async Task<EventResponse> Next(NullMsg request, ServerCallContext context)

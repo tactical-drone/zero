@@ -36,7 +36,7 @@ namespace zero.cocoon.models
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
             var batchSize = 512;
-            var cc = 32;
+            var cc = 16;
             if (ProtocolConduit == null)
             {
                 //TODO tuning
