@@ -107,12 +107,12 @@ namespace zero.core.patterns.bushings
         /// The source is bing throttled on prefetch config
         /// </summary>
         private IoZeroSemaphoreSlim _prefetchPressure;
-        
+
         /// <summary>
         /// Enable prefetch throttling (only allow a certain amount of prefetch
         /// in the presence of concurrent production
         /// </summary>
-        public bool PrefetchEnabled { get; protected set; }
+        public bool PrefetchEnabled { get; protected set; } = true;
         
         /// <summary>
         /// The next job Id

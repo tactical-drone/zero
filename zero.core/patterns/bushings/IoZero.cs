@@ -157,7 +157,7 @@ namespace zero.core.patterns.bushings
         /// </summary>        
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public int parm_max_q_size = 500; //TODO
+        public int parm_max_q_size = 64; //TODO
 
         /// <summary>
         /// Minimum useful uptime in seconds
