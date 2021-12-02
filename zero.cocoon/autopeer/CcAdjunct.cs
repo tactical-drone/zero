@@ -1052,7 +1052,7 @@ namespace zero.cocoon.autopeer
                                                                 {
                                                                     if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
                                                                     {
-                                                                        @this._logger.Warn($"{nameof(@this.Router)}: Dropped current stale route {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()[..10]} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10]}: {currentRoute.Description}");
+                                                                        @this._logger.Warn($"{nameof(@this.Router)}[{i}]: Dropped current stale route {currentRoute.RemoteAddress}/{currentRoute.Designation.PkString()[..10]} ~> {discoveryBatch.RemoteEndPoint}/{Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10]}: {currentRoute.Description}");
                                                                         currentRoute.Zero(@this);
                                                                         currentRoute = null;
                                                                         break;

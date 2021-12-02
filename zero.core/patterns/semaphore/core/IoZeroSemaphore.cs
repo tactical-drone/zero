@@ -514,17 +514,19 @@ namespace zero.core.patterns.semaphore.core
                         if (RunContinuationsAsynchronously)
                         {
                             if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
-                                Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).ContinueWith(
-                                (_, zeroRef) =>
-                                {
-                                    ((IIoZeroSemaphore) zeroRef).ZeroDecAsyncCount();
-                                }, _zeroRef);
-                            else
+                            {
+                                Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
+                                    .ContinueWith((_, zeroRef) =>
+                                    {
+                                        ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount();
+                                    }, _zeroRef);
+                            }
+                            else//this should never enter
                             {
                                 //This should never happen
                                 _zeroRef.ZeroDecAsyncCount();
                                 //callback(state);
-                                return false;
+                                throw new ZeroSemaphoreFullException($"{nameof(ZeroComply)}: Bug; Max Async workers reached, semaphore is full!, {Description}");
                             }
                         }
                         else

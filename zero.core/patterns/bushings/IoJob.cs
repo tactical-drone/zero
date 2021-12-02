@@ -132,16 +132,10 @@ namespace zero.core.patterns.bushings
             }, this).FastPath().ConfigureAwait(Zc);
 
             await StateTransitionHistory.ClearAsync().FastPath().ConfigureAwait(Zc);
-
-            if (_stateMeta != null)
-            {
-                _stateHeap.Return(_stateMeta);
-                _stateMeta = null;
-            }
 #else
             _stateMeta.Set((int)IoJobMeta.JobState.Undefined);
 #endif
-            FinalState = (IoJobMeta.JobState)(State = IoJobMeta.JobState.Undefined);
+            FinalState = State = IoJobMeta.JobState.Undefined;
             Syncing = false;
             Id = Interlocked.Increment(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
 
@@ -306,39 +300,31 @@ namespace zero.core.patterns.bushings
         {
             get
             {
-                try
-                {
-                    return _stateMeta.Value;
-                }
-                catch (Exception)
-                {
-                    return IoJobMeta.JobState.Zeroed;
-                }   
+                return _stateMeta.Value;
             }
             set
             {
-                if(Zeroed())
-                    return;
-                
+#if DEBUG
                 //Update the previous state's exit time
                 if (_stateMeta != null)
                 {
                     _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    
+
                     if (_stateMeta.Value == IoJobMeta.JobState.Halted)
                     {
                         PrintStateHistory();
                         _stateMeta.Set((int)IoJobMeta.JobState.Race);
                         throw new ApplicationException($"{TraceDescription} Cannot transition from `{IoJobMeta.JobState.Halted}' to `{value}'");
                     }
-                    
+
                     Interlocked.Increment(ref Source.Counters[(int)_stateMeta.Value]);
+
                     if (_stateMeta.Value == value)
                         return;
                     
                     Interlocked.Add(ref Source.ServiceTimes[(int)_stateMeta.Value], _stateMeta.Mu);
                 }
-#if DEBUG
+
                 else
                 {
                     if (value != IoJobMeta.JobState.Undefined && !Zeroed())
@@ -366,20 +352,18 @@ namespace zero.core.patterns.bushings
                 StateTransitionHistory.EnqueueAsync(_stateMeta).FastPath().GetAwaiter().GetResult();
                 
 #else
-                _stateMeta!.Set((int)value);
+                _stateMeta.Set((int)value);
                 _stateMeta.EnterTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                //_stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 #endif
-                //generate a unique id
-                if (value == IoJobMeta.JobState.Undefined)
-                    Id = Interlocked.Read(ref Source.Counters[(int)IoJobMeta.JobState.Undefined]);
-                
+#if DEBUG
                 //terminate
                 if (value is IoJobMeta.JobState.Accept or IoJobMeta.JobState.Reject)
                 {
                     FinalState = value;
                     State = IoJobMeta.JobState.Halted;
                 }                
+#endif
             }
         }
     }

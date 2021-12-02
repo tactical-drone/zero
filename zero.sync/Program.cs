@@ -97,13 +97,29 @@ namespace zero.sync
                     $"udp://127.0.0.1:{1234}"
                 }.ToList(), boot);
 
+            var t3 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{14668}", $"udp://127.0.0.1:{1236}",
+                $"tcp://127.0.0.1:{11668}", $"udp://127.0.0.1:{1236}",
+                new[] { $"udp://127.0.0.1:{1235}" }.ToList(), boot);
+
+            var t4 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15671 + portOffset}",
+                $"udp://127.0.0.1:{1237}", $"tcp://127.0.0.1:{11669 + portOffset}",
+                $"udp://127.0.0.1:{1237}",
+                new[]
+                {
+                    $"udp://127.0.0.1:{1236}",
+                    $"udp://127.0.0.1:{1235}",
+                    $"udp://127.0.0.1:{1234}",
+                }.ToList(), boot);
+
             var tasks = new ConcurrentBag<Task<CcCollective>>
             {
-                t1,t2
+                t1,t2,t3,t4
             };
 
-            Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
-            Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
             Console.WriteLine("Waiting for zero nodes....");
             Thread.Sleep(8000);
             Console.WriteLine("Waiting for zero nodes.... done.... ");
@@ -114,7 +130,7 @@ namespace zero.sync
 
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + portOffset + i - 1}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 64) % total}", $"udp://127.0.0.1:{1234 + portOffset + (i + total - 128) % total}", $"udp://127.0.0.1:{1235}", $"udp://127.0.0.1:{1234}" }.ToList()));
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
-                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i%2}"}.ToList()));
+                tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234 + i%3}"}.ToList()));
                 //tasks.Add(CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{15669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", $"tcp://127.0.0.1:{11669 + portOffset + i}", $"udp://127.0.0.1:{1234 + portOffset + i}", new[] { $"udp://127.0.0.1:{1234}" }.ToList()));
                 if (tasks.Count % 10 == 0)
                     Console.WriteLine($"Spawned {tasks.Count}/{total}...");
@@ -136,7 +152,7 @@ namespace zero.sync
                     {
                         if(task.Status == TaskStatus.Created)
                             task.Start();
-                    }, TaskCreationOptions.DenyChildAttach);
+                    }, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning);
                     if (c % injectionCount == 0)
                     {
                         await Task.Delay(rateLimit += 10).ConfigureAwait(Zc);

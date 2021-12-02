@@ -13,7 +13,7 @@ namespace zero.cocoon.models.batches
         {
             _heapRef = heapRef;
             _messages = ArrayPool<CcDiscoveryMessage>.Shared.Rent(size);
-            for (int i = 0; i < _messages.Length; i++)
+            for (var i = 0; i < _messages.Length; i++)
             {
                 _messages[i] = new CcDiscoveryMessage();
             }
@@ -22,8 +22,8 @@ namespace zero.cocoon.models.batches
 
         IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         CcDiscoveryMessage[] _messages;
-        public string RemoteEndPoint;
-        private int _disposed;
+        public volatile string RemoteEndPoint;
+        private volatile int _disposed;
 
         public CcDiscoveryMessage this[int i]
         {
