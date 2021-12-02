@@ -8,11 +8,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
+using zero.core.misc;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 
-namespace zero.core.misc
+namespace zero.core.feat.misc
 {
     /// <summary>
     /// Matches challenge requests with a true response

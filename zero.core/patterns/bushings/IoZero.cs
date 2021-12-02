@@ -389,6 +389,9 @@ namespace zero.core.patterns.bushings
                                 if (nextJob.Source.PrefetchEnabled && enablePrefetchOption)
                                     nextJob.Source.PrefetchPressure();
 
+                                if(!IsArbitrating)
+                                    IsArbitrating = true;
+
                                 //Pass control over to the consumer
                                 nextJob = null;
 

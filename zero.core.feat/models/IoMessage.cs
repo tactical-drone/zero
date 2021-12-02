@@ -9,7 +9,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 
-namespace zero.core.models
+namespace zero.core.feat.models
 {
     /// <inheritdoc />
     /// <summary>

@@ -7,9 +7,8 @@ using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
-using zero.core.patterns.semaphore;
 
-namespace zero.core.models.protobuffer.sources
+namespace zero.core.feat.models.protobuffer.sources
 {
     /// <summary>
     /// Used as a source of unmarshalled protobuf msgs by <see cref="IoConduit{TJob}"/> for <see cref="CcAdjunct"/>
@@ -37,7 +36,7 @@ namespace zero.core.models.protobuffer.sources
             //Set Q to be blocking
             //TODO tuning
 
-            MessageQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
+            BatchQueue = new IoQueue<TBatch>($"{nameof(CcProtocBatchSource<TModel,TBatch>)}: {ioSource.Description}", batchSize, concurrencyLevel, true, false);
         }
 
         /// <summary>
@@ -48,7 +47,7 @@ namespace zero.core.models.protobuffer.sources
         /// <summary>
         /// Used to load the next value to be produced
         /// </summary>
-        protected IoQueue<TBatch> MessageQueue;
+        protected IoQueue<TBatch> BatchQueue;
 
         /// <summary>
         /// Keys this instance.
@@ -77,7 +76,7 @@ namespace zero.core.models.protobuffer.sources
 
 #if SAFE_RELEASE
             _logger = null;
-            MessageQueue = null;
+            BatchQueue = null;
 #endif
         }
 
@@ -88,7 +87,7 @@ namespace zero.core.models.protobuffer.sources
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            await MessageQueue.ZeroManagedAsync(static (msgBatch,_) =>
+            await BatchQueue.ZeroManagedAsync(static (msgBatch,_) =>
             {
                 msgBatch.Dispose();
                 return default;
@@ -98,7 +97,7 @@ namespace zero.core.models.protobuffer.sources
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Zeroed()
         {
-            return base.Zeroed() || MessageQueue.Zeroed;
+            return base.Zeroed() || BatchQueue.Zeroed;
         }
 
         /// <summary>
@@ -110,13 +109,13 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                var plugged = await MessageQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
+                var plugged = await BatchQueue.EnqueueAsync(item).FastPath().ConfigureAwait(Zc) != null;
                 return plugged;
             }
             catch (Exception e)
             {
                 if (!Zeroed())
-                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {MessageQueue.Count}");
+                    _logger.Fatal(e, $"{nameof(EnqueueAsync)}: [FAILED], {BatchQueue.Count}");
                 return false;
             }
         }
@@ -129,7 +128,7 @@ namespace zero.core.models.protobuffer.sources
         {
             try
             {
-                return await MessageQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                return await BatchQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())
@@ -146,7 +145,7 @@ namespace zero.core.models.protobuffer.sources
         /// <returns>returns number of items in the q</returns>
         public uint Count()
         {
-            return (uint)MessageQueue.Count;
+            return (uint)BatchQueue.Count;
         }
 
         /// <summary>

@@ -6,7 +6,7 @@ using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
 using zero.core.core;
-using zero.core.models.protobuffer;
+using zero.core.feat.models.protobuffer;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
 

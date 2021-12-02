@@ -9,9 +9,9 @@ using SimpleBase;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
+using zero.core.feat.models.protobuffer;
+using zero.core.feat.models.protobuffer.sources;
 using zero.core.misc;
-using zero.core.models.protobuffer;
-using zero.core.models.protobuffer.sources;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -36,11 +36,11 @@ namespace zero.cocoon.models
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
             var batchSize = 512;
-            var cc = 16;
+            var cc = 2;
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, 8, 4, 0);
+                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, 0);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,

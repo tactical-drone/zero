@@ -5,12 +5,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.core;
-using zero.core.models.protobuffer.sources;
+using zero.core.feat.models.protobuffer.sources;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
-namespace zero.core.models.protobuffer
+namespace zero.core.feat.models.protobuffer
 {
     /// <summary>
     /// <see cref="CcProtocBatchSource{TModel,TBatch}"/> produces these <see cref="IIoJob"/>s
@@ -134,7 +134,7 @@ namespace zero.core.models.protobuffer
                 }
                 catch (Exception e) when(!job.Zeroed())
                 {
-                    _logger.Fatal(e,$"MessageQueue.TryDequeueAsync failed: {job.Description}"); 
+                    _logger.Fatal(e,$"BatchQueue.TryDequeueAsync failed: {job.Description}"); 
                 }
                 
                 return job._batch != null;

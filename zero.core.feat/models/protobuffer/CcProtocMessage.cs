@@ -11,7 +11,7 @@ using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
 
-namespace zero.core.models.protobuffer
+namespace zero.core.feat.models.protobuffer
 {
     public abstract class CcProtocMessage<TModel, TBatch> : IoMessage<CcProtocMessage<TModel, TBatch>>
     where TModel:IMessage where TBatch : class, IDisposable
