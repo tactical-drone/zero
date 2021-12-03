@@ -236,6 +236,9 @@ namespace zero.core.patterns.heap
 #if DEBUG
              if (item == null)
                  throw new ArgumentException($"{nameof(item)} cannot be null");
+#else
+            if (item == null)
+                 return;
 #endif
             try
             {

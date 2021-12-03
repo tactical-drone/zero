@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package zero.models.protobuf;
+
+import "models/protobuf/core/net.proto";
+
+message chroniton {
+  z_header  header = 1;  
+  bytes signature = 2;
+  bytes data = 3;    
+  bytes PublicKey = 4;
+  int32 type = 5;
+}

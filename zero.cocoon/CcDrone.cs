@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using NLog;
-using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.models;
@@ -14,6 +13,7 @@ using zero.core.feat.models.protobuffer;
 using zero.core.misc;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 using static System.Runtime.InteropServices.MemoryMarshal;
 
 namespace zero.cocoon

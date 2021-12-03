@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using NLog;
-using Proto;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
 using zero.cocoon.models.services;
@@ -9,13 +8,14 @@ using zero.core.core;
 using zero.core.feat.models.protobuffer;
 using zero.core.network.ip;
 using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon.autopeer
 {
     /// <summary>
     /// Used by <see cref="CcCollective"/> to discover other nodes
     /// </summary>
-    public class CcHub : IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>>
+    public class CcHub : IoNode<CcProtocMessage<chroniton, CcDiscoveryBatch>>
     {
         /// <summary>
         /// Constructor
@@ -26,9 +26,9 @@ namespace zero.cocoon.autopeer
         /// <param name="prefetch">TCP job read ahead</param>
         /// <param name="concurrencyLevel">Nr of consumers that run concurrently</param>
         public CcHub(CcCollective ccCollective, IoNodeAddress address,
-            Func<IoNode<CcProtocMessage<Packet, CcDiscoveryBatch>>,
-                IoNetClient<CcProtocMessage<Packet, CcDiscoveryBatch>>, object,
-                IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>> mallocNeighbor, int prefetch,
+            Func<IoNode<CcProtocMessage<chroniton, CcDiscoveryBatch>>,
+                IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>, object,
+                IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>> mallocNeighbor, int prefetch,
             int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts * 2)//TODO config
         {
             _logger = LogManager.GetCurrentClassLogger();
@@ -100,7 +100,7 @@ namespace zero.cocoon.autopeer
         /// <param name="nanite"></param>
         /// <param name="bootstrapAsync"></param>
         /// <returns></returns>
-        protected override ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<Packet, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
+        protected override ValueTask SpawnListenerAsync<T>(Func<IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>, T,ValueTask<bool>> acceptConnection = null, T nanite = default, Func<ValueTask> bootstrapAsync = null)
         {
             return base.SpawnListenerAsync(static async (router, state) =>
             {

@@ -1,11 +1,11 @@
 ﻿using Google.Protobuf;
-using Proto;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models.batches
 {
     public class CcDiscoveryMessage
     {
         public volatile IMessage EmbeddedMsg;
-        public volatile Packet Message;
+        public volatile chroniton Message;
     }
 }

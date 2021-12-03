@@ -310,7 +310,7 @@ namespace zero.core.patterns.bushings
                 {
                     _stateMeta.ExitTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-                    if (_stateMeta.Value == IoJobMeta.JobState.Halted)
+                    if (_stateMeta.Value == IoJobMeta.JobState.Halted && value != IoJobMeta.JobState.Undefined)
                     {
                         PrintStateHistory();
                         _stateMeta.Set((int)IoJobMeta.JobState.Race);

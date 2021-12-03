@@ -270,7 +270,7 @@ namespace zero.core.feat.misc
 
                             potential.Payload = default;
                             potential.Hash = MemoryMarshal.Read<long>(h);
-                            ArrayPool<byte>.Shared.Return(h, true);
+                            ArrayPool<byte>.Shared.Return(h, false);
                         }
 
                         if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))

@@ -1,6 +1,6 @@
 ﻿syntax = "proto3";
 
-package proto;
+package zero.models.protobuf;
 
 message CcWhisperMsg {
     bytes data = 1;

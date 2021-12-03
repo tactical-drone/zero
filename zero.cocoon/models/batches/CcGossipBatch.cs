@@ -1,5 +1,5 @@
-﻿using Proto;
-using zero.core.patterns.misc;
+﻿using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models.batches
 { 

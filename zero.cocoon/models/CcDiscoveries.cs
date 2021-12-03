@@ -1,10 +1,11 @@
 ﻿using System;
 using System.IO;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Proto;
 using SimpleBase;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
@@ -16,12 +17,13 @@ using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models
 {
-    public class CcDiscoveries : CcProtocMessage<Packet, CcDiscoveryBatch>
+    public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
     {
-        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<Packet, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
+        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", parm_max_msg_batch_size){ Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size), Context = this};
 
@@ -33,19 +35,19 @@ namespace zero.cocoon.models
         public override async ValueTask<bool> ConstructAsync()
         {
             var conduitId = nameof(CcAdjunct);
-            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<Packet, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
+            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
             var batchSize = 512;
             var cc = 16;
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<Packet, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, cc/2);
+                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, cc/4);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,
                     channelSource,
-                    static (o,s) => new CcProtocBatchJob<Packet, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<Packet, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
+                    static (o,s) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
                 ).FastPath().ConfigureAwait(Zc);
             }
             
@@ -122,7 +124,7 @@ namespace zero.cocoon.models
             DiscoveryResponse = 13,
             PeeringRequest = 20,
             PeeringResponse = 21,
-            PeeringDrop = 22
+            CcDefuseMsg = 22
         }
 
         public override string Description => $"{base.Description}: {Source?.Description}";
@@ -171,7 +173,7 @@ namespace zero.cocoon.models
 
                 while (totalBytesProcessed < BytesRead && State != IoJobMeta.JobState.ConInlined)
                 {
-                    Packet packet = null;
+                    chroniton packet = null;
                     long curPos = 0;
                     var read = 0;
                     
@@ -210,7 +212,7 @@ namespace zero.cocoon.models
                         
                         try
                         {
-                            packet = Packet.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
+                            packet = chroniton.Parser.ParseFrom(ReadOnlySequence.Slice(BufferOffset, BytesRead));
                             read = packet.CalculateSize();
                         }
                         catch
@@ -220,7 +222,7 @@ namespace zero.cocoon.models
                                 ByteStream.Seek(BufferOffset, SeekOrigin.Begin);
                                 curPos = ByteStream.Position;
 
-                                packet = Packet.Parser.ParseFrom(CodedStream);
+                                packet = chroniton.Parser.ParseFrom(CodedStream);
                                 read = (int)(ByteStream.Position - curPos);
                             }
                             catch
@@ -233,7 +235,7 @@ namespace zero.cocoon.models
                                 //if (!__enableZeroCopyDebug)
                                     //throw;
 
-                                //packet = Packet.Parser.ParseFrom(__zeroCopyDebugBuffer.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
+                                //packet = chroniton.Parser.ParseFrom(__zeroCopyDebugBuffer.AsSpan().Slice(BufferOffset, BytesRead).ToArray());
                                 //read = packet.CalculateSize();
                                 //_logger.Warn($"FFF {_lastFail}/{_failCounter}");
                                 //Interlocked.Exchange(ref _lastFail, _failCounter);
@@ -328,25 +330,25 @@ namespace zero.cocoon.models
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Ping:
-                            await ProcessRequestAsync<Ping>(packet).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcProbeMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Pong:
-                            await ProcessRequestAsync<Pong>(packet).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcProbeResponse>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.DiscoveryRequest:
-                            await ProcessRequestAsync<DiscoveryRequest>(packet).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcSweepMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.DiscoveryResponse:
-                            await ProcessRequestAsync<DiscoveryResponse>(packet).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcSweepResponse>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.PeeringRequest:
-                            await ProcessRequestAsync<PeeringRequest>(packet).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcFuseRequestMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.PeeringResponse:
-                            await ProcessRequestAsync<PeeringResponse>(packet).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcFuseRequestResponse>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.PeeringDrop:
-                            await ProcessRequestAsync<PeeringDrop>(packet).FastPath().ConfigureAwait(Zc);
+                        case MessageTypes.CcDefuseMsg:
+                            await ProcessRequestAsync<CcDefuseMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -363,7 +365,7 @@ namespace zero.cocoon.models
             catch when(!Zeroed()){}
             catch (Exception e) when (Zeroed())
             {
-                _logger.Error(e, $"Unmarshal Packet failed in {Description}");
+                _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
             }
             finally
             {
@@ -395,13 +397,15 @@ namespace zero.cocoon.models
         /// Processes a generic request
         /// </summary>
         /// <param name="packet">The packet</param>
+        /// <param name="remoteEp">The origin of this packet</param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private async ValueTask ProcessRequestAsync<T>(Packet packet)
+        private async ValueTask ProcessRequestAsync<T>(chroniton packet, IPEndPoint remoteEp)
             where T : IMessage<T>, IMessage, new()
         {
             try
             {
+                //TODO opt:
                 var parser = new MessageParser<T>(() => new T());
                 var request = parser.ParseFrom(packet.Data);
 
@@ -412,7 +416,7 @@ namespace zero.cocoon.models
                     //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
                     //    zero = IoZero;
 
-                    if (_currentBatch.Filled == parm_max_msg_batch_size - 2)
+                    if (_currentBatch.Filled == parm_max_msg_batch_size - 2 || _currentBatch.RemoteEndPoint != remoteEp.ToString())
                         await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
 
                     var batchMsg = _currentBatch[_currentBatch.Filled++];
@@ -447,9 +451,9 @@ namespace zero.cocoon.models
 
                     try
                     {
-                        if (source == null || !await ((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(@this.Zc))
+                        if (source == null || !await ((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).EnqueueAsync(@this._currentBatch).FastPath().ConfigureAwait(@this.Zc))
                         {
-                            if (source != null && !((CcProtocBatchSource<Packet, CcDiscoveryBatch>)source).Zeroed())
+                            if (source != null && !((CcProtocBatchSource<chroniton, CcDiscoveryBatch>)source).Zeroed())
                             {
                                 _logger.Fatal($"{nameof(ForwardToNeighborAsync)}: Unable to q batch, {@this.Description}");
                             }

@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
@@ -16,6 +15,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models
 {
@@ -327,7 +327,7 @@ namespace zero.cocoon.models
             catch when(Zeroed()){}
             catch (Exception e)when(!Zeroed())
             {
-                _logger.Error(e, $"Unmarshal Packet failed in {Description}");
+                _logger.Error(e, $"Unmarshal chroniton failed in {Description}");
             }
             finally
             {

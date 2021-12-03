@@ -6,12 +6,12 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using MathNet.Numerics.Distributions;
 using NLog;
-using Proto;
 using zero.cocoon.autopeer;
 using zero.cocoon.events.services;
 using zero.cocoon.identity;
@@ -27,7 +27,7 @@ using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using zero.core.patterns.queue;
 using zero.core.patterns.semaphore;
-using Packet = Proto.Packet;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon
 {
@@ -67,39 +67,42 @@ namespace zero.cocoon
             DupSyncRoot.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
-            var handshakeRequest = new HandshakeRequest
+            var ccProbeRequest = new CcFutileRequest
             {
-                Version = parm_version,
-                To = "255.255.255.255:65535",
+                Protocol = parm_version,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
-            var protocolMsg = new Packet
+            var protocolMsg = new chroniton
             {
-                Data = handshakeRequest.ToByteString(),
+                Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
-                Type = (uint)CcDiscoveries.MessageTypes.Handshake
+                Data = ccProbeRequest.ToByteString(),
+                Type = 1
             };
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
 
-            _handshakeRequestSize = protocolMsg.CalculateSize();
+            _futileRequestSize = protocolMsg.CalculateSize();
 
-            var handshakeResponse = new HandshakeResponse
+            var handshakeResponse = new CcFutileResponse
             {
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Protocol = parm_version,
                 ReqHash = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(protocolMsg.Data.Memory.AsArray())))
             };
 
-            protocolMsg = new Packet
+            protocolMsg = new chroniton
             {
+                Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 Data = handshakeResponse.ToByteString(),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
-                Type = (uint)CcDiscoveries.MessageTypes.Handshake
+                Type = (int)CcDiscoveries.MessageTypes.Handshake
             };
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
 
-            _handshakeResponseSize = protocolMsg.CalculateSize();
+            _futileResponseSize = protocolMsg.CalculateSize();
 
-            _handshakeBufferSize = Math.Max(_handshakeResponseSize, _handshakeRequestSize);
+            _handshakeBufferSize = Math.Max(_futileResponseSize, _futileRequestSize);
 
             if(_handshakeBufferSize > parm_max_handshake_bytes)
                 throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
@@ -414,7 +417,7 @@ namespace zero.cocoon
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        public uint parm_version = 0;
+        public int parm_version = 1;
 
         /// <summary>
         /// Protocol response message timeout in seconds
@@ -524,11 +527,11 @@ namespace zero.cocoon
         /// <returns>The number of bytes sent</returns>
         private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type, int timeout = 0)
         {
-            var responsePacket = new Packet
+            var responsePacket = new chroniton
             {
                 Data = msg,
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
-                Type = (uint)CcDiscoveries.MessageTypes.Handshake
+                Type = (int)CcDiscoveries.MessageTypes.Handshake
             };
 
             responsePacket.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(responsePacket.Data.Memory.AsArray(), 0, responsePacket.Data.Length)));
@@ -550,8 +553,8 @@ namespace zero.cocoon
 
 
         private readonly Stopwatch _sw = Stopwatch.StartNew();
-        private readonly int _handshakeRequestSize;
-        private readonly int _handshakeResponseSize;
+        private readonly int _futileRequestSize;
+        private readonly int _futileResponseSize;
         private readonly int _handshakeBufferSize;
         public long Testing;
 
@@ -582,11 +585,11 @@ namespace zero.cocoon
                     do
                     {
                         bytesRead+= await ioNetSocket
-                            .ReadAsync(handshakeBuffer, bytesRead, _handshakeRequestSize - bytesRead).FastPath().ConfigureAwait(Zc);
+                            .ReadAsync(handshakeBuffer, bytesRead, _futileRequestSize - bytesRead).FastPath().ConfigureAwait(Zc);
 
                     } while (
                         !Zeroed() &&
-                        bytesRead < _handshakeRequestSize &&
+                        bytesRead < _futileRequestSize &&
                         ioNetSocket.NativeSocket.Available > 0 &&
                         bytesRead < handshakeBuffer.Length &&
                         ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
@@ -602,11 +605,11 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Trace(
-                            $"{nameof(HandshakeRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
+                            $"{nameof(CcFutileRequest)}: size = {bytesRead}, socket = {ioNetSocket.Description}");
                     }
                     
                     //parse a packet
-                    var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
+                    var packet = chroniton.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
                     
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
                     {
@@ -626,40 +629,40 @@ namespace zero.cocoon
 
                         
                         //process handshake request 
-                        var handshakeRequest = HandshakeRequest.Parser.ParseFrom(packet.Data);
+                        var ccFutileRequest = CcFutileRequest.Parser.ParseFrom(packet.Data);
                         bool won = false;
-                        if (handshakeRequest != null)
+                        if (ccFutileRequest != null)
                         {
                             //reject old handshake requests
-                            if (handshakeRequest.Timestamp.ElapsedDelta() > parm_time_e)
+                            if (ccFutileRequest.Timestamp.ElapsedDelta() > parm_time_e)
                             {
                                 _logger.Error(
-                                    $"Rejected old handshake request from {ioNetSocket.Key} - d = {handshakeRequest.Timestamp.ElapsedDelta()}s, > {parm_time_e}");
+                                    $"Rejected old handshake request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedDelta()}s, > {parm_time_e}");
                                 return false;
                             }
-                            
+
                             //reject invalid protocols
-                            if (handshakeRequest.Version != parm_version)
+                            if (ccFutileRequest.Protocol != parm_version)
                             {
                                 _logger.Error(
-                                    $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {handshakeRequest.Version}, wants {parm_version}");
+                                    $"Invalid handshake protocol version from  {ioNetSocket.Key} - got {ccFutileRequest.Protocol}, wants {parm_version}");
                                 return false;
                             }
 
                             //reject requests to invalid ext ip
-                            //if (handshakeRequest.To != ((CcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
+                            //if (CcFutileRequest.To != ((CcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
                             //{
-                            //    _logger.Error($"Invalid handshake received from {socket.Key} - got {handshakeRequest.To}, wants {((CcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
+                            //    _logger.Error($"Invalid handshake received from {socket.Key} - got {CcFutileRequest.To}, wants {((CcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
                             //    return false;
                             //}
 
                             //race for connection
                             won = await ConnectForTheWinAsync(CcAdjunct.Heading.Ingress, drone, packet, (IPEndPoint)ioNetSocket.NativeSocket.RemoteEndPoint).FastPath().ConfigureAwait(Zc);
 
-                            _logger.Trace($"HandshakeRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
+                            _logger.Trace($"CcFutileRequest [{(verified ? "signed" : "un-signed")}], won = {won}, read = {bytesRead}, {drone.IoSource.Key}");
 
                             //send response
-                            var handshakeResponse = new HandshakeResponse
+                            var handshakeResponse = new CcFutileResponse
                             {
                                 ReqHash = won? UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray()))): ByteString.Empty
                             };
@@ -668,7 +671,7 @@ namespace zero.cocoon
                             
                             _sw.Restart();
                             
-                            var sent = await SendMessageAsync(drone, handshake, nameof(HandshakeResponse),
+                            var sent = await SendMessageAsync(drone, handshake, nameof(CcFutileResponse),
                                 parm_handshake_timeout).FastPath().ConfigureAwait(Zc);
                             if (sent == 0)
                             {
@@ -687,17 +690,16 @@ namespace zero.cocoon
                 //-----------------------------------------------------//
                 else if (drone.IoSource.IoNetSocket.IsEgress) //Outbound
                 {
-                    var handshakeRequest = new HandshakeRequest
+                    var ccFutileRequest = new CcFutileRequest
                     {
-                        Version = parm_version,
-                        To = ioNetSocket.LocalNodeAddress.IpPort,
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                        Protocol = parm_version,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                     };
                     
-                    var handshake = handshakeRequest.ToByteString();
+                    var handshake = ccFutileRequest.ToByteString();
                     
                     _sw.Restart();
-                    var sent = await SendMessageAsync(drone, handshake, nameof(HandshakeResponse))
+                    var sent = await SendMessageAsync(drone, handshake, nameof(CcFutileRequest))
                         .FastPath().ConfigureAwait(Zc);
                     if (sent > 0)
                     {
@@ -714,11 +716,11 @@ namespace zero.cocoon
                     do
                     {
                         bytesRead = await ioNetSocket
-                        .ReadAsync(handshakeBuffer, bytesRead, _handshakeResponseSize - bytesRead,
+                        .ReadAsync(handshakeBuffer, bytesRead, _futileResponseSize - bytesRead,
                             timeout: parm_handshake_timeout).FastPath().ConfigureAwait(Zc);
                     } while (
                         !Zeroed() &&
-                        bytesRead < _handshakeResponseSize &&
+                        bytesRead < _futileResponseSize &&
                         ioNetSocket.NativeSocket.Available > 0 &&
                         bytesRead < handshakeBuffer.Length &&
                         ioNetSocket.NativeSocket.Available <= handshakeBuffer.Length - bytesRead
@@ -736,7 +738,7 @@ namespace zero.cocoon
                     
                     var verified = false;
                     
-                    var packet = Packet.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
+                    var packet = chroniton.Parser.ParseFrom(handshakeBuffer, 0, bytesRead);
                     
                     if (packet != null && packet.Data != null && packet.Data.Length > 0)
                     {
@@ -768,7 +770,7 @@ namespace zero.cocoon
                             return false;
 
                         //validate handshake response
-                        var handshakeResponse = HandshakeResponse.Parser.ParseFrom(packet.Data);
+                        var handshakeResponse = CcFutileResponse.Parser.ParseFrom(packet.Data);
                     
                         if (handshakeResponse != null)
                         {
@@ -797,7 +799,7 @@ namespace zero.cocoon
             catch (Exception e) when(!Zeroed() && !drone.Zeroed())
             {
                 _logger.Error(e,
-                    $"Handshake (size = {bytesRead}/{_handshakeRequestSize}/{_handshakeResponseSize}) for {Description} failed with:");
+                    $"Handshake (size = {bytesRead}/{_futileRequestSize}/{_futileResponseSize}) for {Description} failed with:");
             }
             finally
             {
@@ -834,7 +836,7 @@ namespace zero.cocoon
         /// <param name="packet">The handshake packet</param>
         /// <param name="remoteEp">The remote</param>
         /// <returns>True if it won, false otherwise</returns>
-        private async ValueTask<bool> ConnectForTheWinAsync(CcAdjunct.Heading direction, CcDrone drone, Packet packet, IPEndPoint remoteEp)
+        private async ValueTask<bool> ConnectForTheWinAsync(CcAdjunct.Heading direction, CcDrone drone, chroniton packet, IPEndPoint remoteEp)
         {
             if(_gossipAddress.IpEndPoint.ToString() == remoteEp.ToString())
                 throw new ApplicationException($"Connection inception dropped from {remoteEp} on {_gossipAddress.IpEndPoint}: {Description}");
@@ -926,7 +928,7 @@ namespace zero.cocoon
                     adjunct.State == CcAdjunct.AdjunctState.Connecting &&
                     EgressCount < parm_max_outbound &&
                     //TODO add distance calc
-                    adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip) &&
+                    //adjunct.Services.CcRecord.Endpoints.ContainsKey(CcService.Keys.gossip) &&
                     _currentOutboundConnectionAttempts < _maxAsyncConnectionAttempts
                 )
             {
@@ -934,7 +936,7 @@ namespace zero.cocoon
                 {
                     Interlocked.Increment(ref _currentOutboundConnectionAttempts);
 
-                    var drone = await ConnectAsync(adjunct.Services.CcRecord.Endpoints[CcService.Keys.gossip], adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
+                    var drone = await ConnectAsync(adjunct.RemoteAddress, adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
                         if (drone != null) drone.Zero(this);

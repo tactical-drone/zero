@@ -32,7 +32,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="models\protobuf\gossip\CcGossip.proto" />
+    <None Remove="events\chroniton.proto" />
+    <None Remove="models\protobuf\core\net.proto" />
+    <None Remove="models\protobuf\msg\adjunct.proto" />
+    <None Remove="models\protobuf\msg\drone.proto" />
+    <None Remove="models\protobuf\gossip\gossip.proto" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,8 +49,12 @@
   </ItemGroup>
 
 	<ItemGroup>
+		<Protobuf Include="models\protobuf\core\chroniton.proto" />
 		<Protobuf Include="events\models\proto\autopeering.proto" GrpcServices="Both" />
-		<Protobuf Include="models\protobuf\gossip\CcGossip.proto" />
+		<Protobuf Include="models\protobuf\core\net.proto" />
+		<Protobuf Include="models\protobuf\msg\adjunct.proto" />
+		<Protobuf Include="models\protobuf\msg\drone.proto" />
+		<Protobuf Include="models\protobuf\gossip\gossip.proto" />
 	</ItemGroup>
 
   <ItemGroup>

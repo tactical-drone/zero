@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Proto;
 using zero.core.conf;
 using zero.core.feat.models;
 using zero.core.misc;
@@ -14,6 +13,7 @@ using zero.core.network.ip;
 using zero.core.patterns.bushings;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.misc;
+using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models.test
 {
@@ -73,11 +73,9 @@ namespace zero.cocoon.models.test
         /// <returns></returns>
         private async Task<int> SendMessageAsync(ByteString data)
         {
-            var responsePacket = new Packet
+            var responsePacket = new chroniton
             {
                 Data = data,
-                PublicKey = ByteString.CopyFrom(CcCollective.CcId.PublicKey),
-                Type = 0
             };
 
             responsePacket.Signature =
@@ -324,7 +322,7 @@ namespace zero.cocoon.models.test
             catch (ObjectDisposedException e) { _logger.Trace(e, Description); }
             catch (Exception e)
             {
-                _logger.Error(e, "Unmarshal Packet failed!");
+                _logger.Error(e, "Unmarshal chroniton failed!");
             }
             finally
             {

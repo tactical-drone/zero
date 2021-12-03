@@ -26,14 +26,14 @@
 		<PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
 		<PackageReference Include="System.Text.Json" Version="6.0.0" />
 		<PackageReference Include="NLog" Version="5.0.0-preview.3" />
+		<PackageReference Include="Grpc.Tools" Version="2.42.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
 
 	<ItemGroup>
 	  <ProjectReference Include="..\zero.core\zero.core.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="misc\" />
 	</ItemGroup>
 
 </Project>
