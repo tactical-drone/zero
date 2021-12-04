@@ -2,8 +2,6 @@
 
 package zero.models.protobuf;
 
-import "models/protobuf/core/net.proto";
-
 message CcFutileRequest {  
 	int32 protocol = 1;
 	int64 timestamp = 2;  
