@@ -495,6 +495,9 @@ namespace zero.core.patterns.semaphore.core
         {
             try
             {
+                if (state == null)//TODO, why do we need this hack? Process is being downed from inside here somewhere... 
+                    return false;
+
                 //Execute with captured context
                 if (!onComplete && executionContext != null)
                 {

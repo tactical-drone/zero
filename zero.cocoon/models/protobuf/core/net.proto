@@ -17,7 +17,7 @@ message z_header {
 message net_header {
 	int64 twc = 1;
 	int32 flags = 2;
-	bytes src = 3;
+	bytes src = 3; //TODO cd: dbg only
 	bytes dst = 4;	
 	repeated int64 lsp = 5;
 	bytes opt = 6;

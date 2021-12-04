@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
@@ -10,6 +12,7 @@ using SimpleBase;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
+using zero.core.feat.misc;
 using zero.core.feat.models.protobuffer;
 using zero.core.feat.models.protobuffer.sources;
 using zero.core.misc;
@@ -18,6 +21,7 @@ using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
 using zero.core.patterns.misc;
 using Zero.Models.Protobuf;
+using zero.core.misc;
 
 namespace zero.cocoon.models
 {
@@ -42,7 +46,7 @@ namespace zero.cocoon.models
             if (ProtocolConduit == null)
             {
                 //TODO tuning
-                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, cc/4);
+                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, cc);
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                     conduitId,
                     cc,
@@ -156,7 +160,7 @@ namespace zero.cocoon.models
 
         public override ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {
-            _currentBatch.Filled = 0;
+            _currentBatch.Count = 0;
             return base.ProduceAsync(barrier, nanite);  
         }
 
@@ -326,29 +330,28 @@ namespace zero.cocoon.models
                     {
                         continue;
                     }
-
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Ping:
-                            await ProcessRequestAsync<CcProbeMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcProbeMessage>(packet, CcProbeMessage.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Pong:
-                            await ProcessRequestAsync<CcProbeResponse>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcProbeResponse>(packet, CcProbeResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.DiscoveryRequest:
-                            await ProcessRequestAsync<CcSweepMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcSweepMessage>(packet, CcSweepMessage.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.DiscoveryResponse:
-                            await ProcessRequestAsync<CcSweepResponse>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcSweepResponse>(packet, CcSweepResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.PeeringRequest:
-                            await ProcessRequestAsync<CcFuseRequestMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcFuseRequest>(packet, CcFuseRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.PeeringResponse:
-                            await ProcessRequestAsync<CcFuseRequestResponse>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcFuseResponse>(packet, CcFuseResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.CcDefuseMsg:
-                            await ProcessRequestAsync<CcDefuseMessage>(packet, RemoteEndPoint).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync<CcDefuseRequest>(packet, CcDefuseRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
@@ -357,8 +360,8 @@ namespace zero.cocoon.models
                 }
 
                 //TODO tuning
-                if(_currentBatch.Filled > _batchHeap.MaxSize * 3 / 2)
-                    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Filled}/{_batchHeap.MaxSize}, {_batchHeap}");
+                if(_currentBatch.Count > _batchHeap.MaxSize * 3 / 2)
+                    _logger.Warn($"{nameof(_batchHeap)} running lean {_currentBatch.Count}/{_batchHeap.MaxSize}, {_batchHeap}");
                 //Release a waiter
                 await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
             }
@@ -397,18 +400,17 @@ namespace zero.cocoon.models
         /// Processes a generic request
         /// </summary>
         /// <param name="packet">The packet</param>
-        /// <param name="remoteEp">The origin of this packet</param>
+        /// <param name="messageParser"></param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private async ValueTask ProcessRequestAsync<T>(chroniton packet, IPEndPoint remoteEp)
+        private async ValueTask ProcessRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
             where T : IMessage<T>, IMessage, new()
         {
             try
             {
                 //TODO opt:
-                var parser = new MessageParser<T>(() => new T());
-                var request = parser.ParseFrom(packet.Data);
-
+                var request = messageParser.ParseFrom(packet.Data);
+                
                 if (request != null)
                 {
                     //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
@@ -416,10 +418,57 @@ namespace zero.cocoon.models
                     //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
                     //    zero = IoZero;
 
-                    if (_currentBatch.Filled == parm_max_msg_batch_size - 2 || _currentBatch.RemoteEndPoint != remoteEp.ToString())
-                        await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
+                    //var ingressEp = packet.Header.Ip.Src.GetEndpoint();
 
-                    var batchMsg = _currentBatch[_currentBatch.Filled++];
+                    //byte[] ingressEpBytes;
+                    //if (_currentBatch.Count == 0)
+                    //{
+                    //    _currentBatch.RemoteEndPoint = ingressEpBytes = ingressEp.AsBytes(_currentBatch.RemoteEndPoint);
+                    //}
+                    //else
+                    //{
+                    //    ingressEpBytes = ingressEp.AsBytes();
+                    //}
+
+                    //if (!Equals(RemoteEndPoint, ingressEp))
+                    //{
+                    //    _logger.Fatal($"{nameof(CcDiscoveries)}: Bad external routing, got {RemoteEndPoint}, wanted {ingressEp}, count = {_currentBatch.Count}");
+                    //}
+
+                    //bool routingSuccess = true;
+                    //if (_currentBatch.Count >= parm_max_msg_batch_size - 2 || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
+                    //{
+                    //    if (!routingSuccess)
+                    //    {
+                    //        _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented, got {_currentBatch.RemoteEndPoint.GetEndpoint()}, wanted {ingressEp}, count = {_currentBatch.Count}");
+                    //    }
+                    //    await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
+                    //}
+
+                    bool routingSuccess = true;
+
+                    //var remoteAddressBytes = RemoteEndPoint.AsBytes();
+
+                    byte[] ingressEpBytes;
+                    if (_currentBatch.Count == 0)
+                    {
+                        _currentBatch.RemoteEndPoint = ingressEpBytes = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
+                    }
+                    else
+                    {
+                        ingressEpBytes = RemoteEndPoint.AsBytes();
+                    }
+
+                    if (_currentBatch.Count >= parm_max_msg_batch_size - 2 || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
+                    {
+                        if (!routingSuccess)
+                        {
+                            _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented: next = {ingressEpBytes}, prev = {_currentBatch.RemoteEndPoint.GetEndpoint()}, count = {_currentBatch.Count}");
+                        }
+                        await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
+                    }
+
+                    var batchMsg = _currentBatch[_currentBatch.Count++];
                     batchMsg.EmbeddedMsg = request;
                     batchMsg.Message = packet;
                 }
@@ -440,10 +489,10 @@ namespace zero.cocoon.models
         {
             try
             {
-                if (_currentBatch.Filled == 0 || Zeroed())
+                if (_currentBatch.Count == 0 || Zeroed())
                     return;
 
-                _currentBatch.RemoteEndPoint = RemoteEndPoint.ToString();
+                _currentBatch.RemoteEndPoint = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
                 //cog the source
                 if (!await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
                 {
@@ -464,7 +513,7 @@ namespace zero.cocoon.models
                         if (@this._currentBatch == null)
                             throw new OutOfMemoryException($"{@this.Description}: {nameof(@this._batchHeap)}, c = {@this._batchHeap.Count}/{@this._batchHeap.MaxSize}, ref = {@this._batchHeap.ReferenceCount}");
 
-                        @this._currentBatch.Filled = 0;
+                        @this._currentBatch.Count = 0;
 
                         return true;
                     }

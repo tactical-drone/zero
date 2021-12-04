@@ -308,5 +308,9 @@ namespace zero.core.network.ip
             return Key.GetHashCode();
         }
 
+        public IoNodeAddress Copy()
+        {
+            return (IoNodeAddress)MemberwiseClone();
+        }
     }
 }

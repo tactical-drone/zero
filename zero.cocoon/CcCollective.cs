@@ -650,9 +650,9 @@ namespace zero.cocoon
                             }
 
                             //reject requests to invalid ext ip
-                            //if (CcFutileRequest.To != ((CcNeighbor)neighbor)?.ExtGossipAddress?.IpPort)
+                            //if (CcFutileRequest.To != ((CcNeighbor)neighbor)?.DebugAddress?.IpPort)
                             //{
-                            //    _logger.Error($"Invalid handshake received from {socket.Key} - got {CcFutileRequest.To}, wants {((CcNeighbor)neighbor)?.ExtGossipAddress.IpPort}");
+                            //    _logger.Error($"Invalid handshake received from {socket.Key} - got {CcFutileRequest.To}, wants {((CcNeighbor)neighbor)?.DebugAddress.IpPort}");
                             //    return false;
                             //}
 

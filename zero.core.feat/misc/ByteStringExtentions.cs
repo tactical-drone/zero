@@ -28,16 +28,32 @@ namespace zero.core.feat.misc
         {
             var buf = new byte[(address.AddressFamily == AddressFamily.InterNetworkV6? IPv6AddressBytes : IPv4AddressBytes) + 2];
             address.Address.TryWriteBytes(buf, out var w);
-            buf[w] |= (byte)(address.Port >> 4);
-            buf[w+1] |= (byte)(address.Port & 0xF0);
+            buf[w] = (byte)((address.Port >> 8) & 0x00FF);
+            buf[w+1] = (byte)(address.Port & 0x00FF);
             return UnsafeByteOperations.UnsafeWrap(buf);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] AsBytes(this IPEndPoint address, byte[] buf = null)
+        {
+            buf ??= new byte[(address.AddressFamily == AddressFamily.InterNetworkV6 ? IPv6AddressBytes : IPv4AddressBytes) + 2];
+            address.Address.TryWriteBytes(buf, out var w);
+            buf[w] = (byte)((address.Port >> 8) & 0x00FF);
+            buf[w + 1] = (byte)(address.Port & 0x00FF);
+            return buf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IPEndPoint GetEndpoint(this ByteString address)
         {
-            var buf = address.Memory.AsArray();
-            return new IPEndPoint(new IPAddress(buf[..^2]), buf[^2] << 4 | 0xff & buf[^1]);
+            var buf = address.Memory.AsArray(); 
+            return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | buf[^1]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static IPEndPoint GetEndpoint(this byte[] buf)
+        {
+            return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | buf[^1]);
         }
     }
     internal sealed class Heap

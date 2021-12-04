@@ -43,7 +43,41 @@ namespace zero.core.misc
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual<T>(this ReadOnlyMemory<T> array, ReadOnlyMemory<T> cmp)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (!array.Span[i].Equals(cmp.Span[i]))
+                    return false;
+            }
 
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual<T>(this T[] array, ReadOnlyMemory<T> cmp)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (!array[i].Equals(cmp.Span[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual<T>(this T[] array, T[] cmp)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (!array[i].Equals(cmp[i]))
+                    return false;
+            }
+
+            return true;
+        }
 
 #if DEBUG //|| RELEASE //TODO remove release
         [ThreadStatic]

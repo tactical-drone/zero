@@ -22,14 +22,11 @@ namespace zero.cocoon.models.batches
 
         IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         CcDiscoveryMessage[] _messages;
-        public volatile string RemoteEndPoint;
+        //public volatile string RemoteEndPoint;
+        public byte[] RemoteEndPoint;
         private volatile int _disposed;
 
-        public CcDiscoveryMessage this[int i]
-        {
-            get => _messages[i];
-            set => _messages[i] = value;
-        }
+        public CcDiscoveryMessage this[int i] => _messages[i];
 
         /// <summary>
         /// Return this instance to the heap
@@ -41,14 +38,19 @@ namespace zero.cocoon.models.batches
             if(_heapRef.Count / (double)_heapRef.MaxSize > 0.8)
                 LogManager.GetCurrentClassLogger().Warn($"{nameof(CcDiscoveryBatch)}: Heap is running lean, {_heapRef} ");
 
+            foreach (var t in _messages)
+            {
+                t.Message = null;
+                t.EmbeddedMsg = null;
+            }
+
             _heapRef.Return(this);
         }
 
         public IoHeap<CcDiscoveryBatch, CcDiscoveries> HeapRef => _heapRef;
 
-        public int Count => _messages.Length;
-
-        public int Filled;
+        public int Capacity => _messages.Length;
+        public int Count;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void Dispose(bool disposing)

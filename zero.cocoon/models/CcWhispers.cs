@@ -262,17 +262,7 @@ namespace zero.cocoon.models
                     }
                     else
                     {
-                        try
-                        {                            
-                            dupEndpoints.Add(endpoint.GetHashCode(), true);
-                        }
-                        catch (Exception) when(!Zeroed())
-                        {
-                            //dupEndpoints.ToList().ForEach(endpoint =>
-                            //{
-                            //    Console.WriteLine(endpoint);
-                            //});                            
-                        }                        
+                        dupEndpoints.Add(endpoint.GetHashCode(), true);
                         continue;
                     }
 
@@ -299,8 +289,6 @@ namespace zero.cocoon.models
                             }
                             else
                             {
-                                //if(req % 1000 == 0)
-                                //    Console.WriteLine($"{source.IoNetSocket.LocalAddress} ~> bq = {req} ~> {source.IoNetSocket.RemoteAddress}");
                                 if (AutoPeeringEventService.Operational)
                                     await AutoPeeringEventService.AddEventAsync(new AutoPeerEvent
                                     {
