@@ -190,7 +190,7 @@ namespace zero.core.core
                                             {
                                                 if (!existingNeighbor.Source.IsOperational && existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                 {
-                                                    @this._logger.Warn($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
+                                                    @this._logger.Warn($"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
 
                                                     //We remove the key here or async race conditions with the listener...
                                                     @this.Neighbors.Remove(existingNeighbor.Key, out _);
@@ -198,7 +198,7 @@ namespace zero.core.core
                                                     continue;
                                                 }
 
-                                                @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                                @this._logger.Warn($"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                                 return new ValueTask<bool>(false);
 
                                                 ////Only drop incoming if the existing one is working and originating
@@ -337,7 +337,6 @@ namespace zero.core.core
                                 //New neighbor?
                                 if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
                                 {
-                                    //ZeroOnCascade(newNeighbor);
                                     return true;
                                 }
 
@@ -346,11 +345,17 @@ namespace zero.core.core
                                     existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
                                     (existingNeighbor.Source?.IsOperational ?? false))
                                 {
+                                    @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
                                     return false;
                                 }
 
+                                if (existingNeighbor == null)
+                                    return true;
+
+                                @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
+
                                 //Existing broken neighbor...
-                                existingNeighbor?.Zero(@this);
+                                existingNeighbor.Zero(@this);
 
                                 @this.Neighbors.TryRemove(newNeighbor.Key, out _);
 
@@ -365,7 +370,7 @@ namespace zero.core.core
                     else
                     {
                         _logger.Debug($"Neighbor with id = {newNeighbor.Key} already exists! Closing connection from {newClient.IoNetSocket.RemoteNodeAddress} ...");
-                        newNeighbor.Zero(this);
+                        newNeighbor.Zero(new IoNanoprobe("Dropped, connection already exists"));
                     }
                 }
             }

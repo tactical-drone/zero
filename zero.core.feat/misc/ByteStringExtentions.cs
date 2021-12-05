@@ -47,13 +47,13 @@ namespace zero.core.feat.misc
         public static IPEndPoint GetEndpoint(this ByteString address)
         {
             var buf = address.Memory.AsArray(); 
-            return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | buf[^1]);
+            return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | (buf[^1] & 0x00FF));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IPEndPoint GetEndpoint(this byte[] buf)
         {
-            return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | buf[^1]);
+            return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | (buf[^1] & 0x00FF));
         }
     }
     internal sealed class Heap

@@ -217,7 +217,7 @@ namespace zero.cocoon
                     
 
                 //Attach the other way
-                var attached = await Adjunct.AttachPeerAsync(this, direction).FastPath().ConfigureAwait(Zc);
+                var attached = await Adjunct.AttachDroneAsync(this, direction).FastPath().ConfigureAwait(Zc);
 
                 if (attached)
                 {
@@ -246,7 +246,7 @@ namespace zero.cocoon
         {
             if (Adjunct != null)
             {
-                await Adjunct.DetachPeerAsync().FastPath().ConfigureAwait(Zc);
+                await Adjunct.DetachDroneAsync().FastPath().ConfigureAwait(Zc);
                 Adjunct = null;
             }
         }

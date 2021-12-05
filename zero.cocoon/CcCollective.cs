@@ -180,7 +180,7 @@ namespace zero.cocoon
                             .OrderBy(n => ((CcAdjunct)n).Priority)
                             .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                         {
-                            await ((CcAdjunct)adjunct).SendPingAsync("SYN").FastPath().ConfigureAwait(Zc);
+                            await ((CcAdjunct)adjunct).ProbeAsync("SYN").FastPath().ConfigureAwait(Zc);
                             c++;
                         }
 
@@ -193,7 +193,7 @@ namespace zero.cocoon
                         //        .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()))
                         //    {
                         //        if (!Zeroed())
-                        //            await ((CcAdjunct)adjunct).SendPeerRequestAsync().FastPath().ConfigureAwait(Zc);
+                        //            await ((CcAdjunct)adjunct).FuseAsync().FastPath().ConfigureAwait(Zc);
                         //        else
                         //            break;
 
@@ -512,7 +512,7 @@ namespace zero.cocoon
                 {
                     if (!success)
                     {
-                        //await @this.Hub.Router.SendPeerDropAsync().FastPath().ConfigureAwait(@this.Zc);
+                        //await @this.Hub.Router.DeFuseAsync().FastPath().ConfigureAwait(@this.Zc);
                     }
                 }
             },this, bootstrapAsync).ConfigureAwait(Zc);
@@ -857,11 +857,11 @@ namespace zero.cocoon
 
                 adjunct = drone.Adjunct;
 
-                var stateIsValid = adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Peering, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Peering;
+                var stateIsValid = adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CompareAndEnterState(CcAdjunct.AdjunctState.Connecting, CcAdjunct.AdjunctState.Fusing, overrideHung: adjunct.parm_max_network_latency_ms * 4) == CcAdjunct.AdjunctState.Fusing;
                 if (!stateIsValid)
                 {
                     if(adjunct.CurrentState.Value != CcAdjunct.AdjunctState.Connected && adjunct.CurrentState.EnterTime.ElapsedMs() > adjunct.parm_max_network_latency_ms * 4)
-                        _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Peering)} - [RACE OK!]");
+                        _logger.Warn($"{nameof(ConnectForTheWinAsync)} - {Description}: Invalid state, {adjunct.CurrentState.Value}, age = {adjunct.CurrentState.EnterTime.ElapsedMs()}ms. Wanted {nameof(CcAdjunct.AdjunctState.Fusing)} - [RACE OK!]");
                     return false;
                 }
             }
@@ -1078,7 +1078,7 @@ namespace zero.cocoon
 
                     if (adjunct.Probed)
                     {
-                        if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                        if (!await adjunct.SweepAsync().FastPath().ConfigureAwait(Zc))
                         {
                             if (!Zeroed())
                                 _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
@@ -1093,7 +1093,7 @@ namespace zero.cocoon
                     //if (adjunct.Probed) 
                     //{
                     //    //probe
-                    //    if (!await adjunct.SendDiscoveryRequestAsync().FastPath().ConfigureAwait(Zc))
+                    //    if (!await adjunct.SweepAsync().FastPath().ConfigureAwait(Zc))
                     //    {
                     //        if (!Zeroed())
                     //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
@@ -1107,7 +1107,7 @@ namespace zero.cocoon
                     //else
                     //{
                     //    //probe
-                    //    if (!await adjunct.SendPingAsync("SYN!").FastPath().ConfigureAwait(Zc))
+                    //    if (!await adjunct.ProbeAsync("SYN!").FastPath().ConfigureAwait(Zc))
                     //    {
                     //        if (!Zeroed())
                     //            _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
@@ -1140,7 +1140,7 @@ namespace zero.cocoon
                             {
                                 await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
                                 //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                                if (!await Hub.Router.SendPingAsync("DMZ-SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                                if (!await Hub.Router.ProbeAsync("DMZ-SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
                                 {
                                     if(!Hub.Router.Zeroed())
                                         _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");

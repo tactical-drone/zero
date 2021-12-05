@@ -117,13 +117,13 @@ namespace zero.cocoon.models
         {
             Undefined = 0,
             Handshake = 1,
-            Ping = 10,
-            Pong = 11,
-            DiscoveryRequest = 12,
-            DiscoveryResponse = 13,
-            PeeringRequest = 20,
-            PeeringResponse = 21,
-            CcDefuseMsg = 22
+            Probe = 10,
+            Probed = 11,
+            Sweep = 12,
+            Swept = 13,
+            Fuse = 20,
+            Fused = 21,
+            Defuse = 22
         }
 
         public override string Description => $"{base.Description}: {Source?.Description}";
@@ -327,25 +327,25 @@ namespace zero.cocoon.models
                     }
                     switch ((MessageTypes)packet.Type)
                     {
-                        case MessageTypes.Ping:
+                        case MessageTypes.Probe:
                             await ProcessRequestAsync<CcProbeMessage>(packet, CcProbeMessage.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.Pong:
+                        case MessageTypes.Probed:
                             await ProcessRequestAsync<CcProbeResponse>(packet, CcProbeResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.DiscoveryRequest:
+                        case MessageTypes.Sweep:
                             await ProcessRequestAsync<CcSweepMessage>(packet, CcSweepMessage.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.DiscoveryResponse:
+                        case MessageTypes.Swept:
                             await ProcessRequestAsync<CcSweepResponse>(packet, CcSweepResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.PeeringRequest:
+                        case MessageTypes.Fuse:
                             await ProcessRequestAsync<CcFuseRequest>(packet, CcFuseRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.PeeringResponse:
+                        case MessageTypes.Fused:
                             await ProcessRequestAsync<CcFuseResponse>(packet, CcFuseResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
-                        case MessageTypes.CcDefuseMsg:
+                        case MessageTypes.Defuse:
                             await ProcessRequestAsync<CcDefuseRequest>(packet, CcDefuseRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         default:
