@@ -334,8 +334,13 @@ namespace zero.core.network.ip
             try
             {
                 return !Zeroed() && NativeSocket is { IsBound: true, Connected: true };//&& (_expensiveCheck++ % 10000 == 0 && NativeSocket.Send(_sentinelBuf, SocketFlags.None) == 0  || true);
+
+                //||
+                // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) ||
+                // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectRead) ||
+                // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
             }
-            catch(ObjectDisposedException){}
+            catch (ObjectDisposedException){}
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {                

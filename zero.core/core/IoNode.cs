@@ -93,7 +93,7 @@ namespace zero.core.core
         /// </summary>
         [IoParameter]
         // ReSharper disable once InconsistentNaming
-        protected int parm_zombie_connect_time_threshold_s = 5;
+        protected int parm_zombie_connect_time_threshold_s = 4; //currently takes 2 seconds to up
 
         /// <summary>
         /// TCP read ahead
@@ -188,13 +188,7 @@ namespace zero.core.core
                                         {
                                             try
                                             {
-                                                ////Only drop incoming if the existing one is working and originating
-                                                if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
-                                                {
-                                                    @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
-                                                    return new ValueTask<bool>(false);
-                                                }
-                                                else //if (!existingNeighbor.Source.IsOperational)
+                                                if (!existingNeighbor.Source.IsOperational && existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                 {
                                                     @this._logger.Warn($"Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
 
@@ -203,6 +197,17 @@ namespace zero.core.core
                                                     existingNeighbor.Zero(new IoNanoprobe("Replaced zombie connection!"));
                                                     continue;
                                                 }
+
+                                                @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                                return new ValueTask<bool>(false);
+
+                                                ////Only drop incoming if the existing one is working and originating
+                                                //if (existingNeighbor.Source.IsOriginating && existingNeighbor.Source.IsOperational)
+                                                //{
+                                                //    @this._logger.Warn($"Connection {newNeighbor.Key} [DROPPED], existing {existingNeighbor.Key} [OK]");
+                                                //    return new ValueTask<bool>(false);
+                                                //}
+
                                                 //else  //else drop existing
                                                 //{
                                                 //    @this._logger.Warn($"New Connection {newNeighbor.Key} [DROPPED], [DC]");
@@ -326,24 +331,33 @@ namespace zero.core.core
                     if (ZeroAtomic(static (_, state, _) =>
                         {
                             var (@this, newNeighbor) = state;
-                            //New neighbor?
-                            if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+
+                            static bool AddOrUpdate(IoNode<TJob> @this, IoNeighbor<TJob> newNeighbor)
                             {
-                                //ZeroOnCascade(newNeighbor);
-                                return new ValueTask<bool>(true);
+                                //New neighbor?
+                                if (@this.Neighbors.TryAdd(newNeighbor.Key, newNeighbor))
+                                {
+                                    //ZeroOnCascade(newNeighbor);
+                                    return true;
+                                }
+
+                                //Existing and not broken neighbor?
+                                if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
+                                    existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
+                                    (existingNeighbor.Source?.IsOperational ?? false))
+                                {
+                                    return false;
+                                }
+
+                                //Existing broken neighbor...
+                                existingNeighbor?.Zero(@this);
+
+                                @this.Neighbors.TryRemove(newNeighbor.Key, out _);
+
+                                return AddOrUpdate(@this, newNeighbor);
                             }
 
-                            //Existing and not broken neighbor?
-                            if (@this.Neighbors.TryGetValue(newNeighbor.Key, out var existingNeighbor) &&
-                                existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s &&
-                                (existingNeighbor.Source?.IsOperational ?? false))
-                            {
-                                return new ValueTask<bool>(false);
-                            }
-
-                            //Existing broken neighbor...
-                            existingNeighbor?.Zero(@this);
-                            return new ValueTask<bool>(true);
+                            return new ValueTask<bool>(AddOrUpdate(@this, newNeighbor));
                         }, ValueTuple.Create(this, newNeighbor)))
                     {
                         return newNeighbor;

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
 using zero.core.conf;
@@ -197,11 +198,6 @@ namespace zero.core.network.ip
         }
 
         /// <summary>
-        /// Backing variable
-        /// </summary>
-        private volatile bool _operational = false;
-
-        /// <summary>
         /// Rate limit socket health checks
         /// </summary>
         private long _lastSocketHealthCheck = (DateTimeOffset.UtcNow + TimeSpan.FromDays(1)).ToUnixTimeMilliseconds();
@@ -224,37 +220,32 @@ namespace zero.core.network.ip
                     if (IoNetSocket.IsTcpSocket)
                     {
                         //rate limit
-                        if (_lastSocketHealthCheck.CurrentMsDelta() < 5000)
-                            return _operational && IoNetSocket.NativeSocket.Connected;
+                        if (_lastSocketHealthCheck.ElapsedMs() < 5000)
+                            return IoNetSocket.NativeSocket.Connected && IoNetSocket.NativeSocket.IsBound;
                         
                         _lastSocketHealthCheck = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         //TODO more checks?
-                        if (!IoNetSocket.IsConnected() 
-                            // || 
-                            // IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectError) || 
-                            // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectRead) ||
-                            // !IoNetSocket.NativeSocket.Poll(-1, SelectMode.SelectWrite)
-                            )
+                        if (!IoNetSocket.IsConnected())
                         {
-                            if(Uptime.ElapsedMs() > 5)
+                            if(Uptime.ElapsedMsToSec() > 5)
                                 _logger.Error($"DC {IoNetSocket.RemoteNodeAddress} from {IoNetSocket.LocalNodeAddress}, uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMs())}");
 
                             //Do cleanup
-                            return _operational = false;
+                            return false;
                         }
                         
-                        return _operational = true;
+                        return true;
                     }
 
                     //Check UDP
-                    return _operational = (bool) IoNetSocket?.IsConnected();
+                    return (bool) IoNetSocket?.IsConnected();
                 }
                 catch when (Zeroed()){}
                 catch (Exception e) when(!Zeroed())
                 {
                     _logger.Trace(e, $"{Description}");
                 }
-                return _operational = false;
+                return false;
             }            
         }
 

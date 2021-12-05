@@ -1760,7 +1760,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 if (CcCollective.ZeroDrone)
-                    ((CcAdjunct)ioNeighbor)._peerRequestsRecvCount = 0;
+                    ((CcAdjunct)ioNeighbor)._peerRequestsRecvCount = ((CcAdjunct)ioNeighbor)._peerRequestsRecvCount / 2;
 
                 count++;
             }
