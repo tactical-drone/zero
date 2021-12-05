@@ -1588,7 +1588,7 @@ namespace zero.cocoon.autopeer
 
                 //Don't add already known neighbors
                 var id = CcDesignation.FromPubKey(sweptDrone.PublicKey.Memory);
-                if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation.Equals(id)))
+                if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation.PublicKey.SequenceEqual(sweptDrone.PublicKey)))
                     continue;
 
                 //var services = new CcService {CcRecord = new CcRecord()};
@@ -1780,14 +1780,26 @@ namespace zero.cocoon.autopeer
                 .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected? 0 : 1)
                 .ThenByDescending(n => (int) ((CcAdjunct) n).Priority)
                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
+
+            if (!certified.Any())
+            {
+                certified = Hub.Neighbors.Values.Where(n => n != this)
+                    .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected ? 0 : 1)
+                    .ThenByDescending(n => (int)((CcAdjunct)n).Priority)
+                    .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
+            }
+
             foreach (var ioNeighbor in certified.Take((int)parm_max_swept_drones))
             {
                 try
                 {
+                    var remoteEp = ((CcAdjunct)ioNeighbor).NatAddress?.IpEndPoint.AsByteString();
+                    remoteEp ??= ((CcAdjunct)ioNeighbor).MessageService.IoNetSocket.RemoteNodeAddress.IpEndPoint.AsByteString();
+
                     sweptResponse.Contacts.Add(new CcAdjunctModel
                     {
                         PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(((CcAdjunct) ioNeighbor).Designation.PublicKey)),
-                        Url = ((CcAdjunct)ioNeighbor).NatAddress.IpEndPoint.AsByteString()
+                        Url = remoteEp
                     });
                 }
                 catch when (ioNeighbor.Zeroed()){}
@@ -2341,12 +2353,12 @@ namespace zero.cocoon.autopeer
                 //if (LastScan.Elapsed() < parm_max_network_latency_ms / 1000)
                 //    return false;
                 
-                var discoveryRequest = new CcSweepMessage
+                var sweepMessage = new CcSweepMessage
                 {
                      Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
 
-                var reqBuf = discoveryRequest.ToByteString();
+                var reqBuf = sweepMessage.ToByteString();
 
                 IoQueue<IoZeroMatcher<ByteString>.IoChallenge>.IoZNode challenge;
                 if ((challenge = await _sweepRequest.ChallengeAsync(RemoteAddress.IpPort, reqBuf)
