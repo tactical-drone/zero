@@ -1048,14 +1048,14 @@ namespace zero.cocoon.autopeer
                                                                         break;
                                                                     }
 
-                                                                    if (i < currentRoute.Designation.PublicKey.Length && currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                                    if (i < currentRoute.Designation.PublicKey.Length && currentRoute.Designation.PublicKey[i] != packet.PublicKey[i] && !currentRoute.Probed /*TODO: What is going on here?*/)
                                                                     {
                                                                         var pk1 = currentRoute.Designation.PkShort();
                                                                         var pk2 = Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10];
 
                                                                         var msg = $"{nameof(@this.Router)}[{i}]: Dropped route {currentRoute.MessageService.IoNetSocket.RemoteNodeAddress.IpEndPoint}/{pk1} ~> {discoveryBatch.RemoteEndPoint.GetEndpoint()}/{pk2}: {currentRoute.Description}";
-                                                                        if (pk1 == pk2)
-                                                                            @this._logger.Warn(msg);
+
+                                                                        @this._logger.Warn(msg);
                                                                         currentRoute.Zero(new IoNanoprobe(msg));
                                                                         currentRoute = null;
                                                                         break;
