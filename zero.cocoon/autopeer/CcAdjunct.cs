@@ -1019,13 +1019,16 @@ namespace zero.cocoon.autopeer
                                                             {
                                                                 for (var i = j; i < currentRoute.Designation.PublicKey.Length; i += i)
                                                                 {
-                                                                    if (currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
+                                                                    if (i < currentRoute.Designation.PublicKey.Length && currentRoute.Designation.PublicKey[i] != packet.PublicKey[i])
                                                                     {
                                                                         var pk1 = currentRoute.Designation.PkShort();
-                                                                        var pk2 = Base58.Bitcoin.Encode(packet.PublicKey.Span)[..8];
-                                                                        if(pk1 == pk2) //TODO why is this so spammy? 
-                                                                            @this._logger.Warn($"{nameof(@this.Router)}[{i}]: Dropped current stale route {currentRoute.RemoteAddress}/{pk1} ~> {discoveryBatch.RemoteEndPoint.GetEndpoint()}/{pk2}: {currentRoute.Description}");
-                                                                        currentRoute.Zero(@this);
+                                                                        var pk2 = Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10];
+
+                                                                        var msg =
+                                                                            $"{nameof(@this.Router)}[{i}]: Dropped route {currentRoute.RemoteAddress}/{pk1} ~> {discoveryBatch.RemoteEndPoint.GetEndpoint()}/{pk2}: {currentRoute.Description}";
+                                                                        if (pk1 == pk2)
+                                                                            @this._logger.Warn(msg);
+                                                                        currentRoute.Zero(new IoNanoprobe(msg));
                                                                         currentRoute = null;
                                                                         break;
                                                                     }
@@ -1903,7 +1906,7 @@ namespace zero.cocoon.autopeer
                             Msg = new ProtoMsg
                             {
                                 CollectiveId = Hub.Router.Designation.IdString(),
-                                Id = Base58.Bitcoin.Encode(packet.PublicKey.Span[..8].ToArray()),
+                                Id = Base58.Bitcoin.Encode(packet.PublicKey.Span[..10].ToArray()),
                                 Type = "pong"
                             }
                         }).FastPath().ConfigureAwait(Zc);
@@ -2021,7 +2024,7 @@ namespace zero.cocoon.autopeer
                 if (Collected && Proxy)
                 {
                     _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! {response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
-                                  $"PK={Designation.PkShort()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span[..8])} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {endpoint}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}, {Description}");
+                                  $"PK={Designation.PkShort()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span[..10])} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {endpoint}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}, {Description}");
                 }
 #endif
                 return;

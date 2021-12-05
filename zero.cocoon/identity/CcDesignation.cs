@@ -31,7 +31,7 @@ namespace zero.cocoon.identity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
         {
-            return Base58.Bitcoin.Encode(Id.AsSpan()[..8]);
+            return Base58.Bitcoin.Encode(Id.AsSpan()[..10]);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
