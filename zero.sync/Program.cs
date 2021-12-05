@@ -641,7 +641,7 @@ namespace zero.sync
         private static Task QueueTestAsync() //TODO make unit tests
         {
 
-            IoQueue<int> q = new("test", 2000000, 100);
+            IoQueue<int> q = new("test", 2000000, 200);
             var head = q.PushBackAsync(2).FastPath().ConfigureAwait(Zc).GetAwaiter().GetResult();
             q.PushBackAsync(1).FastPath().ConfigureAwait(Zc).GetAwaiter();
             q.EnqueueAsync(3).FastPath().ConfigureAwait(Zc).GetAwaiter();
@@ -746,7 +746,7 @@ namespace zero.sync
             var _concurrentTasks = new List<Task>();
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var rounds = 25;
+            var rounds = 32;
             var mult = 1000000;
             for (var i = 0; i < rounds; i++)
             {

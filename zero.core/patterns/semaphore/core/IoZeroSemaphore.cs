@@ -394,7 +394,12 @@ namespace zero.core.patterns.semaphore.core
                 return ValueTaskSourceStatus.Canceled;
             }
 
-            return ValueTaskSourceStatus.Pending;
+            if (_zeroRef.ZeroEnter())
+            {
+                return ValueTaskSourceStatus.Succeeded;
+            }
+
+            return  ValueTaskSourceStatus.Pending;
         }
 
         
