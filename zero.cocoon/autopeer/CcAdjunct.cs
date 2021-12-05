@@ -50,6 +50,7 @@ namespace zero.cocoon.autopeer
                 false
             )
         {
+            
             _random = new CryptoRandomSource(true);
 
             if (Source.Zeroed())
@@ -71,7 +72,6 @@ namespace zero.cocoon.autopeer
                 Designation = item1;
                 RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", ipEndPoint);
                 Key = MakeId(Designation, RemoteAddress);
-
                 //to prevent cascading into the hub we clone the source.
                 Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint);
                 Source.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
@@ -79,6 +79,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 Designation = CcCollective.CcId;
+                
                 //Services = services ?? node.Services;
                 Key = MakeId(Designation, CcCollective.ExtAddress);
             }
@@ -478,7 +479,8 @@ namespace zero.cocoon.autopeer
         /// <returns>A key</returns>
         public static string MakeId(CcDesignation designation, string key)
         {
-            return $"{designation.PkString()}@{key}";
+            //return $"{designation.PkString()}@{key}";
+            return $"{designation.PkShort()}";
         }
 
         /// <summary>
@@ -1348,7 +1350,7 @@ namespace zero.cocoon.autopeer
                     break;
                 }
                 //at least probe
-                case false when CcCollective.Neighbors.Count <= CcCollective.MaxDrones:
+                case false when CcCollective.Neighbors.Count < CcCollective.MaxDrones:
                 {
                     AdjunctState oldState;
                     if (_currState.Value != AdjunctState.Unverified &&
@@ -1373,7 +1375,14 @@ namespace zero.cocoon.autopeer
                     AdjunctState oldState;
                     if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Fusing)) != AdjunctState.Fusing)
                         _logger.Warn($"{nameof(CcFuseResponse)}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Fusing)}, {Description}");
-                    
+
+                    if (!await SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc))
+                        await SweepAsync().FastPath().ConfigureAwait(Zc);
+
+                    if (_lastScan.ElapsedMs() > CcCollective.parm_mean_pat_delay_s * 1000 / 4)
+                        await SweepAsync().FastPath().ConfigureAwait(Zc);
+
+
                     break;
                 }
             }
@@ -1593,9 +1602,9 @@ namespace zero.cocoon.autopeer
         /// <returns>A task, true if successful, false otherwise</returns>
         private async ValueTask<bool> CollectAsync(IPEndPoint newRemoteEp, CcDesignation id)
         {
-            if (Zeroed() || Hub.Zeroed() || newRemoteEp != null && newRemoteEp.Equals(NatAddress?.IpEndPoint))
+            if (Zeroed() || Hub.Zeroed() || newRemoteEp != null && newRemoteEp.Equals(NatAddress?.IpEndPoint) || CcCollective.Hub.Neighbors.ContainsKey(id.PkShort()))
             {
-                _logger.Trace($"x {Description}");
+                _logger.Trace($"x {id.PkShort()}");
                 return false;
             }
 

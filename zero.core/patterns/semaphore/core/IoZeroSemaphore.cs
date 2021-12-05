@@ -915,7 +915,7 @@ namespace zero.core.patterns.semaphore.core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsCancellationRequested()
         {
-            return _asyncTasks.IsCancellationRequested;
+            return _zeroed > 0 || _asyncTasks.IsCancellationRequested;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
