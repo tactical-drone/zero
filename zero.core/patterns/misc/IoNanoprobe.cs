@@ -346,8 +346,12 @@ namespace zero.core.patterns.misc
             var zNode = await _zeroHiveMind.EnqueueAsync(target).FastPath().ConfigureAwait(Zc);
 
             if (zNode == null)
-                throw new ApplicationException($"BUG: {nameof(zNode)} has to be > -1");
-
+            {
+                if(_zeroed > 0)
+                    throw new ApplicationException($"{nameof(ZeroHiveAsync)}: {nameof(_zeroHiveMind.EnqueueAsync)} failed!, cap =? {_zeroHiveMind.Count}/{_zeroHiveMind.Capacity}");
+                return (default, false);
+            }
+            
             if (twoWay) //zero
                 await target.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);
             else

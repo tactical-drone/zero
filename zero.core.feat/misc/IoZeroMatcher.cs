@@ -30,7 +30,7 @@ namespace zero.core.feat.misc
 
             _lut = new IoQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2);
 
-            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", _capacity)
+            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity))
             {
                 Make = static (o,s) => new IoChallenge()
             };
@@ -237,6 +237,9 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
+            if (reqHash.Length == 0)
+                return new ValueTask<bool>(false);
+
             return new ValueTask<bool>(ZeroAtomic(static async (_, state, __) =>
             {
                 var (@this, key, reqHash) = state;
@@ -251,7 +254,6 @@ namespace zero.core.feat.misc
                     {
                         cur = @this._lut.Head;
                         @this._lut.Reset();
-                        Thread.Yield();
                         continue;
                     }
 

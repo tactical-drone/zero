@@ -148,7 +148,7 @@ namespace zero.sync
                 t4.Start();
             }, TaskCreationOptions.DenyChildAttach );
             Console.WriteLine("Waiting for queen....");
-            Thread.Sleep(60000);
+            Thread.Sleep(6000);
             Console.WriteLine("Queen Online!");
             for (var i = 2; i < total; i++)
             {

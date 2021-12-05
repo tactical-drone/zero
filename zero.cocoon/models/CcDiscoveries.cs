@@ -382,9 +382,10 @@ namespace zero.cocoon.models
                         }
                     }
                 }
+                catch when(Zeroed()){}
                 catch (Exception e) when(!Zeroed())
                 {
-                    _logger.Error(e);
+                    _logger.Error(e, $"{nameof(State)}: re setting state failed!");
                 }                
             }
 

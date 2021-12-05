@@ -91,12 +91,11 @@ namespace zero.core.patterns.queue
             {
                 if (_count >= _capacity)
                 {
-                    
-                    var tmpCapacity = _capacity;
+                    var newStorage = new T[_capacity * 2];
+                    Array.Copy(_storage, 0, newStorage, 0, _capacity);
+
+                    _storage = newStorage;
                     Interlocked.Exchange(ref _capacity, _capacity * 2);
-                    var newCapacity = new T[_capacity];
-                    Array.Copy(_storage, 0, newCapacity, 0, tmpCapacity);
-                    _storage = newCapacity;
                     return true;
                 }
                 return false;
