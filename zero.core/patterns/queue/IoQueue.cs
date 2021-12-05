@@ -178,15 +178,14 @@ namespace zero.core.patterns.queue
         {
             var entered = false;
             IoZNode retVal = default;
+
+            if (_zeroed > 0 || item == null)
+                return null;
+
             try
             {
-                if (_zeroed > 0 || item == null)
-                    return null;
-
                 //wait on back pressure
-                if (_backPressure != null && 
-                    !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) ||
-                    _zeroed > 0)
+                if (_backPressure != null && !await _backPressure.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
                 {
                     if(_zeroed == 0 && (!_backPressure?.Zeroed()??true))
                         LogManager.GetCurrentClassLogger().Fatal($"{nameof(EnqueueAsync)}{nameof(_backPressure.WaitAsync)}: back pressure failure ~> {_backPressure}");
@@ -203,13 +202,13 @@ namespace zero.core.patterns.queue
                 node.Prev = null;
                 node.Next = null;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
                 {
                     _nodeHeap.Return(node);
                     return null;
                 }
-                entered = true;
-                
+
                 if (_tail == null)
                 {
                     _head = _tail = node;
@@ -247,7 +246,6 @@ namespace zero.core.patterns.queue
         {
             if (_zeroed > 0 || item == null)
             {
-                Debug.Assert(item != null);
                 return null;
             }
             
@@ -271,13 +269,13 @@ namespace zero.core.patterns.queue
                 node.Prev = null;
                 node.Next = null;
 
-                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || _zeroed > 0)
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                if (!await _syncRoot.WaitAsync().FastPath().ConfigureAwait(Zc) || !(entered = true) || _zeroed > 0)
                 {
                     _nodeHeap.Return(node);
                     LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}: _syncRoot failure ~> {_syncRoot}");
                     return null;
                 }
-                entered = true;
 
                 if (_head == null)
                 {
@@ -295,7 +293,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                var success = retVal != null;
+                var success = retVal != default;
 
                 if (entered)
                     _syncRoot.Release();
@@ -304,7 +302,6 @@ namespace zero.core.patterns.queue
                     _pressure?.Release();
                 else
                     _backPressure?.Release();
-                
             }
         }
 
@@ -354,11 +351,7 @@ namespace zero.core.patterns.queue
             }
             finally
             {
-                if (_backPressure != null && _backPressure.Release() == -1)
-                {
-                    if(_zeroed == 0 && !_backPressure.Zeroed())
-                        LogManager.GetCurrentClassLogger().Fatal($"{nameof(DequeueAsync)}.{nameof(_backPressure.Release)}: back pressure release failure ~> {_backPressure}");
-                }
+                _backPressure?.Release();
 
                 if (blocked)
                     _syncRoot.Release();
@@ -390,6 +383,7 @@ namespace zero.core.patterns.queue
         /// <returns>True if the item was removed</returns>
         public async ValueTask<bool> RemoveAsync(IoZNode node)
         {
+            Debug.Assert(_backPressure == null);
             try
             {
                 if (_zeroed > 0 || node == null)

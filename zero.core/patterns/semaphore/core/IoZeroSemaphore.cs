@@ -402,6 +402,7 @@ namespace zero.core.patterns.semaphore.core
             ExecutionContext executionContext;
             object capturedContext;
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             void ExtractStack(out ExecutionContext ec, out object cc)
             {
                 ec = null;
@@ -411,21 +412,21 @@ namespace zero.core.patterns.semaphore.core
                     ec = ExecutionContext.Capture();
                 }
 
-                if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) != 0)
+                if ((flags & ValueTaskSourceOnCompletedFlags.UseSchedulingContext) == 0) return;
+
+                if (SynchronizationContext.Current != null)
                 {
-                    var sc = SynchronizationContext.Current;
-                    if (sc != null)
-                        cc = sc;
-                    else
-                    {
-                        var ts = TaskScheduler.Current;
-                        if (ts != TaskScheduler.Default)
-                            cc = ts;
-                    }
+                    cc = SynchronizationContext.Current;
+                }
+                else
+                {
+                    var ts = TaskScheduler.Current;
+                    if (ts != TaskScheduler.Default)
+                        cc = ts;
                 }
             }
-            
-            if (_zeroRef.ZeroEnter())
+
+            if (_zeroRef.ZeroWaitCount() > 1 && _zeroRef.ZeroEnter())
             {
                 if (Release(1, bestEffort: true) != 1)
                 {
@@ -490,14 +491,12 @@ namespace zero.core.patterns.semaphore.core
         /// <param name="onComplete">Whether this call originates from <see cref="OnCompleted"/></param>
         /// <param name="zeroed">If we are zeroed</param>
         /// <param name="executionContext"></param>
+        /// <param name="forceAsync">Forces async execution</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool onComplete = false, bool zeroed = false)
+        private bool ZeroComply(Action<object> callback, object state, ExecutionContext executionContext, object capturedContext, bool onComplete = false, bool zeroed = false, bool forceAsync = false)
         {
             try
             {
-                if (callback == null || state == null)//TODO, why do we need this hack? Process is being downed from inside here somewhere... 
-                    return false;
-
                 //Execute with captured context
                 if (!onComplete && executionContext != null)
                 {
@@ -514,12 +513,14 @@ namespace zero.core.patterns.semaphore.core
                 switch (capturedContext)
                 {
                     case null:
-                        if (RunContinuationsAsynchronously)
+                        if (RunContinuationsAsynchronously || forceAsync)
                         {
-                            if (_zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
+                            if (forceAsync || _zeroRef.ZeroIncAsyncCount() - 1 < _maxAsyncWorkers)
                             {
-                                Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default)
-                                    .ContinueWith((_, zeroRef) =>
+                                var asyncContinue = Task.Factory.StartNew(callback, state, _asyncTasks.Token, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
+                                if(!forceAsync)
+                                    asyncContinue.ContinueWith((_, zeroRef) =>
                                     {
                                         ((IIoZeroSemaphore)zeroRef).ZeroDecAsyncCount();
                                     }, _zeroRef);
@@ -538,7 +539,7 @@ namespace zero.core.patterns.semaphore.core
                     case SynchronizationContext sc:
                         sc.Post(static s =>
                         {
-                            var tuple = (ValueTuple<Action<object>, object>)s!;
+                            var tuple = (ValueTuple<Action<object>, object>)s;
                             tuple.Item1(tuple.Item2);
                         }, new ValueTuple<Action<object>, object>(callback, state));
                         break;
@@ -727,7 +728,7 @@ namespace zero.core.patterns.semaphore.core
                     throw new ArgumentNullException($"-> {nameof(worker.State)}");
 #endif
 
-                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, false, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed()))
+                if (!ZeroComply(worker.Continuation, worker.State, worker.ExecutionContext, worker.CapturedContext, false, Zeroed() || worker.Semaphore.Zeroed() || worker.State is IIoNanite nanite && nanite.Zeroed(), bestEffort))
                 {
                     _zeroRef.ZeroAddCount(releaseCount - released);
                     //update current count

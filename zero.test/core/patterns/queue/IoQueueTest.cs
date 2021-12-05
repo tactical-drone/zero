@@ -176,13 +176,13 @@ namespace zero.test.core.patterns.queue{
         {
             var concurrentTasks = new List<Task>();
 #if DEBUG
-            var rounds = 10;
-            var mult = 1000;
+            var rounds = 2;
+            var mult = 10000;
 #else
-            var rounds = 25;
-            var mult = 40000;
+            var rounds = 10;
+            var mult = 10000;
 #endif
-
+            
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             for (var i = 0; i < rounds; i++)
@@ -192,7 +192,7 @@ namespace zero.test.core.patterns.queue{
 #if DEBUG
                     var mult = 1000;
 #else
-                    var mult = 40000;
+                    var mult = 10000;
 #endif
 
                     var @this = (IoQueueTest)state!;
@@ -230,7 +230,7 @@ namespace zero.test.core.patterns.queue{
                     @this._output.WriteLine($"({@this.context.Q.Count})");
                 },this, TaskCreationOptions.DenyChildAttach).Unwrap());
             }
-            await Task.WhenAll(concurrentTasks);
+            await Task.WhenAll(concurrentTasks).WaitAsync(TimeSpan.FromSeconds(10));
 
             _output.WriteLine($"count = {context.Q.Count}, Head = {context.Q?.Tail?.Value}, tail = {context.Q?.Head?.Value}, time = {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start}ms, {rounds * mult * 6 / (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start)} kOPS");
 
@@ -263,8 +263,14 @@ namespace zero.test.core.patterns.queue{
         public async Task Iterator()
         {
 
-            var threads = 20;
-            var itemsPerThread = 100000;
+#if DEBUG
+            var threads = 2;
+            var itemsPerThread = 1000;
+#else
+            var threads = 10;
+            var itemsPerThread = 10000;
+#endif
+
             var capacity = threads * itemsPerThread;
 
             var q = new IoQueue<int>("test Q", capacity, threads);
@@ -296,7 +302,7 @@ namespace zero.test.core.patterns.queue{
                 }, (this, q, idx, itemsPerThread), TaskCreationOptions.DenyChildAttach).Unwrap());
             }
 
-            await Task.WhenAll(insert).ConfigureAwait(_zc);
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(_zc);
 
             Assert.Equal(capacity, _inserted);
 
@@ -332,6 +338,7 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         async Task AutoScale()
         {
+            await Task.Yield();
             var q = new IoQueue<int>("test Q", 1, 1, autoScale:true);
 
             await q.EnqueueAsync(0);
@@ -350,8 +357,11 @@ namespace zero.test.core.patterns.queue{
         [Fact]
         async Task NoQueuePressure()
         {
+            
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2);
+
+            await Task.Yield();
 
             await _queuePressure.EnqueueAsync(0);
 
@@ -398,6 +408,8 @@ namespace zero.test.core.patterns.queue{
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 1, 2, disablePressure:false);
+
+            await Task.Yield();
 
             await _queuePressure.EnqueueAsync(0);
 
@@ -454,6 +466,8 @@ namespace zero.test.core.patterns.queue{
         {
             _blockCancellationSignal = new CancellationTokenSource();
             _queuePressure = new IoQueue<IoInt32>("test Q", 2, 2, disablePressure: false, enableBackPressure:true);
+
+            await Task.Yield();
 
             await _queuePressure.EnqueueAsync(0);
 

@@ -65,8 +65,6 @@ namespace zero.sync
         {
             //SemTest();
             //QueueTestAsync();
-            //BagTest();
-            //BagTest2();
 
             LogManager.LoadConfiguration("nlog.config");
             var portOffset = 5051;
@@ -748,7 +746,7 @@ namespace zero.sync
             var _concurrentTasks = new List<Task>();
 
             var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var rounds = 20;
+            var rounds = 25;
             var mult = 1000000;
             for (var i = 0; i < rounds; i++)
             {

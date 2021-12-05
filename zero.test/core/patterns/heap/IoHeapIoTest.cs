@@ -30,7 +30,7 @@ namespace zero.test.core.patterns.heap
                 }, (this, h), TaskCreationOptions.DenyChildAttach));
             }
 
-            Task.WhenAll(spamTasks).GetAwaiter().GetResult();
+            Task.WhenAll(spamTasks).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
 
             Assert.Equal(0, h.ReferenceCount);
             Assert.InRange(h.Count, 1,_capacity);
@@ -68,7 +68,7 @@ namespace zero.test.core.patterns.heap
             {
                 Make = (o, test) => new HeapItem(_localVar, (int)o)
             };
-
+            await Task.Yield();
             var i1 = h.Take(0);
             var i2 = h.Take(0);
             var i3 = h.Take(0);

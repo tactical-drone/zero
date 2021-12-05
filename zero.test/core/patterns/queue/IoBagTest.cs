@@ -58,7 +58,7 @@ namespace zero.test.core.patterns.queue
         {
             var threads = 100;
             var bag = new IoBag<IoInt32>("test", 100, true);
-
+            await Task.Yield();
             var c = 0;
             foreach (var ioInt32 in bag)
                 c++;
@@ -76,7 +76,7 @@ namespace zero.test.core.patterns.queue
                 }, (this, bag, idx), TaskCreationOptions.DenyChildAttach));
             }
 
-            await Task.WhenAll(insert).ConfigureAwait(Zc);
+            await Task.WhenAll(insert).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(Zc);
 
             Assert.Equal(threads, bag.Count);
 

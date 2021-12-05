@@ -31,6 +31,8 @@ namespace zero.test.core.patterns.semaphore
 #endif
             var m = new IoZeroSemaphoreSlim(new CancellationTokenSource(), "test mutex", maxBlockers: 1, initialCount: 1);
 
+            await Task.Yield();
+
             Assert.True(await m.WaitAsync().FastPath().ConfigureAwait(Zc));
 
             var t = Task.Factory.StartNew(static async state =>

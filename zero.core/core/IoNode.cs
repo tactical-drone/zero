@@ -148,8 +148,7 @@ namespace zero.core.core
                             if (!await acceptConnection(newNeighbor, nanite).FastPath().ConfigureAwait(@this.Zc))
                             {
                                 @this._logger.Trace($"Incoming connection from {ioNetClient.Key} rejected.");
-                                newNeighbor.Zero(@this);
-                                return;
+                                newNeighbor.Zero(new IoNanoprobe($"Incoming connection from {ioNetClient.Key} not accepted"));
                             }
                         }, (@this, newNeighbor, acceptConnection, nanite, ioNetClient), TaskCreationOptions.DenyChildAttach, unwrap:true).AsTask();
                     }
@@ -157,7 +156,8 @@ namespace zero.core.core
                 }
                 catch (Exception e)
                 {
-                    newNeighbor.Zero(@this);
+                    newNeighbor.Zero(new IoNanoprobe($"{nameof(acceptConnection)} Exception: {e.Message}"));
+
                     @this._logger.Error(e, $"Accepting connection {ioNetClient.Key} returned with errors");
                     return;
                 }
@@ -190,11 +190,12 @@ namespace zero.core.core
                                             {
                                                 if (!existingNeighbor.Source.IsOperational && existingNeighbor.Uptime.ElapsedMsToSec() > @this.parm_zombie_connect_time_threshold_s)
                                                 {
-                                                    @this._logger.Warn($"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
+                                                    var errMsg = $"{nameof(SpawnListenerAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]";
+                                                    @this._logger.Warn(errMsg);
 
                                                     //We remove the key here or async race conditions with the listener...
                                                     @this.Neighbors.Remove(existingNeighbor.Key, out _);
-                                                    existingNeighbor.Zero(new IoNanoprobe("Replaced zombie connection!"));
+                                                    existingNeighbor.Zero(new IoNanoprobe(errMsg));
                                                     continue;
                                                 }
 
@@ -246,7 +247,7 @@ namespace zero.core.core
                             }
                             else
                             {
-                                newNeighbor.Zero(@this);
+                                newNeighbor.Zero(new IoNanoprobe("Failed to add new node..."));
                             }
                         }
                     }, (@this, newNeighbor)).ConfigureAwait(@this.Zc);
@@ -352,10 +353,12 @@ namespace zero.core.core
                                 if (existingNeighbor == null)
                                     return true;
 
-                                @this._logger.Warn($"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]");
+                                var warnMsg =
+                                    $"{nameof(ConnectAsync)}: Connection {newNeighbor.Key} [REPLACED], existing {existingNeighbor.Key} with uptime {existingNeighbor.Uptime.ElapsedMs()}ms [DC]";
+                                @this._logger.Warn(warnMsg);
 
                                 //Existing broken neighbor...
-                                existingNeighbor.Zero(@this);
+                                existingNeighbor.Zero(new IoNanoprobe(warnMsg));
 
                                 @this.Neighbors.TryRemove(newNeighbor.Key, out _);
 
@@ -382,7 +385,7 @@ namespace zero.core.core
             {
                 if (newClient != null && newNeighbor == null)
                 {
-                    newClient.Zero(this);
+                    newClient.Zero(new IoNanoprobe($"{nameof(newClient)} is not null but {nameof(newNeighbor)} is. Should not be..."));
                 }
             }
 

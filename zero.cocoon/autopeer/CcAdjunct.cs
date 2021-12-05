@@ -513,7 +513,7 @@ namespace zero.cocoon.autopeer
         [IoParameter]
         // ReSharper disable once InconsistentNaming
 #if DEBUG
-        public int parm_max_network_latency_ms = 2000;
+        public int parm_max_network_latency_ms = 3000;
 #else
         public int parm_max_network_latency_ms = 1000;
 #endif
