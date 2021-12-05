@@ -361,7 +361,7 @@ namespace zero.core.patterns.semaphore.core
 
             _zeroRef.ZeroTokenBump();
 #endif
-            return !(_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed());
+            return !(_zeroRef != null && (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed()));
         }
 
         /// <summary>
@@ -377,7 +377,7 @@ namespace zero.core.patterns.semaphore.core
                 throw new ZeroValidationException($"{Description}: Invalid token: wants = {token}, has = {_token}");
 #endif
 
-            if (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed())
+            if (_zeroRef != null && (_zeroRef.IsCancellationRequested() || _zeroRef.Zeroed()))
                 return ValueTaskSourceStatus.Canceled;
 
             return ValueTaskSourceStatus.Pending;
