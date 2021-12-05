@@ -43,7 +43,7 @@ namespace zero.cocoon.identity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string PkShort()
         {
-            return Base58.Bitcoin.Encode(PublicKey[..8]);
+            return Base58.Bitcoin.Encode(PublicKey.AsSpan()[..8]);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

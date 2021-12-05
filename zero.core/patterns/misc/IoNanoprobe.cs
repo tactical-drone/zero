@@ -600,32 +600,29 @@ namespace zero.core.patterns.misc
                         {
                             return (_zeroed == 0) && ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
                         }
-                        catch (Exception e)
+                        catch when (Zeroed()) { }
+                        catch (Exception e) when (!Zeroed())
                         {
-                            if (!Zeroed())
-                                _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
+                            _logger.Error(e, $"{Description}: Unable to ensure action {ownershipAction}, target = {ownershipAction.Target}");
                             return false;
                         }
-
                     }
                     else
                     {
                         return ownershipAction(this, userData, disposing).FastPath().GetAwaiter().GetResult();
                     }
                 }
-                catch (Exception e)
+                catch when(Zeroed()){}
+                catch (Exception e) when (!Zeroed())
                 {
-                    _logger.Fatal(e, $"{Description}");
+                    _logger.Error(e, $"{Description}");
                     // ignored
                 }
             }
-            catch (NullReferenceException e)
+            catch when (Zeroed()) { }
+            catch (Exception e) when (!Zeroed())
             {
-                _logger.Trace(e);
-            }
-            catch (Exception e)
-            {
-                _logger.Fatal(e, $"Unable to ensure ownership in {Description}");
+                _logger.Error(e, $"Unable to ensure ownership in {Description}");
             }
 
             return false;

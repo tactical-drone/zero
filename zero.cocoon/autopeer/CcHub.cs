@@ -31,15 +31,9 @@ namespace zero.cocoon.autopeer
                 IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>> mallocNeighbor, int prefetch,
             int concurrencyLevel) : base(address, mallocNeighbor, prefetch, concurrencyLevel, ccCollective.MaxAdjuncts * 2)//TODO config
         {
-            _logger = LogManager.GetCurrentClassLogger();
             CcCollective = ccCollective;
             _designation = ccCollective.CcId;
         }
-
-        /// <summary>
-        /// the logger
-        /// </summary>
-        private Logger _logger;
 
         /// <summary>
         /// Description
@@ -49,7 +43,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// The hub id
         /// </summary>
-        private CcDesignation _designation;
+        private readonly CcDesignation _designation;
 
         /// <summary>
         /// The hub id
@@ -78,7 +72,6 @@ namespace zero.cocoon.autopeer
         {
             base.ZeroUnmanaged();
 #if SAFE_RELEASE
-            _logger = null;
             CcCollective = null;
             Router = null;
 #endif

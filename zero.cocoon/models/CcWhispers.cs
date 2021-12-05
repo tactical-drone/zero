@@ -21,7 +21,7 @@ namespace zero.cocoon.models
 {
     public class CcWhispers : CcProtocMessage<CcWhisperMsg, CcGossipBatch>
     {
-        public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source, int concurrencyLevel = 1) : base(sinkDesc, jobDesc, source)
+        public CcWhispers(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<CcWhisperMsg, CcGossipBatch>> source) : base(sinkDesc, jobDesc, source)
         {
             
         }
@@ -100,7 +100,7 @@ namespace zero.cocoon.models
         /// <summary>
         /// random number generator
         /// </summary>
-        readonly Random _random = new Random((int)DateTime.Now.Ticks);
+        //readonly Random _random = new Random((int)DateTime.Now.Ticks);
 
         //private IoHeap<ConcurrentBag<string>> _dupHeap;
         //private uint _poolSize = 50;
@@ -333,40 +333,40 @@ namespace zero.cocoon.models
         /// <param name="packet">The packet</param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private ValueTask ProcessRequestAsync<T>(CcWhisperMsg packet)
-            where T : IMessage<T>, IMessage, new()
-        {
-            //try
-            //{
-            //    var parser = new MessageParser<T>(() => new T());
-            //    var request = parser.ParseFrom(packet.Data);
+        //private ValueTask ProcessRequestAsync<T>(CcWhisperMsg packet)
+        //    where T : IMessage<T>, IMessage, new()
+        //{
+        //    //try
+        //    //{
+        //    //    var parser = new MessageParser<T>(() => new T());
+        //    //    var request = parser.ParseFrom(packet.Data);
 
-            //    if (request != null)
-            //    {
-            //        //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
-            //        IIoZero zero = null;
-            //        //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
-            //        //    zero = IoZero;
+        //    //    if (request != null)
+        //    //    {
+        //    //        //_logger.Debug($"[{Base58Check.Base58CheckEncoding.Encode(packet.PublicKey.ToByteArray())}]{typeof(T).Name}: Received {packet.Data.Length}" );
+        //    //        IIoZero zero = null;
+        //    //        //if (((IoNetClient<CcPeerMessage>)Source).Socket.FfAddress != null)
+        //    //        //    zero = IoZero;
 
-            //        if (CurrBatchSlot >= parm_max_msg_batch_size)
-            //            await ForwardToNeighborAsync().ConfigureAwait(ZC);
+        //    //        if (CurrBatchSlot >= parm_max_msg_batch_size)
+        //    //            await ForwardToNeighborAsync().ConfigureAwait(ZC);
 
-            //        var remoteEp = new IPEndPoint(((IPEndPoint)RemoteEndPoint).Address, ((IPEndPoint)RemoteEndPoint).Port);
-            //        ProtocolMsgBatch[CurrBatchSlot] = ValueTuple.Create(zero, request, remoteEp, packet);
-            //        Interlocked.Increment(ref CurrBatchSlot);
-            //    }
-            //}
-            //catch (NullReferenceException e)
-            //{
-            //    _logger.Trace(e, Description);
-            //}
-            //catch (Exception e)
-            //{
-            //    _logger.Error(e,
-            //        $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
-            //}
-            return default;
-        }
+        //    //        var remoteEp = new IPEndPoint(((IPEndPoint)RemoteEndPoint).Address, ((IPEndPoint)RemoteEndPoint).Port);
+        //    //        ProtocolMsgBatch[CurrBatchSlot] = ValueTuple.Create(zero, request, remoteEp, packet);
+        //    //        Interlocked.Increment(ref CurrBatchSlot);
+        //    //    }
+        //    //}
+        //    //catch (NullReferenceException e)
+        //    //{
+        //    //    _logger.Trace(e, Description);
+        //    //}
+        //    //catch (Exception e)
+        //    //{
+        //    //    _logger.Error(e,
+        //    //        $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
+        //    //}
+        //    return default;
+        //}
 
         /// <summary>
         /// Forward jobs to conduit

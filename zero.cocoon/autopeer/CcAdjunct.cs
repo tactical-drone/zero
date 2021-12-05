@@ -1954,44 +1954,44 @@ namespace zero.cocoon.autopeer
         /// <param name="localEp"></param>
         /// <param name="remoteEp"></param>
         /// <returns></returns>
-        private CcProbeResponse PrepareServices(chroniton packet, IPEndPoint localEp, IPEndPoint remoteEp)
-        {
-            //TODO optimize
-            var gossipAddress =
-                Hub.Services.CcRecord.Endpoints[CcService.Keys.gossip];
-            var peeringAddress =
-                Hub.Services.CcRecord.Endpoints[CcService.Keys.peering];
-            var fpcAddress =
-                Hub.Services.CcRecord.Endpoints[CcService.Keys.fpc];
+        //private CcProbeResponse PrepareServices(chroniton packet, IPEndPoint localEp, IPEndPoint remoteEp)
+        //{
+        //    //TODO optimize
+        //    var gossipAddress =
+        //        Hub.Services.CcRecord.Endpoints[CcService.Keys.gossip];
+        //    var peeringAddress =
+        //        Hub.Services.CcRecord.Endpoints[CcService.Keys.peering];
+        //    var fpcAddress =
+        //        Hub.Services.CcRecord.Endpoints[CcService.Keys.fpc];
 
-            var probedMessage = new CcProbeResponse
-            {
-                Protocol = parm_protocol_version,
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
+        //    var probedMessage = new CcProbeResponse
+        //    {
+        //        Protocol = parm_protocol_version,
+        //        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+        //        ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
 
-                //DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
-                //Services = _serviceMapLocal = new CcServiceMapModel
-                //{
-                //    Map =
-                //    {
-                //        {
-                //            CcService.Keys.peering.ToString(),
-                //            new NetworkAddress { Network = "udp", Port = (uint)peeringAddress.Port }
-                //        },
-                //        {
-                //            CcService.Keys.gossip.ToString(),
-                //            new NetworkAddress { Network = "tcp", Port = (uint)gossipAddress.Port }
-                //        },
-                //        {
-                //            CcService.Keys.fpc.ToString(),
-                //            new NetworkAddress { Network = "tcp", Port = (uint)fpcAddress.Port }
-                //        }
-                //    }
-                //}
-            };
-            return probedMessage;
-        }
+        //        //DstAddr = $"{remoteEp.Address}", //TODO, add port somehow
+        //        //Services = _serviceMapLocal = new CcServiceMapModel
+        //        //{
+        //        //    Map =
+        //        //    {
+        //        //        {
+        //        //            CcService.Keys.peering.ToString(),
+        //        //            new NetworkAddress { Network = "udp", Port = (uint)peeringAddress.Port }
+        //        //        },
+        //        //        {
+        //        //            CcService.Keys.gossip.ToString(),
+        //        //            new NetworkAddress { Network = "tcp", Port = (uint)gossipAddress.Port }
+        //        //        },
+        //        //        {
+        //        //            CcService.Keys.fpc.ToString(),
+        //        //            new NetworkAddress { Network = "tcp", Port = (uint)fpcAddress.Port }
+        //        //        }
+        //        //    }
+        //        //}
+        //    };
+        //    return probedMessage;
+        //}
 
         /// <summary>
         /// Probed message
@@ -2013,7 +2013,7 @@ namespace zero.cocoon.autopeer
                 if (Collected && Proxy)
                 {
                     _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! {response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
-                                  $"PK={Designation.PkShort()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span[..8])} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {extraData}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}, {Description}");
+                                  $"PK={Designation.PkShort()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span[..8])} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {endpoint}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}, {Description}");
                 }
 #endif
                 return;

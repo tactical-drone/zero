@@ -133,7 +133,7 @@ namespace zero.core.feat.misc
         /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body, bool bump = true)
+        public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body)
         {
             if (body == null)
                 return default;

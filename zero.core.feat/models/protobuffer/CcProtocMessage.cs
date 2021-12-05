@@ -88,11 +88,6 @@ namespace zero.core.feat.models.protobuffer
         public int parm_max_msg_batch_size = 128;//TODO tuning 4 x MaxAdjuncts
 
         /// <summary>
-        /// Message rate
-        /// </summary>
-        private long _msgRateCheckpoint = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-        /// <summary>
         /// How long to wait for the consumer before timing out
         /// </summary>
         public override int WaitForConsumerTimeout => parm_producer_wait_for_consumer_timeout;
