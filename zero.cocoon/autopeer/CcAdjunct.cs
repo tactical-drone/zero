@@ -1811,7 +1811,10 @@ namespace zero.cocoon.autopeer
                 }
 
                 if (CcCollective.ZeroDrone)
-                    ((CcAdjunct)ioNeighbor)._fuseRequestsRecvCount = ((CcAdjunct)ioNeighbor)._fuseRequestsRecvCount / 2;
+                {
+                    Interlocked.Exchange(ref ((CcAdjunct)ioNeighbor)._fuseRequestsRecvCount,
+                        ((CcAdjunct)ioNeighbor)._fuseRequestsRecvCount / 2);
+                }
 
                 count++;
             }
@@ -1858,6 +1861,7 @@ namespace zero.cocoon.autopeer
                     if (@this.Direction == Heading.Undefined && @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
                         @this.Hub?.Router != null)
                     {
+                        @this._fuseRequestsSentCount = 0;
                         if (!await @this.ProbeAsync("SYN-FLD", ioNodeAddress).FastPath().ConfigureAwait(@this.Zc))
                         {
                             @this._logger.Trace($"<\\- {nameof(ProbeAsync)}(SYN-FLD): [FAILED] {@this.Description}");
