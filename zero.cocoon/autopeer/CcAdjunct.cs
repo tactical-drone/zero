@@ -644,7 +644,7 @@ namespace zero.cocoon.autopeer
                 }
 
                 var from = ZeroedFrom == this? "self" : ZeroedFrom?.Description??"null";
-                if (Assimilated && Direction != Heading.Undefined && WasAttached && Uptime.ElapsedMs() > parm_min_uptime_ms)
+                if (Assimilated && WasAttached && Uptime.ElapsedMs() > parm_min_uptime_ms)
                     _logger.Info($"- `{(Assimilated ? "apex" : "sub")} {Direction}: {Description}, from: {from}");
 
                 await DetachDroneAsync().FastPath().ConfigureAwait(Zc);

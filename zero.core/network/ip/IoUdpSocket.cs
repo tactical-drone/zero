@@ -139,8 +139,8 @@ namespace zero.core.network.ip
             {
                 o.Completed -= @this.SignalAsync;
                 o.UserToken = null;
-                //o.RemoteEndPoint = null; Leave not null
-                ((IDisposable) o).Dispose();
+                //o.RemoteEndPoint = null;
+                
                 try
                 {
                     o.SetBuffer(null,0,0);
