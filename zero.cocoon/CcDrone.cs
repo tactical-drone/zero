@@ -81,11 +81,11 @@ namespace zero.cocoon
                 //_lastDescGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 try
                 {
-                    return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction}, {IoSource.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source.IsOperational?"Active":"Zombie")} {(_assimulated? "Participant" : "Bystander")} [{Adjunct.Hub.Designation.IdString()}, {Adjunct.Designation.IdString()}], {Adjunct.Direction},{Adjunct.MessageService.IoNetSocket.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource).IoNetSocket.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
                 }
                 catch
                 {
-                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {IoSource?.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
+                    return _description = $"`drone({(Source?.IsOperational??false ? "Active":"Zombie")} {(_assimulated ? "Participant" : "Bystander")}, [{Adjunct?.Hub?.Designation?.IdString()}, {Adjunct?.Designation?.IdString()}], {Adjunct?.MessageService?.IoNetSocket?.Key} ~ {((IoTcpClient<CcProtocMessage<CcWhisperMsg, CcGossipBatch>>)IoSource)?.IoNetSocket?.Key}, up = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs())}'";
                 }
             }
         }
@@ -117,10 +117,20 @@ namespace zero.cocoon
         /// </summary>
         public CcAdjunct Adjunct { get; protected internal set; }
 
+        private string _key;
         /// <summary>
         /// CcId
         /// </summary>
-        public override string Key => Adjunct?.Key ?? "null";
+        public override string Key
+        {
+            get
+            {
+                if (_key != null)
+                    return _key;
+
+                return _key = Adjunct.Key;
+            }
+        }
 
         /// <summary>
         /// Used for testing

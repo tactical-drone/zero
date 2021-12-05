@@ -21,7 +21,6 @@ using zero.cocoon.events.services;
 using zero.cocoon.identity;
 using zero.cocoon.models;
 using zero.cocoon.models.batches;
-using zero.cocoon.models.services;
 using zero.core.conf;
 using zero.core.core;
 using zero.core.feat.misc;
@@ -42,7 +41,7 @@ namespace zero.cocoon.autopeer
     public class CcAdjunct : IoNeighbor<CcProtocMessage<chroniton, CcDiscoveryBatch>>
     {
         public CcAdjunct(CcHub node, IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>> ioNetClient,
-            object extraData = null, CcService services = null)
+            object extraData = null)
             : base
             (
                 node,
@@ -220,7 +219,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Source
         /// </summary>
-        protected IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>> MessageService => (IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>) Source;
+        public IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>> MessageService => (IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>) Source;
 
         /// <summary>
         /// The udp routing table 
