@@ -1295,18 +1295,18 @@ namespace zero.cocoon.autopeer
             //PAT
             LastPat = 0;
 
-            var ccFuseRequestMsg = new CcFuseResponse
+            var fuseResponse = new CcFuseResponse
             {
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 ReqHash = UnsafeByteOperations.UnsafeWrap(CcDesignation.Sha256.ComputeHash(packet.Data.Memory.AsArray())),
                 Accept = CcCollective.IngressCount < CcCollective.parm_max_inbound && _direction == 0
             };
 
-            if (ccFuseRequestMsg.Accept)
+            if (fuseResponse.Accept)
             {
                 var stateIsValid = _currState.Value != AdjunctState.Connected && CompareAndEnterState(AdjunctState.Fusing, AdjunctState.Verified, overrideHung: parm_max_network_latency_ms * 2) == AdjunctState.Verified;
 
-                ccFuseRequestMsg.Accept &= stateIsValid;
+                fuseResponse.Accept &= stateIsValid;
 
                 if (!stateIsValid)
                 {
@@ -1314,13 +1314,13 @@ namespace zero.cocoon.autopeer
                 }
             }
 
-            if ((sent= await SendMessageAsync(ccFuseRequestMsg.ToByteString(),
+            if ((sent= await SendMessageAsync(fuseResponse.ToByteString(),
                     CcDiscoveries.MessageTypes.Fused).FastPath().ConfigureAwait(Zc)) > 0)
             {
-                var response = $"{(ccFuseRequestMsg.Accept ? "accept" : "reject")}";
+                var response = $"{(fuseResponse.Accept ? "accept" : "reject")}";
                 _logger.Debug($"-/> {nameof(CcFuseRequest)}({sent}): Sent {response}, {Description}");
 
-                if(ccFuseRequestMsg.Accept)
+                if(fuseResponse.Accept)
                     _logger.Debug($"# {Description}");
 
                 if (AutoPeeringEventService.Operational)
@@ -1338,7 +1338,7 @@ namespace zero.cocoon.autopeer
             else
                 _logger.Debug($"<\\- {nameof(CcFuseRequest)}: Send fuse response [FAILED], {Description}, {MetaDesc}");
 
-            if(!ccFuseRequestMsg.Accept)
+            if(!fuseResponse.Accept)
                 await SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc);
         }
 
@@ -1405,8 +1405,7 @@ namespace zero.cocoon.autopeer
                             _logger.Trace($"{nameof(SeduceAsync)} skipped!");
                         
                         if (Proxy)
-                            await SweepAsync().FastPath().ConfigureAwait(Zc);
-                        
+                            await SweepAsync(CcCollective.parm_mean_pat_delay_s * 1000).FastPath().ConfigureAwait(Zc);
                     }
                     break;
                 }
@@ -1489,10 +1488,7 @@ namespace zero.cocoon.autopeer
                     // #endif
 
                     var msgRaw = packet.ToByteArray();
-                    Thread.MemoryBarrier();
-                    packet.Data = ByteString.Empty;
-                    packet.Signature = ByteString.Empty;
-                    packet.Header.Ip.Dst = ByteString.Empty;
+                    
 
 //simulate byzantine failure.                
 #if LOSS
@@ -1529,7 +1525,14 @@ namespace zero.cocoon.autopeer
                 }
                 finally
                 {
-                    _chronitonHeap.Return(packet);
+                    if (packet != null)
+                    {
+                        packet.Data = ByteString.Empty;
+                        packet.Signature = ByteString.Empty;
+                        packet.Header.Ip.Dst = ByteString.Empty;
+                        Thread.MemoryBarrier();
+                        _chronitonHeap.Return(packet);
+                    }
                 }
             }
             catch when(Zeroed()){}
