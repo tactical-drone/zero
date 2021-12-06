@@ -101,7 +101,10 @@ namespace zero.cocoon
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
-            _futileRejectSize = _futileResponseSize - futileResponse.ReqHash.Length;
+            futileResponse.ReqHash = ByteString.CopyFrom(9);
+            protocolMsg.Data = futileResponse.ToByteString();
+
+            _futileRejectSize = protocolMsg.CalculateSize();
 
             _fuseBufSize = Math.Max(_futileResponseSize, _futileRequestSize);
 
@@ -739,7 +742,7 @@ namespace zero.cocoon
                             chunkSize -= localRead;
                     } while (localRead > 0 && bytesRead < expectedChunk && ioNetSocket.NativeSocket.Available > 0 && !Zeroed());
 
-                    if (bytesRead == 0)
+                    if (bytesRead == 0 || bytesRead < _futileRejectSize)
                     {
                         _logger.Trace(
                             $"Failed to read egress futile challange response, waited = {_sw.ElapsedMilliseconds}ms, remote = {ioNetSocket.RemoteAddress}, zeroed {Zeroed()}");
@@ -811,7 +814,7 @@ namespace zero.cocoon
             catch (Exception) when (Zeroed() || drone.Zeroed()) { }
             catch (Exception e) when(!Zeroed() && !drone.Zeroed())
             {
-                _logger.Error(e, $"Futile request (size = {bytesRead}/{_futileRequestSize}/{_futileResponseSize}) for {Description} failed with:");
+                _logger.Error(e, $"Futile request (size = {bytesRead}/{_futileRequestSize}/{_futileResponseSize}/{_futileRejectSize}) for {Description} failed with:");
             }
             finally
             {
