@@ -731,16 +731,18 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                //send PAT
-                if (!await ProbeAsync("SYN-PAT").FastPath().ConfigureAwait(Zc))
+                if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s / 2)
                 {
-                    if (Collected)
-                        _logger.Error($"-/> {nameof(ProbeAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
+                    //send PAT
+                    if (!await ProbeAsync("SYN-PAT").FastPath().ConfigureAwait(Zc))
+                    {
+                        if (Collected)
+                            _logger.Error($"-/> {nameof(ProbeAsync)}: PAT Send [FAILED], {Description}, {MetaDesc}");
+                    }
                 }
 
-                var threshold = IsDroneConnected ? CcCollective.parm_mean_pat_delay_s * 2 : CcCollective.parm_mean_pat_delay_s;
                 //Watchdog failure
-                if (SecondsSincePat > threshold * 2)
+                if (SecondsSincePat > CcCollective.parm_mean_pat_delay_s * 2)
                 {
                     _logger.Trace($"w {nameof(EnsureRoboticsAsync)} - {Description}, s = {SecondsSincePat} >> {CcCollective.parm_mean_pat_delay_s}, {MetaDesc}");
                     Zero(new IoNanoprobe($"-wd: l = {SecondsSincePat}s ago, uptime = {TimeSpan.FromMilliseconds(Uptime.ElapsedMs()).TotalHours:0.00}h"));

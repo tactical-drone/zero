@@ -228,7 +228,7 @@ namespace zero.core.patterns.misc
             }, this, default,TaskCreationOptions.DenyChildAttach);
 #pragma warning restore CS4014
 
-            if (Interlocked.Increment(ref _zCount) % 10000 == 0)
+            if (Interlocked.Increment(ref _zCount) % 100000 == 0)
             {
                 Console.WriteLine("z");
             }
