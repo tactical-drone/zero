@@ -101,7 +101,7 @@ namespace zero.cocoon
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
-            futileResponse.ReqHash = ByteString.CopyFrom(9);
+            futileResponse.ReqHash = ByteString.CopyFrom(new byte[]{9});
             protocolMsg.Data = futileResponse.ToByteString();
 
             _futileRejectSize = protocolMsg.CalculateSize();
@@ -575,7 +575,7 @@ namespace zero.cocoon
         private readonly int _futileResponseSize;
         private readonly int _futileRejectSize;
         private readonly int _fuseBufSize;
-        private readonly ByteString _badSigResponse = ByteString.CopyFrom(9);
+        private readonly ByteString _badSigResponse = ByteString.CopyFrom(new byte[] { 9 });
         public long Testing;
 
         /// <summary>
