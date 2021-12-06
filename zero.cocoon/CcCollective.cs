@@ -65,7 +65,7 @@ namespace zero.cocoon
             DupSyncRoot.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             // Calculate max handshake
-            var ccProbeRequest = new CcFutileRequest
+            var futileRequest = new CcFutileRequest
             {
                 Protocol = parm_version,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
@@ -75,14 +75,14 @@ namespace zero.cocoon
             {
                 Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
-                Data = ccProbeRequest.ToByteString(),
+                Data = futileRequest.ToByteString(),
                 Type = 1
             };
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.ToArray(), 0, protocolMsg.Data.Length)));
 
             _futileRequestSize = protocolMsg.CalculateSize();
 
-            var handshakeResponse = new CcFutileResponse
+            var futileResponse = new CcFutileResponse
             {
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 Protocol = parm_version,
@@ -92,18 +92,21 @@ namespace zero.cocoon
             protocolMsg = new chroniton
             {
                 Signature = UnsafeByteOperations.UnsafeWrap(BitConverter.GetBytes((int)CcDiscoveries.MessageTypes.Handshake)),
-                Data = handshakeResponse.ToByteString(),
+                Data = futileResponse.ToByteString(),
                 PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.PublicKey)),
                 Type = (int)CcDiscoveries.MessageTypes.Handshake
             };
+
             protocolMsg.Signature = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(CcId.Sign(protocolMsg.Data.Memory.AsArray(), 0, protocolMsg.Data.Length)));
 
             _futileResponseSize = protocolMsg.CalculateSize();
 
-            _handshakeBufferSize = Math.Max(_futileResponseSize, _futileRequestSize);
+            _futileRejectSize = _futileResponseSize - futileResponse.ReqHash.Length;
 
-            if(_handshakeBufferSize > parm_max_handshake_bytes)
-                throw new ApplicationException($"{nameof(_handshakeBufferSize)} > {parm_max_handshake_bytes}");
+            _fuseBufSize = Math.Max(_futileResponseSize, _futileRequestSize);
+
+            if(_fuseBufSize > parm_max_handshake_bytes)
+                throw new ApplicationException($"{nameof(_fuseBufSize)} > {parm_max_handshake_bytes}");
 
             _dupPoolFpsTarget = 1000 * 2;  
             DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolFpsTarget)
@@ -502,8 +505,8 @@ namespace zero.cocoon
                     //Handshake
                     if (await @this.FutileAsync((CcDrone)drone).FastPath().ConfigureAwait(@this.Zc))
                     {
-                        await Task.Delay(@this.parm_futile_timeout_ms * 2, @this.AsyncTasks.Token);
-
+                        await Task.Delay(@this.parm_futile_timeout_ms, @this.AsyncTasks.Token);
+                        
                         if (drone.Zeroed())
                         {
                             @this._logger.Debug($"+|{drone.Description}");
@@ -567,7 +570,8 @@ namespace zero.cocoon
         private readonly Stopwatch _sw = Stopwatch.StartNew();
         private readonly int _futileRequestSize;
         private readonly int _futileResponseSize;
-        private readonly int _handshakeBufferSize;
+        private readonly int _futileRejectSize;
+        private readonly int _fuseBufSize;
         private readonly ByteString _badSigResponse = ByteString.CopyFrom(9);
         public long Testing;
 
@@ -585,7 +589,7 @@ namespace zero.cocoon
 
             try
             {                
-                var futileBuffer = new byte[_handshakeBufferSize];
+                var futileBuffer = new byte[_fuseBufSize];
                 var ioNetSocket = drone.IoSource.IoNetSocket;
 
                 //inbound
@@ -595,19 +599,13 @@ namespace zero.cocoon
                     
                     _sw.Restart();
                     //read from the socket
+                    int localRead;
                     do
                     {
-                        bytesRead+= await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead).FastPath().ConfigureAwait(Zc);
-
-                    } while (
-                        !Zeroed() &&
-                        bytesRead < _futileRequestSize &&
-                        ioNetSocket.NativeSocket.Available > 0 &&
-                        bytesRead < futileBuffer.Length &&
-                        ioNetSocket.NativeSocket.Available <= futileBuffer.Length - bytesRead
-                    );
-
+                        bytesRead += localRead = await ioNetSocket
+                            .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout:parm_futile_timeout_ms * 2).FastPath()
+                            .ConfigureAwait(Zc);
+                    } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
                     if (bytesRead == 0)
                     {
@@ -724,18 +722,22 @@ namespace zero.cocoon
                         return false;
                     }
 
+                    int localRead;
+                    var expectedChunk = _futileRejectSize;
+                    var chunkSize = expectedChunk;
                     do
                     {
-                        bytesRead = await ioNetSocket
-                        .ReadAsync(futileBuffer, bytesRead, _futileResponseSize - bytesRead,
-                            timeout: parm_futile_timeout_ms).FastPath().ConfigureAwait(Zc);
-                    } while (
-                        !Zeroed() &&
-                        bytesRead < _futileResponseSize &&
-                        ioNetSocket.NativeSocket.Available > 0 &&
-                        bytesRead < futileBuffer.Length &&
-                        ioNetSocket.NativeSocket.Available <= futileBuffer.Length - bytesRead
-                    );
+                        bytesRead += localRead = await ioNetSocket
+                            .ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath()
+                            .ConfigureAwait(Zc);
+                        if (chunkSize == _futileRejectSize)
+                        {
+                            expectedChunk = _futileResponseSize;
+                            chunkSize = expectedChunk - localRead;
+                        }
+                        else
+                            chunkSize -= localRead;
+                    } while (localRead > 0 && bytesRead < expectedChunk && ioNetSocket.NativeSocket.Available > 0 && !Zeroed());
 
                     if (bytesRead == 0)
                     {
@@ -959,7 +961,7 @@ namespace zero.cocoon
                         await ZeroAsync(static async state =>
                         {
                             var (@this, drone) = state;
-                            await Task.Delay(@this.parm_futile_timeout_ms * 2, @this.AsyncTasks.Token);
+                            await Task.Delay(@this.parm_futile_timeout_ms, @this.AsyncTasks.Token);
                             
                             if (!drone.Zeroed())
                             {

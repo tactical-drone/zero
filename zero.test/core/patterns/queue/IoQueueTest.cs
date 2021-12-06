@@ -243,7 +243,7 @@ namespace zero.test.core.patterns.queue{
 #if DEBUG
             Assert.InRange(kops, 20, int.MaxValue);
 #else
-            Assert.InRange(kops, 1000, int.MaxValue);
+            Assert.InRange(kops, 700, int.MaxValue);
 #endif
 
             _output.WriteLine($"kops = {kops}");
