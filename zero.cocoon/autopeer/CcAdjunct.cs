@@ -2347,7 +2347,7 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Assimilating)
+                if (!Assimilating || (!Probed && !CcCollective.ZeroDrone))
                 {
                     _logger.Trace($"{nameof(SweepAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}");
                     return false;
