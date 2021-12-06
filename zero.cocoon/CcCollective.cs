@@ -357,12 +357,6 @@ namespace zero.cocoon
         public int parm_futile_timeout_ms = 1000;
         
         /// <summary>
-        /// Timeout for futile messages
-        /// </summary>
-        [IoParameter]
-        public int parm_scan_throttle = 2000;
-
-        /// <summary>
         /// The discovery service
         /// </summary>
         public CcHub Hub => _autoPeering;
@@ -646,9 +640,9 @@ namespace zero.cocoon
                         if (ccFutileRequest != null)
                         {
                             //reject old futile requests
-                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms)
+                            if (ccFutileRequest.Timestamp.ElapsedMs() > parm_futile_timeout_ms * 2)
                             {
-                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms}");
+                                _logger.Error($"Rejected old futile request from {ioNetSocket.Key} - d = {ccFutileRequest.Timestamp.ElapsedMs()}ms, > {parm_futile_timeout_ms * 2}");
                                 return false;
                             }
 
@@ -1112,7 +1106,7 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        if (!await adjunct.SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc))
+                        if (!await adjunct.SeduceAsync("SYN-SE", CcAdjunct.Heading.Both).FastPath().ConfigureAwait(Zc))
                         {
                             if (!Zeroed())
                                 _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");

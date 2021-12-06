@@ -368,7 +368,8 @@ namespace zero.cocoon.autopeer
         {
             Undefined = 0,
             Ingress = 1,
-            Egress = 2
+            Egress = 2,
+            Both = 3
         }
 
         /// <summary>
@@ -1123,8 +1124,8 @@ namespace zero.cocoon.autopeer
 #endif
                                                                         break;
                                                                     }
-                                                                    if (((CcSweepMessage)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
-                                                                        await currentRoute.ProcessAsync((CcSweepMessage)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
+                                                                    if (((CcSweepRequest)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
+                                                                        await currentRoute.ProcessAsync((CcSweepRequest)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Swept:
                                                                     if (!currentRoute.Proxy)
@@ -1356,7 +1357,7 @@ namespace zero.cocoon.autopeer
                 _logger.Debug($"<\\- {nameof(CcFuseRequest)}: Send fuse response [FAILED], {Description}, {MetaDesc}");
 
             if(!fuseResponse.Accept)
-                await SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc);
+                await SeduceAsync("SYN-SE", Heading.Ingress).FastPath().ConfigureAwait(Zc);
         }
 
         private long _stealthy;
@@ -1418,7 +1419,7 @@ namespace zero.cocoon.autopeer
                     }
                     else
                     {
-                        if (!await SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc))
+                        if (!await SeduceAsync("SYN-SE", Heading.Ingress).FastPath().ConfigureAwait(Zc))
                             _logger.Trace($"{nameof(SeduceAsync)} skipped!");
                         
                         if (Proxy)
@@ -1747,18 +1748,19 @@ namespace zero.cocoon.autopeer
                 //    var (@this, newAdjunct) = state;
                 //    await @this.CcCollective.Hub.BlockOnAssimilateAsync(newAdjunct).FastPath().ConfigureAwait(@this.Zc);
                 //}, ValueTuple.Create(this, newAdjunct), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
-                if (!await newAdjunct.SeduceAsync("ACK", ignoreZeroDrone: true).FastPath()
-                        .ConfigureAwait(Zc))
-                {
-                    _logger.Error($"{nameof(CollectAsync)}: Failed to send ACK");
-                    return false;
-                }
-                //if (!await newAdjunct.ProbeAsync("SYN").FastPath().ConfigureAwait(Zc))
+                //if (!await newAdjunct.SeduceAsync("ACK", ignoreZeroDrone: true).FastPath()
+                //        .ConfigureAwait(Zc))
                 //{
-                //    _logger.Debug($"{newAdjunct.Description}: Unable to send ping!!!");
+                //    _logger.Error($"{nameof(CollectAsync)}: Failed to send ACK");
                 //    return false;
                 //}
-                
+
+                if (!await newAdjunct.ProbeAsync("SYN").FastPath().ConfigureAwait(Zc))
+                {
+                    _logger.Debug($"{newAdjunct.Description}: Unable to send ping!!!");
+                    return false;
+                }
+
                 return true;
             }
             else
@@ -1776,14 +1778,14 @@ namespace zero.cocoon.autopeer
         /// <param name="endpoint"></param>
         /// <param name="packet"></param>
         /// <returns></returns>
-        private async ValueTask ProcessAsync(CcSweepMessage request, IPEndPoint endpoint, chroniton packet)
+        private async ValueTask ProcessAsync(CcSweepRequest request, IPEndPoint endpoint, chroniton packet)
         {
             if (!(CcCollective.ZeroDrone || Assimilating))
             {
                 if (Assimilating)
                 {
                     _logger.Trace(
-                        $"<\\- {nameof(CcSweepMessage)}: [ABORTED] {!Assimilating}, age = {request.Timestamp.CurrentMsDelta():0.0}ms/{parm_max_network_latency_ms * 2:0.0}ms, {Description}, {MetaDesc}");
+                        $"<\\- {nameof(CcSweepRequest)}: [ABORTED] {!Assimilating}, age = {request.Timestamp.CurrentMsDelta():0.0}ms/{parm_max_network_latency_ms * 2:0.0}ms, {Description}, {MetaDesc}");
                 }
                     
                 return;
@@ -1869,7 +1871,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 if (Collected)
-                    _logger.Debug($"<\\- {nameof(CcSweepMessage)}({sent}): [FAILED], {Description}, {MetaDesc}");
+                    _logger.Debug($"<\\- {nameof(CcSweepRequest)}({sent}): [FAILED], {Description}, {MetaDesc}");
             }
         }
 
@@ -1884,12 +1886,12 @@ namespace zero.cocoon.autopeer
             //syn trigger
             static async ValueTask CheckSynTriggerAsync(CcAdjunct @this, long delay, IoNodeAddress ioNodeAddress)
             {
-                if (delay < @this.parm_max_network_latency_ms)
+                if (delay < @this.parm_max_network_latency_ms * 2)
                 {
                     if (@this.Direction == Heading.Undefined && @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
                         @this.Hub?.Router != null)
                     {
-                        @this._fuseRequestsSentCount = 0;
+                        @this._fuseRequestsSentCount = -@this.parm_zombie_max_connection_attempts;
                         if (!await @this.ProbeAsync("SYN-FLD", ioNodeAddress).FastPath().ConfigureAwait(@this.Zc))
                         {
                             @this._logger.Trace($"<\\- {nameof(ProbeAsync)}(SYN-FLD): [FAILED] {@this.Description}");
@@ -2163,16 +2165,16 @@ namespace zero.cocoon.autopeer
                 _logger.Trace($"<\\- {nameof(CcProbeResponse)}[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Processed <<SYN-ACK>>: {Description}");
 #endif
 
-                await SeduceAsync("ACK",false, ignoreZeroDrone: true).FastPath().ConfigureAwait(Zc);
+                await SeduceAsync("ACK", Heading.Egress, ignoreZeroDrone: true).FastPath().ConfigureAwait(Zc);
             }
             else 
             {
                 //PAT
                 LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                if (!CcCollective.ZeroDrone && _fuseRequestsSentCount < parm_zombie_max_connection_attempts)
+                if (!CcCollective.ZeroDrone)
                 {
-                    await SeduceAsync("ZRO").FastPath().ConfigureAwait(Zc);
+                    await SeduceAsync("ZRO", Heading.Both).FastPath().ConfigureAwait(Zc);
                 }
                 else if(CcCollective.ZeroDrone || !IsDroneConnected && CcCollective.Neighbors.Count < CcCollective.MaxDrones)
                 {
@@ -2185,9 +2187,9 @@ namespace zero.cocoon.autopeer
         /// Seduces another adjunct
         /// </summary>
         /// <returns>A valuable task</returns>
-        public async ValueTask<bool> SeduceAsync(string desc, bool passive = true, IoNodeAddress address = null, bool ignoreZeroDrone = false)
+        public async ValueTask<bool> SeduceAsync(string desc, Heading heading = Heading.Undefined, IoNodeAddress address = null, bool ignoreZeroDrone = false)
         {
-            if (_stealthy.ElapsedMs() < parm_max_network_latency_ms || Zeroed() || !Collected || IsDroneAttached ||
+            if (Volatile.Read(ref _stealthy).ElapsedMs() < parm_max_network_latency_ms * 2 || Zeroed() || !Collected || IsDroneAttached ||
                 _currState.Value > AdjunctState.Connecting /*don't change this from Connecting*/)
             {
                 return false;
@@ -2195,7 +2197,7 @@ namespace zero.cocoon.autopeer
             
             try
             {
-                if (Proxy && (Probed || !passive) &&
+                if (Proxy && (Probed || heading >= Heading.Egress) &&
                     !CcCollective.ZeroDrone && Direction == Heading.Undefined &&
                     CcCollective.EgressCount < CcCollective.parm_max_outbound &&
                     FuseRequestsSentCount < parm_zombie_max_connection_attempts)
@@ -2206,15 +2208,16 @@ namespace zero.cocoon.autopeer
                     }
                     else
                     {
-                        if(passive)
-                            _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        //if(heading == Heading.Undefined)
+                        Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 #if DEBUG
                         _logger.Trace($"-/> {nameof(SeduceAsync)}: Sent [[{desc}]] Drone REQUEST), {Description}");
 #endif
                         return true;
                     }
                 }
-                else if(!(CcCollective.ZeroDrone && !ignoreZeroDrone) && passive)
+
+                if(!(CcCollective.ZeroDrone && !ignoreZeroDrone) && ((int)heading & (int)Heading.Ingress) == (int)Heading.Ingress)
                 {
                     var proxy = address == null ? this : Router;
                     //delta trigger
@@ -2222,10 +2225,12 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"<\\- {nameof(ProbeAsync)}({desc}): [FAILED] Send Drone HUP");
                     else
                     {
+                        //await Task.Delay(15).ConfigureAwait(false); //clogged nodes are not very attractive...
+                        //await proxy!.ProbeAsync(desc, address).FastPath().ConfigureAwait(Zc);
+                        Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 #if DEBUG
                         _logger.Debug($"-/> {nameof(ProbeAsync)}: Send [[{desc}]] Probe");
 #endif
-                        _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         return true;
                     }
                 }
@@ -2383,7 +2388,7 @@ namespace zero.cocoon.autopeer
                 if (LastScan.ElapsedMs() < cooldown)
                     return false;
 
-                var sweepMessage = new CcSweepMessage
+                var sweepMessage = new CcSweepRequest
                 {
                      Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
@@ -2400,7 +2405,7 @@ namespace zero.cocoon.autopeer
                 var sent = await SendMessageAsync(reqBuf,CcDiscoveries.MessageTypes.Sweep, RemoteAddress).FastPath().ConfigureAwait(Zc);
                 if (sent > 0)
                 {
-                    _logger.Trace($"-/> {nameof(CcSweepMessage)}({sent}){reqBuf.Memory.PayloadSig()}: Sent, {Description}");
+                    _logger.Trace($"-/> {nameof(CcSweepRequest)}({sent}){reqBuf.Memory.PayloadSig()}: Sent, {Description}");
 
                     //Emit message event
                     if (AutoPeeringEventService.Operational)
@@ -2420,12 +2425,12 @@ namespace zero.cocoon.autopeer
 
                 await _sweepRequest.RemoveAsync(challenge).FastPath().ConfigureAwait(Zc);
                 if (Collected)
-                    _logger.Debug($"-/> {nameof(CcSweepMessage)}: [FAILED], {Description} ");
+                    _logger.Debug($"-/> {nameof(CcSweepRequest)}: [FAILED], {Description} ");
             }
             catch when (Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Debug(e,$"{nameof(CcSweepMessage)}: [ERROR] z = {Zeroed()}, state = {State}, dest = {RemoteAddress}, source = {MessageService}, _sweepRequest = {_sweepRequest.Count}");
+                _logger.Debug(e,$"{nameof(CcSweepRequest)}: [ERROR] z = {Zeroed()}, state = {State}, dest = {RemoteAddress}, source = {MessageService}, _sweepRequest = {_sweepRequest.Count}");
             }
 
             return false;

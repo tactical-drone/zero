@@ -143,14 +143,6 @@ namespace zero.sync
             //    t3.Start();
             //}, TaskCreationOptions.DenyChildAttach);
 
-            int delay;
-
-#if DEBUG
-            delay = 6;
-#else
-            delay = 15;
-#endif
-
             //Console.WriteLine("Waiting for queen cluster to bootstrap....");
             //var bs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             //while (true)

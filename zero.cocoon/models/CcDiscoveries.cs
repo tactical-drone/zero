@@ -328,25 +328,25 @@ namespace zero.cocoon.models
                     switch ((MessageTypes)packet.Type)
                     {
                         case MessageTypes.Probe:
-                            await ProcessRequestAsync<CcProbeMessage>(packet, CcProbeMessage.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcProbeMessage.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Probed:
-                            await ProcessRequestAsync<CcProbeResponse>(packet, CcProbeResponse.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcProbeResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Sweep:
-                            await ProcessRequestAsync<CcSweepMessage>(packet, CcSweepMessage.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcSweepRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Swept:
-                            await ProcessRequestAsync<CcSweepResponse>(packet, CcSweepResponse.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcSweepResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Fuse:
-                            await ProcessRequestAsync<CcFuseRequest>(packet, CcFuseRequest.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcFuseRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Fused:
-                            await ProcessRequestAsync<CcFuseResponse>(packet, CcFuseResponse.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcFuseResponse.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         case MessageTypes.Defuse:
-                            await ProcessRequestAsync<CcDefuseRequest>(packet, CcDefuseRequest.Parser).FastPath().ConfigureAwait(Zc);
+                            await ProcessRequestAsync(packet, CcDefuseRequest.Parser).FastPath().ConfigureAwait(Zc);
                             break;
                         default:
                             _logger.Debug($"Unknown auto peer msg type = {packet.Type}");
