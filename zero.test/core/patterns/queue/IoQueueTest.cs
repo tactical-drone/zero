@@ -422,7 +422,7 @@ namespace zero.test.core.patterns.queue{
                 var @this = (IoQueueTest)state!;
                 var s = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var item = await @this._queuePressure.DequeueAsync().FastPath().ConfigureAwait(@this._zc);
-                Assert.InRange(s.ElapsedMs(), 100, 2000);
+                Assert.InRange(s.ElapsedMs(), (100/15)*15, 100 + 15 * 2);
                 Assert.NotNull(item);
 
             }, this, TaskCreationOptions.DenyChildAttach).Unwrap();
