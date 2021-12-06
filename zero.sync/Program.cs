@@ -67,7 +67,7 @@ namespace zero.sync
             //QueueTestAsync();
 
             LogManager.LoadConfiguration("nlog.config");
-            var portOffset = 5051;
+            var portOffset = 7051;
             
             IHost host = null;
             var grpc = Task.Factory.StartNew(() =>

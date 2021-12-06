@@ -610,10 +610,9 @@ namespace zero.cocoon
                             .ConfigureAwait(Zc);
                     } while (bytesRead < _futileRequestSize && localRead > 0 && !Zeroed());
 
-                    if (bytesRead == 0)
+                    if (bytesRead == 0 || bytesRead < _futileRequestSize)
                     {
-                        _logger.Trace(
-                            $"Failed to read inbound futile request, waited = {_sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
+                        _logger.Trace($"Failed to read inbound futile request, waited = {_sw.ElapsedMilliseconds}ms, socket = {ioNetSocket.Description}");
                         return false;
                     }
                     else
@@ -731,7 +730,7 @@ namespace zero.cocoon
                     do
                     {
                         bytesRead += localRead = await ioNetSocket
-                            .ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms).FastPath()
+                            .ReadAsync(futileBuffer, bytesRead, chunkSize, timeout: parm_futile_timeout_ms * 2).FastPath()
                             .ConfigureAwait(Zc);
                         if (chunkSize == _futileRejectSize)
                         {
