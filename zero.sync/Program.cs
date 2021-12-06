@@ -126,9 +126,10 @@ namespace zero.sync
                 t1,t2,t3,t4
             };
 
-            Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach );
-            Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach );
-            Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach );
+            Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
 
             //Task.Factory.StartNew(async () =>
             //{
@@ -142,12 +143,6 @@ namespace zero.sync
             //    t3.Start();
             //}, TaskCreationOptions.DenyChildAttach);
 
-            Task.Factory.StartNew(async () =>
-            {
-                await Task.Delay(3000);
-                t4.Start();
-            }, TaskCreationOptions.DenyChildAttach );
-
             int delay;
 
 #if DEBUG
@@ -156,16 +151,16 @@ namespace zero.sync
             delay = 15;
 #endif
 
-            Console.WriteLine("Waiting for queen cluster to bootstrap....");
-            var bs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            while (true)
-            {
-                Thread.Sleep(delay/10);
-                if (bs.ElapsedMsToSec() > delay)
-                    break;
-                Console.Write($"{bs.ElapsedMsToSec() / (double)delay * 100.0:0.0}%.. ");
-            }
-            Console.WriteLine("\nQueens Ready!");
+            //Console.WriteLine("Waiting for queen cluster to bootstrap....");
+            //var bs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            //while (true)
+            //{
+            //    Thread.Sleep(delay * 1000/10);
+            //    if (bs.ElapsedMsToSec() > delay)
+            //        break;
+            //    Console.WriteLine($"Gestating ({bs.ElapsedMsToSec() / (double)delay * 100.0:0.0}%)");
+            //}
+            //Console.WriteLine("Queens Ready!");
             for (var i = 2; i < total; i++)
             {
                 //if(1234 + portOffset + i == 1900 )
@@ -191,14 +186,27 @@ namespace zero.sync
                 var rampDelay = 2000;
                 foreach (var task in tasks)
                 {
-                    var h = Task.Factory.StartNew(() =>
+
+                    await Task.Factory.StartNew(async () =>
                     {
                         if (task.Status == TaskStatus.Created)
                         {
                             Console.Write(".");
                             task.Start();
                         }
-                    }, TaskCreationOptions.DenyChildAttach);
+                        else
+                        {
+                            var queen = (CcCollective)task.AsyncState;
+                            while (boot && !queen!.Online)
+                            {
+                                Console.WriteLine("Waiting for queen...");
+                                await Task.Delay(1000);
+                            }
+                            Console.WriteLine($"Queen brought up {queen.Description}");
+                        }
+
+                    }, TaskCreationOptions.DenyChildAttach).Unwrap();
+
                     if (c % injectionCount == 0)
                     {
                         await Task.Delay(rateLimit += 10).ConfigureAwait(Zc);

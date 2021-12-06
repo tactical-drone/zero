@@ -678,7 +678,6 @@ namespace zero.core.patterns.bushings
 #if DEBUG
             _logger.Trace($"{GetType().Name}: Assimulating {desc}");
 #endif
-
             //Producer
             _producerTask = ZeroOptionAsync(static async @this =>
             {

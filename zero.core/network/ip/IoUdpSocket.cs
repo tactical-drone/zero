@@ -215,8 +215,14 @@ namespace zero.core.network.ip
                 
                 //Bootstrap on listener start
                 if (bootstrapAsync != null)
-                    await bootstrapAsync().FastPath().ConfigureAwait(Zc);
-
+                {
+                    await ZeroAsync(static async bootstrapAsync =>
+                    {
+                        await Task.Delay(1000).ConfigureAwait(false);
+                        await bootstrapAsync().FastPath().ConfigureAwait(false);
+                    }, bootstrapAsync, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                }
+                
                 //block
                 await AsyncTasks.Token.BlockOnNotCanceledAsync().FastPath().ConfigureAwait(Zc);
 

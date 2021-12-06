@@ -122,7 +122,10 @@ namespace zero.core.core
                 _netServer = null;
                 return;
             }
-            
+
+#if DEBUG
+            _logger.Trace($"Starting lisener, {Description}");   
+#endif
             //start the listener
             _netServer = IoNetServer<TJob>.GetKindFromUrl(_address, _preFetch, ZeroConcurrencyLevel());
             await _netServer.ZeroHiveAsync(this).FastPath().ConfigureAwait(Zc);

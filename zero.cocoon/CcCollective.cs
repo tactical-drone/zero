@@ -136,7 +136,21 @@ namespace zero.cocoon
                 {
                     try
                     {
-                        await Task.Delay(@this.parm_mean_pat_delay_s * 100, @this.AsyncTasks.Token).ConfigureAwait(false);
+                        int factor;
+#if DEBUG
+                        factor = 20;
+#else
+                        factor = 10;
+#endif
+                        if (@this.Hub.Neighbors.Count <= 1)
+                        {
+                            await Task.Delay(@this.parm_mean_pat_delay_s * factor, @this.AsyncTasks.Token).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await Task.Delay(@this.parm_mean_pat_delay_s * 100, @this.AsyncTasks.Token).ConfigureAwait(false);
+                        }
+
                         if (@this.Neighbors.Count < @this.parm_max_outbound) 
                             await @this.DeepScanAsync().FastPath().ConfigureAwait(@this.Zc);
                     }
@@ -841,13 +855,11 @@ namespace zero.cocoon
 
             if (adjunct == null)
             {
-                var designation = CcDesignation.FromPubKey(packet.PublicKey.Memory.AsArray());
-                var id = CcAdjunct.MakeId(designation, "");
-
+                var id = CcAdjunct.PkShort(packet.PublicKey.Memory.AsArray());
                 if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
                 {
                     //TODO: this code path is jammed
-                    _logger.Error($"Neighbor [{designation.IdString()}] not found, dropping {direction} connection to {remoteEp}");
+                    _logger.Error($"Neighbor [{id}] not found, dropping {direction} connection to {remoteEp}");
                     return false;
                 }
 
@@ -1011,6 +1023,11 @@ namespace zero.cocoon
         public bool ZeroDrone => _zeroDrone;
 
         /// <summary>
+        /// Whether the drone complete the bootstrap process
+        /// </summary>
+        public bool Online { get; private set; }
+
+        /// <summary>
         /// Boots the node
         /// </summary>
         public async ValueTask<bool> BootAsync(long v = 0)
@@ -1057,7 +1074,10 @@ namespace zero.cocoon
                 if(Zeroed() || Hub?.Router == null)
                     return;
 
-                var foundVector = false;
+                //if (ZeroDrone)
+                //    await Task.Delay(3000);
+
+                //var foundVector = false;
                 foreach (var vector in Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating))
                 {
                     var adjunct = (CcAdjunct)vector;
@@ -1071,13 +1091,12 @@ namespace zero.cocoon
                     //    _logger.Debug($"SE> {adjunct.Description}");
                     //    foundVector = true;
                     //}
-
                     if (adjunct.Probed)
                     {
                         if (!await adjunct.SweepAsync().FastPath().ConfigureAwait(Zc))
                         {
                             if (!Zeroed())
-                                _logger.Trace($"{nameof(DeepScanAsync)}: {Description}, Unable to probe adjuncts");
+                                _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to probe adjuncts, {Description}");
                         }
                         else
                         {
@@ -1117,30 +1136,39 @@ namespace zero.cocoon
 
                     await Task.Delay(((CcAdjunct)vector).parm_max_network_latency_ms, AsyncTasks.Token).ConfigureAwait(Zc);
                 }
-            
-                if(foundVector)
-                    return;
-            
+
+                //if(foundVector)
+                //    return;
+
                 _logger.Trace($"Bootstrapping {Description} from {BootstrapAddress.Count} bootnodes...");
                 if (BootstrapAddress != null)
                 {
-                    var c = 0;
                     foreach (var ioNodeAddress in BootstrapAddress)
                     {
                         if (!ioNodeAddress.Equals(_peerAddress))
                         {
-                            if(Hub.Neighbors.Values.Any(a => a.Key.Contains(ioNodeAddress.Key)))
+                            if (Hub.Neighbors.Values.Any(a => a.Key.Contains(ioNodeAddress.Key)))
                                 continue;
 
                             try
                             {
-                                await Task.Delay(++c * 2000, AsyncTasks.Token).ConfigureAwait(Zc);
-                                //_logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                                if (!await Hub.Router.ProbeAsync("DMZ-SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                                await Task.Delay(parm_futile_timeout_ms / 2 + _random.Next(parm_futile_timeout_ms), AsyncTasks.Token).ConfigureAwait(Zc);
+                                _logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
+                                if (!await Hub.Router.ProbeAsync("SYN-DMZ", ioNodeAddress).FastPath().ConfigureAwait(Zc))
                                 {
-                                    if(!Hub.Router.Zeroed())
+                                    if (!Hub.Router.Zeroed())
                                         _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");
                                 }
+
+                                if (ZeroDrone && !Online)
+                                {
+                                    Online = true;
+                                    _logger.Warn($"Queen brought Online, {Description}");
+                                }
+                                    
+#if DEBUG
+                                _logger.Trace($"Boostrap complete! {Description}");
+#endif
                             }
                             catch when(Zeroed()){}
                             catch (Exception e)when (!Zeroed())

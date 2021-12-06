@@ -445,7 +445,8 @@ namespace zero.core.patterns.semaphore.core
                 }
             }
 
-            if (_zeroRef.ZeroWaitCount() > 1 && _zeroRef.ZeroEnter())
+            //fast path, RACES with SetResult through _zeroRef. 
+            if (_zeroRef.ZeroEnter())
             {
                 if (Release(1, bestEffort: true) != 1)
                 {

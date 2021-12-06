@@ -111,7 +111,7 @@ namespace zero.cocoon.autopeer
 
             _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 10;
             var nrOfStates = Enum.GetNames(typeof(AdjunctState)).Length;
-            _lastScan = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - parm_max_network_latency_ms * 2;
+            _lastScan = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - CcCollective.parm_mean_pat_delay_s * 1000 * 2;
         }
 
         /// <summary>
@@ -502,6 +502,14 @@ namespace zero.cocoon.autopeer
             //return $"{designation.PkString()}@{key}";
             return $"{designation.PkShort()}";
         }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static string PkShort(byte[]  publicKey)
+        {
+            return Base58.Bitcoin.Encode(publicKey.AsSpan()[..10]);
+        }
+
 
         /// <summary>
         /// The CcId
@@ -1582,8 +1590,8 @@ namespace zero.cocoon.autopeer
                     continue;
 
                 //Don't add already known neighbors
-                var id = CcDesignation.FromPubKey(sweptDrone.PublicKey.Memory);
-                if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation.PublicKey.SequenceEqual(sweptDrone.PublicKey)))
+                var id = Base58.Bitcoin.Encode(sweptDrone.PublicKey.Memory.Span[..10]);
+                if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation.PkShort() == id))
                     continue;
 
                 //var services = new CcService {CcRecord = new CcRecord()};
@@ -1617,7 +1625,7 @@ namespace zero.cocoon.autopeer
 #endif
                         }
 
-                    }, ValueTuple.Create(this, sweptDrone.Url.GetEndpoint(), id), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
+                    }, ValueTuple.Create(this, sweptDrone.Url.GetEndpoint(), CcDesignation.FromPubKey(sweptDrone.PublicKey.Memory)), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 
                 }
             }
@@ -1710,21 +1718,23 @@ namespace zero.cocoon.autopeer
 #if DEBUG
                 newAdjunct.DebugAddress = DebugAddress;
 #endif
-
                 //Start processing
                 //await ZeroAsync(static async state =>
                 //{
                 //    var (@this, newAdjunct) = state;
                 //    await @this.CcCollective.Hub.BlockOnAssimilateAsync(newAdjunct).FastPath().ConfigureAwait(@this.Zc);
                 //}, ValueTuple.Create(this, newAdjunct), TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(false);
-
-                await newAdjunct.SeduceAsync("ACK", ignoreZeroDrone:true, passive:false).FastPath().ConfigureAwait(Zc);
+                if (!await newAdjunct.SeduceAsync("ACK", ignoreZeroDrone: true).FastPath()
+                        .ConfigureAwait(Zc))
+                {
+                    _logger.Error($"{nameof(CollectAsync)}: Failed to send ACK");
+                    return false;
+                }
                 //if (!await newAdjunct.ProbeAsync("SYN").FastPath().ConfigureAwait(Zc))
                 //{
                 //    _logger.Debug($"{newAdjunct.Description}: Unable to send ping!!!");
                 //    return false;
                 //}
-                
                 
                 return true;
             }
@@ -2060,7 +2070,7 @@ namespace zero.cocoon.autopeer
             //Try the router
             if (!matchRequest && Proxy)
                 matchRequest = await Hub.Router._probeRequest.ResponseAsync(endpoint.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
-            
+
             if (!matchRequest)
             {
 #if DEBUG
@@ -2072,23 +2082,13 @@ namespace zero.cocoon.autopeer
 #endif
                 return;
             }
-            
+
             //Process SYN-ACK
             if (!Proxy)
             {
                 var idCheck = CcDesignation.FromPubKey(packet.PublicKey.Memory);
                 var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", endpoint);
-                var keyStr = MakeId(idCheck, fromAddress);
-                var pkString = idCheck.PkString();
-
-                // remove stale adjunctPKs
-                var staleId = Hub.Neighbors.Where(kv => ((CcAdjunct) kv.Value).Proxy).Any(kv => kv.Value.Key.Contains(pkString));
-                if (staleId && Hub.Neighbors.TryRemove(pkString, out var staleNeighbor))
-                {
-                    _logger.Warn($"Removing stale adjunct {staleNeighbor.Key}:{((CcAdjunct) staleNeighbor).RemoteAddress.Port} ==> {keyStr}:{endpoint.Port}");
-                    staleNeighbor.Zero(new IoNanoprobe($"{nameof(staleNeighbor)}"));
-                }
-
+                
                 //var remoteServices = new CcService();
                 //foreach (var key in pong.Services.Map.Keys.ToList())
                 //    remoteServices.CcRecord.Endpoints.TryAdd(Enum.Parse<CcService.Keys>(key),
@@ -2164,9 +2164,12 @@ namespace zero.cocoon.autopeer
         /// <returns>A valuable task</returns>
         public async ValueTask<bool> SeduceAsync(string desc, bool passive = true, IoNodeAddress address = null, bool ignoreZeroDrone = false)
         {
-            if(_stealthy.ElapsedMs() < parm_max_network_latency_ms || Zeroed() || !Collected || IsDroneAttached || _currState.Value > AdjunctState.Connecting /*don't change this from Connecting*/)
+            if (_stealthy.ElapsedMs() < parm_max_network_latency_ms || Zeroed() || !Collected || IsDroneAttached ||
+                _currState.Value > AdjunctState.Connecting /*don't change this from Connecting*/)
+            {
                 return false;
-
+            }
+            
             try
             {
                 if (Proxy && (Probed || !passive) &&
@@ -2196,7 +2199,9 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"<\\- {nameof(ProbeAsync)}({desc}): [FAILED] Send Drone HUP");
                     else
                     {
+#if DEBUG
                         _logger.Debug($"-/> {nameof(ProbeAsync)}: Send [[{desc}]] Probe");
+#endif
                         _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         return true;
                     }
