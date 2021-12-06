@@ -634,7 +634,7 @@ namespace zero.core.patterns.bushings
 
                         try
                         {
-                            if (curJob.Id % parm_stats_mod_count == 0 && _lastStat.ElapsedDelta() > 10)
+                            if (curJob.Id % parm_stats_mod_count == 0 && _lastStat.Elapsed() > 10)
                             {
                                 lock (Environment.Version)
                                 {

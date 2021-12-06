@@ -14,11 +14,15 @@ namespace zero.test.core.network.ip
         void Equality()
         {
             var address1 = new IoNodeAddress("udp://127.0.0.1:1234");
-            var address2 = new IoNodeAddress("udp://127.0.0.1:1234");
+            var address2 = IoNodeAddress.Create("udp://127.0.0.1:1234");
+            var address3 = IoNodeAddress.CreateFromEndpoint("udp", address2.IpEndPoint);
 
             Assert.Equal(address1, address2);
+            Assert.Equal(address2, address3);
             Assert.Equal(address1.IpEndPoint, address2.IpEndPoint);
+            Assert.Equal(address2.IpEndPoint, address3.IpEndPoint);
             Assert.True(Equals(address1.IpEndPoint, address2.IpEndPoint));
+            Assert.True(Equals(address2.IpEndPoint, address3.IpEndPoint));
 
             Assert.Equal("127.0.0.1", address1.Ip);
             Assert.Equal(1234, address1.Port);

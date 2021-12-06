@@ -102,7 +102,7 @@ namespace zero.sync
                     $"udp://127.0.0.1:{1237}"
                 }.ToList(), boot);
 
-            var t3 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
+            var t3 = CoCoonAsync(CcDesignation.Generate(), $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
                 $"tcp://127.0.0.1:{1236}", $"udp://127.0.0.1:{1236}",
                 new[]
                 {
@@ -147,9 +147,25 @@ namespace zero.sync
                 await Task.Delay(3000);
                 t4.Start();
             }, TaskCreationOptions.DenyChildAttach );
-            Console.WriteLine("Waiting for queen....");
-            Thread.Sleep(6000);
-            Console.WriteLine("Queen Online!");
+
+            int delay;
+
+#if DEBUG
+            delay = 6;
+#else
+            delay = 15;
+#endif
+
+            Console.WriteLine("Waiting for queen cluster to bootstrap....");
+            var bs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            while (true)
+            {
+                Thread.Sleep(delay/10);
+                if (bs.ElapsedMsToSec() > delay)
+                    break;
+                Console.Write($"{bs.ElapsedMsToSec() / (double)delay * 100.0:0.0}%.. ");
+            }
+            Console.WriteLine("\nQueens Ready!");
             for (var i = 2; i < total; i++)
             {
                 //if(1234 + portOffset + i == 1900 )

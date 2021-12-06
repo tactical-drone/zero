@@ -14,7 +14,7 @@ namespace zero.cocoon.identity
     {
         static CcDesignation()
         {
-            SecureRandom.SetSeed(SecureRandom.GenerateSeed(PubKeySize));
+            SecureRandom = SecureRandom.GetInstance("SHA512PRNG");
         }
 
         private const int PubKeySize = 256;
@@ -57,12 +57,12 @@ namespace zero.cocoon.identity
             };
         }
 
-        private static readonly SecureRandom SecureRandom = SecureRandom.GetInstance("SHA256PRNG");
+        [ThreadStatic] private static readonly SecureRandom SecureRandom;
         public static CcDesignation Generate(bool devMode = false)
         {
             var skBuf = Base58.Bitcoin.Decode(DevKey).ToArray();
             var pkBuf = new byte[Ed25519.PublicKeySize];
-
+            
             if (!devMode)
                 Ed25519.GeneratePrivateKey(SecureRandom, skBuf);
             

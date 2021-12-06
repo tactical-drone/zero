@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Buffers;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Runtime.Serialization.Formatters.Binary;
 using Google.Protobuf;
 using zero.core.misc;
@@ -54,32 +52,6 @@ namespace zero.core.feat.misc
         public static IPEndPoint GetEndpoint(this byte[] buf)
         {
             return new IPEndPoint(new IPAddress(buf[..^2]), ((buf[^2] << 8) & 0xFF00) | (buf[^1] & 0x00FF));
-        }
-    }
-    internal sealed class Heap
-    {
-        public static volatile IoHeap<BinaryFormatter> FormatterHeap;
-        public static volatile IoHeap<MemoryStream> StreamHeap;
-        static Heap()
-        {
-            FormatterHeap = new IoHeap<BinaryFormatter>($"{nameof(FormatterHeap)}", 20, autoScale: true)
-            {
-                Make = (o, o1) => new BinaryFormatter()
-            };
-
-            var ep = new IPEndPoint(IPAddress.Broadcast, short.MaxValue);
-
-            var bin = new BinaryFormatter();
-            var mem = new MemoryStream();
-            var n = new IoSocketAddress(AddressFamily.InterNetwork, 2);
-            bin.Serialize(mem, n);
-            var template = mem.ToArray();
-
-            StreamHeap = new IoHeap<MemoryStream>($"{nameof(StreamHeap)}", 20, autoScale: true)
-            {
-                Make = (o, o1) => new MemoryStream(new byte[template.Length]),
-                Prep = (stream, o) => { stream.Seek(0, SeekOrigin.Begin); }
-            };
         }
     }
 }

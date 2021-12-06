@@ -297,7 +297,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        public long Priority => FuseRequestsRecvCount;
+        public long Priority => FuseRequestsRecvCount - (parm_zombie_max_connection_attempts - FuseRequestsSentCount);
 
         //uptime
         private long _attachTimestamp;
@@ -1394,32 +1394,24 @@ namespace zero.cocoon.autopeer
                     else
                     {
                         if (!await SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc))
-                        {
                             _logger.Trace($"{nameof(SeduceAsync)} skipped!");
-                        }
                         
                         if (Proxy)
-                        {
-                            if (LastScan.ElapsedMs() > CcCollective.parm_mean_pat_delay_s * 1000 / 4)
-                                await SweepAsync().FastPath().ConfigureAwait(Zc);
-                        }
+                            await SweepAsync().FastPath().ConfigureAwait(Zc);
+                        
                     }
                     break;
                 }
                 case false:
                 {
                     AdjunctState oldState;
-                    if ((oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Fusing)) != AdjunctState.Fusing)
-                        _logger.Warn($"{nameof(CcFuseResponse)}: Invalid state, {oldState}. Wanted {nameof(AdjunctState.Fusing)}, {Description}");
-
-                    //if(Proxy)
-                    //{
-                    //    //if (!await SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc))
-                    //    //    await SweepAsync().FastPath().ConfigureAwait(Zc);
-
-                    //    if (LastScan.ElapsedMs() > CcCollective.parm_mean_pat_delay_s * 1000 / 4)
-                    //        await SweepAsync().FastPath().ConfigureAwait(Zc);
-                    //}
+                    if (_currState.Value != AdjunctState.Unverified &&
+                        !(_currState.Value == AdjunctState.Verified && _currState is not { Prev.Value: AdjunctState.Unverified }) &&
+                        (oldState = CompareAndEnterState(AdjunctState.Verified, AdjunctState.Fusing)) != AdjunctState.Fusing)
+                    {
+                        if (oldState != AdjunctState.Connected && _currState.EnterTime.ElapsedMs() > parm_max_network_latency_ms)
+                            _logger.Warn($"{nameof(CcFuseResponse)}(f) - {Description}: Invalid state, {oldState}, age = {_currState.EnterTime.ElapsedMs()}ms. Wanted {nameof(AdjunctState.Fusing)}");
+                    }
 
                     break;
                 }
@@ -1560,6 +1552,9 @@ namespace zero.cocoon.autopeer
             }
 
             _logger.Trace($"<\\- {nameof(CcSweepResponse)}: Received {response.Contacts.Count} potentials from {Description}");
+
+            if(response.Contacts.Count > 0)
+                _lastScan = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             //PAT
             LastPat = 0;
@@ -2156,7 +2151,7 @@ namespace zero.cocoon.autopeer
                 {
                     await SeduceAsync("ZRO").FastPath().ConfigureAwait(Zc);
                 }
-                else if(CcCollective.ZeroDrone || !IsDroneConnected)
+                else if(CcCollective.ZeroDrone || !IsDroneConnected && CcCollective.Neighbors.Count < CcCollective.MaxDrones)
                 {
                     await SweepAsync().FastPath().ConfigureAwait(Zc);
                 }
@@ -2343,7 +2338,7 @@ namespace zero.cocoon.autopeer
         /// Sweeps adjuncts for more
         /// </summary>
         /// <returns>Task</returns>
-        public async ValueTask<bool> SweepAsync()
+        public async ValueTask<bool> SweepAsync(long cooldown = -1)
         {
             try
             {
@@ -2353,10 +2348,13 @@ namespace zero.cocoon.autopeer
                     return false;
                 }
 
+                if (cooldown == -1)
+                    cooldown = CcCollective.parm_mean_pat_delay_s * 1000 / 5;
+
                 //rate limit
-                //if (LastScan.Elapsed() < parm_max_network_latency_ms / 1000)
-                //    return false;
-                
+                if (LastScan.ElapsedMs() < cooldown)
+                    return false;
+
                 var sweepMessage = new CcSweepMessage
                 {
                      Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
@@ -2370,8 +2368,6 @@ namespace zero.cocoon.autopeer
                 {
                     return false;
                 }
-
-                _lastScan = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 var sent = await SendMessageAsync(reqBuf,CcDiscoveries.MessageTypes.Sweep, RemoteAddress).FastPath().ConfigureAwait(Zc);
                 if (sent > 0)
@@ -2413,10 +2409,10 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         public async ValueTask<bool> FuseAsync()
         {
-            if (IsDroneConnected || CcCollective.ZeroDrone || _currState.Value == AdjunctState.Connected)
+            if (IsDroneAttached || CcCollective.ZeroDrone || _currState.Value == AdjunctState.Connected)
             {
                 if (Collected && !CcCollective.ZeroDrone)
-                    _logger.Warn($"{nameof(FuseAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, p = {IsDroneConnected}");
+                    _logger.Warn($"{nameof(FuseAsync)}: [ABORTED], {Description}, s = {State}, a = {Assimilating}, D = {IsDroneConnected}, d = {IsDroneAttached}");
                 return false;
             }
 
