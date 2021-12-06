@@ -22,25 +22,20 @@ namespace zero.core.feat.misc
     public class IoZeroMatcher<T> : IoNanoprobe
     where T:class, IEnumerable<byte>, IEquatable<ByteString>
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
             _ttlMs = ttlMs;
 
-            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2);
+            _lut = new IoQueue<IoChallenge>($"Matcher: {description}", Math.Max(concurrencyLevel*2, _capacity), concurrencyLevel * 2, autoScale: autoscale);
 
-            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity))
+            _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity), autoScale: autoscale)
             {
                 Make = static (o,s) => new IoChallenge()
             };
 
-            //_nodeHeap = new IoHeap<IoQueue<IoChallenge>.IoZNode>($"{nameof(_valHeap)}: {description}", _capacity)
-            //{
-            //    Make = static (o, s) => new IoQueue<IoChallenge>.IoZNode()
-            //};
-
-            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity)
+            _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity, autoScale: autoscale)
             {
                 Make = static (o, s) => new ChallengeAsyncResponse(),
                 Prep = (response, o) =>
@@ -142,15 +137,17 @@ namespace zero.core.feat.misc
             //var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
 
             ChallengeAsyncResponse state = null;
+            IoQueue<IoChallenge>.IoZNode node;
             try
             {
                 state = _carHeap.Take();
+                
+                if (state == null)
+                    throw new OutOfMemoryException($"{nameof(_carHeap)}, {Description}");
+
                 state.This = this;
                 state.Key = key;
                 state.Body = body;
-
-                if (state == null)
-                    throw new OutOfMemoryException($"{nameof(_carHeap)}, {Description}");
 
                 ZeroAtomic(static async (_, state, __) =>
                 {
@@ -214,10 +211,11 @@ namespace zero.core.feat.misc
             }
             finally
             {
+                node = state?.Node;
                 _carHeap.Return(state);
             }
 
-            return new ValueTask<IoQueue<IoChallenge>.IoZNode>(state.Node);
+            return new ValueTask<IoQueue<IoChallenge>.IoZNode>(node);
         }
         
         [ThreadStatic]
@@ -247,10 +245,11 @@ namespace zero.core.feat.misc
                 var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 var cur = @this._lut.Head;
+                var insane = 20;
                 while (cur != null)
                 {
                     //restart on collisions
-                    if (@this._lut.Modified)
+                    if (@this._lut.Modified && insane--> 0)
                     {
                         cur = @this._lut.Head;
                         @this._lut.Reset();

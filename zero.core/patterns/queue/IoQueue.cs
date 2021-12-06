@@ -499,6 +499,7 @@ namespace zero.core.patterns.queue
         public void Reset()
         {
             _curEnumerator = new IoQueueEnumerator<T>(this);
+            _curEnumerator.Modified = false;
         }
     }
 }

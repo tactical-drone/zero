@@ -36,7 +36,7 @@ namespace zero.core.patterns.queue.enumerator
 
         public override IoQueue<T>.IoZNode Current => _iteratorIoZNode;
 
-        public bool Modified;
+        public volatile bool Modified;
 
         public override void Dispose()
         {
