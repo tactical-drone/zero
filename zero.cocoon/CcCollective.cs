@@ -1087,6 +1087,8 @@ namespace zero.cocoon
                 {
                     var adjunct = (CcAdjunct)vector;
 
+                    adjunct.EnsureFuseChecks();
+
                     //Only probe when we are running lean
                     if (adjunct.CcCollective.Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
                         break;
@@ -1102,6 +1104,19 @@ namespace zero.cocoon
                         {
                             if (!Zeroed())
                                 _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to probe adjuncts, {Description}");
+                        }
+                        else
+                        {
+                            _logger.Debug($"SE> {adjunct.Description}");
+                            //foundVector = true;
+                        }
+                    }
+                    else
+                    {
+                        if (!await adjunct.SeduceAsync("SYN-SE").FastPath().ConfigureAwait(Zc))
+                        {
+                            if (!Zeroed())
+                                _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");
                         }
                         else
                         {

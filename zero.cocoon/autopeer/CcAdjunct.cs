@@ -88,7 +88,7 @@ namespace zero.cocoon.autopeer
             if (Proxy)
             {
                 CompareAndEnterState(AdjunctState.Unverified, AdjunctState.Undefined);
-                ZeroAsync(RoboAsync, this,TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).AsTask().GetAwaiter().GetResult();
+                ZeroAsync(RoboAsync, this,TaskCreationOptions.DenyChildAttach).AsTask().GetAwaiter().GetResult();
             }
             else
             {
@@ -2699,6 +2699,15 @@ namespace zero.cocoon.autopeer
             _currState.Set((int)state);
 
             return _currState.Value;
+        }
+
+        /// <summary>
+        /// Makes fusing more likely
+        /// </summary>
+        public void EnsureFuseChecks()
+        {
+            _fuseRequestsRecvCount = 0;
+            _fuseRequestsSentCount = 0;
         }
 
 #if DEBUG
