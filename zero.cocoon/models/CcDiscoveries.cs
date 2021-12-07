@@ -8,6 +8,7 @@ using SimpleBase;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
+using zero.core.conf;
 using zero.core.feat.misc;
 using zero.core.feat.models.protobuffer;
 using zero.core.feat.models.protobuffer.sources;
@@ -24,35 +25,56 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", parm_max_msg_batch_size)
-            {
-                Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size * 2), 
-                Context = this,
-                Prep = (batch, _) => { batch.RemoteEndPoint = null; }
-            };
-
-            _currentBatch = _batchHeap.Take();
-            if (_currentBatch == null)
-                throw new OutOfMemoryException($"{sinkDesc}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
+            
         }
 
-        public override async ValueTask<bool> ConstructAsync()
+        public override async ValueTask<bool> ConstructAsync(object localContext)
         {
-            var conduitId = nameof(CcAdjunct);
-            ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
-            var batchSize = parm_max_msg_batch_size;
-            var cc = 8;
-            if (ProtocolConduit == null)
+            if (!_configured)
             {
-                //TODO tuning
-                var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, cc*2, cc, cc/2);
-                ProtocolConduit = await MessageService.CreateConduitOnceAsync(
-                    conduitId,
-                    cc,
-                    channelSource,
-                    static (o,s) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
-                ).FastPath().ConfigureAwait(Zc);
+                IoZero = (IIoZero)localContext;
+                _configured = true;
+                if (!Source.Proxy && ((CcAdjunct)IoZero).CcCollective.ZeroDrone)
+                {
+                    parm_max_msg_batch_size *= 10;
+                }
+
+                string bashDesc;
+#if DEBUG
+                bashDesc = $"{nameof(_batchHeap)}: {Description}";
+#else
+                bashDesc = string.Empty;
+#endif
+
+
+                _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
+                {
+                    Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size * 2),
+                    Context = this,
+                    Prep = (batch, _) => { batch.RemoteEndPoint = null; }
+                };
+
+                _currentBatch ??= _batchHeap.Take();
+                if (_currentBatch == null)
+                    throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
+
+                var conduitId = nameof(CcAdjunct);
+                ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
+
+                var batchSize = parm_max_msg_batch_size;
+                var cc = 8;
+                if (ProtocolConduit == null)
+                {
+                    //TODO tuning
+                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, cc * 2, cc, cc / 2);
+                    ProtocolConduit = await MessageService.CreateConduitOnceAsync(
+                        conduitId,
+                        cc,
+                        channelSource,
+                        static (o, s) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
+                    ).FastPath().ConfigureAwait(Zc);
+                }
             }
             
             return await base.ConstructAsync().FastPath().ConfigureAwait(Zc) && ProtocolConduit != null;
@@ -131,6 +153,14 @@ namespace zero.cocoon.models
             Defuse = 22
         }
 
+        /// <summary>
+        /// Whether configuration has been applied
+        /// </summary>
+        private bool _configured;
+
+        /// <summary>
+        /// A description
+        /// </summary>
         public override string Description => $"{base.Description}: {Source?.Description}";
 
         /// <summary>
@@ -157,6 +187,13 @@ namespace zero.cocoon.models
         ///// Cc Identity
         ///// </summary>
         public CcDesignation CcId => CcCollective.CcId;
+
+        /// <summary>
+        /// Maximum number of datums this buffer can hold
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_max_msg_batch_size = 16;//TODO tuning 4 x MaxAdjuncts
 
         public override ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {

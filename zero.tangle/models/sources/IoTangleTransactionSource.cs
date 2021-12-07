@@ -16,7 +16,7 @@ namespace zero.tangle.models.sources
     /// <seealso cref="IIoSource" />
     public sealed class IoTangleTransactionSource<TKey> : IoSource<IoTangleTransaction<TKey>>, IIoSource 
     {
-        public IoTangleTransactionSource(string destDescription, int prefetchSize):base(destDescription, prefetchSize, 2)//TODO config
+        public IoTangleTransactionSource(string destDescription, int prefetchSize):base(destDescription, false, prefetchSize, 2)//TODO config
         {
             //Saves forwarding upstream, to leech some values from it            
             _logger = LogManager.GetCurrentClassLogger();

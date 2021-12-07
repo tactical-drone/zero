@@ -130,6 +130,11 @@ namespace zero.core.patterns.bushings.contracts
         public bool AsyncEnabled { get; }
 
         /// <summary>
+        /// Whether this source is a proxy
+        /// </summary>
+        public bool Proxy  { get; }
+
+        /// <summary>
         /// Executes the specified function in the context of the source
         /// </summary>
         /// <param name="callback">The function.</param>

@@ -46,7 +46,8 @@ namespace zero.core.network.ip
         /// <param name="netSocket">The new socket that comes from the listener</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel) : base(description, prefetchSize, concurrencyLevel)
+        /// <param name="proxy">Whether this source is a proxy</param>
+        protected IoNetClient(string description, IoNetSocket netSocket, int prefetchSize, int concurrencyLevel, bool proxy = false) : base(description, proxy, prefetchSize, concurrencyLevel)
         {
             IoNetSocket = netSocket;
             _logger = LogManager.GetCurrentClassLogger();
@@ -59,7 +60,7 @@ namespace zero.core.network.ip
         /// <param name="description">A description</param>
         /// <param name="prefetchSize">The amount of socket reads the upstream is allowed to lead the consumer</param>
         /// <param name="concurrencyLevel">Concurrency level</param>
-        protected IoNetClient(string description, int prefetchSize, int concurrencyLevel) : base(description, prefetchSize, concurrencyLevel)
+        protected IoNetClient(string description, int prefetchSize, int concurrencyLevel) : base(description, false, prefetchSize, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             IsOriginating = true;

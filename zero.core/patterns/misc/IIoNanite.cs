@@ -14,8 +14,9 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Async construction
         /// </summary>
+        /// <param name="localContext"></param>
         /// <returns>True if success, false otherwise</returns>
-        ValueTask<bool> ConstructAsync();
+        ValueTask<bool> ConstructAsync(object localContext);
 
         /// <summary>
         /// returns an identity

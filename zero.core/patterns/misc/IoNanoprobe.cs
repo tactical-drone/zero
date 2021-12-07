@@ -53,16 +53,21 @@ namespace zero.core.patterns.misc
         {
             _zId = Interlocked.Increment(ref _uidSeed);
             AsyncTasks = new CancellationTokenSource();
+
+#if DEBUG
             Description = description ?? GetType().Name;
+#else 
+            Description = "";
+#endif
 
             _concurrencyLevel = concurrencyLevel;
 
 #if DEBUG
-            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 4, concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 4, concurrencyLevel, autoScale:true);
+            _zeroHive = new IoQueue<IoZeroSub>($"{nameof(_zeroHive)} {description}", 16, concurrencyLevel, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"{nameof(_zeroHiveMind)} {description}", 16, concurrencyLevel, autoScale:true);
 #else
-            _zeroHive = new IoQueue<IoZeroSub>("", 4, concurrencyLevel, autoScale:true);
-            _zeroHiveMind = new IoQueue<IIoNanite>($"", 4, concurrencyLevel, autoScale: true);
+            _zeroHive = new IoQueue<IoZeroSub>("", 16, concurrencyLevel, autoScale:true);
+            _zeroHiveMind = new IoQueue<IIoNanite>($"", 16, concurrencyLevel, autoScale: true);
 #endif
 
             Uptime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -179,11 +184,12 @@ namespace zero.core.patterns.misc
         /// Max number of blockers
         /// </summary>
         private readonly int _concurrencyLevel;
-        
+
         /// <summary>
         /// A secondary constructor for async stuff
         /// </summary>
-        public virtual ValueTask<bool> ConstructAsync() {return new ValueTask<bool>(true);}
+        /// <param name="localContext"></param>
+        public virtual ValueTask<bool> ConstructAsync(object localContext = null) {return new ValueTask<bool>(true);}
         
         /// <summary>
         /// Teardown termination sentinel

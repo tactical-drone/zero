@@ -23,7 +23,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// Constructor
         /// </summary>
-        protected IoSource(string description, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSources = 0) : base(description, concurrencyLevel)
+        protected IoSource(string description, bool proxy, int prefetchSize = 1, int concurrencyLevel = 1, int maxAsyncSources = 0) : base(description, concurrencyLevel)
         {
             _logger = LogManager.GetCurrentClassLogger();
             
@@ -36,6 +36,7 @@ namespace zero.core.patterns.bushings
             //if (maxAsyncSources > concurrencyLevel)
             //    throw new ArgumentOutOfRangeException($"{description}: invalid {nameof(concurrencyLevel)} = {concurrencyLevel}, must be at least {nameof(maxAsyncSources)} = {maxAsyncSources}");
 
+            Proxy = proxy;
             PrefetchSize = prefetchSize;
             MaxAsyncSources = maxAsyncSources;
             AsyncEnabled = MaxAsyncSources > 0;
@@ -158,6 +159,8 @@ namespace zero.core.patterns.bushings
         /// If async workers are enabled
         /// </summary>
         public bool AsyncEnabled { get; protected set; }
+
+        public bool Proxy { get; }
 
         /// <summary>
         /// Used to identify work that was done recently

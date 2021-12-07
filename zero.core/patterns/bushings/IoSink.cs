@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using zero.core.patterns.bushings.contracts;
 using zero.core.patterns.heap;
@@ -38,9 +39,13 @@ namespace zero.core.patterns.bushings
         {
             get
             {
+#if DEBUG
                 if(_description == null)
-                    return _description = $"{_sinkDesc}";
+                    return _description = $"{_sinkDesc} ~> {base.Description}";
                 return _description;
+#else
+                return string.Empty;
+#endif
             }
         }
 

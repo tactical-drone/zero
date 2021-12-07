@@ -20,7 +20,6 @@ namespace zero.core.feat.models.protobuffer
         protected CcProtocMessage(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<TModel, TBatch>> source)
             : base(sinkDesc, jobDesc, source)
         {
-
             DatumSize = 1492; //SET to MTU
             
             //Init buffers
@@ -73,13 +72,6 @@ namespace zero.core.feat.models.protobuffer
         // ReSharper disable once InconsistentNaming
         public int parm_datums_per_buffer = 5;
 
-
-        /// <summary>
-        /// Maximum number of datums this buffer can hold
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_max_msg_batch_size = 16;//TODO tuning 4 x MaxAdjuncts
 
         /// <summary>
         /// How long to wait for the consumer before timing out

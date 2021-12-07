@@ -85,7 +85,7 @@ namespace zero.sync
 
             var t1 = CoCoonAsync(CcDesignation.Generate(true), $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
                 $"tcp://127.0.0.1:{1234}", $"udp://127.0.0.1:{1234}",
-                new[]
+                new string[]
                 {
                     $"udp://127.0.0.1:{1235}",
                     $"udp://127.0.0.1:{1236}",

@@ -49,7 +49,7 @@ namespace zero.tangle.models
             ArraySegment = new ArraySegment<byte>(Buffer);
         }
 
-        public override async ValueTask<bool> ConstructAsync()
+        public override async ValueTask<bool> ConstructAsync(object localContext)
         {
             //forward to node services
             if (!Source.ObjectStorage.ContainsKey(nameof(_nodeServicesProxy)))

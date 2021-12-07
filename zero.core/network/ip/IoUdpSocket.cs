@@ -343,13 +343,13 @@ namespace zero.core.network.ip
             if (!IsConnected())
                 return 0;
 
-#if DEBUG
-                if (_sendSync.CurNrOfBlockers >= _sendArgs.MaxSize / 2)
-                    _logger.Warn(
-                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.MaxSize}");
+//#if DEBUG
+//                if (_sendSync.CurNrOfBlockers >= _sendArgs.MaxSize / 2)
+//                    _logger.Warn(
+//                        $"{Description}: Send semaphore is running lean {_sendSync.CurNrOfBlockers}/{_sendArgs.MaxSize}");
 
-                Debug.Assert(endPoint != null);
-#endif
+//                Debug.Assert(endPoint != null);
+//#endif
             SocketAsyncEventArgs args = default;
             try
             {
