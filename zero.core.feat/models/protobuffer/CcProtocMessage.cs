@@ -3,6 +3,7 @@ using System.Buffers;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using zero.core.conf;
@@ -26,7 +27,7 @@ namespace zero.core.feat.models.protobuffer
             BufferSize = DatumSize * parm_datums_per_buffer;
             DatumProvisionLengthMax = DatumSize - 1;
             
-            MemoryOwner = MemoryPool<byte>.Shared.Rent((int)(BufferSize + DatumProvisionLengthMax));
+            MemoryOwner = MemoryPool<byte>.Shared.Rent(BufferSize + DatumProvisionLengthMax);
 
             //Buffer = new sbyte[BufferSize + DatumProvisionLengthMax];
             if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)MemoryOwner.Memory, out var malloc))
@@ -72,13 +73,6 @@ namespace zero.core.feat.models.protobuffer
         // ReSharper disable once InconsistentNaming
         public int parm_datums_per_buffer = 5;
 
-        
-        /// <summary>
-        /// Maximum number of datums this buffer can hold
-        /// </summary>
-        [IoParameter]
-        // ReSharper disable once InconsistentNaming
-        public int parm_ave_msg_sec_hist = 10 * 2;
 
         /// <summary>
         /// Maximum number of datums this buffer can hold
@@ -147,28 +141,8 @@ namespace zero.core.feat.models.protobuffer
                         if (job.MessageService.IsOperational && !job.Zeroed())
                         {
                             var bytesRead = await ((IoSocket)ioSocket)
-                                .ReadAsync(job.MemoryBuffer, (int)job.BufferOffset, job.BufferSize,
+                                .ReadAsync(job.MemoryBuffer, job.BufferOffset, job.BufferSize,
                                     job.RemoteEndPoint).FastPath().ConfigureAwait(job.Zc);
-
-                            //if (MemoryMarshal.TryGetArray((ReadOnlyMemory<byte>)_this.MemoryBuffer, out var seg))
-                            //{
-                            //    StringWriter w = new StringWriter();
-                            //    w.Write($"{_this.MemoryBuffer.GetHashCode()}({bytesRead}):");
-                            //    var nullc = 0;
-                            //    var nulld = 0;
-                            //    for (var i = 0; i < bytesRead; i++)
-                            //    {
-                            //        w.Write($" {seg[i + BufferOffset]}.");
-                            //    }
-
-                            //    _logger.Fatal(w.ToString());
-                            //}
-
-
-                            //var readTask = ((IoSocket) ioSocket).ReadAsync(_this.ByteSegment, _this.BufferOffset,_this.BufferSize, _this._remoteEp, _this.MessageService.BlackList);
-                            //await readTask.OverBoostAsync().ConfigureAwait(ZC);
-
-                            //rx = readTask.Result;
 
                             //Drop zero reads
                             if (bytesRead == 0)
@@ -177,30 +151,7 @@ namespace zero.core.feat.models.protobuffer
                                 return false;
                             }
 
-                            //Array.Copy(Buffer, Buffer, Buffer.Length);
-
-                            //rate limit
-                            //_this._msgCount++;
-                            //var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                            //var delta = now - _this._msgRateCheckpoint;
-                            //if (_this._msgCount > _this.parm_ave_sec_ms &&
-                            //    (double)_this._msgCount * 1000 / delta > _this.parm_ave_sec_ms)
-                            //{
-                            //    _this.BytesRead = 0;
-                            //    _this.State = IoJobMeta.JobState.ProduceTo;
-                            //    _this._logger.Fatal($"Dropping spam {_this._msgCount}");
-                            //    _this._msgCount -= 2;
-                            //    return false;
-                            //}
-
-                            ////hist reset
-                            //if (delta > _this.parm_ave_msg_sec_hist * 1000)
-                            //{
-                            //    _this._msgRateCheckpoint = now;
-                            //    _this._msgCount = 0;
-                            //}
-
-                            job.BytesRead += bytesRead;
+                            Interlocked.Add(ref job.BytesRead, bytesRead);
 
                             job.State = IoJobMeta.JobState.Produced;
 
@@ -226,7 +177,6 @@ namespace zero.core.feat.models.protobuffer
                     {
                         job.State = IoJobMeta.JobState.ProduceErr;
                         _logger.Error(e, $"ReadAsync {job.Description}:");
-                        //await _this.MessageService.ZeroAsync(_this).FastPath().ConfigureAwait(ZC);
                     }
 
                     return false;
@@ -248,38 +198,5 @@ namespace zero.core.feat.models.protobuffer
 
             return State;
         }
-
-        /// <summary>
-        /// Handle fragments
-        /// </summary>
-        //private void SyncPrevJob()
-        //{
-        //    if (!(PreviousJob?.StillHasUnprocessedFragments ?? false)) return;
-
-        //    var p = (IoMessage<CcProtocMessage<TModel, TBatch>>)PreviousJob;
-        //    try
-        //    {
-        //        var bytesToTransfer = Math.Min(p.DatumFragmentLength, DatumProvisionLengthMax);
-        //        Interlocked.Add(ref BufferOffset, -bytesToTransfer);
-        //        Interlocked.Add(ref BytesRead, bytesToTransfer);
-
-        //        JobSync();
-
-        //        Array.Copy(p.Buffer, p.BufferOffset + Math.Max(p.BytesLeftToProcess - DatumProvisionLengthMax, 0),
-        //            Buffer, BufferOffset, bytesToTransfer);
-        //    }
-        //    catch (Exception e) // we de-synced 
-        //    {
-        //        _logger.Warn(e, $"{TraceDescription} We desynced!:");
-
-        //        MessageService.Synced = false;
-        //        DatumCount = 0;
-        //        BytesRead = 0;
-        //        State = IoJobMeta.JobState.ConInvalid;
-        //        DatumFragmentLength = 0;
-        //        StillHasUnprocessedFragments = false;
-        //    }
-        //}
-
     }
 }

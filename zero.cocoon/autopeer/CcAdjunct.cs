@@ -104,8 +104,8 @@ namespace zero.cocoon.autopeer
 #else
             desc = $"";
 #endif
-
-            _chronitonHeap = new IoHeap<chroniton>(desc, 4, autoScale: true) { Make = (o, o1) => new chroniton
+            
+            _chronitonHeap = new IoHeap<chroniton>(desc, CcCollective.ZeroDrone & !Proxy? 4096: 4, autoScale: true) { Make = (o, o1) => new chroniton
                 {
                     Header = new z_header { Ip = new net_header() }
                 }
@@ -1891,7 +1891,7 @@ namespace zero.cocoon.autopeer
             else
             {
                 if (Collected)
-                    _logger.Debug($"<\\- {nameof(CcSweepRequest)}({sent}): [FAILED], {Description}, {MetaDesc}");
+                    _logger.Debug($"<\\- {nameof(CcSweepRequest)}({sent}): Send [FAILED], {Description}, {MetaDesc}");
             }
         }
 
@@ -2228,8 +2228,8 @@ namespace zero.cocoon.autopeer
                     }
                     else
                     {
-                        //if(heading == Heading.Undefined)
-                        Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        if(heading != Heading.Ingress)
+                            Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 #if DEBUG
                         _logger.Trace($"-/> {nameof(SeduceAsync)}: Sent [[{desc}]] Drone REQUEST), {Description}");
 #endif
@@ -2242,12 +2242,11 @@ namespace zero.cocoon.autopeer
                     var proxy = address == null ? this : Router;
                     //delta trigger
                     if (proxy != null && !await proxy.ProbeAsync(desc, address).FastPath().ConfigureAwait(Zc))
-                        _logger.Trace($"<\\- {nameof(ProbeAsync)}({desc}): [FAILED] Send Drone HUP");
+                        _logger.Trace($"<\\- {nameof(ProbeAsync)}({desc}): [FAILED] to seduce {Description}");
                     else
                     {
-                        //await Task.Delay(15).ConfigureAwait(false); //clogged nodes are not very attractive...
-                        //await proxy!.ProbeAsync(desc, address).FastPath().ConfigureAwait(Zc);
-                        Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        if (heading != Heading.Ingress)
+                            Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 #if DEBUG
                         _logger.Debug($"-/> {nameof(ProbeAsync)}: Send [[{desc}]] Probe");
 #endif
