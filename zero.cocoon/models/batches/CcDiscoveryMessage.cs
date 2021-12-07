@@ -1,4 +1,5 @@
-﻿using Google.Protobuf;
+﻿using System.Net;
+using Google.Protobuf;
 using Zero.Models.Protobuf;
 
 namespace zero.cocoon.models.batches
@@ -7,5 +8,6 @@ namespace zero.cocoon.models.batches
     {
         public volatile IMessage EmbeddedMsg;
         public volatile chroniton Message;
+        public volatile byte[] EndPoint;
     }
 }

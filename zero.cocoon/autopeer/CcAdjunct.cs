@@ -859,7 +859,7 @@ namespace zero.cocoon.autopeer
         /// <returns>Task</returns>
         private async ValueTask ProcessMsgBatchAsync<T>(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob,
             IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> channel,
-            Func<CcDiscoveryMessage, CcDiscoveryBatch, IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, T, ValueTask> processCallback, T nanite)
+            Func<CcDiscoveryMessage, CcDiscoveryBatch, IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, T,ValueTask> processCallback, T nanite)
         {
             if (batchJob == null)
                 return;
@@ -870,43 +870,21 @@ namespace zero.cocoon.autopeer
                 var job = (CcProtocBatchJob<chroniton, CcDiscoveryBatch>)batchJob;
                 msgBatch = job.Get();
 
-                foreach (var epGroupsKey in msgBatch.EpGroups.Keys)
+                for (int i = 0; i < msgBatch.Count; i++)
                 {
-                    if (msgBatch.EpGroups.TryGetValue(epGroupsKey, out var msgGroup))
+                    var message = msgBatch[i];
+                    try
                     {
-                        foreach (var message in msgGroup)   
-                        {
-                            try
-                            {
-                                await processCallback(message, msgBatch, channel, nanite).FastPath();
-                            }
-                            catch (Exception) when (!Zeroed()) { }
-                            catch (Exception e) when (Zeroed())
-                            {
-                                if (Collected)
-                                    _logger.Debug(e, $"Processing protocol failed for {Description}: ");
-                            }
-                        }
-                        msgBatch.EpGroups.Clear();
+                        await processCallback(message, msgBatch, channel, nanite).FastPath();
+                    }
+                    catch (Exception) when (!Zeroed()) { }
+                    catch (Exception e) when (Zeroed())
+                    {
+                        if (Collected)
+                            _logger.Debug(e, $"Processing protocol failed for {Description}: ");
                     }
                 }
 
-
-                //for (int i = 0; i < msgBatch.Count; i++)
-                //{
-                //    var message = msgBatch[i];
-                //    try
-                //    {
-                //        await processCallback(message, msgBatch, channel, nanite).FastPath();
-                //    }
-                //    catch (Exception) when (!Zeroed()){}
-                //    catch (Exception e)when(Zeroed())
-                //    {
-                //        if (Collected)
-                //            _logger.Debug(e, $"Processing protocol failed for {Description}: ");
-                //    }
-                //}
-                
                 batchJob.State = IoJobMeta.JobState.Consumed;
             }
             catch when(Zeroed()){}
@@ -1016,21 +994,21 @@ namespace zero.cocoon.autopeer
                                     {
                                         try
                                         {
-                                            await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit,static async (msgBatch, discoveryBatch, ioConduit, @this) =>
+                                            await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit,static async (batchItem, discoveryBatch, ioConduit, @this) =>
                                             {
                                                 IMessage message = default;
                                                 chroniton packet = default;
                                                 try
                                                 {
-                                                    message = msgBatch.EmbeddedMsg;
-                                                    packet = msgBatch.Message;
+                                                    message = batchItem.EmbeddedMsg;
+                                                    packet = batchItem.Message;
 
                                                     if (packet.Data.Length == 0)
                                                     {
                                                         @this._logger.Warn($"Got zero message from {CcDesignation.ShortId(packet.PublicKey.Memory.AsArray())}");
                                                         return;
                                                     }
-                                                    var srcEndPoint = discoveryBatch.RemoteEndPoint.GetEndpoint();
+                                                    var srcEndPoint = batchItem.EndPoint.GetEndpoint();
                                                     var key = srcEndPoint.ToString();
                                                     var routed = @this.Router._routingTable.TryGetValue(key, out var currentRoute);
                                                     //Router
@@ -1078,7 +1056,7 @@ namespace zero.cocoon.autopeer
                                                                         var pk1 = currentRoute.Designation.PkShort();
                                                                         var pk2 = CcDesignation.ShortId(packet.PublicKey);
 
-                                                                        var msg = $"{nameof(@this.Router)}[{i}]: Dropped route {currentRoute.MessageService.IoNetSocket.RemoteNodeAddress.IpEndPoint}/{pk1} ~> {discoveryBatch.RemoteEndPoint.GetEndpoint()}/{pk2}: {currentRoute.Description}";
+                                                                        var msg = $"{nameof(@this.Router)}[{i}]: Dropped route {currentRoute.MessageService.IoNetSocket.RemoteNodeAddress.IpEndPoint}/{pk1} ~> {key}/{pk2}: {currentRoute.Description}";
 
                                                                         @this._logger.Warn(msg);
                                                                         currentRoute.Zero(new IoNanoprobe(msg));

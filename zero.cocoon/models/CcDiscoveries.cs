@@ -54,8 +54,7 @@ namespace zero.cocoon.models
                 _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size * 2)
                 {
                     Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size * 2),
-                    Context = this,
-                    Prep = (batch, _) => { batch.RemoteEndPoint = null; }
+                    Context = this
                 };
 
                 _currentBatch ??= _batchHeap.Take();
@@ -444,7 +443,7 @@ namespace zero.cocoon.models
         /// <param name="messageParser"></param>
         /// <typeparam name="T">The expected type</typeparam>
         /// <returns>The task</returns>
-        private async ValueTask ProcessRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
+        private ValueTask ProcessRequestAsync<T>(chroniton packet, MessageParser<T> messageParser)
             where T : IMessage<T>, IMessage, new()
         {
             try
@@ -486,37 +485,33 @@ namespace zero.cocoon.models
                     //    await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
                     //}
 
-                    bool routingSuccess = true;
+                    //bool routingSuccess = true;
 
-                    byte[] ingressEpBytes;
-                    if (_currentBatch.Count == 0 || _currentBatch.RemoteEndPoint == null) 
-                    {
-                        _currentBatch.RemoteEndPoint = ingressEpBytes = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
-                    }
-                    else
-                    {
-                        ingressEpBytes = RemoteEndPoint.AsBytes();
-                    }
+                    //byte[] ingressEpBytes;
+                    //if (_currentBatch.Count == 0 || _currentBatch.RemoteEndPoint == null) 
+                    //{
+                    //    _currentBatch.RemoteEndPoint = ingressEpBytes = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
+                    //}
+                    //else
+                    //{
+                    //    ingressEpBytes = RemoteEndPoint.AsBytes();
+                    //}
 
-                    if (_currentBatch.Count >= parm_max_msg_batch_size || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
-                    {
-                        if (!routingSuccess)
-                        {
-                            _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented: next = {ingressEpBytes}, prev = {_currentBatch.RemoteEndPoint.GetEndpoint()}, count = {_currentBatch.Count}");
-                        }
-                        await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
-                        _currentBatch.RemoteEndPoint = ingressEpBytes;
-                    }
+                    //if (_currentBatch.Count >= parm_max_msg_batch_size || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
+                    //{
+                    //    if (!routingSuccess)
+                    //    {
+                    //        _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented: next = {ingressEpBytes}, prev = {_currentBatch.RemoteEndPoint.GetEndpoint()}, count = {_currentBatch.Count}");
+                    //    }
+                    //    await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
+                    //    _currentBatch.RemoteEndPoint = ingressEpBytes;
+                    //}
 
                     var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
                     batchMsg.EmbeddedMsg = request;
                     batchMsg.Message = packet;
+                    batchMsg.EndPoint = RemoteEndPoint.AsBytes();
 
-                    if (!_currentBatch.EpGroups.TryAdd(ingressEpBytes.ToString(),
-                            new List<CcDiscoveryMessage>(_currentBatch.Messages)))
-                    {
-                        _currentBatch.EpGroups[ingressEpBytes.ToString()].Add(batchMsg);
-                    }
                 }
             }
             catch when(Zeroed()){}
@@ -525,6 +520,8 @@ namespace zero.cocoon.models
                 _logger.Error(e,
                     $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             }
+
+            return default;
         }
 
         /// <summary>

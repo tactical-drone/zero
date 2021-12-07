@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using NLog;
@@ -23,14 +24,11 @@ namespace zero.cocoon.models.batches
         readonly IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
         private readonly CcDiscoveryMessage[] _messages;
         private readonly Dictionary<string, ReadOnlyMemory<CcDiscoveryMessage>> _messagesDictionary = new();
-        public volatile byte[] RemoteEndPoint;
         private volatile int _disposed;
 
         public CcDiscoveryMessage this[int i] => _messages[i];
 
         public CcDiscoveryMessage[] Messages => _messages;
-        public Dictionary<string, List<CcDiscoveryMessage>> EpGroups = new ();
-
 
         /// <summary>
         /// Return this instance to the heap
