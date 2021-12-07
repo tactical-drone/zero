@@ -28,7 +28,9 @@ namespace zero.core.patterns.bushings
         /// </summary>
         private readonly string _sinkDesc;
 
+#if DEBUG
         private string _description;
+#endif
 
         /// <inheritdoc />
         /// <summary>
