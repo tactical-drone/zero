@@ -449,13 +449,12 @@ namespace zero.core.network.ip
 
                 if (timeout == 0)
                 {
-                    var args = _recvArgs.Take();
-                    var tcs = new IoManualResetValueTaskSource<bool>();
+                    SocketAsyncEventArgs args = null;
                     try
                     {
-                        //var args = new SocketAsyncEventArgs();
-                        //args.Completed += SignalAsync;
-
+                        args = _recvArgs.Take();
+                        var tcs = new IoManualResetValueTaskSource<bool>();
+                        
                         if (args == null)
                             throw new OutOfMemoryException(nameof(_recvArgs));
 
