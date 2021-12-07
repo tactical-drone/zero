@@ -371,7 +371,7 @@ namespace zero.cocoon.autopeer
             Undefined = 0,
             Ingress = 1,
             Egress = 2,
-            Both = 3
+            Both = 4
         }
 
         /// <summary>
@@ -2228,7 +2228,7 @@ namespace zero.cocoon.autopeer
                     }
                     else
                     {
-                        if(heading != Heading.Ingress)
+                        if(((int)heading & (int)Heading.Ingress) == 0)
                             Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 #if DEBUG
                         _logger.Trace($"-/> {nameof(SeduceAsync)}: Sent [[{desc}]] Drone REQUEST), {Description}");
@@ -2237,7 +2237,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                if(!(CcCollective.ZeroDrone && !ignoreZeroDrone) && ((int)heading & (int)Heading.Ingress) == (int)Heading.Ingress)
+                if(!(CcCollective.ZeroDrone && !ignoreZeroDrone) && ((int)heading & (int)Heading.Ingress) > 0)
                 {
                     var proxy = address == null ? this : Router;
                     //delta trigger
@@ -2245,7 +2245,7 @@ namespace zero.cocoon.autopeer
                         _logger.Trace($"<\\- {nameof(ProbeAsync)}({desc}): [FAILED] to seduce {Description}");
                     else
                     {
-                        if (heading != Heading.Ingress)
+                        if (((int)heading & (int)Heading.Ingress) == 0)
                             Interlocked.Exchange(ref _stealthy, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 #if DEBUG
                         _logger.Debug($"-/> {nameof(ProbeAsync)}: Send [[{desc}]] Probe");
