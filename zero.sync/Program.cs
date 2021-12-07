@@ -168,7 +168,7 @@ namespace zero.sync
 
             //Console.WriteLine("Prepping...");
             //Thread.Sleep(10000);
-
+            
             var task = Task.Factory.StartNew(async () =>
             {
                 Console.WriteLine($"Starting auto peering...  {tasks.Count}");

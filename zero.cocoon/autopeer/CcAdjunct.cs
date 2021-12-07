@@ -1506,28 +1506,18 @@ namespace zero.cocoon.autopeer
 #endif
 
                     packet.Data = UnsafeByteOperations.UnsafeWrap(data);
+
                     if(packet.PublicKey.Length == 0)
                         packet.PublicKey = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.PublicKey);
 
-                    //packet.PublicKey = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.PublicKey);
                     packet.Type = (int)type;
                     
                     var packetMsgRaw = packet.Data.Memory.AsArray();
+
                     packet.Signature = UnsafeByteOperations.UnsafeWrap(CcCollective.CcId.Sign(packetMsgRaw, 0, packetMsgRaw.Length));
-
-
-                    // #if DEBUG
-                    //                 var verified = CcCollective.CcId.Verify(packetMsgRaw, 0, packetMsgRaw.Length, packet.PublicKey.Memory.AsArray(),
-                    //                     0, packet.Signature.Memory.AsArray(), 0);
-                    //                 if (!verified)
-                    //                 {
-                    //                     _logger.Fatal($"{Description}: Unable to sign message!!!");
-                    //                 }
-                    // #endif
 
                     var msgRaw = packet.ToByteArray();
                     
-
 //simulate byzantine failure.                
 #if LOSS
                 var sent = 0;
@@ -1560,6 +1550,12 @@ namespace zero.cocoon.autopeer
                 //_logger.Trace(
                 //    $"=/> {Enum.GetName(typeof(CcDiscoveries.MessageTypes), packet.Type)} {MessageService.IoNetSocket.LocalAddress} /> {dest.IpEndPoint}>>{data.Memory.PayloadSig()}: s = {sent}");
 #endif
+                }
+                catch when (Zeroed()) { }
+                catch (Exception e) when (!Zeroed())
+                {
+                    if (Collected)
+                        _logger.Debug(e, $"Failed to send message {Description}");
                 }
                 finally
                 {

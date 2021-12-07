@@ -51,11 +51,11 @@ namespace zero.core.network.ip
         {
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
-            _sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, prefetchCount, 0);
-            _sendSync.ZeroRef(ref _sendSync, AsyncTasks);
+            //_sendSync = new IoZeroSemaphore("udp send lock", concurrencyLevel, prefetchCount, 0);
+            //_sendSync.ZeroRef(ref _sendSync, AsyncTasks);
 
-            _rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, prefetchCount, 0);
-            _rcvSync.ZeroRef(ref _rcvSync, AsyncTasks);
+            //_rcvSync = new IoZeroSemaphore("udp receive lock", concurrencyLevel, prefetchCount, 0);
+            //_rcvSync.ZeroRef(ref _rcvSync, AsyncTasks);
 
             InitHeap(concurrencyLevel, recv);
         }
@@ -103,8 +103,8 @@ namespace zero.core.network.ip
             _recvArgs = null;
             _sendArgs = null;
             RemoteNodeAddress = null;
-            _sendSync = null;
-            _rcvSync = null;
+            //_sendSync = null;
+            //_rcvSync = null;
 #endif
         }
 
@@ -154,8 +154,8 @@ namespace zero.core.network.ip
             },this).FastPath().ConfigureAwait(Zc);
 
 
-            _sendSync.ZeroSem();
-            _rcvSync.ZeroSem();
+            //_sendSync.ZeroSem();
+            //_rcvSync.ZeroSem();
 
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
         }
@@ -324,8 +324,8 @@ namespace zero.core.network.ip
         //    return await connection!.ConsumeAsync();
         //}
 
-        private IIoZeroSemaphore _sendSync;
-        private IIoZeroSemaphore _rcvSync;
+        //private IIoZeroSemaphore _sendSync;
+        //private IIoZeroSemaphore _rcvSync;
 
         /// <inheritdoc />
         /// <summary>
@@ -353,8 +353,8 @@ namespace zero.core.network.ip
             SocketAsyncEventArgs args = default;
             try
             {
-                if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(Zc))
-                    return 0;
+                //if (!await _sendSync.WaitAsync().FastPath().ConfigureAwait(Zc))
+                //    return 0;
 
                 args = _sendArgs.Take();
                 if (args == null)
@@ -386,7 +386,7 @@ namespace zero.core.network.ip
                 if (args != default)
                     _sendArgs.Return(args);
 
-                _sendSync.Release();
+                //_sendSync.Release();
             }
 
             return 0;
@@ -444,8 +444,8 @@ namespace zero.core.network.ip
             {
                 Debug.Assert(remoteEp != null);
                 //concurrency
-                if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(Zc))
-                    return 0;
+                //if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(Zc))
+                //    return 0;
 
                 if (timeout == 0)
                 {
@@ -521,7 +521,7 @@ namespace zero.core.network.ip
             }
             finally
             {
-                _rcvSync.Release();
+                //_rcvSync.Release();
             }
 
             return 0;
