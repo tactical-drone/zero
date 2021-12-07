@@ -869,20 +869,43 @@ namespace zero.cocoon.autopeer
             {
                 var job = (CcProtocBatchJob<chroniton, CcDiscoveryBatch>)batchJob;
                 msgBatch = job.Get();
-                for (int i = 0; i < msgBatch.Count; i++)
+
+                foreach (var epGroupsKey in msgBatch.EpGroups.Keys)
                 {
-                    var message = msgBatch[i];
-                    try
+                    if (msgBatch.EpGroups.TryGetValue(epGroupsKey, out var msgGroup))
                     {
-                        await processCallback(message, msgBatch, channel, nanite).FastPath();
-                    }
-                    catch (Exception) when (!Zeroed()){}
-                    catch (Exception e)when(Zeroed())
-                    {
-                        if (Collected)
-                            _logger.Debug(e, $"Processing protocol failed for {Description}: ");
+                        foreach (var message in msgGroup)   
+                        {
+                            try
+                            {
+                                await processCallback(message, msgBatch, channel, nanite).FastPath();
+                            }
+                            catch (Exception) when (!Zeroed()) { }
+                            catch (Exception e) when (Zeroed())
+                            {
+                                if (Collected)
+                                    _logger.Debug(e, $"Processing protocol failed for {Description}: ");
+                            }
+                        }
+                        msgBatch.EpGroups.Clear();
                     }
                 }
+
+
+                //for (int i = 0; i < msgBatch.Count; i++)
+                //{
+                //    var message = msgBatch[i];
+                //    try
+                //    {
+                //        await processCallback(message, msgBatch, channel, nanite).FastPath();
+                //    }
+                //    catch (Exception) when (!Zeroed()){}
+                //    catch (Exception e)when(Zeroed())
+                //    {
+                //        if (Collected)
+                //            _logger.Debug(e, $"Processing protocol failed for {Description}: ");
+                //    }
+                //}
                 
                 batchJob.State = IoJobMeta.JobState.Consumed;
             }
@@ -1597,7 +1620,6 @@ namespace zero.cocoon.autopeer
             if(response.Contacts.Count > 0)
                 _lastScan = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             
-
             //PAT
             LastPat = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             foreach (var sweptDrone in response.Contacts)
@@ -1821,25 +1843,25 @@ namespace zero.cocoon.autopeer
                 .ThenByDescending(n => (int) ((CcAdjunct) n).Priority)
                 .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
 
-            if (!certified.Any())
-            {
-                certified = Hub.Neighbors.Values.Where(n => n != this)
-                    .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected ? 0 : 1)
-                    .ThenByDescending(n => (int)((CcAdjunct)n).Priority)
-                    .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
-            }
+            //if (!certified.Any())
+            //{
+            //    certified = Hub.Neighbors.Values.Where(n => n != this)
+            //        .OrderByDescending(n => ((CcAdjunct)n).IsDroneConnected ? 0 : 1)
+            //        .ThenByDescending(n => (int)((CcAdjunct)n).Priority)
+            //        .ThenBy(n => ((CcAdjunct)n).Uptime.ElapsedMs()).ToList();
+            //}
             
             foreach (var ioNeighbor in certified.Take((int)parm_max_swept_drones))
             {
                 try
                 {
-                    var remoteEp = ((CcAdjunct)ioNeighbor).NatAddress?.IpEndPoint.AsByteString();
-                    remoteEp ??= ((CcAdjunct)ioNeighbor).MessageService.IoNetSocket.LocalNodeAddress.IpEndPoint.AsByteString();
+                    //var remoteEp = ((CcAdjunct)ioNeighbor).NatAddress?.IpEndPoint.AsByteString();
+                    //remoteEp ??= ((CcAdjunct)ioNeighbor).MessageService.IoNetSocket.LocalNodeAddress.IpEndPoint.AsByteString();
 
                     sweptResponse.Contacts.Add(new CcAdjunctModel
                     {
                         PublicKey = UnsafeByteOperations.UnsafeWrap(new ReadOnlyMemory<byte>(((CcAdjunct) ioNeighbor).Designation.PublicKey)),
-                        Url = remoteEp
+                        Url = ((CcAdjunct)ioNeighbor).MessageService.IoNetSocket.RemoteNodeAddress.IpEndPoint.AsByteString()
                     });
                 }
                 catch when (ioNeighbor.Zeroed()){}
@@ -2180,7 +2202,11 @@ namespace zero.cocoon.autopeer
                 if(!CcCollective.ZeroDrone)
                     await SeduceAsync("SYN-SE", Heading.Both).FastPath().ConfigureAwait(Zc);
                 else
+                {
+                    _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     await SeduceAsync("SYN-SE", Heading.Ingress).FastPath().ConfigureAwait(Zc);
+                }
+                    
             }
             else 
             {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -35,9 +36,11 @@ namespace zero.cocoon.models
             {
                 IoZero = (IIoZero)localContext;
                 _configured = true;
+                var concurrencyLevel = 32;
                 if (!Source.Proxy && ((CcAdjunct)IoZero).CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 10;
+                    concurrencyLevel = 512;
                 }
 
                 string bashDesc;
@@ -48,7 +51,7 @@ namespace zero.cocoon.models
 #endif
 
 
-                _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
+                _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size * 2)
                 {
                     Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size * 2),
                     Context = this,
@@ -63,14 +66,14 @@ namespace zero.cocoon.models
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
                 var batchSize = parm_max_msg_batch_size;
-                var cc = 8;
+                
                 if (ProtocolConduit == null)
                 {
                     //TODO tuning
-                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, cc * 2, cc, cc / 2);
+                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, concurrencyLevel * 2, concurrencyLevel, concurrencyLevel / 2);
                     ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                         conduitId,
-                        cc,
+                        concurrencyLevel,
                         channelSource,
                         static (o, s) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
                     ).FastPath().ConfigureAwait(Zc);
@@ -508,6 +511,12 @@ namespace zero.cocoon.models
                     var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
                     batchMsg.EmbeddedMsg = request;
                     batchMsg.Message = packet;
+
+                    if (!_currentBatch.EpGroups.TryAdd(ingressEpBytes.ToString(),
+                            new List<CcDiscoveryMessage>(_currentBatch.Messages)))
+                    {
+                        _currentBatch.EpGroups[ingressEpBytes.ToString()].Add(batchMsg);
+                    }
                 }
             }
             catch when(Zeroed()){}

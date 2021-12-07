@@ -142,19 +142,13 @@ namespace zero.cocoon
                 {
                     try
                     {
-                        int factor;
-#if DEBUG
-                        factor = 200;
-#else
-                        factor = 10;
-#endif
                         if (@this.Hub.Neighbors.Count <= 1)
                         {
-                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * factor / 2) + @this.parm_mean_pat_delay_s * factor / 2, @this.AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s/2) + @this.parm_mean_pat_delay_s / 4, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
                         else
                         {
-                            await Task.Delay(@this.parm_mean_pat_delay_s * factor, @this.AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s) + @this.parm_mean_pat_delay_s / 2, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
 
                         if (@this.Neighbors.Count < @this.parm_max_outbound) 
