@@ -853,7 +853,7 @@ namespace zero.cocoon
 
             if (adjunct == null)
             {
-                var id = CcAdjunct.PkShort(packet.PublicKey.Memory.AsArray());
+                var id = CcDesignation.ShortId(packet.PublicKey.Memory.AsArray());
                 if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
                 {
                     //TODO: this code path is jammed

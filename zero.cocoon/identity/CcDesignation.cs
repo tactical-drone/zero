@@ -3,9 +3,11 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using Google.Protobuf;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
 using SimpleBase;
+using zero.cocoon.autopeer;
 using zero.core.misc;
 
 namespace zero.cocoon.identity
@@ -29,15 +31,27 @@ namespace zero.cocoon.identity
         private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static string ShortId(byte[] publicKey)
+        {
+            return Base58.Bitcoin.Encode(publicKey.AsSpan()[..10]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static string ShortId(ByteString publicKey)
+        {
+            return Base58.Bitcoin.Encode(publicKey.Span[..10]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
         {
-            return Base58.Bitcoin.Encode(Id.AsSpan()[..10]);
+            return ShortId(Id);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string PkString()
         {
-            return Base58.Bitcoin.Encode(PublicKey);
+            return ShortId(PublicKey);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

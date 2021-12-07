@@ -62,10 +62,12 @@ namespace zero.cocoon.autopeer
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
-            var mult = CcCollective.ZeroDrone ? 100 : 1;
-            _probeRequest = new IoZeroMatcher<ByteString>(nameof(_probeRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * mult));
-            _fuseRequest = new IoZeroMatcher<ByteString>(nameof(_fuseRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * mult));
-            _sweepRequest = new IoZeroMatcher<ByteString>(nameof(_sweepRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 3, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
+            var capMult = CcCollective.ZeroDrone ? 100 : 1;
+            var ttlMult = CcCollective.ZeroDrone ? 10 : 1;
+
+            _probeRequest = new IoZeroMatcher<ByteString>(nameof(_probeRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3 * ttlMult, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2 * capMult));
+            _fuseRequest = new IoZeroMatcher<ByteString>(nameof(_fuseRequest), Source.ZeroConcurrencyLevel(), parm_max_network_latency_ms * 3 * ttlMult, (int)(CcCollective.MaxAdjuncts* parm_max_swept_drones * 2 * capMult));
+            _sweepRequest = new IoZeroMatcher<ByteString>(nameof(_sweepRequest), (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones + 1), parm_max_network_latency_ms * 3 * ttlMult, (int)(CcCollective.MaxAdjuncts * parm_max_swept_drones * 2));
 
             if (extraData != null)
             {
@@ -503,14 +505,6 @@ namespace zero.cocoon.autopeer
             //return $"{designation.PkString()}@{key}";
             return $"{designation.PkShort()}";
         }
-
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string PkShort(byte[]  publicKey)
-        {
-            return Base58.Bitcoin.Encode(publicKey.AsSpan()[..10]);
-        }
-
 
         /// <summary>
         /// The CcId
@@ -1028,6 +1022,12 @@ namespace zero.cocoon.autopeer
                                                 {
                                                     message = msgBatch.EmbeddedMsg;
                                                     packet = msgBatch.Message;
+
+                                                    if (packet.Data.Length == 0)
+                                                    {
+                                                        @this._logger.Warn($"Got zero message from {CcDesignation.ShortId(packet.PublicKey.Memory.AsArray())}");
+                                                        return;
+                                                    }
                                                     var srcEndPoint = discoveryBatch.RemoteEndPoint.GetEndpoint();
                                                     var key = srcEndPoint.ToString();
                                                     var routed = @this.Router._routingTable.TryGetValue(key, out var currentRoute);
@@ -1072,7 +1072,7 @@ namespace zero.cocoon.autopeer
                                                                     if (i < currentRoute.Designation.PublicKey.Length && currentRoute.Designation.PublicKey[i] != packet.PublicKey[i] && !currentRoute.Probed /*TODO: What is going on here?*/)
                                                                     {
                                                                         var pk1 = currentRoute.Designation.PkShort();
-                                                                        var pk2 = Base58.Bitcoin.Encode(packet.PublicKey.Span)[..10];
+                                                                        var pk2 = CcDesignation.ShortId(packet.PublicKey);
 
                                                                         var msg = $"{nameof(@this.Router)}[{i}]: Dropped route {currentRoute.MessageService.IoNetSocket.RemoteNodeAddress.IpEndPoint}/{pk1} ~> {discoveryBatch.RemoteEndPoint.GetEndpoint()}/{pk2}: {currentRoute.Description}";
 
@@ -1385,7 +1385,7 @@ namespace zero.cocoon.autopeer
             if (!fuseMessage)
             {
                 if (Collected)
-                    _logger.Debug($"<\\- {nameof(CcFuseResponse)}{response.ToByteArray().PayloadSig()}: No-Hash {endpoint}, {RemoteAddress}, r = {response.ReqHash.Memory.HashSig()}, _fuseRequest = {_fuseRequest.Count}");
+                    _logger.Error($"<\\- {nameof(CcFuseResponse)}({packet.CalculateSize()}, {response.CalculateSize()}) - {response.ToByteArray().PayloadSig()}: No-Hash!!! {endpoint}, {RemoteAddress}, r = {response.ReqHash.Memory.HashSig()}, _fuseRequest = {_fuseRequest.Count}, {Router._fuseRequest.Count}");
                 return;
             }
             
@@ -1614,7 +1614,7 @@ namespace zero.cocoon.autopeer
                     continue;
 
                 //Don't add already known neighbors
-                var id = Base58.Bitcoin.Encode(sweptDrone.PublicKey.Memory.Span[..10]);
+                var id = CcDesignation.ShortId(sweptDrone.PublicKey);
                 if (Hub.Neighbors.Values.Any(n => ((CcAdjunct) n).Designation.PkShort() == id))
                     continue;
 
@@ -1984,7 +1984,7 @@ namespace zero.cocoon.autopeer
                             Msg = new ProtoMsg
                             {
                                 CollectiveId = Hub.Router.Designation.IdString(),
-                                Id = Base58.Bitcoin.Encode(packet.PublicKey.Span[..10].ToArray()),
+                                Id = CcDesignation.ShortId(packet.PublicKey),
                                 Type = "pong"
                             }
                         }).FastPath().ConfigureAwait(Zc);
@@ -2102,7 +2102,7 @@ namespace zero.cocoon.autopeer
                 if (Collected && Proxy)
                 {
                     _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! {response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
-                                  $"PK={Designation.PkShort()} != {Base58.Bitcoin.Encode(packet.PublicKey.Span[..10])} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {endpoint}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}, {Description}");
+                                  $"PK={Designation.PkShort()} != {CcDesignation.ShortId(packet.PublicKey)} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {endpoint}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}, {Description}");
                 }
 #endif
                 return;
