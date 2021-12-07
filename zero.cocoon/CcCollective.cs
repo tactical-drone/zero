@@ -52,6 +52,8 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 64;
+                udpConcurrencyLevel = parm_max_adjunct * 2;
+                udpPrefetch = udpConcurrencyLevel / 2;
             }
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);

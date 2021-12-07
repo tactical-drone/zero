@@ -27,10 +27,11 @@ namespace zero.core.network.ip
         /// <summary>
         /// Constructor used by listeners
         /// </summary>
+        /// <param name="description"></param>
         /// <param name="ioSocket">The socket the listener created</param>
         /// <param name="readAheadBufferSize">Read ahead size</param>
         /// <param name="concurrencyLevel">Level of concurrency</param>
-        public IoUdpClient(string description, IoSocket ioSocket, int readAheadBufferSize, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305)), readAheadBufferSize, concurrencyLevel)
+        public IoUdpClient(string description, IoSocket ioSocket, int readAheadBufferSize, int concurrencyLevel) : base(description, new IoUdpSocket(ioSocket.NativeSocket, new IPEndPoint(IPAddress.Any, 305), concurrencyLevel), readAheadBufferSize, concurrencyLevel)
         {
             
         }
@@ -47,7 +48,7 @@ namespace zero.core.network.ip
         /// <param name="description"></param>
         /// <param name="clone"></param>
         /// <param name="newRemoteEp"></param>
-        public IoUdpClient(string description, IoNetClient<TJob> clone, IPEndPoint newRemoteEp) : base(description , new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp), 1, 1, true)
+        public IoUdpClient(string description, IoNetClient<TJob> clone, IPEndPoint newRemoteEp, int concurrencyLevel) : base(description , new IoUdpSocket(clone.IoNetSocket.NativeSocket, newRemoteEp, concurrencyLevel), 1, 1, true)
         {
 
         }

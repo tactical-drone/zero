@@ -33,12 +33,12 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
-        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint) : base(nativeSocket, remoteEndPoint)
+        public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint)
         {
             Proxy = true;
             //TODO tuning (send)
             //Init(4 * 16 + 16, 4 * 16 + 16); //16 MaxAdjuncts that can send + 16 nodes
-            Init(32,16);
+            Init(32, concurrencyLevel);
         }
 
 
@@ -67,7 +67,7 @@ namespace zero.core.network.ip
         {
             if (recv)
             {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel)
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel * 2)
                 {
                     Make = static (o, s) =>
                     {
@@ -79,7 +79,7 @@ namespace zero.core.network.ip
                 };
             }
             
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 2)
             {
                 Make = static (o, s) =>
                 {

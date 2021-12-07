@@ -76,7 +76,7 @@ namespace zero.cocoon.autopeer
                 RemoteAddress = IoNodeAddress.CreateFromEndpoint("udp", ipEndPoint);
                 Key = MakeId(Designation, RemoteAddress);
                 //to prevent cascading into the hub we clone the source.
-                Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint);
+                Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint, 16);
                 Source.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             }
             else
