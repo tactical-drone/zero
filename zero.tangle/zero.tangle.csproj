@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="CassandraCSharpDriver" Version="3.17.1" />
-    <PackageReference Include="MathNet.Numerics" Version="5.0.0-alpha02" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0-alpha03" />
     <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0" />
