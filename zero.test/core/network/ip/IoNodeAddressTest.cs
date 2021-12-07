@@ -24,12 +24,19 @@ namespace zero.test.core.network.ip
             Assert.True(Equals(address1.IpEndPoint, address2.IpEndPoint));
             Assert.True(Equals(address2.IpEndPoint, address3.IpEndPoint));
 
-            Assert.Equal("127.0.0.1", address1.Ip);
-            Assert.Equal(1234, address1.Port);
-            Assert.Equal("127.0.0.1:1234", address1.IpPort);
-            Assert.Equal("127.0.0.1:1234", address1.EndpointIpPort);
-            Assert.Equal("udp://", address1.ProtocolDesc);
-            Assert.True(address1.Validated);
+            void CheckDerivedTypes(IoNodeAddress ioNodeAddress)
+            {
+                Assert.Equal("127.0.0.1", ioNodeAddress.Ip);
+                Assert.Equal(1234, ioNodeAddress.Port);
+                Assert.Equal("127.0.0.1:1234", ioNodeAddress.IpPort);
+                Assert.Equal("127.0.0.1:1234", ioNodeAddress.EndpointIpPort);
+                Assert.Equal("udp://", ioNodeAddress.ProtocolDesc);
+                Assert.True(ioNodeAddress.Validated);
+            }
+
+            CheckDerivedTypes(address1);
+            CheckDerivedTypes(address2);
+            CheckDerivedTypes(address3);
         }
     }
 }

@@ -144,17 +144,17 @@ namespace zero.cocoon
                     {
                         int factor;
 #if DEBUG
-                        factor = 20;
+                        factor = 200;
 #else
                         factor = 10;
 #endif
                         if (@this.Hub.Neighbors.Count <= 1)
                         {
-                            await Task.Delay(@this.parm_mean_pat_delay_s * factor, @this.AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * factor / 2) + @this.parm_mean_pat_delay_s * factor / 2, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
                         else
                         {
-                            await Task.Delay(@this.parm_mean_pat_delay_s * 100, @this.AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(@this.parm_mean_pat_delay_s * factor, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
 
                         if (@this.Neighbors.Count < @this.parm_max_outbound) 
@@ -246,11 +246,17 @@ namespace zero.cocoon
 #if SAFE_RELEASE
             DupHeap = null;
             DupChecker = null;
+            DupSyncRoot = null;
             _logger = null;
             _autoPeering = null;
             _autoPeeringTask = default;
             CcId = null;
             Services = null;
+            _badSigResponse = null;
+            _gossipAddress = null;
+            _peerAddress = null;
+            _poisson = null;
+            _random = null;
 #endif
         }
 
@@ -261,23 +267,14 @@ namespace zero.cocoon
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
+            _autoPeering.Zero(this);
+
             var id = Hub?.Router?.Designation?.IdString();
             DupSyncRoot.Zero(this);
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
             DupChecker.Clear();
 
             Services?.CcRecord?.Endpoints?.Clear();
-
-            _autoPeering.Zero(this);
-
-            try
-            {
-                _autoPeeringTask.Dispose();
-            }
-            catch
-            {
-                // ignored
-            }
 
             try
             {
@@ -294,9 +291,9 @@ namespace zero.cocoon
                         }).FastPath().ConfigureAwait(Zc);
                 }
             }
-            catch 
+            catch
             {
-                
+                // ignored
             }
         }
 
@@ -315,10 +312,10 @@ namespace zero.cocoon
 
         private CcHub _autoPeering;
         
-        private readonly IoNodeAddress _gossipAddress;
-        private readonly IoNodeAddress _peerAddress;
+        private IoNodeAddress _gossipAddress;
+        private IoNodeAddress _peerAddress;
 
-        readonly Random _random = new((int)DateTime.Now.Ticks);
+        Random _random = new((int)DateTime.Now.Ticks);
         public IoZeroSemaphoreSlim DupSyncRoot { get; protected set; }
         public ConcurrentDictionary<long, IoHashCodes> DupChecker { get; private set; } = new();
         public IoHeap<IoHashCodes, CcCollective> DupHeap { get; protected set; }
@@ -450,9 +447,9 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 2;
+        public int parm_mean_pat_delay_s = 60 * 3;
 #else
-        public int parm_mean_pat_delay_s = 60 * 10;
+        public int parm_mean_pat_delay_s = 60 * 5;
 #endif
 
         /// <summary>
@@ -569,7 +566,7 @@ namespace zero.cocoon
         private readonly int _futileResponseSize;
         private readonly int _futileRejectSize;
         private readonly int _fuseBufSize;
-        private readonly ByteString _badSigResponse = ByteString.CopyFrom(new byte[] { 9 });
+        private ByteString _badSigResponse = ByteString.CopyFrom(new byte[] { 9 });
         public long Testing;
 
         /// <summary>
@@ -1016,7 +1013,7 @@ namespace zero.cocoon
         private static readonly int _maxAsyncConnectionAttempts = 16;
 
         private int _currentOutboundConnectionAttempts;
-        private readonly Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
+        private Poisson _poisson = new(_lambda, new Random(DateTimeOffset.Now.Ticks.GetHashCode() * DateTimeOffset.Now.Ticks.GetHashCode()));
         private readonly bool _zeroDrone;
         public bool ZeroDrone => _zeroDrone;
 

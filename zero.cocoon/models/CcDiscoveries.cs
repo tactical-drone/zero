@@ -24,7 +24,12 @@ namespace zero.cocoon.models
     {
         public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
         {
-            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", parm_max_msg_batch_size){ Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size), Context = this};
+            _batchHeap = new IoHeap<CcDiscoveryBatch, CcDiscoveries>($"{nameof(_batchHeap)}: {sinkDesc} ~> {jobDesc}", parm_max_msg_batch_size)
+            {
+                Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap,c.parm_max_msg_batch_size * 2), 
+                Context = this,
+                Prep = (batch, _) => { batch.RemoteEndPoint = null; }
+            };
 
             _currentBatch = _batchHeap.Take();
             if (_currentBatch == null)
@@ -36,7 +41,7 @@ namespace zero.cocoon.models
             var conduitId = nameof(CcAdjunct);
             ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
-            var batchSize = 16;
+            var batchSize = parm_max_msg_batch_size;
             var cc = 8;
             if (ProtocolConduit == null)
             {
@@ -443,10 +448,8 @@ namespace zero.cocoon.models
 
                     bool routingSuccess = true;
 
-                    //var remoteAddressBytes = RemoteEndPoint.AsBytes();
-
                     byte[] ingressEpBytes;
-                    if (_currentBatch.Count == 0)
+                    if (_currentBatch.Count == 0 || _currentBatch.RemoteEndPoint == null) 
                     {
                         _currentBatch.RemoteEndPoint = ingressEpBytes = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
                     }
@@ -455,16 +458,17 @@ namespace zero.cocoon.models
                         ingressEpBytes = RemoteEndPoint.AsBytes();
                     }
 
-                    if (_currentBatch.Count >= parm_max_msg_batch_size - 2 || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
+                    if (_currentBatch.Count >= parm_max_msg_batch_size || !(routingSuccess = _currentBatch.RemoteEndPoint.ArrayEqual(ingressEpBytes)))
                     {
                         if (!routingSuccess)
                         {
                             _logger.Warn($"{nameof(CcDiscoveries)}: Internal msg routing SRC fragmented: next = {ingressEpBytes}, prev = {_currentBatch.RemoteEndPoint.GetEndpoint()}, count = {_currentBatch.Count}");
                         }
                         await ForwardToNeighborAsync().FastPath().ConfigureAwait(Zc);
+                        _currentBatch.RemoteEndPoint = ingressEpBytes;
                     }
 
-                    var batchMsg = _currentBatch[_currentBatch.Count++];
+                    var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
                     batchMsg.EmbeddedMsg = request;
                     batchMsg.Message = packet;
                 }
@@ -488,7 +492,6 @@ namespace zero.cocoon.models
                 if (_currentBatch.Count == 0 || Zeroed())
                     return;
 
-                _currentBatch.RemoteEndPoint = RemoteEndPoint.AsBytes(_currentBatch.RemoteEndPoint);
                 //cog the source
                 if (!await ProtocolConduit.Source.ProduceAsync<object>(static async (source, _, _, ioJob) =>
                 {

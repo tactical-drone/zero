@@ -58,25 +58,152 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, ReadOnlyMemory<T> cmp)
         {
-            for (int i = 0; i < array.Length; i++)
+            for (var i = 0; i < array.Length; i++)
             {
                 if (!array[i].Equals(cmp.Span[i]))
                     return false;
             }
-
             return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this T[] array, T[] cmp)
         {
-            for (int i = 0; i < array.Length; i++)
+            for (var i = array.Length; i--> 0;)
+            {
+                if (!array[i].Equals(cmp[i]))
+                        return false;
+            }
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual(this byte[] array, byte[] cmp)
+        {
+            for (var i = array.Length; i--> 0;)
+            {
+                if (array[i] != cmp[i])
+                    return false;
+            }
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual<T>(this ReadOnlySpan<T> array, ReadOnlySpan<T> cmp)
+        {
+            for (var i = array.Length; i--> 0;)
             {
                 if (!array[i].Equals(cmp[i]))
                     return false;
             }
-
             return true;
+        }
+
+
+
+        /// <summary>
+        /// Create a hash from an array of bytes
+        /// </summary>
+        /// <param name="array"></param>
+        /// <returns>A weak hash</returns>
+        public static long ZeroHash(this byte[] array)
+        {
+            var strides = array.Length / sizeof(long);
+            var remainder = array.Length % sizeof(long);
+            long hash = 1;
+
+            for (var i = 0; i < strides; i++)
+            {
+                hash = MemoryMarshal.Read<long>(array.AsSpan()[(i * sizeof(long))..]) ^ hash;
+            }
+
+            if (remainder >= sizeof(int))
+            {
+                var start = strides * 2;
+                strides = start + remainder / sizeof(int);
+                remainder = array.Length % sizeof(int);
+                for (var i = start; i < strides; i++)
+                {
+                    hash = MemoryMarshal.Read<int>(array.AsSpan()[(i * sizeof(int))..]) ^ hash;
+                }
+            }
+
+            for (var i = 0; i < remainder; i++)
+            {
+                hash += array[i];
+            }
+
+            return hash;
+        }
+
+        /// <summary>
+        /// Create a hash from an array of bytes
+        /// </summary>
+        /// <param name="array"></param>
+        /// <returns>A weak hash</returns>
+        public static long ZeroHash(this Span<byte> array)
+        {
+            var strides = array.Length / sizeof(long);
+            var remainder = array.Length % sizeof(long);
+            long hash = 1;
+
+            for (var i = 0; i < strides; i++)
+            {
+                hash = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]) ^ hash;
+            }
+
+            if (remainder >= sizeof(int))
+            {
+                var start = strides * 2;
+                strides = start + remainder / sizeof(int);
+                remainder = array.Length % sizeof(int);
+                for (var i = start; i < strides; i++)
+                {
+                    hash = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]) ^ hash;
+                }
+            }
+
+            for (var i = 0; i < remainder; i++)
+            {
+                hash += array[i];
+            }
+
+            return hash;
+        }
+
+        /// <summary>
+        /// Create a hash from an array of bytes
+        /// </summary>
+        /// <param name="array"></param>
+        /// <returns>A weak hash</returns>
+        public static long ZeroHash(this ReadOnlySpan<byte> array)
+        {
+            var strides = array.Length / sizeof(long);
+            var remainder = array.Length % sizeof(long);
+            long hash = 1;
+
+            for (var i = 0; i < strides; i++)
+            {
+                hash = MemoryMarshal.Read<long>(array[(i * sizeof(long))..]) ^ hash;
+            }
+
+            if (remainder >= sizeof(int))
+            {
+                var start = strides * 2;
+                strides = start + remainder / sizeof(int);
+                remainder = array.Length % sizeof(int);
+                for (var i = start; i < strides; i++)
+                {
+                    hash = MemoryMarshal.Read<int>(array[(i * sizeof(int))..]) ^ hash;
+                }
+            }
+
+            for (var i = 0; i < remainder; i++)
+            {
+                hash += array[i];
+            }
+
+            return hash;
         }
 
 #if DEBUG //|| RELEASE //TODO remove release

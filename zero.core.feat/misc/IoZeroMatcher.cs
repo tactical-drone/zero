@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -19,10 +20,9 @@ namespace zero.core.feat.misc
     /// Matches challenge requests with a true response
     /// </summary>
     /// <typeparam name="T">The payload matched</typeparam>
-    public class IoZeroMatcher<T> : IoNanoprobe
-    where T:class, IEnumerable<byte>, IEquatable<ByteString>
+    public class IoZeroMatcher : IoNanoprobe
     {
-        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher<T>)}", concurrencyLevel)
+        public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel)
         {
             _capacity = capacity * 2;
             _description = description??$"{GetType()}";
@@ -113,9 +113,9 @@ namespace zero.core.feat.misc
 
         internal class ChallengeAsyncResponse
         {
-            public IoZeroMatcher<T> This;
+            public IoZeroMatcher This;
             public string Key;
-            public T Body;
+            public byte[] Body;
             public IoQueue<IoChallenge>.IoZNode Node;
         }
 
@@ -128,14 +128,12 @@ namespace zero.core.feat.misc
         /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, T body)
+        public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, byte[] body)
         {
             if (body == null)
                 return default;
 
-            //var node = new IoQueue<IoChallenge>.IoZNode();
-            //var state = new ChallengeAsyncResponse {@this = this, key = key, body = body, node = node};
-
+            
             ChallengeAsyncResponse state = null;
             IoQueue<IoChallenge>.IoZNode node;
             try
@@ -227,6 +225,85 @@ namespace zero.core.feat.misc
         /// </summary>
         private readonly int _capacity;
 
+        private async ValueTask<bool> Match(IIoNanite ioNanite, (IoZeroMatcher, string key, ByteString reqHash) state, bool _)
+        {
+            var (@this, key, reqHash) = state;
+            var reqHashMemory = reqHash.Memory;
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            var cur = @this._lut.Head;
+            @this._lut.Reset();
+            var insane = 20;
+            while (cur != null)
+            {
+                //restart on collisions
+                if (@this._lut.Modified && insane-- > 0)
+                {
+                    cur = @this._lut.Head;
+                    @this._lut.Reset();
+                    continue;
+                }
+
+                if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
+                {
+                    var potential = cur.Value;
+                    long merkle;
+
+                    if (potential.Hash == 0)
+                    {
+                        StacklessAsync();
+                    }
+
+                    void StacklessAsync()
+                    {
+                        Span<byte> h = stackalloc byte[32];
+                        
+                        if (!Sha256.TryComputeHash(potential.Payload, h, out var written))
+                        {
+                            LogManager.GetCurrentClassLogger()
+                                .Fatal($"{@this._description}: Unable to compute hash");
+                        }
+
+                        potential.Payload = default;
+                        potential.Hash = h.ZeroHash();
+
+                        merkle = 1;
+                        for (var i = 0; i < 32 / sizeof(long); i++)
+                        {
+                            merkle *= MemoryMarshal.Read<long>(h[(i * sizeof(long))..]);
+                        }
+
+                        potential.Hash = merkle;
+                    }
+
+                    merkle = 1;
+                    for (var i = 0; i < 32 / sizeof(long); i++)
+                    {
+                        merkle *= MemoryMarshal.Read<long>(reqHashMemory.Span[(i * sizeof(long))..]);
+                    }
+
+                    if (potential.Hash != 0 && potential.Hash == merkle)
+                    {
+                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                        @this._valHeap.Return(potential);
+                        return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
+                    }
+                }
+
+                //drop old ones while we are at it
+                if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
+                {
+                    await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
+                    @this._valHeap.Return(cur.Value);
+                }
+
+                cur = cur.Next;
+            }
+
+            return false;
+
+        }
+
         /// <summary>
         /// Present a response
         /// </summary>
@@ -235,65 +312,7 @@ namespace zero.core.feat.misc
         /// <returns>The response payload</returns>
         public ValueTask<bool> ResponseAsync(string key, ByteString reqHash)
         {
-            if (reqHash.Length == 0)
-                return new ValueTask<bool>(false);
-
-            return new ValueTask<bool>(ZeroAtomic(static async (_, state, __) =>
-            {
-                var (@this, key, reqHash) = state;
-                var cmp = reqHash.Memory;
-                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-                var cur = @this._lut.Head;
-                var insane = 20;
-                while (cur != null)
-                {
-                    //restart on collisions
-                    if (@this._lut.Modified && insane--> 0)
-                    {
-                        cur = @this._lut.Head;
-                        @this._lut.Reset();
-                        continue;
-                    }
-
-                    if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
-                    {
-                        var potential = cur.Value;
-                        if (potential.Hash == 0)
-                        {
-                            var h = ArrayPool<byte>.Shared.Rent(32);
-                            if (!Sha256.TryComputeHash((potential.Payload as ByteString)!.Memory.Span,
-                                    h, out var written))
-                            {
-                                LogManager.GetCurrentClassLogger()
-                                    .Fatal($"{@this._description}: Unable to compute hash");
-                            }
-
-                            potential.Payload = default;
-                            potential.Hash = MemoryMarshal.Read<long>(h);
-                            ArrayPool<byte>.Shared.Return(h, false);
-                        }
-
-                        if (potential.Hash != 0 && potential.Hash == MemoryMarshal.Read<long>(cmp.Span))
-                        {
-                            await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                            @this._valHeap.Return(potential);
-                            return potential.TimestampMs.ElapsedMs() < @this._ttlMs;
-                        }
-                    }
-
-                    //drop old ones while we are at it
-                    if (cur.Value.TimestampMs.ElapsedMs() > @this._ttlMs)
-                    {
-                        await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
-                        @this._valHeap.Return(cur.Value);
-                    }
-
-                    cur = cur.Next;
-                }
-
-                return false;
-            }, (this, key, reqHash)));
+            return reqHash.Length == 0 ? new ValueTask<bool>(false) : new ValueTask<bool>(ZeroAtomic(Match, (this, key, reqHash)));
         }
 
         /// <summary>
@@ -323,7 +342,7 @@ namespace zero.core.feat.misc
         /// </summary>
         /// <param name="target"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public async ValueTask DumpAsync(IoZeroMatcher<T> target)
+        public async ValueTask DumpAsync(IoZeroMatcher target)
         {
             if(target == null)
                 return;
@@ -359,7 +378,7 @@ namespace zero.core.feat.misc
         /// <summary>
         /// Challenges held
         /// </summary>
-        public uint Count => (uint)_lut.Count;
+        public int Count => _lut.Count;
 
 #if DEBUG
         /// <summary>
@@ -396,7 +415,7 @@ namespace zero.core.feat.misc
             /// <summary>
             /// The payload
             /// </summary>
-            public volatile T Payload;
+            public byte[] Payload;
             
             /// <summary>
             /// The computed hash

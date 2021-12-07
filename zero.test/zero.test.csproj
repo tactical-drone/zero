@@ -24,6 +24,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\zero.core.feat\zero.core.feat.csproj" />
 	  <ProjectReference Include="..\zero.core\zero.core.csproj" />
 	</ItemGroup>
 

@@ -13,6 +13,13 @@ namespace zero.core.network.ip
     public class IoNodeAddress
     {
         /// <summary>
+        /// private constructor
+        /// </summary>
+        private IoNodeAddress()
+        {
+
+        }
+        /// <summary>
         /// Constructs a new node address
         /// </summary>
         /// <param name="url">The node url in the form tcp://HOST:port or udp://HOST:port</param>
@@ -104,7 +111,7 @@ namespace zero.core.network.ip
         /// Returns the address as ip:port
         /// </summary>
         [IgnoreDataMember]
-        public string IpPort;
+        public string IpPort { get; private set; }
 
         [IgnoreDataMember]
         public string EndpointIpPort => $"{IpEndPoint?.Address}:{IpEndPoint?.Port}";

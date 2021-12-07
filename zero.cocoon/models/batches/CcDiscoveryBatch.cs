@@ -19,11 +19,9 @@ namespace zero.cocoon.models.batches
             }
         }
 
-
-        IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
-        CcDiscoveryMessage[] _messages;
-        //public volatile string RemoteEndPoint;
-        public byte[] RemoteEndPoint;
+        readonly IoHeap<CcDiscoveryBatch, CcDiscoveries> _heapRef;
+        private readonly CcDiscoveryMessage[] _messages;
+        public volatile byte[] RemoteEndPoint;
         private volatile int _disposed;
 
         public CcDiscoveryMessage this[int i] => _messages[i];
@@ -50,7 +48,7 @@ namespace zero.cocoon.models.batches
         public IoHeap<CcDiscoveryBatch, CcDiscoveries> HeapRef => _heapRef;
 
         public int Capacity => _messages.Length;
-        public int Count;
+        public volatile int Count;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void Dispose(bool disposing)
@@ -72,8 +70,8 @@ namespace zero.cocoon.models.batches
                 }
             }
 
-            _messages = null;
-            _heapRef = null;
+            //_messages = null;
+            //_heapRef = null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
