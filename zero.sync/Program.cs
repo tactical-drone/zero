@@ -128,8 +128,8 @@ namespace zero.sync
 
             Task.Factory.StartNew(() => t1.Start(), TaskCreationOptions.DenyChildAttach);
             Task.Factory.StartNew(() => t2.Start(), TaskCreationOptions.DenyChildAttach);
-            //Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
-            //Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => t3.Start(), TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => t4.Start(), TaskCreationOptions.DenyChildAttach);
 
             //Task.Factory.StartNew(async () =>
             //{
