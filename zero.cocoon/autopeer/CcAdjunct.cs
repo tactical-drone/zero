@@ -2964,8 +2964,9 @@ namespace zero.cocoon.autopeer
 
                 if (hung)
                 {
+                    oldValue = cmp;
                     Interlocked.Exchange(ref _direction, 0);
-                    _fuseRequestsRecvCount = _fuseRequestsSentCount = 0;
+                    _fuseRequestsRecvCount = _fuseRequestsSentCount = _sweepRequestsSentCount = 0;
                 }
 
                 compare = compare && !hung;
@@ -2978,7 +2979,6 @@ namespace zero.cocoon.autopeer
             else
             {
                 _currState.Set((int)state);
-
             }
 #endif
             return oldValue;
