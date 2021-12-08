@@ -132,6 +132,11 @@ namespace zero.core.patterns.misc
         public IIoNanite ZeroedFrom { get; private set; }
 
         /// <summary>
+        /// Explain why teardown happened
+        /// </summary>
+        public string ZeroReason { get; private set; }
+
+        /// <summary>
         /// Measures how long teardown takes
         /// </summary>
         public long TearDownTime;
@@ -172,13 +177,13 @@ namespace zero.core.patterns.misc
         /// All subscriptions
         /// </summary>
         //private IoQueue<IoZeroSub> _zeroHive;
-        private IoQueue<IoZeroSub> _zeroHive;
+        private volatile IoQueue<IoZeroSub> _zeroHive;
 
         /// <summary>
         /// All subscriptions
         /// </summary>
         //private IoQueue<IIoNanite> _zeroHiveMind;
-        private IoQueue<IIoNanite> _zeroHiveMind;
+        private volatile IoQueue<IIoNanite> _zeroHiveMind;
 
         /// <summary>
         /// Max number of blockers
@@ -206,7 +211,7 @@ namespace zero.core.patterns.misc
         /// </summary>
         public void Dispose()
         {
-            Zero(Sentinel);
+            Zero(this, $"{nameof(IDisposable)}");
         }
 
 
@@ -214,24 +219,22 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync
         /// </summary>
-        public void Zero(IIoNanite @from)
+        public void Zero(IIoNanite @from, string reason)
         {
             // Only once
             if (_zeroed > 0 || Interlocked.CompareExchange(ref _zeroed, 1, 0) != 0)
                 return;
 
-            if(from != null)
-                ZeroedFrom ??= !from.Equals(this) ? from : Sentinel;
-
-            //prime garbage
+            ZeroedFrom = from;
+            ZeroReason = $"ZERO: {reason??"N/A"}";
             
-
 #pragma warning disable CS4014
             Zero(static async @this =>
             {
+                //prime garbage
                 await @this.ZeroPrimeAsync().FastPath().ConfigureAwait(@this.Zc);
                 @this.Zero(true);
-            }, this, default,TaskCreationOptions.DenyChildAttach);
+            }, this, default,TaskCreationOptions.DenyChildAttach).GetAwaiter().GetResult();
 #pragma warning restore CS4014
 
             if (Interlocked.Increment(ref _zCount) % 100000 == 0)
@@ -383,9 +386,9 @@ namespace zero.core.patterns.misc
 
             CascadeTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-#if DEBUG
             var desc = Description;
-#endif
+            var reason = ZeroReason;
+
             //Dispose managed
             if (disposing)
             {
@@ -409,7 +412,7 @@ namespace zero.core.patterns.misc
                     {
                         if (zeroSub.Zeroed()) continue;
 
-                        zeroSub.Zero(this);
+                        zeroSub.Zero(this, $"[ZERO CASCADE] teardown from {desc}");
 
                         //throttle teardown so it floods in breadth
                         await Task.Delay(32).ConfigureAwait(Zc);
@@ -488,7 +491,7 @@ namespace zero.core.patterns.misc
             GC.SuppressFinalize(this);
             ZeroedFrom = null;
 #if DEBUG
-            _logger.Trace($"Z<~ {desc}: serial: {Serial} - Resistence is futile...");
+            _logger.Trace($"#{Serial} ~> {desc}: Reason: `{reason}'");
 #endif
         }
         /// <summary>
@@ -502,7 +505,15 @@ namespace zero.core.patterns.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void ZeroUnmanaged()
         {
+#if SAFE_RELEASE
             AsyncTasks = null;
+            ZeroedFrom = null;
+            _zeroHive = null;
+            _zeroHiveMind = null;
+            ZeroReason = null;
+            ZeroedFrom = null;
+#endif
+
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
@@ -511,12 +522,15 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// Manages managed objects
         /// </summary>
-        public virtual ValueTask ZeroManagedAsync()
+        public virtual async ValueTask ZeroManagedAsync()
         {
+            if (_zeroHiveMind != null)
+                await _zeroHiveMind.ZeroManagedAsync<object>(zero:true).FastPath().ConfigureAwait(Zc);
+            if (_zeroHive != null)
+                await _zeroHive.ZeroManagedAsync<object>(zero: true).FastPath().ConfigureAwait(Zc);
 #if DEBUG
             Interlocked.Increment(ref _extracted);
 #endif
-            return default;
         }
 
         /// <summary>

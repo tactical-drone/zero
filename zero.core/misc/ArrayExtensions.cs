@@ -80,10 +80,17 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual(this byte[] array, byte[] cmp)
         {
-            for (var i = array.Length; i--> 0;)
+            if (array.Length < sizeof(int))
             {
-                if (array[i] != cmp[i])
-                    return false;
+                for (var i = array.Length; i-- > 0;)
+                {
+                    if (!array[i].Equals(cmp[i]))
+                        return false;
+                }
+            }
+            else
+            {
+                return array.ZeroHash() == cmp.ZeroHash();
             }
             return true;
         }
@@ -91,14 +98,32 @@ namespace zero.core.misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ArrayEqual<T>(this ReadOnlySpan<T> array, ReadOnlySpan<T> cmp)
         {
-            for (var i = array.Length; i--> 0;)
+            for (var i = array.Length; i-- > 0;)
             {
                 if (!array[i].Equals(cmp[i]))
                     return false;
             }
+
             return true;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ArrayEqual(this ReadOnlySpan<byte> array, ReadOnlySpan<byte> cmp)
+        {
+            if (array.Length < sizeof(int))
+            {
+                for (var i = array.Length; i-- > 0;)
+                {
+                    if (!array[i].Equals(cmp[i]))
+                        return false;
+                }
+            }
+            else
+            {
+                return array.ZeroHash() == cmp.ZeroHash();
+            }
+            return true;
+        }
 
 
         /// <summary>
@@ -227,7 +252,7 @@ namespace zero.core.misc
                     return $"P(0x000)";
                 }
             }
-            return $"P({Convert.ToBase64String(hash)[..5]})";
+            return $"P({Convert.ToBase64String(hash)[..7][..^2]})";
         }
         public static string PayloadSig(this ReadOnlyMemory<byte> memory)
         {
@@ -261,13 +286,11 @@ namespace zero.core.misc
 
         public static string HashSig(this byte[] hash)
         {
-            return $"H({Convert.ToBase64String(hash).Substring(0, 5)})";
             return null;
         }
 
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
-            return $"H({Convert.ToBase64String(memory.AsArray()).Substring(0, 5)})";
             return null;
         }
 

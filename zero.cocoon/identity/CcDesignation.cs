@@ -3,11 +3,10 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using Google.Protobuf;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
-using SimpleBase;
-using zero.cocoon.autopeer;
 using zero.core.misc;
 
 namespace zero.cocoon.identity
@@ -24,40 +23,38 @@ namespace zero.cocoon.identity
         [ThreadStatic]
         private static SHA256 _sha256;
         public static SHA256 Sha256 => _sha256 ??= SHA256.Create();
+
+        private string _id;
         private byte[] Id { get; set; }
+
+        private string _pk;
         public byte[] PublicKey { get; set; }
         private byte[] SecretKey { get; set; }
 
         private const string DevKey = "2BgzYHaa9Yp7TW6QjCe7qWb2fJxXg8xAeZpohW3BdqQZp41g3u";
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string ShortId(byte[] publicKey)
+        public static string MakeKey(byte[] publicKey)
         {
-            return Base58.Bitcoin.Encode(publicKey.AsSpan()[..10]);
+            return Convert.ToBase64String(publicKey.AsSpan()[..10])[..^2];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string ShortId(ByteString publicKey)
+        public static string MakeKey(ByteString publicKey)
         {
-            return Base58.Bitcoin.Encode(publicKey.Span[..10]);
+            return Convert.ToBase64String(publicKey.Span[..10])[..^2];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string IdString()
         {
-            return ShortId(Id);
+            return _id ??= MakeKey(Id);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string PkString()
         {
-            return ShortId(PublicKey);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public string PkShort()
-        {
-            return Base58.Bitcoin.Encode(PublicKey.AsSpan()[..10]);
+            return _id ??= MakeKey(PublicKey);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -74,7 +71,7 @@ namespace zero.cocoon.identity
         [ThreadStatic] private static readonly SecureRandom SecureRandom;
         public static CcDesignation Generate(bool devMode = false)
         {
-            var skBuf = Base58.Bitcoin.Decode(DevKey).ToArray();
+            var skBuf = Encoding.ASCII.GetBytes(DevKey) ;
             var pkBuf = new byte[Ed25519.PublicKeySize];
             
             if (!devMode)

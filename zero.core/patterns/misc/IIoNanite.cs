@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using zero.core.patterns.queue;
@@ -31,7 +30,7 @@ namespace zero.core.patterns.misc
         /// <summary>
         /// ZeroAsync pattern
         /// </summary>
-        void Zero(IIoNanite @from);
+        void Zero(IIoNanite @from, string reason);
         
         /// <summary>
         /// A description of this object

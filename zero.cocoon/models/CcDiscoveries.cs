@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using SimpleBase;
 using zero.cocoon.autopeer;
 using zero.cocoon.identity;
 using zero.cocoon.models.batches;
@@ -24,9 +23,9 @@ namespace zero.cocoon.models
 {
     public class CcDiscoveries : CcProtocMessage<chroniton, CcDiscoveryBatch>
     {
-        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source) : base(sinkDesc, jobDesc, source)
+        public CcDiscoveries(string sinkDesc, string jobDesc, IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>> source, bool groupByEp = false) : base(sinkDesc, jobDesc, source)
         {
-            
+            _groupByEp = groupByEp;
         }
 
         public override async ValueTask<bool> ConstructAsync(object localContext = null)
@@ -39,8 +38,9 @@ namespace zero.cocoon.models
                 var concurrencyLevel = 8;
                 if (!Source.Proxy && (((CcAdjunct)IoZero)!).CcCollective.ZeroDrone)
                 {
-                    //parm_max_msg_batch_size *= 2;
-                    //concurrencyLevel *= 2;
+                    parm_max_msg_batch_size *= 2;
+                    concurrencyLevel *= 2;
+                    _groupByEp = true;
                 }
 
                 string bashDesc;
@@ -53,7 +53,7 @@ namespace zero.cocoon.models
 
                 _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
                 {
-                    Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size),
+                    Make = static (_, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size, groupByEp:c._groupByEp),
                     Context = this
                 };
 
@@ -61,7 +61,8 @@ namespace zero.cocoon.models
                 if (_currentBatch == null)
                     throw new OutOfMemoryException($"{Description}: {nameof(CcDiscoveries)}.{nameof(_currentBatch)}");
 
-                var conduitId = nameof(CcAdjunct);
+                const string conduitId = nameof(CcAdjunct);
+
                 ProtocolConduit = await MessageService.CreateConduitOnceAsync<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>(conduitId).FastPath().ConfigureAwait(Zc);
 
                 var batchSize = parm_max_msg_batch_size;
@@ -69,7 +70,7 @@ namespace zero.cocoon.models
                 if (ProtocolConduit == null)
                 {
                     //TODO tuning
-                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, 3, concurrencyLevel, 0);
+                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, concurrencyLevel * 2, concurrencyLevel, concurrencyLevel);
                     ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                         conduitId,
                         concurrencyLevel,
@@ -176,11 +177,6 @@ namespace zero.cocoon.models
         private IoHeap<CcDiscoveryBatch, CcDiscoveries> _batchHeap;
 
         /// <summary>
-        /// Batch item heap
-        /// </summary>
-        //private IoHeap<CcDiscoveryMessage, CcDiscoveries> _batchMsgHeap;
-
-        /// <summary>
         /// CC Node
         /// </summary>
         protected CcCollective CcCollective => ((CcAdjunct)IoZero)?.CcCollective;
@@ -196,6 +192,11 @@ namespace zero.cocoon.models
         [IoParameter]
         // ReSharper disable once InconsistentNaming
         public int parm_max_msg_batch_size = 16;//TODO tuning 4 x MaxAdjuncts
+
+        /// <summary>
+        /// Whether grouping by endpoint is supported
+        /// </summary>
+        private volatile bool _groupByEp;
 
         public override ValueTask<IoJobMeta.JobState> ProduceAsync<T>(Func<IIoJob, T, ValueTask<bool>> barrier, T nanite)
         {
@@ -507,18 +508,33 @@ namespace zero.cocoon.models
                     //    _currentBatch.RemoteEndPoint = ingressEpBytes;
                     //}
 
-                    var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
-                    batchMsg.EmbeddedMsg = request;
-                    batchMsg.Message = packet;
-                    batchMsg.EndPoint = RemoteEndPoint.AsBytes();
+                    if (!_groupByEp)
+                    {
+                        var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
+                        batchMsg.EmbeddedMsg = request;
+                        batchMsg.Message = packet;
+                        batchMsg.EndPoint = RemoteEndPoint.AsBytes();
+                    }
+                    else
+                    {
+                        var batchMsg = _currentBatch[Interlocked.Increment(ref _currentBatch.Count) - 1];
 
+                        batchMsg.EmbeddedMsg = request;
+                        batchMsg.Message = packet;
+
+                        var groupKey = RemoteEndPoint.AsBytes();
+                        if (!_currentBatch.GroupBy.TryAdd(RemoteEndPoint.AsBytes(), new List<CcDiscoveryMessage>(_currentBatch.Messages)))
+                        {
+                            _currentBatch.GroupBy[groupKey].Add(batchMsg);
+                        }
+                    }
                 }
             }
             catch when(Zeroed()){}
             catch (Exception e) when (!Zeroed())
             {
                 _logger.Error(e,
-                    $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
+                    $"Unable to parse request type {typeof(T).Name} from {Convert.ToBase64String(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
             }
 
             return default;

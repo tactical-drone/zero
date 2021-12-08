@@ -259,17 +259,17 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            Source.Zero(this);
+            Source.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             await _queue.ZeroManagedAsync(static (sink, @this) =>
             {
-                sink.Zero(@this);
+                sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
                 return default;
             }, this,zero: true).FastPath().ConfigureAwait(Zc);
 
             await JobHeap.ZeroManagedAsync(static (sink, @this) =>
             {
-                sink.Zero(@this);
+                sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
                 return default;
             },this).FastPath().ConfigureAwait(Zc);
 
@@ -277,13 +277,13 @@ namespace zero.core.patterns.bushings
             {
                 await _previousJobFragment.ZeroManagedAsync(static (sink, @this) =>
                 {
-                    sink.Zero(@this);
+                    sink.Zero(@this, $"{nameof(ZeroManagedAsync)}: teardown");
                     return default;
                 }, this, zero: true).FastPath().ConfigureAwait(Zc);
             }
 
 #if DEBUG
-            _logger.Trace($"Closed {Description}, from :{ZeroedFrom?.Description}");
+            _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
 #endif
         }
 

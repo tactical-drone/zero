@@ -247,7 +247,7 @@ namespace zero.core.patterns.heap
                 //    await _ioFpsCounter.TickAsync().FastPath().ConfigureAwait(Zc);
                 Interlocked.Increment(ref _opsCounter);
 
-                if (!zero && _ioHeapBuf.Count < _maxSize)
+                if (!zero && _ioHeapBuf.Count < _maxSize && !Zeroed)
                     _ioHeapBuf.Add(item);
                 else
                     Interlocked.Decrement(ref CurrentCount);

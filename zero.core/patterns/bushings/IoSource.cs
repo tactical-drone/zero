@@ -218,30 +218,32 @@ namespace zero.core.patterns.bushings
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            _pressure.Zero(this);
-            _backPressure.Zero(this);
-            _prefetchPressure.Zero(this);
+            _pressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            _backPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+            _prefetchPressure.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
+
+            var reason = $"{nameof(IoSource<TJob>)}: teardown";
 
             foreach (var o in ObjectStorage)
             {
                 if (o.Value is IIoNanite ioNanite)
-                    ioNanite.Zero(this);
+                    ioNanite.Zero(this, reason);
             }
             ObjectStorage.Clear();
 
             foreach (var ioConduit in IoConduits.Values)
-                ioConduit.Zero(this);
+                ioConduit.Zero(this, reason);
             
             IoConduits.Clear();
 
             try
             {
-                RecentlyProcessed.Zero(this);
+                RecentlyProcessed.Zero(this, reason);
             }
             catch { }
 
 #if DEBUG
-            _logger.Trace($"Closed {Description} from {ZeroedFrom}");
+            _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
 #endif
         }
 
@@ -282,7 +284,7 @@ namespace zero.core.patterns.bushings
 
                     if (!@this.IoConduits.TryAdd(id, newConduit))
                     {
-                        newConduit.Zero(new IoNanoprobe("lost race"));
+                        newConduit.Zero(@this,$"{nameof(CreateConduitOnceAsync)}: lost race");
                         @this._logger.Trace($"Could not add {id}, already exists = {@this.IoConduits.ContainsKey(id)}");
                         return new ValueTask<bool>(false);
                     }

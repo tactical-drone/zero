@@ -377,9 +377,9 @@ namespace zero.core.network.ip
             catch (Exception) when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
-                _logger.Error(e,
-                    $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:");
-                Zero(this);
+                var errMsg = $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                _logger.Error(e, errMsg);
+                Zero(this, errMsg);
             }
             finally
             {
@@ -478,7 +478,7 @@ namespace zero.core.network.ip
                     catch (Exception e) when (!Zeroed())
                     {
                         _logger.Error(e, "Receive udp failed:");
-                        Zero(this); //TODO ?
+                        Zero(this, $"{nameof(NativeSocket.ReceiveFromAsync)}: [FAILED] {e.Message}");
                     }
                     finally
                     {
@@ -515,8 +515,9 @@ namespace zero.core.network.ip
             catch (Exception) when (Zeroed()){}
             catch (Exception e) when(!Zeroed())
             {
-                _logger?.Error(e, $"Unable to read from socket: {Description}");
-                Zero(this); //TODO ?
+                var errMsg = $"Unable to read from socket: {Description}";
+                _logger?.Error(e, errMsg);
+                Zero(this, errMsg);
             }
             finally
             {

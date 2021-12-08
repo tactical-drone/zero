@@ -148,11 +148,11 @@ namespace zero.cocoon
                         if (@this.Hub.Neighbors.Count <= 1)
                         {
                             force = true;
-                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s/2) + @this.parm_mean_pat_delay_s / 4, @this.AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000/2) + @this.parm_mean_pat_delay_s * 1000 / 4, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
                         else
                         {
-                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s) + @this.parm_mean_pat_delay_s / 2, @this.AsyncTasks.Token).ConfigureAwait(false);
+                            await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s * 1000) + @this.parm_mean_pat_delay_s * 1000 / 2, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
 
                         if (@this.Neighbors.Count < @this.parm_max_outbound) 
@@ -266,7 +266,7 @@ namespace zero.cocoon
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             var autoPeeringDesc = _autoPeering.Description;
-            _autoPeering.Zero(this);
+            _autoPeering.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
 
             _autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s));
 
@@ -276,7 +276,7 @@ namespace zero.cocoon
             }
 
             var id = Hub.Router?.Designation?.IdString();
-            DupSyncRoot.Zero(this);
+            DupSyncRoot.Zero(this, $"{nameof(ZeroManagedAsync)}: teardown");
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
             DupChecker.Clear();
 
@@ -453,7 +453,7 @@ namespace zero.cocoon
         // ReSharper disable once InconsistentNaming
 
 #if DEBUG
-        public int parm_mean_pat_delay_s = 60 * 3;
+        public int parm_mean_pat_delay_s = 60 * 1;
 #else
         public int parm_mean_pat_delay_s = 60 * 5;
 #endif
@@ -496,7 +496,9 @@ namespace zero.cocoon
                 {
                     @this._autoPeeringTask = @this._autoPeering.StartAsync(() => @this.DeepScanAsync()).AsTask();
                     await @this._autoPeeringTask.ConfigureAwait(@this.Zc);
-                    @this._logger.Warn($"Restarting hub... {@this.Description}");
+
+                    if(!@this.Zeroed())
+                        @this._logger.Warn($"Restarting hub... {@this.Description}");
                 }
             }, this, TaskCreationOptions.DenyChildAttach).FastPath().ConfigureAwait(Zc);
 
@@ -523,6 +525,7 @@ namespace zero.cocoon
                     
                         //ACCEPT
                         @this._logger.Info($"+ {drone.Description}");
+                        drone.Zero(@this, "test");
                         return success = true;
                     }
                     else
@@ -864,7 +867,7 @@ namespace zero.cocoon
 
             if (adjunct == null)
             {
-                var id = CcDesignation.ShortId(packet.PublicKey.Memory.AsArray());
+                var id = CcDesignation.MakeKey(packet.PublicKey.Memory.AsArray());
                 if (direction == CcAdjunct.Heading.Ingress && (drone.Adjunct = (CcAdjunct)_autoPeering.Neighbors.Values.FirstOrDefault(n => n.Key.Contains(id))) == null)
                 {
                     //TODO: this code path is jammed
@@ -956,7 +959,7 @@ namespace zero.cocoon
                     var drone = await ConnectAsync(IoNodeAddress.CreateFromEndpoint("tcp", adjunct.RemoteAddress.IpEndPoint) , adjunct, timeout:adjunct.parm_max_network_latency_ms * 2).FastPath().ConfigureAwait(Zc);
                     if (Zeroed() || drone == null || ((CcDrone)drone).Adjunct.Zeroed())
                     {
-                        if (drone != null) drone.Zero(this);
+                        if (drone != null) drone.Zero(this, $"{nameof(ConnectAsync)} was not successful [OK]");
                         _logger.Debug($"{nameof(ConnectToDroneAsync)}: [ABORTED], {adjunct.Description}, {adjunct.MetaDesc}");
                         return false;
                     }
@@ -973,6 +976,7 @@ namespace zero.cocoon
                             if (!drone.Zeroed())
                             {
                                 @this._logger.Info($"+ {drone.Description}");
+                                drone.Zero(@this, "test");
                                 await @this.BlockOnAssimilateAsync(drone).FastPath().ConfigureAwait(@this.Zc);
                             }
                             else
@@ -987,7 +991,7 @@ namespace zero.cocoon
                     else
                     {
                         _logger.Debug($"+|{drone.Description}");
-                        drone.Zero(this);
+                        drone.Zero(this, "RACED");
                     }
 
                     return false;
@@ -1112,26 +1116,20 @@ namespace zero.cocoon
                         }
                         else
                         {
-#if DEBUG
-                            _logger.Debug($"SE> {adjunct.Description}");
-#endif
                             //foundVector = true;
                         }
                     }
                     else
                     {
-                        if (!await adjunct.SeduceAsync("SYN-DE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
-                        {
-                            if (!Zeroed())
-                                _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");
-                        }
-                        else
-                        {
-#if DEBUG
-                            _logger.Debug($"SE> {adjunct.Description}");
-#endif
-                            //foundVector = true;
-                        }
+                        //if (!await adjunct.SeduceAsync("SYN-DE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
+                        //{
+                        //    if (!Zeroed())
+                        //        _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");
+                        //}
+                        //else
+                        //{
+                        //    //foundVector = true;
+                        //}
                     }
 
                     //if (adjunct.Probed) 
@@ -1183,7 +1181,7 @@ namespace zero.cocoon
                             {
                                 await Task.Delay(parm_futile_timeout_ms / 2 + _random.Next(parm_futile_timeout_ms), AsyncTasks.Token).ConfigureAwait(Zc);
                                 _logger.Trace($"{Description} Bootstrapping from {ioNodeAddress}");
-                                if (!await Hub.Router.ProbeAsync("SYN-DMZ", ioNodeAddress).FastPath().ConfigureAwait(Zc))
+                                if (!await Hub.Router.ProbeAsync("DMZ-SYN", ioNodeAddress).FastPath().ConfigureAwait(Zc))
                                 {
                                     if (!Hub.Router.Zeroed())
                                         _logger.Trace($"{nameof(DeepScanAsync)}: Unable to boostrap {Description} from {ioNodeAddress}");

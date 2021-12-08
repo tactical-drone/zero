@@ -103,8 +103,8 @@ namespace zero.core.patterns.heap
 
             base.Return(item, zero);
 
-            if (zero)
-                item.Zero(new IoNanoprobe($"{GetType()}"));
+            if (zero || Zeroed)
+                item.Zero(null, $"{nameof(IoHeapIo<TItem, TContext>)}: teardown");
         }
     }
 

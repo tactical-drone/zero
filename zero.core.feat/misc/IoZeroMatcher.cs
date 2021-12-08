@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +15,6 @@ namespace zero.core.feat.misc
     /// <summary>
     /// Matches challenge requests with a true response
     /// </summary>
-    /// <typeparam name="T">The payload matched</typeparam>
     public class IoZeroMatcher : IoNanoprobe
     {
         public IoZeroMatcher(string description, int concurrencyLevel, long ttlMs = 2000, int capacity = 10, bool autoscale = true) : base($"{nameof(IoZeroMatcher)}", concurrencyLevel)
@@ -32,13 +27,13 @@ namespace zero.core.feat.misc
 
             _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity), autoScale: autoscale)
             {
-                Make = static (o,s) => new IoChallenge()
+                Make = static (_,_) => new IoChallenge()
             };
 
             _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity, autoScale: autoscale)
             {
-                Make = static (o, s) => new ChallengeAsyncResponse(),
-                Prep = (response, o) =>
+                Make = static (_, _) => new ChallengeAsyncResponse(),
+                Prep = (response, _) =>
                 {
                     response.Node = null;
                 }
@@ -125,7 +120,6 @@ namespace zero.core.feat.misc
         /// </summary>
         /// <param name="key">The key</param>
         /// <param name="body">The payload</param>
-        /// <param name="bump">bump the current challenge</param>
         /// <returns>True if successful</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<IoQueue<IoChallenge>.IoZNode> ChallengeAsync(string key, byte[] body)
@@ -147,7 +141,7 @@ namespace zero.core.feat.misc
                 state.Key = key;
                 state.Body = body;
 
-                ZeroAtomic(static async (_, state, __) =>
+                ZeroAtomic(static async (_, state, _) =>
                 {
                     IoChallenge challenge = null;
                     try
@@ -247,7 +241,6 @@ namespace zero.core.feat.misc
                 if (cur.Value.TimestampMs <= timestamp && cur.Value.Key == key)
                 {
                     var potential = cur.Value;
-                    long merkle;
 
                     if (potential.Hash == 0)
                     {
@@ -258,7 +251,7 @@ namespace zero.core.feat.misc
                     {
                         Span<byte> h = stackalloc byte[32];
                         
-                        if (!Sha256.TryComputeHash(potential.Payload, h, out var written))
+                        if (!Sha256.TryComputeHash(potential.Payload, h, out var _))
                         {
                             LogManager.GetCurrentClassLogger()
                                 .Fatal($"{@this._description}: Unable to compute hash");

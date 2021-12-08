@@ -120,7 +120,7 @@ namespace zero.core.patterns.queue
                         if (cur.Value is IIoNanite ioNanite)
                         {
                             if (!ioNanite.Zeroed())
-                                ioNanite.Zero(nanite as IIoNanite);
+                                ioNanite.Zero(nanite as IIoNanite, string.Empty);
                         }
                     }
                     catch when(Zeroed){}

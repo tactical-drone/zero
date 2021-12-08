@@ -237,7 +237,7 @@ namespace zero.core.network.ip
             if (!Proxy)
                 NativeSocket.Close();
 #if DEBUG
-            _logger.Trace($"Closed {Description}");
+            _logger.Trace($"Closed {Description} from {ZeroedFrom}: reason = {ZeroReason}");
 #endif
         }
 

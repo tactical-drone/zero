@@ -284,8 +284,6 @@ namespace zero.cocoon.models
                             {
                                 if(source.IsOperational)
                                     _logger.Trace($"Failed to forward new msg message to {drone.Description}");
-                                else
-                                    source.Zero(this);
                             }
                             else
                             {
@@ -363,7 +361,7 @@ namespace zero.cocoon.models
         //    //catch (Exception e)
         //    //{
         //    //    _logger.Error(e,
-        //    //        $"Unable to parse request type {typeof(T).Name} from {Base58.Bitcoin.Encode(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
+        //    //        $"Unable to parse request type {typeof(T).Name} from {Convert.ToBase64String(packet.PublicKey.Memory.AsArray())}, size = {packet.Data.Length}");
         //    //}
         //    return default;
         //}

@@ -175,10 +175,11 @@ namespace zero.core.network.ip
             {
                 if (!connected)
                 {
-                    ioNetClient!.Zero(this);
+                    var errMsg = $"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]";
+                    ioNetClient!.Zero(this, errMsg);
 
                     if (!Zeroed())
-                        _logger.Error($"{Description}: {nameof(ConnectAsync)} to {remoteAddress.Key} [FAILED]");
+                        _logger.Error(errMsg);
                 }
 
                 if (!_connectionAttempts.TryRemove(remoteAddress.Key, out _))
