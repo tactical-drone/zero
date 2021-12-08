@@ -175,7 +175,7 @@ namespace zero.sync
                 var c = 1;
                 var rateLimit = 9000;
                 var injectionCount = 75;
-                var rampDelay = 2000;
+                var rampDelay = 500;
                 foreach (var task in tasks)
                 {
 
@@ -1194,7 +1194,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                4, 2, 2, 1, zeroDrone);
+                3, 3, 1, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

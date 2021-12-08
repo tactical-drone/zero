@@ -299,7 +299,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        public long Priority => FuseRequestsRecvCount - (parm_zombie_max_connection_attempts - FuseRequestsSentCount);
+        public long Priority => (FuseRequestsRecvCount - (parm_zombie_max_connection_attempts - FuseRequestsSentCount));
 
         //uptime
         private long _attachTimestamp;
@@ -1135,17 +1135,17 @@ namespace zero.cocoon.autopeer
                                                                         await currentRoute.ProcessAsync((CcSweepResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Fuse:
-                                                                    if (((CcFuseRequest)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
+                                                                    if (currentRoute.Proxy && !@this.CcCollective.ZeroDrone && ((CcFuseRequest)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
                                                                         await currentRoute.ProcessAsync((CcFuseRequest) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Fused:
-//                                                                    if (!currentRoute.Proxy)
-//                                                                    {
-//#if DEBUG
-//                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fused)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
-//#endif
-//                                                                        break;
-//                                                                    }
+                                                                    if (!currentRoute.Proxy)
+                                                                    {
+#if DEBUG
+                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fused)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
+#endif
+                                                                        break;
+                                                                    }
 
                                                                     if (!@this.CcCollective.ZeroDrone && ((CcFuseResponse)message).Timestamp.ElapsedMs() < @this.parm_max_network_latency_ms * 2)
                                                                         await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
@@ -1354,8 +1354,10 @@ namespace zero.cocoon.autopeer
             else
                 _logger.Debug($"<\\- {nameof(CcFuseRequest)}: Send fuse response [FAILED], {Description}, {MetaDesc}");
 
-            if(!fuseResponse.Accept)
-                await SeduceAsync("SYN-SE", Heading.Ingress).FastPath().ConfigureAwait(Zc);
+            if (!fuseResponse.Accept)
+            {
+                await SeduceAsync("SYN-SE", Heading.Ingress, force:true).FastPath().ConfigureAwait(Zc);
+            }
         }
 
         private long _stealthy;
@@ -1428,7 +1430,7 @@ namespace zero.cocoon.autopeer
                     }
                     else
                     {
-                        if (!await SeduceAsync("SYN-SE", Heading.Ingress).FastPath().ConfigureAwait(Zc))
+                        if (!await SeduceAsync("SYN-SE", Heading.Ingress, force: true).FastPath().ConfigureAwait(Zc))
                         {
                             if (!await SweepAsync(CcCollective.parm_mean_pat_delay_s * 1000).FastPath()
                                     .ConfigureAwait(Zc))
@@ -2181,8 +2183,7 @@ namespace zero.cocoon.autopeer
                     await SeduceAsync("SYN-SE", Heading.Both).FastPath().ConfigureAwait(Zc);
                 else
                 {
-                    _stealthy = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    await SeduceAsync("SYN-SE", Heading.Ingress).FastPath().ConfigureAwait(Zc);
+                    await SeduceAsync("SYN-SE", Heading.Ingress, force:true).FastPath().ConfigureAwait(Zc);
                 }
                     
             }
@@ -2206,9 +2207,9 @@ namespace zero.cocoon.autopeer
         /// Seduces another adjunct
         /// </summary>
         /// <returns>A valuable task</returns>
-        public async ValueTask<bool> SeduceAsync(string desc, Heading heading = Heading.Undefined, IoNodeAddress address = null, bool ignoreZeroDrone = false)
+        public async ValueTask<bool> SeduceAsync(string desc, Heading heading = Heading.Undefined, IoNodeAddress address = null, bool force = false)
         {
-            if (Volatile.Read(ref _stealthy).ElapsedMs() < parm_max_network_latency_ms * 2 || Zeroed() || !Collected || IsDroneAttached ||
+            if (!force && Volatile.Read(ref _stealthy).ElapsedMs() < parm_max_network_latency_ms * 2 || Zeroed() || !Collected || IsDroneAttached ||
                 _currState.Value > AdjunctState.Connecting /*don't change this from Connecting*/)
             {
                 return false;
@@ -2236,7 +2237,7 @@ namespace zero.cocoon.autopeer
                     }
                 }
 
-                if (!(CcCollective.ZeroDrone) && ((int)heading & (int)Heading.Ingress) > 0)
+                if (!(CcCollective.ZeroDrone) && ((int)heading & (int)Heading.Ingress) > 0 && CcCollective.IngressCount < CcCollective.parm_max_inbound)
                 {
                     var proxy = address == null ? this : Router;
                     //delta trigger

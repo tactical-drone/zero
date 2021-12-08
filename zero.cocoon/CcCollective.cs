@@ -1099,7 +1099,7 @@ namespace zero.cocoon
                     }
                     else
                     {
-                        if (!await adjunct.SeduceAsync("SYN-SE", CcAdjunct.Heading.Both).FastPath().ConfigureAwait(Zc))
+                        if (!await adjunct.SeduceAsync("SYN-SE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
                         {
                             if (!Zeroed())
                                 _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");

@@ -29,18 +29,18 @@ namespace zero.cocoon.models
             
         }
 
-        public override async ValueTask<bool> ConstructAsync(object localContext)
+        public override async ValueTask<bool> ConstructAsync(object localContext = null)
         {
 
             if (!_configured)
             {
                 IoZero = (IIoZero)localContext;
                 _configured = true;
-                var concurrencyLevel = 32;
-                if (!Source.Proxy && ((CcAdjunct)IoZero).CcCollective.ZeroDrone)
+                var concurrencyLevel = 8;
+                if (!Source.Proxy && (((CcAdjunct)IoZero)!).CcCollective.ZeroDrone)
                 {
-                    parm_max_msg_batch_size *= 10;
-                    concurrencyLevel = 512;
+                    //parm_max_msg_batch_size *= 2;
+                    //concurrencyLevel *= 2;
                 }
 
                 string bashDesc;
@@ -49,11 +49,11 @@ namespace zero.cocoon.models
 #else
                 bashDesc = string.Empty;
 #endif
+                
 
-
-                _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size * 2)
+                _batchHeap ??= new IoHeap<CcDiscoveryBatch, CcDiscoveries>(bashDesc, parm_max_msg_batch_size)
                 {
-                    Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size * 2),
+                    Make = static (o, c) => new CcDiscoveryBatch(c._batchHeap, c.parm_max_msg_batch_size),
                     Context = this
                 };
 
@@ -69,7 +69,7 @@ namespace zero.cocoon.models
                 if (ProtocolConduit == null)
                 {
                     //TODO tuning
-                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, concurrencyLevel * 2, concurrencyLevel, concurrencyLevel / 2);
+                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, 3, concurrencyLevel, 0);
                     ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                         conduitId,
                         concurrencyLevel,
