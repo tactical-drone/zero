@@ -261,11 +261,13 @@ namespace zero.core.misc
 
         public static string HashSig(this byte[] hash)
         {
+            return $"H({Convert.ToBase64String(hash).Substring(0, 5)})";
             return null;
         }
 
         public static string HashSig(this ReadOnlyMemory<byte> memory)
         {
+            return $"H({Convert.ToBase64String(memory.AsArray()).Substring(0, 5)})";
             return null;
         }
 

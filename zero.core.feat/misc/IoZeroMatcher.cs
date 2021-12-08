@@ -266,23 +266,9 @@ namespace zero.core.feat.misc
 
                         potential.Payload = default;
                         potential.Hash = h.ZeroHash();
-
-                        merkle = 1;
-                        for (var i = 0; i < 32 / sizeof(long); i++)
-                        {
-                            merkle *= MemoryMarshal.Read<long>(h[(i * sizeof(long))..]);
-                        }
-
-                        potential.Hash = merkle;
                     }
 
-                    merkle = 1;
-                    for (var i = 0; i < 32 / sizeof(long); i++)
-                    {
-                        merkle *= MemoryMarshal.Read<long>(reqHashMemory.Span[(i * sizeof(long))..]);
-                    }
-
-                    if (potential.Hash != 0 && potential.Hash == merkle)
+                    if (potential.Hash != 0 && potential.Hash == reqHashMemory.Span.ZeroHash())
                     {
                         await @this._lut.RemoveAsync(cur).FastPath().ConfigureAwait(@this.Zc);
                         @this._valHeap.Return(potential);
@@ -416,11 +402,15 @@ namespace zero.core.feat.misc
             /// The payload
             /// </summary>
             public byte[] Payload;
-            
+
+            private long _hash;
             /// <summary>
             /// The computed hash
             /// </summary>
-            public long Hash;
+            public long Hash {
+                get => Volatile.Read(ref _hash);
+                set => Interlocked.Exchange(ref _hash, value);
+            }
 
         }
     }
