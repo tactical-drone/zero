@@ -144,8 +144,10 @@ namespace zero.cocoon
                 {
                     try
                     {
+                        var force = false;
                         if (@this.Hub.Neighbors.Count <= 1)
                         {
+                            force = true;
                             await Task.Delay(@this._random.Next(@this.parm_mean_pat_delay_s/2) + @this.parm_mean_pat_delay_s / 4, @this.AsyncTasks.Token).ConfigureAwait(false);
                         }
                         else
@@ -154,7 +156,7 @@ namespace zero.cocoon
                         }
 
                         if (@this.Neighbors.Count < @this.parm_max_outbound) 
-                            await @this.DeepScanAsync().FastPath().ConfigureAwait(@this.Zc);
+                            await @this.DeepScanAsync(force).FastPath().ConfigureAwait(@this.Zc);
                     }
                     catch when(@this.Zeroed()){}
                     catch (Exception e)
@@ -263,9 +265,17 @@ namespace zero.cocoon
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
+            var autoPeeringDesc = _autoPeering.Description;
             _autoPeering.Zero(this);
 
-            var id = Hub?.Router?.Designation?.IdString();
+            _autoPeeringTask.Wait(TimeSpan.FromSeconds(parm_hub_teardown_timeout_s));
+
+            if (!_autoPeeringTask.IsCompletedSuccessfully)
+            {
+                _logger.Warn(_autoPeeringTask.Exception,$"{nameof(CcCollective)}.{nameof(ZeroManagedAsync)}: {nameof(_autoPeeringTask)} exit [FAILED], {autoPeeringDesc}");
+            }
+
+            var id = Hub.Router?.Designation?.IdString();
             DupSyncRoot.Zero(this);
             await DupHeap.ZeroManagedAsync<object>().FastPath().ConfigureAwait(false);
             DupChecker.Clear();
@@ -449,6 +459,14 @@ namespace zero.cocoon
 #endif
 
         /// <summary>
+        /// Max adjuncts
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        public int parm_hub_teardown_timeout_s = 10;
+
+
+        /// <summary>
         /// Maximum clients allowed
         /// </summary>
         public int MaxDrones => parm_max_drone;
@@ -476,7 +494,7 @@ namespace zero.cocoon
             {
                 while (!@this.Zeroed())
                 {
-                    @this._autoPeeringTask = @this._autoPeering.StartAsync(@this.DeepScanAsync).AsTask();
+                    @this._autoPeeringTask = @this._autoPeering.StartAsync(() => @this.DeepScanAsync()).AsTask();
                     await @this._autoPeeringTask.ConfigureAwait(@this.Zc);
                     @this._logger.Warn($"Restarting hub... {@this.Description}");
                 }
@@ -1058,7 +1076,7 @@ namespace zero.cocoon
         /// Boostrap node
         /// </summary>
         /// <returns></returns>
-        public async ValueTask DeepScanAsync()
+        public async ValueTask DeepScanAsync(bool ensureFuse = false)
         {
             try
             {
@@ -1073,7 +1091,8 @@ namespace zero.cocoon
                 {
                     var adjunct = (CcAdjunct)vector;
 
-                    adjunct.EnsureFuseChecks();
+                    if(ensureFuse)
+                        adjunct.EnsureFuseChecks();
 
                     //Only probe when we are running lean
                     if (adjunct.CcCollective.Hub.Neighbors.Values.Where(n=>((CcAdjunct)n).Assimilating).ToList().Count >= adjunct.CcCollective.MaxAdjuncts)
@@ -1093,20 +1112,24 @@ namespace zero.cocoon
                         }
                         else
                         {
+#if DEBUG
                             _logger.Debug($"SE> {adjunct.Description}");
+#endif
                             //foundVector = true;
                         }
                     }
                     else
                     {
-                        if (!await adjunct.SeduceAsync("SYN-SE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
+                        if (!await adjunct.SeduceAsync("SYN-DE", CcAdjunct.Heading.Both, force:true).FastPath().ConfigureAwait(Zc))
                         {
                             if (!Zeroed())
                                 _logger.Trace($"{nameof(adjunct.SweepAsync)}: Unable to seduce adjuncts, {Description}");
                         }
                         else
                         {
+#if DEBUG
                             _logger.Debug($"SE> {adjunct.Description}");
+#endif
                             //foundVector = true;
                         }
                     }

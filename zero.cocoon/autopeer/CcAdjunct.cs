@@ -299,7 +299,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Node broadcast priority. 
         /// </summary>
-        public long Priority => (FuseRequestsRecvCount - (parm_zombie_max_connection_attempts - FuseRequestsSentCount));
+        public long Priority => -(FuseRequestsRecvCount - (parm_zombie_max_connection_attempts - FuseRequestsSentCount));
 
         //uptime
         private long _attachTimestamp;
@@ -1392,10 +1392,10 @@ namespace zero.cocoon.autopeer
                 {
                     if (response.ReqHash.Length > 0)
                     {
-                        _logger.Error($"<\\- {nameof(CcFuseResponse)}({packet.CalculateSize()}, {response.CalculateSize()}, {response.Timestamp.ElapsedMs()}ms) - {response.ToByteArray().HashSig()}({response.ReqHash.Length}): No-Hash!!!, r = {response.ReqHash.Memory.HashSig()}, _fuseRequest = {f1}({_fuseRequest.Count}), {f2}({Router._fuseRequest.Count}), {MessageService.IoNetSocket.LocalNodeAddress} ~> {src}({RemoteAddress})");
+                        _logger.Error($"<\\- {nameof(CcFuseResponse)}({packet.CalculateSize()}, {response.CalculateSize()}, {response.Timestamp.ElapsedMs()}ms) - {response.ReqHash.Memory.HashSig()}({response.ReqHash.Length}): No-Hash!!!, r = {response.ReqHash.Memory.HashSig()}, _fuseRequest = {f1}({_fuseRequest.Count}), {f2}({Router._fuseRequest.Count}), {MessageService.IoNetSocket.LocalNodeAddress} ~> {src}({RemoteAddress})");
                     }
 #if DEBUG
-                    _logger.Error($"<\\- {nameof(CcFuseResponse)}({packet.CalculateSize()}, {response.CalculateSize()}, {response.Timestamp.ElapsedMs()}ms) - {response.ToByteArray().HashSig()}({response.ReqHash.Length}): No-Hash!!!, r = {response.ReqHash.Memory.HashSig()}, _fuseRequest = {f1}({_fuseRequest.Count}), {f2}({Router._fuseRequest.Count}), {MessageService.IoNetSocket.LocalNodeAddress} ~> {src}({RemoteAddress})");
+                    _logger.Error($"<\\- {nameof(CcFuseResponse)}({packet.CalculateSize()}, {response.CalculateSize()}, {response.Timestamp.ElapsedMs()}ms) - {response.ReqHash.Memory.HashSig()}({response.ReqHash.Length}): No-Hash!!!, r = {response.ReqHash.Memory.HashSig()}, _fuseRequest = {f1}({_fuseRequest.Count}), {f2}({Router._fuseRequest.Count}), {MessageService.IoNetSocket.LocalNodeAddress} ~> {src}({RemoteAddress})");
 #endif
                 }
                     

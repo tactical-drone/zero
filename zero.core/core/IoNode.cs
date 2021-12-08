@@ -96,6 +96,13 @@ namespace zero.core.core
         protected int parm_zombie_connect_time_threshold_s = 4; //currently takes 2 seconds to up
 
         /// <summary>
+        /// Threads per neighbor
+        /// </summary>
+        [IoParameter]
+        // ReSharper disable once InconsistentNaming
+        protected int parm_nb_teardown_timeout_s  = 10; //currently takes 2 seconds to up
+
+        /// <summary>
         /// TCP read ahead
         /// </summary>
         private readonly int _preFetch;
@@ -450,25 +457,25 @@ namespace zero.core.core
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
             foreach (var ioNeighbor in Neighbors.Values)
+            {
                 ioNeighbor.Zero(this);
+            }
 
             Neighbors.Clear();
 
             _netServer?.Zero(this);
 
-            try
+            await NeighborTasks.ZeroManagedAsync(static (neighborTask, @this) =>
             {
-                //await Task.WhenAll(NeighborTasks.Select(t=>t.Value)).ConfigureAwait(Zc); //TODO teardown
-            }
-            catch
-            {
-                // ignored
-            }
+                neighborTask.Wait(TimeSpan.FromSeconds(@this.parm_nb_teardown_timeout_s));
 
-            await NeighborTasks.ZeroManagedAsync(static (task, @this) =>
-            {
-                if(task.Status != TaskStatus.Running)
-                    task.Dispose();
+                if (!neighborTask.IsCompletedSuccessfully)
+                {
+                    @this._logger.Warn(neighborTask.Exception, $"{nameof(IoNode<TJob>)}.{nameof(ZeroManagedAsync)}: {nameof(neighborTask)} exit [FAILED]");
+                }
+
+                if (neighborTask.Status != TaskStatus.Running)
+                    neighborTask.Dispose();
                 return default;
             }, this, zero:true).FastPath().ConfigureAwait(Zc);
         }
