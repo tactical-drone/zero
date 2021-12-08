@@ -4,12 +4,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using zero.core.patterns.misc;
 using NLog;
 using zero.core.patterns.semaphore;
-using OperationCanceledException = System.OperationCanceledException;
 
 namespace zero.core.network.ip
 {
@@ -142,9 +140,7 @@ namespace zero.core.network.ip
 
         private readonly Stopwatch _sw = Stopwatch.StartNew();
 
-        /// <summary>
-        /// Connecting
-        /// </summary>
+        
 #if NET6_0
         private int WSAEWOULDBLOCK = 10035;
 #endif

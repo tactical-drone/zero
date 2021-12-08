@@ -35,8 +35,8 @@ namespace zero.cocoon.models
             {
                 IoZero = (IIoZero)localContext;
                 _configured = true;
-                var concurrencyLevel = 8;
-                if (!Source.Proxy && (((CcAdjunct)IoZero)!).CcCollective.ZeroDrone)
+                var concurrencyLevel = 16;
+                if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
                     concurrencyLevel *= 2;
@@ -75,7 +75,7 @@ namespace zero.cocoon.models
                         conduitId,
                         concurrencyLevel,
                         channelSource,
-                        static (o, s) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
+                        static (_, s) => new CcProtocBatchJob<chroniton, CcDiscoveryBatch>((IoSource<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>)s, s.ZeroConcurrencyLevel())
                     ).FastPath().ConfigureAwait(Zc);
                 }
             }

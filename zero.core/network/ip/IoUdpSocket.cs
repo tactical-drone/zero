@@ -377,7 +377,7 @@ namespace zero.core.network.ip
             catch (Exception) when (Zeroed()) { }
             catch (Exception e) when (!Zeroed())
             {
-                var errMsg = $"Sending to udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
+                var errMsg = $"Sending to {NativeSocket.LocalAddress()} ~> udp://{endPoint} failed, z = {Zeroed()}, zf = {ZeroedFrom?.Description}:";
                 _logger.Error(e, errMsg);
                 Zero(this, errMsg);
             }

@@ -51,7 +51,7 @@ namespace zero.cocoon
             {
                 _zeroDrone = true;
                 parm_max_drone = 0;
-                parm_max_adjunct = 64;
+                parm_max_adjunct = 128; //TODO tuning:
                 udpConcurrencyLevel = parm_max_adjunct * 2;
                 udpPrefetch = udpConcurrencyLevel / 2;
             }
@@ -60,7 +60,7 @@ namespace zero.cocoon
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
-            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel);
+            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel * 2);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tpcConcurrencyLevel,1), initialCount: 1);
@@ -525,7 +525,6 @@ namespace zero.cocoon
                     
                         //ACCEPT
                         @this._logger.Info($"+ {drone.Description}");
-                        drone.Zero(@this, "test");
                         return success = true;
                     }
                     else
@@ -976,7 +975,6 @@ namespace zero.cocoon
                             if (!drone.Zeroed())
                             {
                                 @this._logger.Info($"+ {drone.Description}");
-                                drone.Zero(@this, "test");
                                 await @this.BlockOnAssimilateAsync(drone).FastPath().ConfigureAwait(@this.Zc);
                             }
                             else
