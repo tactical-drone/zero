@@ -1021,15 +1021,17 @@ namespace zero.cocoon.autopeer
                                                             {
                                                                 //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
                                                                 currentRoute._routed = true;
+                                                                Thread.MemoryBarrier();
                                                                 if (!@this.Router._routingTable.TryAdd(key, currentRoute))
                                                                 {
                                                                     currentRoute._routed = false;
+                                                                    Thread.MemoryBarrier();
                                                                     @this.Router._routingTable.TryGetValue(key, out currentRoute);
                                                                 }
                                                                 else
                                                                 {
 #if DEBUG
-                                                                    @this?._logger?.Debug($"Adjunct [ROUTED]: {discoveryBatch.RemoteEndPoint.GetEndpoint()} ~> {@this.MessageService.IoNetSocket.LocalAddress}");
+                                                                    @this?._logger?.Debug($"Adjunct [ROUTED]: {currentRoute.MessageService.IoNetSocket.LocalAddress} ~> {@this.MessageService.IoNetSocket.LocalAddress}");
 #endif
                                                                 }
                                                             }
