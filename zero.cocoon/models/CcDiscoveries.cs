@@ -40,7 +40,7 @@ namespace zero.cocoon.models
                 {
                     parm_max_msg_batch_size *= 2;
                     concurrencyLevel *= 2;
-                    _groupByEp = true;
+                    //_groupByEp = true;
                 }
 
                 string bashDesc;
