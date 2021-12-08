@@ -1985,7 +1985,10 @@ namespace zero.cocoon.autopeer
             //syn trigger
             static async ValueTask<bool> CheckSynTriggerAsync(CcAdjunct @this, long delay, IoNodeAddress ipEndPoint = null)
             {
-                
+
+                if (!_enableSynTrigger)
+                    return false;
+
                 if (delay < @this.parm_max_network_latency_ms * 2 && Interlocked.CompareExchange(ref @this._counterSeductive, 2, 0) == 0)
                 {
                     if (@this.Direction == Heading.Undefined && @this.CcCollective.IngressCount < @this.CcCollective.parm_max_inbound &&
@@ -2085,9 +2088,8 @@ namespace zero.cocoon.autopeer
                     _logger.Debug($"-/> {nameof(CcProbeResponse)}({sent})[{response.ToByteString().Memory.PayloadSig()} ~ {response.ReqHash.Memory.HashSig()}]: Sent [[SYN-ACK]], [{MessageService.IoNetSocket.LocalAddress} ~> {toAddress}]");
 #endif
                     //ensure ingress delta trigger
-                    await CheckSynTriggerAsync(this, triggerDelta, toAddress).FastPath().ConfigureAwait(Zc);
-
-                    
+                    if(_enableSynTrigger)
+                        await CheckSynTriggerAsync(this, triggerDelta, toAddress).FastPath().ConfigureAwait(Zc);
 
                     if (CcCollective.EgressCount < CcCollective.parm_max_outbound)
                     {
@@ -2165,7 +2167,7 @@ namespace zero.cocoon.autopeer
 
                         if (!await SeduceAsync("ACK", Heading.Both).FastPath().ConfigureAwait(Zc))
                         {
-                            if (!await CheckSynTriggerAsync(this, triggerDelta).FastPath().ConfigureAwait(Zc))
+                            if (_enableSynTrigger && !await CheckSynTriggerAsync(this, triggerDelta).FastPath().ConfigureAwait(Zc))
                             {
 #if DEBUG
                                 _logger.Trace($"{nameof(SeduceAsync)}: ACK [FAILED], {Description}");
@@ -2528,6 +2530,7 @@ namespace zero.cocoon.autopeer
         }
 
         private long _lastScan;
+        private static bool _enableSynTrigger = false;
 
         private long LastScan => Volatile.Read(ref _lastScan);
         /// <summary>

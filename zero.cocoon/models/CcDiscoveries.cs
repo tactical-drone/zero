@@ -35,7 +35,7 @@ namespace zero.cocoon.models
             {
                 IoZero = (IIoZero)localContext;
                 _configured = true;
-                var concurrencyLevel = 16;
+                var concurrencyLevel = 8;
                 if (!Source.Proxy && ((CcAdjunct)IoZero)!.CcCollective.ZeroDrone)
                 {
                     parm_max_msg_batch_size *= 2;
@@ -70,7 +70,7 @@ namespace zero.cocoon.models
                 if (ProtocolConduit == null)
                 {
                     //TODO tuning
-                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, concurrencyLevel * 2, concurrencyLevel, concurrencyLevel);
+                    var channelSource = new CcProtocBatchSource<chroniton, CcDiscoveryBatch>(Description, MessageService, batchSize, 3, concurrencyLevel, 0);
                     ProtocolConduit = await MessageService.CreateConduitOnceAsync(
                         conduitId,
                         concurrencyLevel,
