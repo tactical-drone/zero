@@ -128,7 +128,8 @@ namespace zero.core.feat.models.protobuffer.sources
         {
             try
             {
-                return await BatchQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                var slot = await BatchQueue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+                return slot;
             }
             catch when (Zeroed()){}
             catch (Exception e)when (!Zeroed())

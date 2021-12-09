@@ -52,15 +52,13 @@ namespace zero.cocoon
                 _zeroDrone = true;
                 parm_max_drone = 0;
                 parm_max_adjunct = 128; //TODO tuning:
-                udpConcurrencyLevel = parm_max_adjunct * 2;
-                udpPrefetch = udpConcurrencyLevel / 2;
             }
 
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.peering, _peerAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.gossip, _gossipAddress);
             Services.CcRecord.Endpoints.TryAdd(CcService.Keys.fpc, fpcAddress);
 
-            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), udpPrefetch, udpConcurrencyLevel * 2);
+            _autoPeering =  new CcHub(this, _peerAddress,static (node, client, extraData) => new CcAdjunct((CcHub) node, client, extraData), 3, 1);
             _autoPeering.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
             
             DupSyncRoot = new IoZeroSemaphoreSlim(AsyncTasks,  $"Dup checker for {ccDesignation.IdString()}", maxBlockers: Math.Max(MaxDrones * tpcConcurrencyLevel,1), initialCount: 1);
@@ -116,8 +114,8 @@ namespace zero.cocoon
             _dupPoolFpsTarget = 1000 * 2;  
             DupHeap = new IoHeap<IoHashCodes, CcCollective>($"{nameof(DupHeap)}: {Description}", _dupPoolFpsTarget)
             {
-                Make = static (o, s) => new IoHashCodes(null, s.MaxDrones * 2, true),
-                Prep = (popped, endpoint) =>
+                Malloc = static (_, @this) => new IoHashCodes(null, @this.MaxDrones * 2, true),
+                PopAction = (popped, endpoint) =>
                 {
                     popped.Add(endpoint.GetHashCode());
                 },
@@ -547,10 +545,13 @@ namespace zero.cocoon
         /// Sends a message to a peer
         /// </summary>
         /// <param name="drone">The destination</param>
+        /// <param name="ipEndPoint"></param>
         /// <param name="msg">The message</param>
+        /// <param name="type"></param>
         /// <param name="timeout"></param>
         /// <returns>The number of bytes sent</returns>
-        private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type, int timeout = 0)
+        private async ValueTask<int> SendMessageAsync(CcDrone drone, ByteString msg, string type,
+            int timeout = 0)
         {
             var responsePacket = new chroniton
             {
@@ -595,6 +596,7 @@ namespace zero.cocoon
             
             var success = false;
             var bytesRead = 0;
+
             if (Zeroed()) return false;
 
             try
@@ -612,6 +614,7 @@ namespace zero.cocoon
                     int localRead;
                     do
                     {
+                        
                         bytesRead += localRead = await ioNetSocket
                             .ReadAsync(futileBuffer, bytesRead, _futileRequestSize - bytesRead, timeout:parm_futile_timeout_ms * 2).FastPath()
                             .ConfigureAwait(Zc);

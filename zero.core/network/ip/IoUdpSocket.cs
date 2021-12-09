@@ -23,9 +23,10 @@ namespace zero.core.network.ip
         /// Constructs the UDP socket
         /// </summary>
         /// <param name="concurrencyLevel"></param>
-        public IoUdpSocket(int prefetchCount, int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
+        public IoUdpSocket(int concurrencyLevel) : base(SocketType.Dgram, ProtocolType.Udp, concurrencyLevel)
         {
-            Init(prefetchCount, concurrencyLevel);
+            Init(concurrencyLevel,false);
+            Proxy = true;
         }
 
         /// <summary>
@@ -33,21 +34,19 @@ namespace zero.core.network.ip
         /// </summary>
         /// <param name="nativeSocket">The listening address</param>
         /// <param name="remoteEndPoint">The remote endpoint</param>
+        /// <param name="concurrencyLevel"></param>
         public IoUdpSocket(Socket nativeSocket, IPEndPoint remoteEndPoint, int concurrencyLevel) : base(nativeSocket, remoteEndPoint)
         {
-            Proxy = true;
-            //TODO tuning (send)
-            //Init(4 * 16 + 16, 4 * 16 + 16); //16 MaxAdjuncts that can send + 16 nodes
-            Init(32, concurrencyLevel);
+            Init(concurrencyLevel);
         }
 
 
         /// <summary>
         /// Initializes the socket
         /// </summary>
-        /// <param name="prefetchCount"></param>
         /// <param name="concurrencyLevel"></param>
-        public void Init(int prefetchCount, int concurrencyLevel, bool recv = true)
+        /// <param name="recv"></param>
+        public void Init(int concurrencyLevel, bool recv = true)
         {
             _logger = LogManager.GetCurrentClassLogger();
             //TODO tuning
@@ -67,24 +66,24 @@ namespace zero.core.network.ip
         {
             if (recv)
             {
-                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel * 2)
+                _recvArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_recvArgs)}: {Description}", concurrencyLevel)
                 {
-                    Make = static (o, s) =>
+                    Malloc = static (_, @this) =>
                     {
                         var args = new SocketAsyncEventArgs { RemoteEndPoint = new IPEndPoint(0, 0) };
-                        args.Completed += s.SignalAsync;
+                        args.Completed += @this.SignalAsync;
                         return args;
                     },
                     Context = this
                 };
             }
             
-            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel * 2)
+            _sendArgs = new IoHeap<SocketAsyncEventArgs, IoUdpSocket>($"{nameof(_sendArgs)}: {Description}", concurrencyLevel)
             {
-                Make = static (o, s) =>
+                Malloc = static (_, @this) =>
                 {
                     var args = new SocketAsyncEventArgs();
-                    args.Completed += s.SignalAsync;
+                    args.Completed += @this.SignalAsync;
                     return args;
                 },
                 Context = this
@@ -340,6 +339,9 @@ namespace zero.core.network.ip
         public override async ValueTask<int> SendAsync(ReadOnlyMemory<byte> buffer, int offset, int length,
             EndPoint endPoint, int timeout = 0)
         {
+            if (endPoint == null)
+                throw new ArgumentNullException(nameof(endPoint));
+
             if (!IsConnected())
                 return 0;
 
@@ -437,12 +439,15 @@ namespace zero.core.network.ip
         /// <returns></returns>a
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, int offset, int length, IPEndPoint remoteEp, byte[] blacklist = null, int timeout = 0)
         {
+            if (remoteEp == null)
+                throw new ArgumentNullException(nameof(remoteEp));
+
             if (!IsConnected())
                 return 0;
 
             try
             {
-                Debug.Assert(remoteEp != null);
+                
                 //concurrency
                 //if (!await _rcvSync.WaitAsync().FastPath().ConfigureAwait(Zc))
                 //    return 0;

@@ -43,7 +43,7 @@ namespace zero.core.patterns.heap
             Context = context;
             CurrentCount = 0;
             _refCount = 0;
-            Make = default;
+            Malloc = default;
         }
 
         /// <summary>
@@ -150,7 +150,7 @@ namespace zero.core.patterns.heap
 #if SAFE_RELEASE
             _logger = null;
             _ioHeapBuf = default;
-            Make = null;
+            Malloc = null;
 #endif
         }
 
@@ -195,8 +195,10 @@ namespace zero.core.patterns.heap
                         //Allocate and return
                         Interlocked.Increment(ref CurrentCount);
                         Interlocked.Increment(ref _refCount);
-                        heapItem = Make(userData, Context);
-                        Prep?.Invoke(heapItem, userData);
+                        heapItem = Malloc(userData, Context);
+                        Constructor?.Invoke(heapItem, userData);
+                        PopAction?.Invoke(heapItem, userData);
+
                         return heapItem;
                     }
                     else //we have run out of capacity
@@ -207,15 +209,13 @@ namespace zero.core.patterns.heap
                 else //take the item from the heap
                 {
                     Interlocked.Increment(ref _refCount);
-                    Prep?.Invoke(heapItem, userData);
+                    PopAction?.Invoke(heapItem, userData);
                     return heapItem;
                 }
             }
-            catch (NullReferenceException e) //TODO IIoNanite
-            {
-                _logger.Trace(e);
-            }
-            catch (Exception e)
+            catch when (_zeroed > 0) {}
+            catch (Exception) when (_ioHeapBuf.Zeroed) { }
+            catch (Exception e) when(!Zeroed)
             {
                 _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(TItem)}");
             }
@@ -256,23 +256,28 @@ namespace zero.core.patterns.heap
             }
             catch (Exception) when(_zeroed > 0){ }
             catch (Exception) when(_ioHeapBuf.Zeroed){ }
-            catch (NullReferenceException e) when(!_ioHeapBuf.Zeroed && _zeroed == 0)
+            catch (Exception e) when (!Zeroed)
             {
-                _logger.Fatal(e ,$"{item}: Unexpected error while returning item to the heap! ");
+                _logger.Error(e, $"{GetType().Name}: Failed to new up {typeof(TItem)}");
             }
         }
 
         /// <summary>
         /// Makes a new item
         /// </summary>
-        public Func<object,TContext,TItem> Make;
+        public Func<object,TContext,TItem> Malloc;
 
         public TContext Context;
 
         /// <summary>
         /// Prepares an item from the stack
         /// </summary>
-        public Action<TItem, object> Prep;
+        public Action<TItem, object> Constructor;
+
+        /// <summary>
+        /// Prepares an item from the stack
+        /// </summary>
+        public Action<TItem, object> PopAction;
 
         /// <summary>
         /// Tracks performances

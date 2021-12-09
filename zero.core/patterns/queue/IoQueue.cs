@@ -43,7 +43,7 @@ namespace zero.core.patterns.queue
             desc = "";
 #endif
 
-            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Make = static (o,s) => new IoZNode()};
+            _nodeHeap = new IoHeap<IoZNode>(desc, capacity, autoScale: autoScale) {Malloc = static (_,_) => new IoZNode()};
             _syncRoot = new IoZeroSemaphore(desc, maxBlockers: concurrencyLevel, initialCount: 1);
             _syncRoot.ZeroRef(ref _syncRoot, _asyncTasks);
 

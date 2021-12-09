@@ -46,18 +46,22 @@ namespace zero.cocoon.autopeer
             (
                 node,
                 ioNetClient,
-                static (_, ioNetClient) => new CcDiscoveries("adjunct msgs", $"{((IoNetClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>)ioNetClient).Key}", (IoSource<CcProtocMessage<chroniton, CcDiscoveryBatch>>)ioNetClient, groupByEp:false),
+                static (ioZero, _) => new CcDiscoveries("discovery msg",
+                    $"{((CcAdjunct)ioZero).Source.Key}",
+                    // ReSharper disable once PossibleInvalidCastException
+                    ((CcAdjunct)ioZero).Source, groupByEp: false),
                 false
             )
         {
             
-            _random = new CryptoRandomSource(true);
-
+            
             if (Source.Zeroed())
             {
                 return;
             }
-            
+
+            _random = new CryptoRandomSource(true);
+
             _logger = LogManager.GetCurrentClassLogger();
 
             //TODO tuning
@@ -76,7 +80,7 @@ namespace zero.cocoon.autopeer
                 Key = Designation.PkString();
 
                 //to prevent cascading into the hub we clone the source.
-                Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP Proxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint, 16);
+                Source = new IoUdpClient<CcProtocMessage<chroniton, CcDiscoveryBatch>>($"UDP IsProxy ~> {Description}", MessageService, RemoteAddress.IpEndPoint, 16);
                 Source.ZeroHiveAsync(this).AsTask().GetAwaiter().GetResult();
 
                 CompareAndEnterState(verified ? AdjunctState.Verified : AdjunctState.Unverified, AdjunctState.Undefined);
@@ -102,7 +106,7 @@ namespace zero.cocoon.autopeer
             desc = $"";
 #endif
             
-            _chronitonHeap = new IoHeap<chroniton>(desc, CcCollective.ZeroDrone & !Proxy? 4096: 4, autoScale: true) { Make = (o, o1) => new chroniton
+            _chronitonHeap = new IoHeap<chroniton>(desc, CcCollective.ZeroDrone & !IsProxy? 4096: 4, autoScale: true) { Malloc = (_, _) => new chroniton
                 {
                     Header = new z_header { Ip = new net_header() }
                 }
@@ -200,14 +204,14 @@ namespace zero.cocoon.autopeer
             {
                 try
                 {
-                    if(Proxy)
+                    if(IsProxy)
                         return _description = $"`adjunct ({EventCount}, {_drone?.EventCount??0}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseRequestsSentCount}:{FuseRequestsRecvCount}] local: ||{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}||, [{Hub?.Designation.IdString()}, {Designation.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
                     else
                         return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseRequestsSentCount}:{FuseRequestsRecvCount}] local: ||{MessageService.IoNetSocket.LocalAddress} ~> {MessageService.IoNetSocket.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
                 }
                 catch (Exception)
                 {
-                    if(Proxy)
+                    if(IsProxy)
                         return _description?? $"`adjunct({EventCount}, {_drone?.EventCount ?? 0}, , {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseRequestsSentCount}:{FuseRequestsRecvCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||,' [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";    
                     else
                         return _description = $"`hub ({EventCount}, {(WasAttached ? "C!" : "dc")})[{TotalPats}~{SecondsSincePat:000}s:P({Priority}):{FuseRequestsSentCount}:{FuseRequestsRecvCount}] local: ||{MessageService?.IoNetSocket?.LocalAddress} ~> {MessageService?.IoNetSocket?.RemoteAddress}||, [{Hub?.Designation?.IdString()}, {Designation?.IdString()}], uptime = {TimeSpan.FromSeconds(Uptime.ElapsedMsToSec())}'";
@@ -317,7 +321,7 @@ namespace zero.cocoon.autopeer
         /// <summary>
         /// Whether this adjunct contains verified remote client connection information
         /// </summary>
-        public bool Proxy => RemoteAddress != null;
+        public bool IsProxy => Source.Proxy;
 
 #if DEBUG
         /// <summary>
@@ -469,6 +473,23 @@ namespace zero.cocoon.autopeer
         public override string Key { get; }
 
         /// <summary>
+        /// Whether to enable syn triggers. Useful for seduction, 
+        /// </summary>
+        private static bool _enableSynTrigger = false;
+
+        /// <summary>
+        /// Enable or disable EP caching while unpacking batches. (if adjuncts move around regularly disable, or always disable)
+        /// </summary>
+        private bool _enableBatchEpCache = false;
+
+
+        private long _lastScan;
+        /// <summary>
+        /// Time since our last scan
+        /// </summary>
+        private long LastScan => Volatile.Read(ref _lastScan);
+
+        /// <summary>
         /// The adjunct services
         /// </summary>
         //public CcService Services { get; protected set; }
@@ -593,7 +614,7 @@ namespace zero.cocoon.autopeer
         {
             await base.ZeroManagedAsync().FastPath().ConfigureAwait(Zc);
 
-            if (Proxy)
+            if (IsProxy)
             {
                 try
                 {
@@ -729,7 +750,7 @@ namespace zero.cocoon.autopeer
         {
             try
             {
-                if (!Proxy)
+                if (!IsProxy)
                 {
                     //Discoveries
                     await ZeroAsync(static async @this =>
@@ -829,14 +850,16 @@ namespace zero.cocoon.autopeer
         }
 
         /// <summary>
-        /// Processes protocol messages
+        /// Unpacks a batch of messages
+        ///
+        /// Batching strategies needs to be carefully matched with the nature of incoming traffic, or bad things will happen.
         /// </summary>
         /// <param name="batchJob">The consumer that need processing</param>
         /// <param name="channel">The arbiter</param>
         /// <param name="processCallback">The process callback</param>
         /// <param name="nanite"></param>
         /// <returns>Task</returns>
-        private async ValueTask ProcessMsgBatchAsync<T>(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob,
+        private async ValueTask ZeroUnBatchAsync<T>(IoSink<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> batchJob,
             IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>> channel,
             Func<CcDiscoveryMessage, CcDiscoveryBatch, IoConduit<CcProtocBatchJob<chroniton, CcDiscoveryBatch>>, T, CcAdjunct, IPEndPoint, ValueTask> processCallback, T nanite)
         {
@@ -849,6 +872,7 @@ namespace zero.cocoon.autopeer
                 var job = (CcProtocBatchJob<chroniton, CcDiscoveryBatch>)batchJob;
                 msgBatch = job.Get();
 
+                //Grouped by ingress endpoint batches (this needs to make sense or disable)
                 if (msgBatch.GroupByEpEnabled)
                 {
                     foreach (var epGroups in msgBatch.GroupBy)
@@ -879,24 +903,25 @@ namespace zero.cocoon.autopeer
                     }
                     
                 }
-                else
+                else //Default and safe mode
                 {
                     byte[] cachedEp = null;
                     ByteString cachedPk = null;
+                    CcAdjunct proxy = null;
+
                     for (int i = 0; i < msgBatch.Count; i++)
                     {
                         var message = msgBatch[i];
                         try
                         {
-                            CcAdjunct proxy = null;
-                            if (cachedEp == null || !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null || !cachedPk.Memory.Span.ArrayEqual(message.Message.PublicKey.Span))
+                            //TODO, is this caching a good idea? 
+                            if (!_enableBatchEpCache  || proxy == null || !proxy.IsProxy || cachedEp == null || !cachedEp.ArrayEqual(message.EndPoint) && cachedPk == null || !cachedPk.Memory.Span.ArrayEqual(message.Message.PublicKey.Span))
                             {
                                 cachedEp = message.EndPoint;
                                 cachedPk = message.Message.PublicKey;
-
                                 proxy = RouteRequest(cachedEp.GetEndpoint(), cachedPk);
                             }
-                            
+
                             await processCallback(message, msgBatch, channel, nanite, proxy, message.EndPoint.GetEndpoint()).FastPath();
                             message.EndPoint = null;
                         }
@@ -939,7 +964,7 @@ namespace zero.cocoon.autopeer
             {
                 if (!routed)
                 {
-                    proxy = (CcAdjunct)Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).Proxy && ((CcAdjunct)n).Collected && Equals(((CcAdjunct)n).RemoteAddress.IpEndPoint, srcEndPoint));
+                    proxy = (CcAdjunct)Hub.Neighbors.Values.FirstOrDefault(n => ((CcAdjunct)n).IsProxy && ((CcAdjunct)n).Collected && Equals(((CcAdjunct)n).RemoteAddress.IpEndPoint, srcEndPoint));
                     if (proxy != null)
                     {
                         //TODO, proxy adjuncts need to malloc the same way when listeners spawn them.
@@ -1074,9 +1099,9 @@ namespace zero.cocoon.autopeer
                     {
                         try
                         {
-                            while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
+                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
-                                for (var i = 0; i < @this._produceTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
+                                for (var i = 0; i < @this._produceTaskPool.Length && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
                                     try
                                     {
@@ -1095,7 +1120,7 @@ namespace zero.cocoon.autopeer
                                     break;
                             }
                         }
-                        catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.Source == null) { }
+                        catch when (@this.Zeroed() || @this.Source.Zeroed() || @this._protocolConduit?.UpstreamSource == null) { }
                         catch (Exception e) when (!@this.Zeroed())
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
@@ -1108,17 +1133,17 @@ namespace zero.cocoon.autopeer
                         //the consumer
                         try
                         {
-                            while (!@this.Zeroed() && @this._protocolConduit.Source.IsOperational)
+                            while (!@this.Zeroed() && @this._protocolConduit.UpstreamSource.IsOperational)
                             {
                                 //consume
-                                for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.Source.IsOperational; i++)
+                                for (var i = 0; i < @this._consumeTaskPool.Length && @this._protocolConduit.UpstreamSource.IsOperational; i++)
                                 {
 #pragma warning disable CA2012 // Use ValueTasks correctly
                                     @this._consumeTaskPool[i] = @this._protocolConduit.ConsumeAsync(static async (batchJob, @this) =>
                                     {
                                         try
                                         {
-                                            await @this.ProcessMsgBatchAsync(batchJob, @this._protocolConduit, static async (batchItem, discoveryBatch, ioConduit, @this, currentRoute, srcEndPoint) =>
+                                            await @this.ZeroUnBatchAsync(batchJob, @this._protocolConduit, static async (batchItem, discoveryBatch, ioConduit, @this, currentRoute, srcEndPoint) =>
                                             {
                                                 IMessage message = default;
                                                 chroniton packet = default;
@@ -1152,7 +1177,7 @@ namespace zero.cocoon.autopeer
                                                                         await currentRoute.ProcessAsync((CcProbeResponse)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Sweep:
-                                                                    if (!currentRoute.Proxy && !@this.CcCollective.ZeroDrone)
+                                                                    if (!currentRoute.IsProxy && !@this.CcCollective.ZeroDrone)
                                                                     {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Sweep)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
@@ -1163,7 +1188,7 @@ namespace zero.cocoon.autopeer
                                                                         await currentRoute.ProcessAsync((CcSweepRequest)message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Swept:
-                                                                    if (!currentRoute.Proxy)
+                                                                    if (!currentRoute.IsProxy)
                                                                     {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Swept)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");                                                               
@@ -1174,7 +1199,7 @@ namespace zero.cocoon.autopeer
                                                                         await currentRoute.ProcessAsync((CcSweepResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Fuse:
-                                                                    if (//currentRoute.Proxy &&
+                                                                    if (//currentRoute.IsProxy &&
                                                                         //!@this.CcCollective.ZeroDrone &&
                                                                         ((CcFuseRequest)message).Timestamp.ElapsedMs() <
                                                                         @this.parm_max_network_latency_ms * 2)
@@ -1183,7 +1208,7 @@ namespace zero.cocoon.autopeer
                                                                     }
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Fused:
-//                                                                    if (!currentRoute.Proxy)
+//                                                                    if (!currentRoute.IsProxy)
 //                                                                    {
 //#if DEBUG
 //                                                                        @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Fused)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
@@ -1194,7 +1219,7 @@ namespace zero.cocoon.autopeer
                                                                         await currentRoute.ProcessAsync((CcFuseResponse) message, srcEndPoint, packet).FastPath().ConfigureAwait(@this.Zc);
                                                                     break;
                                                                 case CcDiscoveries.MessageTypes.Defuse:
-                                                                    if (!currentRoute.Proxy)
+                                                                    if (!currentRoute.IsProxy)
                                                                     {
 #if DEBUG
                                                                         @this._logger.Warn($"{nameof(CcDiscoveries.MessageTypes.Defuse)}: Unrouted request from {srcEndPoint} ~> {@this.MessageService.IoNetSocket.LocalNodeAddress.IpPort}");
@@ -1234,8 +1259,8 @@ namespace zero.cocoon.autopeer
                                     break;
                             }
                         }
-                        catch when(@this.Zeroed() || @this._protocolConduit?.Source == null) {}
-                        catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.Source != null)
+                        catch when(@this.Zeroed() || @this._protocolConduit?.UpstreamSource == null) {}
+                        catch (Exception e) when (!@this.Zeroed() && @this._protocolConduit?.UpstreamSource != null)
                         {
                             @this._logger?.Error(e, $"{@this.Description}");
                         }
@@ -1273,7 +1298,7 @@ namespace zero.cocoon.autopeer
 
             if (!Assimilating)
             {
-                if(Proxy)
+                if(IsProxy)
                     _logger.Error($"{nameof(CcDefuseRequest)}: Ignoring {request.Timestamp.ElapsedMsToSec()}s old/invalid request, {Description}");
                 return;
             }
@@ -1436,7 +1461,7 @@ namespace zero.cocoon.autopeer
 
             if (!fuseMessage)
             {
-                if (Collected && Proxy)
+                if (Collected && IsProxy)
                 {
                     if (response.ReqHash.Length > 0)
                     {
@@ -1489,7 +1514,7 @@ namespace zero.cocoon.autopeer
                             }
                         }
                         
-                        if (Proxy) 
+                        if (IsProxy) 
                             await SweepAsync(CcCollective.parm_mean_pat_delay_s * 1000).FastPath().ConfigureAwait(Zc);
                     }
                     break;
@@ -1531,7 +1556,7 @@ namespace zero.cocoon.autopeer
                     return 0;
                 }
 
-                if (data == null || data.Length == 0 || dest == null && !Proxy)
+                if (data == null || data.Length == 0 || dest == null && !IsProxy)
                 {
                     return 0;
                 }
@@ -1649,7 +1674,7 @@ namespace zero.cocoon.autopeer
 
             if (!matchRequest || !Assimilating || response.Contacts.Count > parm_max_swept_drones)
             {
-                if (Proxy && Collected && response.Contacts.Count <= parm_max_swept_drones)
+                if (IsProxy && Collected && response.Contacts.Count <= parm_max_swept_drones)
                     _logger.Debug($"{nameof(CcSweepResponse)}{response.ToByteArray().PayloadSig()}: Reject, rq = {response.ReqHash.Memory.HashSig()}, {response.Contacts.Count} > {parm_max_swept_drones}? from {CcDesignation.FromPubKey(packet.PublicKey.Memory).IdString()}, RemoteAddress = {RemoteAddress}, c = {_sweepRequest.Count}, matched[{src}]");
                 return;
             }
@@ -1753,15 +1778,15 @@ namespace zero.cocoon.autopeer
                     {
                         //drop something
                         var bad = @this.Hub.Neighbors.Values.Where(n =>
-                                ((CcAdjunct)n).Proxy && ((CcAdjunct)n).SecondsSincePat > @this.CcCollective.parm_mean_pat_delay_s ||
-                                ((CcAdjunct) n).Proxy &&
+                                ((CcAdjunct)n).IsProxy && ((CcAdjunct)n).SecondsSincePat > @this.CcCollective.parm_mean_pat_delay_s ||
+                                ((CcAdjunct) n).IsProxy &&
                                 ((CcAdjunct) n).Direction == Heading.Undefined &&
                                 ((CcAdjunct) n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
                                 ((CcAdjunct) n).State < AdjunctState.Verified)
                                 .OrderByDescending(n => ((CcAdjunct)n).Uptime.ElapsedMs());
 
                         var good = @this.Hub.Neighbors.Values.Where(n =>
-                                ((CcAdjunct)n).Proxy &&
+                                ((CcAdjunct)n).IsProxy &&
                                 ((CcAdjunct)n).Direction == Heading.Undefined &&
                                 ((CcAdjunct)n).Uptime.ElapsedMs() > @this.parm_min_uptime_ms &&
                                 ((CcAdjunct)n).State < AdjunctState.Fusing &&
@@ -1947,11 +1972,11 @@ namespace zero.cocoon.autopeer
             }
 
             int sent;
-            var dst = Proxy ? RemoteAddress : IoNodeAddress.CreateFromEndpoint("udp", src);
+            var dst = IsProxy ? RemoteAddress : IoNodeAddress.CreateFromEndpoint("udp", src);
             if ((sent = await SendMessageAsync(sweptResponse.ToByteArray(), CcDiscoveries.MessageTypes.Swept, dst).FastPath().ConfigureAwait(Zc)) > 0)
             {
                 if(count > 0)
-                    _logger.Debug($"-/> {nameof(CcSweepResponse)}({sent}): Sent {count} discoveries to {(Proxy?Description:src)}");
+                    _logger.Debug($"-/> {nameof(CcSweepResponse)}({sent}): Sent {count} discoveries to {(IsProxy?Description:src)}");
 
                 //Emit message event
                 if (AutoPeeringEventService.Operational)
@@ -2027,7 +2052,7 @@ namespace zero.cocoon.autopeer
                 return;
 
             //Drop if we are saturated
-            if(!Proxy && !CcCollective.ZeroDrone && Hub.Neighbors.Count > CcCollective.MaxAdjuncts && _random.Next(1000000) > 1000000/4)
+            if(!IsProxy && !CcCollective.ZeroDrone && Hub.Neighbors.Count > CcCollective.MaxAdjuncts && _random.Next(1000000) > 1000000/4)
                 return;
 
             var response = new CcProbeResponse
@@ -2055,7 +2080,7 @@ namespace zero.cocoon.autopeer
 
             //PROCESS DMZ-SYN
             var sent = 0;
-            if (!Proxy)
+            if (!IsProxy)
             {
                 var toAddress = IoNodeAddress.CreateFromEndpoint("udp", remoteEp);
 
@@ -2259,23 +2284,23 @@ namespace zero.cocoon.autopeer
             var matchRequest = await _probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
             
             //Try the router
-            if (!matchRequest && Proxy)
+            if (!matchRequest && IsProxy)
                 matchRequest = await Hub.Router._probeRequest.ResponseAsync(src.ToString(), response.ReqHash).FastPath().ConfigureAwait(Zc);
 
             if (!matchRequest)
             {
 #if DEBUG
-                if (Collected && Proxy)
+                if (Collected && IsProxy)
                 {
                     _logger.Error($"<\\- {nameof(CcProbeResponse)} {packet.Data.Memory.PayloadSig()}: SEC! age = {response.Timestamp.ElapsedMs()}ms, {response.ReqHash.Memory.HashSig()}, d = {_probeRequest.Count}, pats = {TotalPats},  " +
-                                  $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {Proxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
+                                  $"PK={Designation.IdString()} != {CcDesignation.MakeKey(packet.PublicKey)} (proxy = {IsProxy}),  ssp = {SecondsSincePat}, d = {(AttachTimestamp > 0 ? (AttachTimestamp - LastPat).ToString() : "N/A")}, v = {Verified}, s = {src}, nat = {NatAddress}, dmz = {packet.Header.Ip.Src.GetEndpoint()}");
                 }
 #endif
                 return;
             }
 
             //Process SYN-ACK
-            if (!Proxy)
+            if (!IsProxy)
             {
                 var idCheck = CcDesignation.FromPubKey(packet.PublicKey.Memory);
                 var fromAddress = IoNodeAddress.CreateFromEndpoint("udp", src);
@@ -2368,7 +2393,7 @@ namespace zero.cocoon.autopeer
             
             try
             {
-                if (Proxy && Probed && heading > Heading.Ingress &&
+                if (IsProxy && Probed && heading > Heading.Ingress &&
                     !CcCollective.ZeroDrone && Direction == Heading.Undefined &&
                     CcCollective.EgressCount < CcCollective.parm_max_outbound &&
                     FuseRequestsSentCount < parm_zombie_max_connection_attempts)
@@ -2441,7 +2466,7 @@ namespace zero.cocoon.autopeer
                 var probeMsgBuf = probeMessage.ToByteArray();
 
                 // Is this a routed request?
-                if (Proxy)
+                if (IsProxy)
                 {
                     //send
                     IoQueue<IoZeroMatcher.IoChallenge>.IoZNode challenge;
@@ -2529,10 +2554,6 @@ namespace zero.cocoon.autopeer
             return false;
         }
 
-        private long _lastScan;
-        private static bool _enableSynTrigger = false;
-
-        private long LastScan => Volatile.Read(ref _lastScan);
         /// <summary>
         /// Sweeps adjuncts for more
         /// </summary>
@@ -2967,9 +2988,8 @@ namespace zero.cocoon.autopeer
                     oldValue = cmp;
                     Interlocked.Exchange(ref _direction, 0);
                     _fuseRequestsRecvCount = _fuseRequestsSentCount = _sweepRequestsSentCount = 0;
+                    compare = false;
                 }
-
-                compare = compare && !hung;
             }
 
             if (compare)

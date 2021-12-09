@@ -73,7 +73,7 @@ namespace zero.core.patterns.bushings
         {
             _description = description;
             
-            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size) { Make = mallocMessage, Context = source};
+            JobHeap = new IoHeapIo<IoSink<TJob>>($"{nameof(JobHeap)}: {_description}",parm_max_q_size) {Malloc = mallocMessage};
 
             Source = source ?? throw new ArgumentNullException($"{nameof(source)}");
             
@@ -87,7 +87,7 @@ namespace zero.core.patterns.bushings
         /// <summary>
         /// The source of the work
         /// </summary>
-        public volatile IoSource<TJob> Source;
+        public IoSource<TJob> Source { get; protected set; }
 
         ///// <summary>
         ///// Number of concurrent producers
@@ -236,6 +236,16 @@ namespace zero.core.patterns.bushings
         private readonly Stopwatch _producerStopwatch = new Stopwatch();
 
         /// <summary>
+        /// If we are zeroed or not
+        /// </summary>
+        /// <returns>true if zeroed, false otherwise</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Zeroed()
+        {
+            return base.Zeroed() || Source.Zeroed();
+        }
+
+        /// <summary>
         /// zero unmanaged
         /// </summary>
         public override void ZeroUnmanaged()
@@ -302,10 +312,10 @@ namespace zero.core.patterns.bushings
                 IoSink<TJob> nextJob = null;
                 try
                 {
-                    nextJob = await JobHeap.TakeAsync(constructor: static (load, ioZero) =>
+                    nextJob = await JobHeap.TakeAsync(constructor: static (job, ioZero) =>
                     {
-                        load.IoZero = ioZero;
-                        return new ValueTask<IoSink<TJob>>(load);
+                        job.IoZero = ioZero;
+                        return new ValueTask<IoSink<TJob>>(job);
                     }, this).FastPath().ConfigureAwait(Zc);
 
                     //Allocate a job from the heap
@@ -382,6 +392,10 @@ namespace zero.core.patterns.bushings
                                 //Enqueue the job for the consumer
                                 nextJob.State = IoJobMeta.JobState.Queued;
 
+#if DEBUG
+                                if(_queue.Count >= ZeroConcurrencyLevel())
+                                    _logger.Warn($"[[ENQUEUE]] backlog = {_queue.Count}, {nextJob.Description}, {Description}");
+#endif
                                 if (await _queue.EnqueueAsync(nextJob).FastPath().ConfigureAwait(Zc) == null)
                                     return false;
 
@@ -396,7 +410,7 @@ namespace zero.core.patterns.bushings
                                 nextJob = null;
 
                                 //Signal to the consumer that there is work to do
-                                return await Source.PressureAsync().FastPath().ConfigureAwait(Zc) > 0;
+                                return await Source.PressureAsync().FastPath().ConfigureAwait(Zc) > 0; //TODO, is this a good idea?
                             }
                             else //produce job returned with errors or nothing...
                             {
@@ -416,7 +430,7 @@ namespace zero.core.patterns.bushings
                                 nextJob = null;
 
                                 //Are we in teardown?
-                                if (Zeroed() || Source.Zeroed())
+                                if (Zeroed())
                                     return false;
 
                                 //Is the producer spinning? Slow it down
@@ -450,7 +464,7 @@ namespace zero.core.patterns.bushings
                     //prevent leaks
                     if (nextJob != null)
                     {
-                        if (!Zeroed() && !nextJob.Zeroed() && !Source.Zeroed())
+                        if (!Zeroed() && !nextJob.Zeroed())
                             _logger.Fatal($"{GetType().Name} ({nextJob.GetType().Name}): [FATAL] Job resources were not freed..., state = {nextJob.State}");
 
                         //TODO Double check this hack
@@ -464,8 +478,8 @@ namespace zero.core.patterns.bushings
                     }
                 }
             }
-            catch (Exception) when (Zeroed() || Source.Zeroed()) {}
-            catch (Exception e) when (!Zeroed() && !Source.Zeroed())
+            catch (Exception) when (Zeroed()) {}
+            catch (Exception e) when (!Zeroed())
             {
                 _logger?.Fatal(e, $"{GetType().Name}: {Description ?? "N/A"}: ");
             }
@@ -560,7 +574,7 @@ namespace zero.core.patterns.bushings
         public async ValueTask<bool> ConsumeAsync<T>(Func<IoSink<TJob>, T, ValueTask> inlineCallback = null, T nanite = default)
         {
             //fail fast
-            if (Zeroed() || Source.Zeroed())
+            if (Zeroed())
                 return false;
 
             IoSink<TJob> curJob;
@@ -570,7 +584,7 @@ namespace zero.core.patterns.bushings
                 if (!await Source.WaitForPressureAsync().FastPath().ConfigureAwait(Zc))
                 {
                     //Was shutdown requested?
-                    if (Zeroed() || Source.Zeroed())
+                    if (Zeroed())
                         return false;
 
                     //wait...
@@ -581,11 +595,15 @@ namespace zero.core.patterns.bushings
                     //Try again
                     return false;
                 }
-
                 //A job was produced. Dequeue it and process
                 curJob = await _queue.DequeueAsync().FastPath().ConfigureAwait(Zc);
+
                 if (curJob != null)
                 {
+#if DEBUG
+                    if (_queue.Count > ZeroConcurrencyLevel())
+                        _logger.Warn($"[[DEQUEUE]] backlog = {_queue.Count}, {curJob.Description}, {Description}");
+#endif
                     try
                     {
                         curJob.State = IoJobMeta.JobState.Consuming;
@@ -597,7 +615,6 @@ namespace zero.core.patterns.bushings
                         if (await curJob.ConsumeAsync().FastPath().ConfigureAwait(Zc) == IoJobMeta.JobState.Consumed ||
                             curJob.State is IoJobMeta.JobState.ConInlined or IoJobMeta.JobState.FastDup)
                         {
-
                             //if (inlineCallback != null)
                             if (curJob.State == IoJobMeta.JobState.ConInlined && inlineCallback != null)
                             {
@@ -612,8 +629,9 @@ namespace zero.core.patterns.bushings
                             if (SyncRecoveryModeEnabled)
                                 curJob.JobSync();
                         }
-                        else if (!Zeroed() && !curJob.Zeroed() && !Source.Zeroed())
+                        else if (!Zeroed() && !curJob.Zeroed())
                         {
+                            
                             _logger.Error(
                                 $"{Description}: {curJob.TraceDescription} consuming job: {curJob.Description} was unsuccessful, state = {curJob.State}");
                             curJob.State = IoJobMeta.JobState.Error;

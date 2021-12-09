@@ -14,7 +14,7 @@ namespace zero.test.core.patterns.heap
         {
             var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, context:this)
             {
-                Make = (o, test) => new HeapItem(_localVar, (int)o)
+                Malloc = (o, test) => new HeapItem(_localVar, (int)o)
             };
 
             var spamTasks = new List<Task>();
@@ -44,7 +44,7 @@ namespace zero.test.core.patterns.heap
         {
             var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", _capacity, true, this)
             {
-                Make = (o, test) => new HeapItem(_localVar, (int)o)
+                Malloc = (o, test) => new HeapItem(_localVar, (int)o)
             };
 
             var item = h.Take(3);
@@ -66,7 +66,7 @@ namespace zero.test.core.patterns.heap
             var capacity = 10;
             var h = new IoHeapIo<HeapItem, IoHeapIoTest>("test heap", capacity, true, this)
             {
-                Make = (o, test) => new HeapItem(_localVar, (int)o)
+                Malloc = (o, test) => new HeapItem(_localVar, (int)o)
             };
             await Task.Yield();
             var i1 = h.Take(0);

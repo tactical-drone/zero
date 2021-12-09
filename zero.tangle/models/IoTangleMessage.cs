@@ -300,7 +300,7 @@ namespace zero.tangle.models
             //forward transactions
             if (!await NodeServicesArbiter.ProduceAsync( enablePrefetchOption: false))
             {
-                _logger.Warn($"{TraceDescription} Failed to forward to `{NodeServicesArbiter.Source.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{NodeServicesArbiter.UpstreamSource.Description}'");
             }
         }
 
@@ -312,7 +312,7 @@ namespace zero.tangle.models
             //forward transactions
             if (!await NeighborServicesArbiter.ProduceAsync())
             {
-                _logger.Warn($"{TraceDescription} Failed to forward to `{NeighborServicesArbiter.Source.Description}'");
+                _logger.Warn($"{TraceDescription} Failed to forward to `{NeighborServicesArbiter.UpstreamSource.Description}'");
             }
         }
 

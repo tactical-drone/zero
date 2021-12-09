@@ -261,26 +261,26 @@ namespace zero.core.patterns.bushings
         }
 
         /// <summary>
-        /// Producers can forward new productions types <see cref="TfJob"/> via a channels of type <see cref="IoConduit{TJob}"/> to other producers.
+        /// Producers can forward new productions types <see cref="TFJob"/> via a channels of type <see cref="IoConduit{TJob}"/> to other producers.
         /// This function helps set up a conduit using the supplied source. Channels are cached when created. Channels are associated with producers.
         /// </summary>
-        /// <typeparam name="TfJob">The type of job serviced</typeparam>
+        /// <typeparam name="TFJob">The type of job serviced</typeparam>
         /// <param name="id">The conduit id</param>
         /// <param name="concurrencyLevel"></param>
         /// <param name="channelSource">The source of this conduit, if new</param>
         /// <param name="jobMalloc">Used to allocate jobs</param>
         /// <returns></returns>
-        public ValueTask<IoConduit<TfJob>> CreateConduitOnceAsync<TfJob>(string id,
+        public ValueTask<IoConduit<TFJob>> CreateConduitOnceAsync<TFJob>(string id,
             int concurrencyLevel = 1, 
-            IoSource<TfJob> channelSource = null,
-            Func<object, IIoNanite, IoSink<TfJob>> jobMalloc = null) where TfJob : IIoJob
+            IoSource<TFJob> channelSource = null,
+            Func<object, IIoNanite, IoSink<TFJob>> jobMalloc = null) where TFJob : IIoJob
         {
             if (channelSource != null && !IoConduits.ContainsKey(id))
             {
                 if (!ZeroAtomic(static (_, @params, _) =>
                 {
                     var (@this, id, channelSource, jobMalloc, concurrencyLevel) = @params;
-                    var newConduit = new IoConduit<TfJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
+                    var newConduit = new IoConduit<TFJob>($"`conduit({id}>{ channelSource.UpstreamSource.Description} ~> { channelSource.Description}", channelSource, jobMalloc, concurrencyLevel);
 
                     if (!@this.IoConduits.TryAdd(id, newConduit))
                     {
@@ -296,7 +296,7 @@ namespace zero.core.patterns.bushings
                     {
                         try
                         {
-                            return new ValueTask<IoConduit<TfJob>>((IoConduit<TfJob>)IoConduits[id]);
+                            return new ValueTask<IoConduit<TFJob>>((IoConduit<TFJob>)IoConduits[id]);
                         }
                         catch when(Zeroed()){}
                         catch (Exception e)when(!Zeroed())
@@ -305,20 +305,20 @@ namespace zero.core.patterns.bushings
                         }
                     }
 
-                    return new ValueTask<IoConduit<TfJob>>();
+                    return new ValueTask<IoConduit<TFJob>>();
                 }
             }
 
             try
             {
-                return new ValueTask<IoConduit<TfJob>>((IoConduit<TfJob>)IoConduits[id]);
+                return new ValueTask<IoConduit<TFJob>>((IoConduit<TFJob>)IoConduits[id]);
             }
             catch when(channelSource == null || Zeroed()){}
             catch (Exception e)when (channelSource !=null && !Zeroed())
             {
                 _logger.Fatal(e, $"Conduit {id} after race, not found");
             }
-            return new ValueTask<IoConduit<TfJob>>((IoConduit<TfJob>)null);
+            return new ValueTask<IoConduit<TFJob>>((IoConduit<TFJob>)null);
         }
 
         
@@ -328,27 +328,24 @@ namespace zero.core.patterns.bushings
         /// <typeparam name="TFJob">The type that the conduit speaks</typeparam>
         /// <param name="id">The id of the conduit</param>
         /// <returns>The conduit</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IoConduit<TFJob> GetConduit<TFJob>(string id)
             where TFJob : IoSink<TFJob>, IIoJob
         {
-            try
-            {
-                return (IoConduit<TFJob>)IoConduits[id];
-            }
-            catch { }
-
+            if (IoConduits.TryGetValue(id, out var ioConduit))
+                return (IoConduit<TFJob>)ioConduit;
             return null;
         }
 
         /// <summary>
         /// Sets a conduit
         /// </summary>
-        /// <typeparam name="TfJob"></typeparam>
+        /// <typeparam name="TFJob"></typeparam>
         /// <param name="id">The conduit Id</param>
         /// <param name="conduit">The conduit</param>
         /// <returns>True if successful</returns>
-        public bool SetConduit<TfJob>(string id, IoConduit<TfJob> conduit)
-            where TfJob : IoSink<TfJob>, IIoJob
+        public bool SetConduit<TFJob>(string id, IoConduit<TFJob> conduit)
+            where TFJob : IoSink<TFJob>, IIoJob
         {
             return IoConduits.TryAdd(id, conduit);
         }

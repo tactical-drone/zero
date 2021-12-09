@@ -78,10 +78,10 @@ namespace zero.sync
 
             var random = new Random((int)DateTime.Now.Ticks);
             //Tangle("tcp://192.168.1.2:15600");
-            var total = 350;
+            var total = 2;
             var maxDrones = 9;
             var maxAdjuncts = 18;
-            var boot = true;
+            var boot = false;
 
             ConcurrentBag<Task<CcCollective>> tasks  = new ConcurrentBag<Task<CcCollective>>();
             if (boot)
@@ -317,7 +317,7 @@ namespace zero.sync
                             
                                 ooutBound += e;
                                 oinBound += i;
-                                oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).Proxy);
+                                oavailable += ioCcNode.Hub.Neighbors.Values.Count(static n => ((CcAdjunct)n).IsProxy);
                             
                                 uptime += ioCcNode.Hub.Neighbors.Values.Select(static n =>
                                 {
@@ -1229,7 +1229,7 @@ namespace zero.sync
                 IoNodeAddress.Create(fpcAddress),
                 IoNodeAddress.Create(extAddress),
                 bootStrapAddress.Select(IoNodeAddress.Create).Where(a => a.Port.ToString() != peerAddress.Split(":")[2]).ToList(),
-                3, 4, 1, 1, zeroDrone);
+                2, 2, 1, 1, zeroDrone);
 
             _nodes.Add(cocoon);
 

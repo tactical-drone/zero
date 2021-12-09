@@ -25,5 +25,10 @@ namespace zero.core.patterns.bushings
         {
             
         }
+
+        /// <summary>
+        /// Upstream source
+        /// </summary>
+        public IIoSource UpstreamSource => IoSource;
     }
 }

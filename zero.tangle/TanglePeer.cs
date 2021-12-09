@@ -136,7 +136,7 @@ namespace zero.tangle
                     }
                 });
 
-                if (!transactionArbiter.Source.IsOperational)
+                if (!transactionArbiter.UpstreamSource.IsOperational)
                     break;
             }
 

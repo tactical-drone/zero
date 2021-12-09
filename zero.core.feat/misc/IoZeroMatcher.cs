@@ -27,13 +27,13 @@ namespace zero.core.feat.misc
 
             _valHeap = new IoHeap<IoChallenge>($"{nameof(_valHeap)}: {description}", Math.Max(concurrencyLevel * 2, _capacity), autoScale: autoscale)
             {
-                Make = static (_,_) => new IoChallenge()
+                Malloc = static (_,_) => new IoChallenge()
             };
 
             _carHeap = new IoHeap<ChallengeAsyncResponse>($"{nameof(_valHeap)}: {description}", _capacity, autoScale: autoscale)
             {
-                Make = static (_, _) => new ChallengeAsyncResponse(),
-                Prep = (response, _) =>
+                Malloc = static (_, _) => new ChallengeAsyncResponse(),
+                Constructor = (response, _) =>
                 {
                     response.Node = null;
                 }
